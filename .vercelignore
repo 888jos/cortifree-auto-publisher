@@ -1,0 +1,7 @@
+.next
+.next-stale-dataless
+.git-dataless
+.gitignore-dataless
+node_modules
+work
+*.log

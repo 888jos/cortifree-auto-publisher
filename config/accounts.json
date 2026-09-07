@@ -1,0 +1,3 @@
+[
+  {"id":"CF_EN_01","name":"CortiFree Ava Test","persona_id":"P06","language":"en","market":"US","timezone":"America/New_York","platforms":["tiktok","instagram"],"upload_post_profile":"","daily_target":1,"posting_slots":["11:30","19:00"],"enabled":true,"warmup_status":"WARMING"}
+]

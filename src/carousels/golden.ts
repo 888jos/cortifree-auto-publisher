@@ -1,0 +1,5 @@
+import { type CarouselSpec } from '../domain.js';
+export function goldenCarousel(accountId: string, personaId: string, id = 'CF_TEST_001'): CarouselSpec {
+  const headlines = ['my realistic morning reset', 'start with water + sunlight', 'make the first 10 minutes quiet', 'put one thing back in its place', 'eat something that actually sounds good', 'leave room for a slower moment', 'save this for your next busy morning'];
+  return { id, account_id: accountId, persona_id: personaId, language: 'en', content_type: 'C01_MORNING_ROUTINE', topic: 'morning routine', angle: 'calmer mornings without perfection', caption: 'a few small things that make my mornings feel more grounded ☁️ save this for later', cta_type: 'soft', status: 'GENERATED', slides: headlines.map((headline, index) => ({ position: index + 1, template_id: index === 0 ? 'T01_FULLSCREEN_HOOK' : index === 6 ? 'T07_CTA' : 'T04_ROUTINE', headline, subheadline: index === 0 ? 'a gentle reset for busy days' : null, body: null, asset_requirement: { type: 'persona', category: 'home', query: 'natural morning lifestyle photo' } })) };
+}

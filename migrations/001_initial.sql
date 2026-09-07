@@ -1,0 +1,33 @@
+create extension if not exists pgcrypto;
+
+create table if not exists personas (
+  id text primary key, name text not null, folder text not null unique, config jsonb not null,
+  master_asset_id uuid, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists accounts (
+  id text primary key, name text not null, persona_id text not null references personas(id), language text not null check (language in ('en','fr')),
+  market text not null, timezone text not null, platforms jsonb not null, upload_post_profile text, daily_target integer not null default 1 check (daily_target between 0 and 2), posting_slots jsonb not null default '[]', enabled boolean not null default true,
+  warmup_status text not null default 'CREATED' check (warmup_status in ('CREATED','WARMING','ACTIVE','PAUSED','ERROR')), created_at timestamptz not null default now()
+);
+create table if not exists assets (
+  id uuid primary key default gen_random_uuid(), path text not null unique, filename text not null, relative_path text not null, category text not null,
+  persona_id text references personas(id), source_type text not null check (source_type in ('stock','persona_generated','persona_master','persona_reference','visual_reference')),
+  width integer not null, height integer not null, hash text not null, created_at timestamptz not null default now(), indexed_at timestamptz not null default now(), last_used_at timestamptz, use_count integer not null default 0, enabled boolean not null default true
+);
+create unique index if not exists assets_hash_path_idx on assets(hash, path);
+create table if not exists content_formats (id text primary key, description text not null, required_inputs jsonb not null, optional_inputs jsonb not null, recommended_slide_count integer not null, recommended_templates jsonb not null, recommended_asset_mix jsonb not null, cta_behavior text not null);
+create table if not exists carousel_ideas (id uuid primary key default gen_random_uuid(), account_id text references accounts(id), content_type text not null, topic text not null, angle text not null, input jsonb not null, status text not null default 'PLANNED', created_at timestamptz not null default now());
+create table if not exists carousels (id text primary key, account_id text not null references accounts(id), persona_id text not null references personas(id), language text not null, content_type text not null, topic text not null, angle text not null, caption text not null, cta_type text not null, status text not null, spec jsonb not null, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists carousel_slides (id uuid primary key default gen_random_uuid(), carousel_id text not null references carousels(id) on delete cascade, position integer not null, template_id text not null, headline text not null, subheadline text, body text, asset_requirement jsonb not null, asset_id uuid references assets(id), unique(carousel_id, position));
+create table if not exists image_generation_jobs (id uuid primary key default gen_random_uuid(), carousel_id text references carousels(id), slide_id uuid references carousel_slides(id), persona_id text references personas(id), master_asset_id uuid references assets(id), visual_reference_id uuid references assets(id), prompt text not null, provider text not null, model text, attempts integer not null default 0, last_error text, output_asset_id uuid references assets(id), cost_estimate numeric, status text not null default 'PENDING' check (status in ('PENDING','RUNNING','DONE','FAILED','RETRY','CANCELLED')), created_at timestamptz not null default now(), finished_at timestamptz);
+create table if not exists render_jobs (id uuid primary key default gen_random_uuid(), carousel_id text not null references carousels(id), attempts integer not null default 0, status text not null default 'PENDING', last_error text, output_path text, created_at timestamptz not null default now(), finished_at timestamptz);
+create table if not exists publish_jobs (id uuid primary key default gen_random_uuid(), carousel_id text not null references carousels(id), account_id text not null references accounts(id), platform text not null, scheduled_at timestamptz, provider_request_id text, provider_job_id text, external_id text, idempotency_key text not null unique, attempts integer not null default 0, status text not null default 'QUEUED' check (status in ('QUEUED','SCHEDULING','SCHEDULED','PUBLISHING','PUBLISHED','FAILED','UNKNOWN')), post_url text, last_error text, created_at timestamptz not null default now());
+create table if not exists platform_posts (id uuid primary key default gen_random_uuid(), publish_job_id uuid not null references publish_jobs(id), carousel_id text not null references carousels(id), account_id text not null references accounts(id), platform text not null, external_id text, post_url text, published_at timestamptz, unique(account_id, platform, carousel_id));
+create table if not exists analytics_snapshots (id uuid primary key default gen_random_uuid(), platform_post_id uuid not null references platform_posts(id), horizon text not null check (horizon in ('24h','72h','7d')), captured_at timestamptz not null default now(), metrics jsonb not null);
+create table if not exists template_performance (account_id text not null references accounts(id), template_id text not null, sample_size integer not null default 0, score numeric, updated_at timestamptz not null default now(), primary key(account_id, template_id));
+create table if not exists topic_performance (account_id text not null references accounts(id), topic text not null, sample_size integer not null default 0, score numeric, updated_at timestamptz not null default now(), primary key(account_id, topic));
+create table if not exists persona_performance (account_id text not null references accounts(id), persona_id text not null references personas(id), sample_size integer not null default 0, score numeric, updated_at timestamptz not null default now(), primary key(account_id, persona_id));
+create table if not exists system_logs (id uuid primary key default gen_random_uuid(), timestamp timestamptz not null default now(), stage text not null, job_id text, carousel_id text, account_id text, persona_id text, status text, duration_ms integer, error text, metadata jsonb);
+
+create index if not exists publish_jobs_due_idx on publish_jobs(status, scheduled_at);
+create index if not exists analytics_post_horizon_idx on analytics_snapshots(platform_post_id, horizon);
