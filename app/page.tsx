@@ -336,6 +336,8 @@ type DraftPreview = {
   generatedAt: string;
   warning: string | null;
   saved: boolean;
+  approvalStatus?: "APPROVED" | "READY_FOR_REVIEW";
+  publishReady?: boolean;
   slides: { position: number; role: string; headline: string; body: string; asset: string; visualIntent: string; renderUrl?: string }[];
 };
 
@@ -343,6 +345,13 @@ type AIStatus = {
   configured: boolean; enabled: boolean; primaryModel: string; qaModel: string; qaEnabled: boolean; qaSampleRate: number; monthlyCapUsd: number;
 };
 type AIUsage = { costUsd: number; calls: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; monthlyCapUsd: number };
+
+function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string) {
+  const image = event.currentTarget;
+  if (image.dataset.fallback === "true") return;
+  image.dataset.fallback = "true";
+  image.src = `/api/assets/fallback?seed=${encodeURIComponent(seed)}`;
+}
 
 function LayoutMockup({
   layout,
@@ -616,7 +625,15 @@ export default function Home() {
             }),
           };
           setDraftPreview(preview);
-          setNotice(`${preview.id} créé, images Drive sélectionnées et ${preview.slides.length} PNG sauvegardés.`);
+          const approvalResponse = await fetch(`/api/carousels/${encodeURIComponent(preview.id)}/approve`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform: "tiktok" }),
+          });
+          const approval = await approvalResponse.json().catch(() => ({}));
+          preview = { ...preview, approvalStatus: approval.status, publishReady: approval.publishReady };
+          setDraftPreview(preview);
+          setNotice(approval.contentApproved
+            ? `${preview.id} validé : texte OpenAI, ${preview.slides.length} PNG et contrôle pré-publication OK${approval.publishReady ? "." : "; il ne manque que le profil média."}`
+            : `${preview.id} rendu, mais le contrôle éditorial demande une correction.`);
         } else {
           preview = { ...preview, warning: [preview.warning, `Rendu non terminé : ${renderData.error ?? `API ${renderResponse.status}`}`].filter(Boolean).join(" · ") };
           setDraftPreview(preview);
@@ -766,7 +783,7 @@ export default function Home() {
                       <div className="blueprintHero">
                         <button aria-label="Slide précédente" onClick={() => moveReference(currentBlueprint.id, -1)} type="button">‹</button>
                         <div className="phoneFrame large">
-                          <img alt={`${currentBlueprint.title} slide ${index + 1}`} src={activeSlide.image} />
+                          <img alt={`${currentBlueprint.title} slide ${index + 1}`} onError={(event) => useReferenceFallback(event, `${currentBlueprint.id}-${index + 1}`)} referrerPolicy="no-referrer" src={activeSlide.image} />
                         </div>
                         <button aria-label="Slide suivante" onClick={() => moveReference(currentBlueprint.id, 1)} type="button">›</button>
                         <div className="blueprintMeta">
@@ -791,7 +808,7 @@ export default function Home() {
                             onClick={() => setReferenceIndexes((current) => ({ ...current, [currentBlueprint.id]: slide.position - 1 }))}
                             type="button"
                           >
-                            <img alt={`${currentBlueprint.title} slide ${slide.position}`} loading="lazy" src={slide.image} />
+                            <img alt={`${currentBlueprint.title} slide ${slide.position}`} loading="lazy" onError={(event) => useReferenceFallback(event, `${currentBlueprint.id}-${slide.position}`)} referrerPolicy="no-referrer" src={slide.image} />
                             <span>{String(slide.position).padStart(2, "0")} · {slide.role}</span>
                           </button>
                         ))}
@@ -1034,6 +1051,12 @@ export default function Home() {
               <b>{draftPreview.source === "openai" ? "Generated with AI" : "Deterministic fallback"}</b>
               <span>{draftPreview.model ?? "Local generator"} · {new Date(draftPreview.generatedAt).toLocaleString("fr-FR")}</span>
             </div>
+            {draftPreview.approvalStatus && (
+              <div className={`generationBadge ${draftPreview.approvalStatus === "APPROVED" ? "openai" : "fallback"}`}>
+                <b>{draftPreview.approvalStatus === "APPROVED" ? "Contenu validé pour publication" : "Révision nécessaire"}</b>
+                <span>{draftPreview.publishReady ? "Upload-Post prêt" : "Profil média Upload-Post à connecter"}</span>
+              </div>
+            )}
             {draftPreview.warning && <p className="aiWarning">{draftPreview.warning}</p>}
 
             <div className="draftSummary">

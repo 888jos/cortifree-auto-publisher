@@ -1,7 +1,7 @@
 import type { CarouselGeneratorInput } from "./types";
 import { getAIConfig } from "./config";
 import { createFallbackCarousel } from "./fallback";
-import { requestStructured } from "./openai-client";
+import { requestStructured, type StructuredResult } from "./openai-client";
 import { buildGeneratorInput, CAROUSEL_GENERATOR_INSTRUCTIONS, CAROUSEL_GENERATOR_PROMPT_VERSION } from "./prompts";
 import { carouselSpecSchema, type CarouselReview, type CarouselSpec } from "./schemas";
 import { reviewCarouselDraft, shouldRunQA } from "./carousel-reviewer";
@@ -17,10 +17,19 @@ export type GenerateCarouselResult = {
   qa: CarouselReview | null;
 };
 
+type CarouselStructuredRequest = (options: {
+  model: string;
+  schema: typeof carouselSpecSchema;
+  schemaName: string;
+  instructions: string;
+  input: string;
+  maxOutputTokens?: number;
+}) => Promise<StructuredResult<CarouselSpec>>;
+
 export async function generateCarousel(
   input: CarouselGeneratorInput & { bypassMonthlyCap?: boolean },
   dependencies: {
-    structuredRequest?: typeof requestStructured;
+    structuredRequest?: CarouselStructuredRequest;
     monthlyUsage?: typeof getMonthlyUsage;
     random?: () => number;
   } = {},
@@ -38,19 +47,37 @@ export async function generateCarousel(
   const monthly = await (dependencies.monthlyUsage ?? getMonthlyUsage)();
   assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, input.bypassMonthlyCap === true);
 
-  const request = dependencies.structuredRequest ?? requestStructured;
+  const request: CarouselStructuredRequest = dependencies.structuredRequest ?? requestStructured;
   try {
-    const result = await request({
-      model: config.OPENAI_MODEL_PRIMARY,
-      schema: carouselSpecSchema,
-      schemaName: "cortifree_carousel_spec",
-      instructions: CAROUSEL_GENERATOR_INSTRUCTIONS,
-      input: buildGeneratorInput(input),
-      maxOutputTokens: 3_200,
-    });
-    const spec = carouselSpecSchema.parse(result.data);
-    assertValidCarouselSpec(spec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-    await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage: result.usage, success: true });
+    let spec: CarouselSpec | null = null;
+    let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+    let lastValidationError: unknown;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const result = await request({
+          model: config.OPENAI_MODEL_PRIMARY,
+          schema: carouselSpecSchema,
+          schemaName: "cortifree_carousel_spec",
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}${attempt === 2 ? "\n\nCORRECTION PASS: The previous draft failed strict validation. Use neutral lifestyle language only; remove every causal cortisol/hormone claim, percentage, diagnosis, treatment claim, placeholder, and duplicate." : ""}`,
+          input: buildGeneratorInput(input),
+          maxOutputTokens: 3_200,
+        });
+        usage = {
+          inputTokens: usage.inputTokens + result.usage.inputTokens,
+          cachedInputTokens: usage.cachedInputTokens + result.usage.cachedInputTokens,
+          outputTokens: usage.outputTokens + result.usage.outputTokens,
+        };
+        const candidate = carouselSpecSchema.parse(result.data);
+        assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+        spec = candidate;
+        break;
+      } catch (error) {
+        lastValidationError = error;
+        if (attempt === 2) throw error;
+      }
+    }
+    if (!spec) throw lastValidationError ?? new Error("OpenAI returned no usable carousel");
+    await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: true });
 
     let qa: CarouselReview | null = null;
     if (config.OPENAI_QA_ENABLED && shouldRunQA(config.OPENAI_QA_SAMPLE_RATE, dependencies.random)) {

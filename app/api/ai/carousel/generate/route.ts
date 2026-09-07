@@ -11,6 +11,7 @@ const requestSchema = carouselGeneratorInputSchema.extend({
   id: z.string().regex(/^CF_[A-Z0-9_]+$/).optional(),
   accountId: z.string().min(1).optional(),
   personaId: z.string().regex(/^P\d{2}$/).optional(),
+  requireAI: z.boolean().default(true),
 });
 
 export async function POST(request: Request) {
@@ -37,6 +38,9 @@ export async function POST(request: Request) {
       bypassMonthlyCap: body.bypassMonthlyCap,
     };
     const result = await generateCarousel(input, {}, { carouselId: id });
+    if (body.requireAI && result.source !== "openai") {
+      return Response.json({ error: result.warning ?? "OpenAI generation failed", code: "AI_REQUIRED" }, { status: 503 });
+    }
 
     let saved = false;
     let carousel: unknown = { id, topic: result.spec.topic, angle: result.spec.angle, caption: result.spec.caption };
