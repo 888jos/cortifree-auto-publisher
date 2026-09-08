@@ -78,15 +78,13 @@ function textBlock(lines: string[], x: number, y: number, width: number, size: n
   return `<text x="${textX}" y="${y}" fill="${color}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" filter="url(#shadow)">${lines.map((line, index) => `<tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${xml(line)}</tspan>`).join("")}</text>`;
 }
 
-function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
+export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const headlineSize = frame.headlineSize ?? 62;
   const bodySize = frame.bodySize ?? 32;
   const headline = wrap(slide.headline, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
-  const isCard = frame.headlineColor !== "#fffdf8" && frame.headlineColor !== "#ffffff";
-  const card = isCard ? `<rect x="${frame.x - 28}" y="${(frame.headlineY ?? frame.y) - headlineSize - 35}" width="${frame.width + 56}" height="${Math.max(310, body.length * bodySize * 1.35 + 230)}" rx="34" fill="#fffdf8" fill-opacity="0.91"/>` : "";
-  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${card}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.headlineColor ?? "#fffdf8"}" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="3">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffdf8", frame.align ?? "left", Math.round(headlineSize * 1.1))}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#f7f4ed", frame.align ?? "left", Math.round(bodySize * 1.32)) : ""}</svg>`);
+  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs><text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.headlineColor ?? "#fffdf8"}" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="3">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffdf8", frame.align ?? "left", Math.round(headlineSize * 1.1))}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#f7f4ed", frame.align ?? "left", Math.round(bodySize * 1.32)) : ""}</svg>`);
 }
 
 async function renderSlide(slide: GeneratedSlide, match: AssetMatch, geometry: Geometry) {

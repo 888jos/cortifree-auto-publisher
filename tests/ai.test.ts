@@ -8,6 +8,7 @@ import { carouselSpecSchema } from "../app/lib/ai/schemas.js";
 import { shouldRunQA } from "../app/lib/ai/carousel-reviewer.js";
 import { assertWithinMonthlyCap, MonthlyCapExceededError } from "../app/lib/ai/usage.js";
 import { validateCarouselSpec } from "../app/lib/ai/validation.js";
+import { makeTextOverlay } from "../app/lib/render-carousel.js";
 import type { CarouselGeneratorInput } from "../app/lib/ai/types.js";
 
 const originalEnv = { ...process.env };
@@ -64,6 +65,22 @@ describe("CortiFree AI schemas and generation", () => {
     unsafe.slides[2]!.body = "This lowers cortisol by 35% in one week.";
     const issues = validateCarouselSpec(unsafe, { slideCount: 7, language: "en", layout: "symptom-map" });
     assert.ok(issues.some((issue) => issue.code === "HEALTH_CLAIM" && issue.severity === "major"));
+  });
+
+  it("accepts the visual layout alias returned for a selected model", () => {
+    const spec = validSpec();
+    spec.slides.forEach((slide) => { slide.layout = "bubbles"; });
+    const issues = validateCarouselSpec(spec, { slideCount: 7, language: "en", layout: "symptom-map" });
+    assert.equal(issues.some((issue) => issue.code === "LAYOUT"), false);
+  });
+
+  it("renders text without a background card", () => {
+    const slide = validSpec().slides[0]!;
+    const svg = makeTextOverlay(slide, {
+      text: { x: 100, y: 400, width: 880, headlineColor: "#24312c", bodyColor: "#5f6d66" },
+    }).toString();
+    assert.doesNotMatch(svg, /<rect\b/);
+    assert.match(svg, />A softer everyday routine</);
   });
 
   it("falls back when unconfigured, on API failure, and on invalid model copy", async () => {

@@ -13,6 +13,25 @@ const unsafeHealthPatterns = [
   /stud(?:y|ies) (?:show|prove)/i,
 ];
 
+const layoutAliases: Record<string, string> = {
+  "cover-hero": "hero",
+  "split-proof": "split",
+  "numbered-stack": "numbered",
+  "checklist-grid": "checklist",
+  "before-after": "compare",
+  "quote-pause": "quote",
+  "routine-cards": "cards",
+  "myth-fact": "myth",
+  "mistake-fix": "fix",
+  "challenge-days": "challenge",
+  "symptom-map": "bubbles",
+  "recipe-flow": "recipe",
+};
+
+function canonicalLayout(layout: string): string {
+  return layoutAliases[layout] ?? layout;
+}
+
 export class DeterministicValidationError extends Error {
   constructor(public readonly issues: ValidationIssue[]) {
     super(issues.map((issue) => issue.message).join("; "));
@@ -27,7 +46,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   const seen = new Set<string>();
   spec.slides.forEach((slide, index) => {
     if (slide.position !== index + 1) issues.push({ code: "POSITION", message: "Slide positions must be consecutive", slidePosition: slide.position, severity: "major" });
-    if (slide.layout !== expected.layout) issues.push({ code: "LAYOUT", message: `Slide must use ${expected.layout}`, slidePosition: slide.position, severity: "minor" });
+    if (canonicalLayout(slide.layout) !== canonicalLayout(expected.layout)) {
+      issues.push({ code: "LAYOUT", message: `Slide must use ${expected.layout}`, slidePosition: slide.position, severity: "minor" });
+    }
     if (slide.headline.length > 72) issues.push({ code: "HEADLINE_LENGTH", message: "Headline is too long for mobile", slidePosition: slide.position, severity: "minor" });
     if (slide.body.length > 220) issues.push({ code: "BODY_LENGTH", message: "Body is too long for mobile", slidePosition: slide.position, severity: "minor" });
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
