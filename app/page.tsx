@@ -346,11 +346,34 @@ type AIStatus = {
 };
 type AIUsage = { costUsd: number; calls: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; monthlyCapUsd: number };
 
-function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string) {
+function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string, category = "self care") {
   const image = event.currentTarget;
   if (image.dataset.fallback === "true") return;
   image.dataset.fallback = "true";
-  image.src = `/api/assets/fallback?seed=${encodeURIComponent(seed)}`;
+  image.src = `/api/assets/fallback?seed=${encodeURIComponent(seed)}&category=${encodeURIComponent(category)}`;
+}
+
+const fallbackCategoryByType: Record<CarouselTypeId, string> = {
+  C01_MORNING_ROUTINE: "morning", C02_CHECKLIST: "self care", C03_THINGS_I_STOPPED: "self care",
+  C04_THINGS_I_STARTED: "self care", C05_GLOW_UP: "self care", C06_POV_RELATABLE: "self care",
+  C07_MISTAKES: "self care", C08_MY_REALISTIC: "morning", C09_LIST: "food",
+  C10_BEFORE_AFTER: "fitness", C11_HORMONE_EDUCATION: "self care", C12_NIGHT_ROUTINE: "self care",
+};
+
+function referenceCopy(title: string, role: string, position: number) {
+  if (role === "HOOK") return { kicker: "A SOFTER RESET", headline: title, body: "realistic habits that fit into everyday life" };
+  if (role === "CTA") return { kicker: "SAVE FOR LATER", headline: "Choose one habit to start with", body: "small changes are easier to keep" };
+  const number = String(position - 1).padStart(2, "0");
+  const content: Record<string, [string, string]> = {
+    CHECKLIST: ["Make the next hour feel lighter", "Pick one simple action, not a perfect routine."],
+    STEP: ["Build a calmer rhythm", "Keep this step realistic enough to repeat tomorrow."],
+    FACT: ["Look at the whole routine", "Energy, sleep and stress can have more than one influence."],
+    TAKEAWAY: ["Start with what feels manageable", "Consistency matters more than doing everything at once."],
+    CONTEXT: ["Notice the pattern without judging it", "Use this as a prompt for reflection, not a diagnosis."],
+    TIP: ["Try one low-effort shift", "Create a little more space in your day."],
+  };
+  const [headline, body] = content[role] ?? content.TIP!;
+  return { kicker: `${number} · ${role}`, headline, body };
 }
 
 function LayoutMockup({
@@ -369,7 +392,7 @@ function LayoutMockup({
         className="mockImage"
         loading="lazy"
         onError={(event) => {
-          event.currentTarget.style.display = "none";
+          useReferenceFallback(event, reference.alt);
         }}
         src={reference.src}
       />
@@ -778,12 +801,19 @@ export default function Home() {
                 {currentBlueprint && (() => {
                   const index = referenceIndexes[currentBlueprint.id] ?? 0;
                   const activeSlide = currentBlueprint.slides[index] ?? currentBlueprint.slides[0];
+                  const activeCopy = referenceCopy(currentBlueprint.title, activeSlide.role, activeSlide.position);
+                  const fallbackCategory = fallbackCategoryByType[currentType.id];
                   return (
                     <article className="blueprintViewer">
                       <div className="blueprintHero">
                         <button aria-label="Slide précédente" onClick={() => moveReference(currentBlueprint.id, -1)} type="button">‹</button>
-                        <div className="phoneFrame large">
-                          <img alt={`${currentBlueprint.title} slide ${index + 1}`} onError={(event) => useReferenceFallback(event, `${currentBlueprint.id}-${index + 1}`)} referrerPolicy="no-referrer" src={activeSlide.image} />
+                        <div className={`phoneFrame large referenceVisual placement-${activeSlide.textPlacement}`}>
+                          <img alt={`${currentBlueprint.title} slide ${index + 1}`} onError={(event) => useReferenceFallback(event, `${currentBlueprint.id}-${index + 1}`, fallbackCategory)} referrerPolicy="no-referrer" src={activeSlide.image} />
+                          <div className="referenceOverlay">
+                            <small>{activeCopy.kicker}</small>
+                            <strong>{activeCopy.headline}</strong>
+                            <p>{activeCopy.body}</p>
+                          </div>
                         </div>
                         <button aria-label="Slide suivante" onClick={() => moveReference(currentBlueprint.id, 1)} type="button">›</button>
                         <div className="blueprintMeta">
@@ -801,17 +831,22 @@ export default function Home() {
                       </div>
 
                       <div className="fullSequence" aria-label={`Toutes les slides de ${currentBlueprint.title}`}>
-                        {currentBlueprint.slides.map((slide) => (
+                        {currentBlueprint.slides.map((slide) => {
+                          const copy = referenceCopy(currentBlueprint.title, slide.role, slide.position);
+                          return (
                           <button
                             className={slide.position === index + 1 ? "active" : ""}
                             key={slide.position}
                             onClick={() => setReferenceIndexes((current) => ({ ...current, [currentBlueprint.id]: slide.position - 1 }))}
                             type="button"
                           >
-                            <img alt={`${currentBlueprint.title} slide ${slide.position}`} loading="lazy" onError={(event) => useReferenceFallback(event, `${currentBlueprint.id}-${slide.position}`)} referrerPolicy="no-referrer" src={slide.image} />
+                            <div className={`sequenceVisual placement-${slide.textPlacement}`}>
+                              <img alt={`${currentBlueprint.title} slide ${slide.position}`} loading="lazy" onError={(event) => useReferenceFallback(event, `${currentBlueprint.id}-${slide.position}`, fallbackCategory)} referrerPolicy="no-referrer" src={slide.image} />
+                              <div className="referenceOverlay compact"><small>{copy.kicker}</small><strong>{copy.headline}</strong></div>
+                            </div>
                             <span>{String(slide.position).padStart(2, "0")} · {slide.role}</span>
                           </button>
-                        ))}
+                        );})}
                       </div>
                     </article>
                   );
