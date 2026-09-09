@@ -9,6 +9,7 @@ import { shouldRunQA } from "../app/lib/ai/carousel-reviewer.js";
 import { assertWithinMonthlyCap, MonthlyCapExceededError } from "../app/lib/ai/usage.js";
 import { validateCarouselSpec } from "../app/lib/ai/validation.js";
 import { makeTextOverlay } from "../app/lib/render-carousel.js";
+import { connectedPlatforms, normalizeUploadPostResults, parseUploadPostProfiles, pickUploadPostProfile } from "../app/lib/upload-post.js";
 import type { CarouselGeneratorInput } from "../app/lib/ai/types.js";
 
 const originalEnv = { ...process.env };
@@ -81,6 +82,23 @@ describe("CortiFree AI schemas and generation", () => {
     }).toString();
     assert.doesNotMatch(svg, /<rect\b/);
     assert.match(svg, />A softer everyday routine</);
+  });
+
+  it("reads Upload-Post profiles and selects a connected account", () => {
+    const profiles = parseUploadPostProfiles({ profiles: [
+      { username: "empty", social_accounts: { tiktok: "" } },
+      { username: "cortifree", social_accounts: { tiktok: { display_name: "CortiFree" }, instagram: null } },
+    ] });
+    assert.deepEqual(connectedPlatforms(profiles[1]!), ["tiktok"]);
+    assert.equal(pickUploadPostProfile(profiles, "tiktok"), "cortifree");
+    assert.equal(pickUploadPostProfile(profiles, "instagram"), undefined);
+  });
+
+  it("normalizes Upload-Post results returned as arrays or platform maps", () => {
+    assert.deepEqual(normalizeUploadPostResults({ results: [{ platform: "tiktok", success: true }] }), [{ platform: "tiktok", success: true }]);
+    assert.deepEqual(normalizeUploadPostResults({ results: { tiktok: { success: true, url: "https://example.com/post" } } }), [
+      { platform: "tiktok", success: true, url: "https://example.com/post" },
+    ]);
   });
 
   it("falls back when unconfigured, on API failure, and on invalid model copy", async () => {

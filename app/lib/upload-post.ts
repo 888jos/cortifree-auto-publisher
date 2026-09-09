@@ -4,16 +4,72 @@ import sharp from "sharp";
 
 const API_ROOT = "https://api.upload-post.com/api";
 
+export type UploadPostProfile = {
+  username: string;
+  social_accounts?: Record<string, unknown>;
+};
+
+export type UploadPostResult = Record<string, unknown> & { platform?: string };
+
 function apiKey() {
   const key = process.env.UPLOAD_POST_API_KEY;
   if (!key) throw new Error("UPLOAD_POST_API_KEY is not configured");
   return key;
 }
 
-export async function listUploadPostProfiles() {
+export function parseUploadPostProfiles(payload: unknown): UploadPostProfile[] {
+  const source = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as { profiles?: unknown }).profiles)
+      ? (payload as { profiles: unknown[] }).profiles
+      : payload && typeof payload === "object" && Array.isArray((payload as { users?: unknown }).users)
+        ? (payload as { users: unknown[] }).users
+        : [];
+  return source.flatMap((profile) => {
+    if (!profile || typeof profile !== "object") return [];
+    const username = (profile as { username?: unknown }).username;
+    if (typeof username !== "string" || !username.trim()) return [];
+    const socialAccounts = (profile as { social_accounts?: unknown }).social_accounts;
+    return [{
+      username: username.trim(),
+      social_accounts: socialAccounts && typeof socialAccounts === "object" && !Array.isArray(socialAccounts)
+        ? socialAccounts as Record<string, unknown>
+        : undefined,
+    }];
+  });
+}
+
+export function connectedPlatforms(profile: UploadPostProfile): string[] {
+  return Object.entries(profile.social_accounts ?? {}).filter(([, account]) => {
+    if (typeof account === "string") return account.trim().length > 0;
+    if (account && typeof account === "object") return Object.keys(account).length > 0;
+    return Boolean(account);
+  }).map(([platform]) => platform);
+}
+
+export function pickUploadPostProfile(profiles: UploadPostProfile[], platform: "tiktok" | "instagram", preferred?: string | null) {
+  const connected = profiles.filter((profile) => connectedPlatforms(profile).includes(platform));
+  return connected.find((profile) => profile.username === preferred)?.username ?? connected[0]?.username;
+}
+
+export function normalizeUploadPostResults(payload: unknown): UploadPostResult[] {
+  if (!payload || typeof payload !== "object") return [];
+  const results = (payload as { results?: unknown }).results;
+  if (Array.isArray(results)) return results.filter((result): result is UploadPostResult => Boolean(result) && typeof result === "object");
+  if (!results || typeof results !== "object") return [];
+  return Object.entries(results).flatMap(([platform, result]) => result && typeof result === "object"
+    ? [{ platform, ...(result as Record<string, unknown>) }]
+    : []);
+}
+
+export async function listUploadPostProfiles(): Promise<UploadPostProfile[]> {
   const response = await fetch(`${API_ROOT}/uploadposts/users`, { headers: { Authorization: `Apikey ${apiKey()}` }, cache: "no-store" });
   if (!response.ok) throw new Error(`Upload-Post profile check failed: HTTP ${response.status}`);
-  return response.json();
+  return parseUploadPostProfiles(await response.json());
+}
+
+export async function resolveUploadPostProfile(platform: "tiktok" | "instagram", preferred?: string | null) {
+  return pickUploadPostProfile(await listUploadPostProfiles(), platform, preferred);
 }
 
 export async function getUploadPostStatus(input: { requestId?: string | null; jobId?: string | null }) {
@@ -46,6 +102,7 @@ export async function uploadPhotoCarousel(input: {
   body.append("async_upload", "true");
   if (input.platform === "tiktok") {
     body.append("post_mode", "DIRECT_POST");
+    body.append("disable_inbox_fallback", "true");
     body.append("privacy_level", "PUBLIC_TO_EVERYONE");
     body.append("auto_add_music", "true");
     body.append("description", input.spec.caption);

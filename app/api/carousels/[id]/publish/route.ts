@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { evaluatePublishReadiness } from "../../../../lib/publish-readiness";
+import { resolvePublishingProfile } from "../../../../lib/publishing-profile";
 import { supabase } from "../../../../lib/supabase";
 import { uploadPhotoCarousel } from "../../../../lib/upload-post";
 
@@ -34,11 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const slideResponse = await supabase(`carousel_slides?carousel_id=eq.${encodeURIComponent(id)}&select=position,rendered_url,asset_id&order=position.asc`);
     if (!slideResponse.ok) throw new Error(await slideResponse.text());
     const slideRows = await slideResponse.json() as Array<{ position: number; rendered_url: string | null; asset_id: string | number | null }>;
-    let profile = body.profile;
-    if (!profile) {
-      const accountResponse = await supabase(`accounts?id=eq.${encodeURIComponent(carousel.account_id)}&select=upload_post_profile&limit=1`);
-      if (accountResponse.ok) profile = ((await accountResponse.json()) as Array<{ upload_post_profile?: string }>)[0]?.upload_post_profile || undefined;
-    }
+    const profile = await resolvePublishingProfile({ accountId: carousel.account_id, platform: body.platform, requestedProfile: body.profile });
     const rawSpec = { title: carousel.spec.title, topic: carousel.topic, angle: carousel.angle, hook: carousel.spec.hook, language: carousel.language, caption: carousel.caption, ctaType: carousel.cta_type, slides: carousel.spec.generated_slides };
     const renderedSlides = slideRows.filter((slide) => slide.rendered_url).map((slide) => ({ position: slide.position, url: slide.rendered_url!, assetId: slide.asset_id ?? undefined }));
     const readiness = await evaluatePublishReadiness({ rawSpec, renderedSlides, platform: body.platform, profile });
