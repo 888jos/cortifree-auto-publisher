@@ -14,6 +14,9 @@ COPY RULES
 - Keep each headline punchy and each body easy to read on a phone.
 - Generate the concept, angle, hook, every slide, caption, visual intent, and asset query in one response.
 - Use the requested carousel taxonomy and selected layout. Vary slide roles based on the format.
+- The only supported visual layouts are single-image and grid-2x2. For single-image, use exactly one photo per slide. For grid-2x2, use exactly four different photos per slide in a 2x2 grid.
+- A slide may contain only photos and text. Never request or describe cards, panels, boxes, pills, badges, stickers, geometric shapes, borders, dividers, arrows, icons, charts, gradients, or decorative UI elements.
+- Keep the creative direction feminine and editorial: soft rose/pink, warm butter yellow, cream, plum, and dark brown accents; use elegant serif or friendly rounded typography. The renderer applies the final palette and typography.
 - Avoid repeating recent hooks, topics, or angles.
 - If preferredHook is supplied, use that hook verbatim on slide 1 and adapt the rest of the carousel around it.
 - References are creative metadata only: learn their structure without copying their wording.
@@ -32,6 +35,7 @@ OUTPUT
 - The final slide must be role CTA or TAKEAWAY.
 - Positions must be consecutive starting at 1.
 - Every slide must be directly usable by a renderer.
+- For the first slide, the exact preferredHook must be the main headline when it is supplied; do not replace it with a generic title.
 `.trim();
 
 export const CAROUSEL_REVIEWER_INSTRUCTIONS = `

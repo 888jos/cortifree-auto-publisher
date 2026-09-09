@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { referenceCarousels } from "./reference-carousels.js";
 import { carouselBlueprints, getCarouselBlueprint } from "./carousel-blueprints.js";
 import { hookCategories, hookLibrary } from "./hook-library.js";
+import { getHookGenerationPlan } from "./lib/hook-selector";
 
 const assets = [
   ["fitness", 47],
@@ -43,175 +44,35 @@ const referenceImages = [
 
 const rawModels = [
   {
-    id: "cover-hero",
-    name: "Cover hero",
-    format: "Full image -> title block -> save CTA",
+    id: "single-image",
+    name: "1× image",
+    format: "Une image pleine page + texte éditorial",
     slides: "6 slides",
-    style: "Large photo, short hook, bottom caption block",
-    layout: "hero",
+    style: "Photo dominante, titre fort, composition aérée",
+    layout: "single-image",
   },
   {
-    id: "split-proof",
-    name: "Split proof",
-    format: "Claim -> image proof -> quick takeaway",
-    slides: "5 slides",
-    style: "Image left, text right, bold contrast label",
-    layout: "split",
-  },
-  {
-    id: "numbered-stack",
-    name: "Numbered stack",
-    format: "Hook -> 3-5 numbered points -> CTA",
-    slides: "7 slides",
-    style: "Huge numbers, compact copy, repeated rhythm",
-    layout: "numbered",
-  },
-  {
-    id: "checklist-grid",
-    name: "Checklist grid",
-    format: "Problem -> checklist -> correction",
+    id: "grid-2x2",
+    name: "2×2 images",
+    format: "Quatre images en grille + texte éditorial",
     slides: "6 slides",
-    style: "Checkbox rows, small icons, high clarity",
-    layout: "checklist",
-  },
-  {
-    id: "before-after",
-    name: "Before / after",
-    format: "Before -> switch -> after -> next step",
-    slides: "6 slides",
-    style: "Two panels, sharp labels, transformation frame",
-    layout: "compare",
-  },
-  {
-    id: "quote-pause",
-    name: "Quote pause",
-    format: "Statement -> pause slide -> reflection",
-    slides: "4 slides",
-    style: "Minimal image, centered line, premium spacing",
-    layout: "quote",
-  },
-  {
-    id: "routine-cards",
-    name: "Routine cards",
-    format: "Routine hook -> time blocks -> habit stack",
-    slides: "8 slides",
-    style: "Stacked cards, time pill, step hierarchy",
-    layout: "cards",
-  },
-  {
-    id: "myth-fact",
-    name: "Myth / fact",
-    format: "Myth -> fact -> why -> action",
-    slides: "5 slides",
-    style: "Big red/green labels, punchy educational copy",
-    layout: "myth",
-  },
-  {
-    id: "mistake-fix",
-    name: "Mistake fix",
-    format: "Mistake -> consequence -> fix",
-    slides: "6 slides",
-    style: "Bad/good contrast, arrows, direct correction",
-    layout: "fix",
-  },
-  {
-    id: "challenge-days",
-    name: "Challenge days",
-    format: "Promise -> day cards -> progress CTA",
-    slides: "10 slides",
-    style: "Daily badges, repeated template, follow-through",
-    layout: "challenge",
-  },
-  {
-    id: "symptom-map",
-    name: "Symptom map",
-    format: "Signs -> meaning -> gentle reframe",
-    slides: "7 slides",
-    style: "Grouped bubbles, educational but calm",
-    layout: "bubbles",
-  },
-  {
-    id: "recipe-flow",
-    name: "Recipe flow",
-    format: "Result -> ingredients -> steps -> serving",
-    slides: "8 slides",
-    style: "Food image frame, ingredient chips, simple steps",
-    layout: "recipe",
+    style: "Moodboard féminin, quatre scènes, texte lisible",
+    layout: "grid-2x2",
   },
 ] as const;
 
 const layoutSpecs = {
-  hero: {
-    bestFor: "Cover forte, accroche courte, image pleine page",
-    imageZones: ["Background 9:16"],
-    textZones: ["Hook grand format", "Sous-titre court", "CTA save/comment"],
-    sample: { hook: "reset your cortisol gently", body: "3 tiny shifts for a calmer day", cta: "save" },
+  "single-image": {
+    bestFor: "Une image forte avec texte éditorial lisible",
+    imageZones: ["Une photo verticale pleine page"],
+    textZones: ["Kicker", "Titre principal", "Texte court"],
+    sample: { hook: "a softer kind of glow up", body: "small habits that make your days feel better", cta: "save" },
   },
-  split: {
-    bestFor: "Preuve visuelle + explication courte",
-    imageZones: ["Colonne image 45%"],
-    textZones: ["Claim", "Takeaway", "Micro note"],
-    sample: { hook: "your body is asking for rest", body: "proof / symptom / quick fix", cta: "try" },
-  },
-  numbered: {
-    bestFor: "Tips numérotés faciles à swiper",
-    imageZones: ["Image d’ambiance légère"],
-    textZones: ["Numéro XXL", "Titre", "1 conseil par slide"],
-    sample: { hook: "01", body: "morning light before coffee", cta: "next" },
-  },
-  checklist: {
-    bestFor: "Listes sauvegardables et routines",
-    imageZones: ["Petit visuel haut/bas"],
-    textZones: ["Titre", "Checklist 3-5 items", "Correction"],
-    sample: { hook: "low stress checklist", body: "☑ protein  ☑ walk  ☑ no rush", cta: "save" },
-  },
-  compare: {
-    bestFor: "Avant / après, erreur / correction",
-    imageZones: ["Deux panneaux visuels"],
-    textZones: ["Before label", "After label", "Conclusion"],
-    sample: { hook: "before", body: "after", cta: "shift" },
-  },
-  quote: {
-    bestFor: "Pause émotionnelle, slide minimaliste",
-    imageZones: ["Texture/image douce optionnelle"],
-    textZones: ["Phrase centrale", "Reflection", "Signature"],
-    sample: { hook: "you don’t need to earn rest", body: "read that again", cta: "breathe" },
-  },
-  cards: {
-    bestFor: "Routine par horaires ou blocs",
-    imageZones: ["Fond lifestyle doux"],
-    textZones: ["Time pill", "Cartes étapes", "Habit stack"],
-    sample: { hook: "7:30", body: "water · sunlight · protein", cta: "routine" },
-  },
-  myth: {
-    bestFor: "Éducatif punchy : mythe vs réalité",
-    imageZones: ["Visuel preuve / portrait"],
-    textZones: ["MYTH badge", "FACT block", "Why"],
-    sample: { hook: "myth", body: "you need a perfect routine", cta: "fact" },
-  },
-  fix: {
-    bestFor: "Erreur courante puis correction directe",
-    imageZones: ["Image contexte"],
-    textZones: ["Mistake", "Arrow", "Fix"],
-    sample: { hook: "stop doing this", body: "switch to this instead", cta: "fix" },
-  },
-  challenge: {
-    bestFor: "Séries 5-10 jours, progression visible",
-    imageZones: ["Background ou vignette"],
-    textZones: ["Day badge", "Action du jour", "Progression"],
-    sample: { hook: "day 03", body: "10 min walk after lunch", cta: "go" },
-  },
-  bubbles: {
-    bestFor: "Symptômes / signaux regroupés",
-    imageZones: ["Fond clean, image secondaire"],
-    textZones: ["Bubbles", "Reframe", "Gentle action"],
-    sample: { hook: "signs", body: "tired · cravings · wired", cta: "support" },
-  },
-  recipe: {
-    bestFor: "Food carousel : résultat + ingrédients + étapes",
-    imageZones: ["Photo food dominante"],
-    textZones: ["Ingredient chips", "Steps", "Serving note"],
-    sample: { hook: "cortisol-friendly bowl", body: "eggs · avocado · greens", cta: "recipe" },
+  "grid-2x2": {
+    bestFor: "Moodboard 2×2 avec une idée par slide",
+    imageZones: ["Quatre photos verticales"],
+    textZones: ["Kicker", "Titre éditorial", "Texte court"],
+    sample: { hook: "the reset mood", body: "four little choices for a calmer week", cta: "save" },
   },
 } as const;
 
@@ -226,7 +87,7 @@ const carouselTypes = [
     id: "C01_MORNING_ROUTINE",
     name: "Morning routine clean girl / low cortisol",
     keep: true,
-    modelIds: ["routine-cards", "cover-hero"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["amina-morning-routine", "thatgirl-challenge", "girlsonly-habits"],
     note: "Bon type pilier : parfait pour routines matin, clean girl, low cortisol.",
   },
@@ -234,7 +95,7 @@ const carouselTypes = [
     id: "C02_CHECKLIST",
     name: "Checklist à sauvegarder",
     keep: true,
-    modelIds: ["checklist-grid", "numbered-stack"],
+    modelIds: ["grid-2x2", "single-image"],
     refIds: ["lower-cortisol", "siuela-symptoms", "thatgirlstore-hormone"],
     note: "Très bon format saveable. 3 refs déjà utilisables.",
   },
@@ -242,7 +103,7 @@ const carouselTypes = [
     id: "C03_THINGS_I_STOPPED",
     name: "Things I stopped doing",
     keep: true,
-    modelIds: ["mistake-fix", "before-after"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["thomas-hormone", "siuela-symptoms"],
     note: "À garder, mais il manque 1 référence très typée stop/avoid.",
   },
@@ -250,7 +111,7 @@ const carouselTypes = [
     id: "C04_THINGS_I_STARTED",
     name: "Habits I started",
     keep: true,
-    modelIds: ["numbered-stack", "routine-cards"],
+    modelIds: ["grid-2x2", "single-image"],
     refIds: ["girlsonly-habits", "rhea-hormones", "herfeminineedge-happy-hormones"],
     note: "Bon overlap avec glow-up + hormones.",
   },
@@ -258,7 +119,7 @@ const carouselTypes = [
     id: "C05_GLOW_UP",
     name: "Glow-up / transformation",
     keep: true,
-    modelIds: ["cover-hero", "challenge-days", "numbered-stack"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["navzsm-glowup", "thatgirl-challenge", "girlsonly-habits"],
     note: "Très bien couvert. Tu peux produire beaucoup avec ce groupe.",
   },
@@ -266,7 +127,7 @@ const carouselTypes = [
     id: "C06_POV_RELATABLE",
     name: "POV / identification",
     keep: true,
-    modelIds: ["quote-pause", "cover-hero"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["motion-hope", "medgirl-confidence"],
     note: "À compléter : il faut 1-2 refs plus 'POV girl experience'.",
   },
@@ -274,7 +135,7 @@ const carouselTypes = [
     id: "C07_MISTAKES",
     name: "Erreurs / choses à éviter",
     keep: true,
-    modelIds: ["mistake-fix", "myth-fact"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["thomas-hormone", "siuela-symptoms", "lower-cortisol"],
     note: "OK pour démarrer. Bon modèle éducatif/correction.",
   },
@@ -282,7 +143,7 @@ const carouselTypes = [
     id: "C08_MY_REALISTIC",
     name: "My realistic…",
     keep: true,
-    modelIds: ["routine-cards", "quote-pause"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["amina-morning-routine", "motion-hope"],
     note: "À compléter avec refs day-in-my-life / realistic night / realistic reset.",
   },
@@ -290,7 +151,7 @@ const carouselTypes = [
     id: "C09_LIST",
     name: "Liste d’idées / conseils",
     keep: true,
-    modelIds: ["numbered-stack", "checklist-grid"],
+    modelIds: ["grid-2x2", "single-image"],
     refIds: ["navzsm-glowup", "lower-cortisol", "rhea-hormones"],
     note: "Très polyvalent : tips, ideas, foods, habits.",
   },
@@ -298,7 +159,7 @@ const carouselTypes = [
     id: "C10_BEFORE_AFTER",
     name: "Avant / après comportemental",
     keep: true,
-    modelIds: ["before-after", "mistake-fix"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: ["thomas-hormone", "girlsonly-habits"],
     note: "À garder, mais besoin d’1 ref clairement avant/après.",
   },
@@ -306,7 +167,7 @@ const carouselTypes = [
     id: "C11_HORMONE_EDUCATION",
     name: "Hormone / cortisol education",
     keep: true,
-    modelIds: ["symptom-map", "myth-fact", "split-proof"],
+    modelIds: ["grid-2x2", "single-image"],
     refIds: ["thatgirlstore-hormone", "siuela-symptoms", "rhea-hormones", "herfeminineedge-happy-hormones"],
     note: "Ajout recommandé : tes refs actuelles sont fortes ici.",
   },
@@ -314,7 +175,7 @@ const carouselTypes = [
     id: "C12_NIGHT_ROUTINE",
     name: "Night routine clean girl / low cortisol",
     keep: true,
-    modelIds: ["routine-cards", "quote-pause"],
+    modelIds: ["single-image", "grid-2x2"],
     refIds: [],
     note: "À compléter en priorité : idéalement 3 refs night routine / sleep reset.",
   },
@@ -387,24 +248,21 @@ function LayoutMockup({
 }) {
   return (
     <div className={`layoutMockup ${layout}`} aria-hidden="true">
-      <img
-        alt={reference.alt}
-        className="mockImage"
-        loading="lazy"
-        onError={(event) => {
-          useReferenceFallback(event, reference.alt);
-        }}
-        src={reference.src}
-      />
-      <div className="mockScrim" />
-      <div className="mockBadge">{sample.cta}</div>
-      <div className="mockHook">{sample.hook}</div>
-      <div className="mockBody">{sample.body}</div>
-      <div className="mockLine one" />
-      <div className="mockLine two" />
-      <div className="mockDot a" />
-      <div className="mockDot b" />
-      <div className="mockDot c" />
+      {(layout === "grid-2x2" ? [0, 1, 2, 3] : [0]).map((index) => (
+        <img
+          alt={reference.alt}
+          className="mockImage"
+          key={index}
+          loading="lazy"
+          onError={(event) => useReferenceFallback(event, `${reference.alt}-${index}`)}
+          src={reference.src}
+        />
+      ))}
+      <div className="mockCopy">
+        <small>{layout === "grid-2x2" ? "MOODBOARD · 02" : "EDITORIAL · 01"}</small>
+        <strong>{sample.hook}</strong>
+        <span>{sample.body}</span>
+      </div>
     </div>
   );
 }
@@ -488,10 +346,12 @@ function buildDraftPreview({
 
 export default function Home() {
   const [active, setActive] = useState<View>("Overview");
-  const [selectedModel, setSelectedModel] = useState<ModelId>("cover-hero");
+  const [selectedModel, setSelectedModel] = useState<ModelId>("single-image");
   const [selectedType, setSelectedType] = useState<CarouselTypeId>("C05_GLOW_UP");
   const [notice, setNotice] = useState("Systeme operationnel");
   const [isCreating, setIsCreating] = useState(false);
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0, failed: 0 });
   const [lastDraftId, setLastDraftId] = useState<string | null>(null);
   const [draftPreview, setDraftPreview] = useState<DraftPreview | null>(null);
   const [referenceIndexes, setReferenceIndexes] = useState<Record<string, number>>({});
@@ -593,10 +453,9 @@ export default function Home() {
             slides: isPrimary ? blueprint?.slides.map((slide) => ({
               position: slide.position,
               role: slide.role,
-              imagePlacement: slide.imagePlacement,
-              textPlacement: slide.textPlacement,
-              textAlign: slide.textAlign,
-              geometry: slide.geometry,
+              imagePlacement: currentModel.layout === "grid-2x2" ? "grid-2x2" : "single-image",
+              textPlacement: currentModel.layout === "grid-2x2" ? "center" : "lower-third",
+              textAlign: currentModel.layout === "grid-2x2" ? "center" : "left",
             })) : undefined,
           };
           }),
@@ -679,6 +538,95 @@ export default function Home() {
     } finally {
       setIsCreating(false);
     }
+  }
+
+  async function generateOneLibraryHook(hook: (typeof hookLibrary)[number], index: number) {
+    const plan = getHookGenerationPlan(hook);
+    const modelId: ModelId = index % 2 === 0 ? "single-image" : "grid-2x2";
+    const model = modelData.find((item) => item.id === modelId) ?? modelData[0];
+    const type = carouselTypes.find((item) => item.id === plan.carouselType) ?? carouselTypes[0];
+    const refs = type.refIds
+      .map((refId) => referenceCarousels.find((carousel) => carousel.id === refId))
+      .filter(Boolean);
+    const draftId = `CF_HOOK_${hook.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_${Date.now().toString().slice(-6)}`;
+    const response = await fetch("/api/ai/carousel/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: draftId,
+        accountId: "CF_EN_01",
+        personaId: "P01",
+        carouselType: plan.carouselType,
+        layout: model.id,
+        persona: "P01",
+        language,
+        market,
+        references: refs.slice(0, 3).map((reference) => ({
+          id: reference!.id,
+          title: reference!.title,
+          slideCount: reference!.slides.length,
+          sourceUrl: reference!.sourceUrl,
+          notes: `Visual reference for ${type.name}; preserve only the editorial rhythm.`,
+          templateFamily: getCarouselBlueprint(reference!.id)?.family,
+          rhythm: getCarouselBlueprint(reference!.id)?.rhythm,
+        })),
+        recentCarousels: [],
+        requestedSlideCount: plan.requestedSlideCount,
+        preferredHook: hook.text,
+        ctaMode: "save",
+        requireAI: true,
+      }),
+    });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      throw new Error(failure.error || `API ${response.status}`);
+    }
+    const data = await response.json();
+    if (!data.saved) throw new Error(data.storageWarning || "Brouillon non sauvegardé dans Supabase");
+
+    const renderResponse = await fetch(`/api/carousels/${encodeURIComponent(data.carousel.id)}/render`, { method: "POST" });
+    const renderData = await renderResponse.json().catch(() => ({}));
+    if (!renderResponse.ok || !Array.isArray(renderData.slides)) throw new Error(renderData.error || "Rendu PNG impossible");
+    const approvalResponse = await fetch(`/api/carousels/${encodeURIComponent(data.carousel.id)}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "tiktok" }),
+    });
+    const approval = await approvalResponse.json().catch(() => ({}));
+    if (!approvalResponse.ok) throw new Error(approval.error || "Validation impossible");
+    await fetch("/api/logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stage: "hook-library.generate",
+        status: "SUCCESS",
+        carousel_id: data.carousel.id,
+        metadata: { hook_id: hook.id, hook: hook.text, model_id: model.id, carousel_type: plan.carouselType, approval: approval.status },
+      }),
+    });
+    return { id: data.carousel.id, source: data.generation.source, slides: renderData.slides.length };
+  }
+
+  async function generateAllHooks() {
+    if (isCreating || isBatchGenerating) return;
+    setIsBatchGenerating(true);
+    setBatchProgress({ done: 0, total: hookLibrary.length, failed: 0 });
+    setNotice(`Génération IA de ${hookLibrary.length} carrousels lancée…`);
+    let done = 0;
+    let failed = 0;
+    for (const [index, hook] of hookLibrary.entries()) {
+      try {
+        const result = await generateOneLibraryHook(hook, index);
+        done += 1;
+        setNotice(`${done}/${hookLibrary.length} · ${result.id} créé avec « ${hook.text} »`);
+      } catch (error) {
+        failed += 1;
+        setNotice(`${done + failed}/${hookLibrary.length} · hook ignoré : ${error instanceof Error ? error.message : "erreur inconnue"}`);
+      }
+      setBatchProgress({ done, total: hookLibrary.length, failed });
+    }
+    setIsBatchGenerating(false);
+    setNotice(`Génération terminée : ${done} carrousels créés, ${failed} échecs. Les échecs peuvent être relancés.`);
   }
 
   function pickModel(modelId: ModelId) {
@@ -915,8 +863,21 @@ export default function Home() {
                 <p className="eyebrow">HOOK BANK</p>
                 <h2>{hookLibrary.length} hooks prêts à utiliser</h2>
               </div>
-              {selectedHook && <span className="modelCount">1 hook actif</span>}
+              <div className="panelHeadActions">
+                {selectedHook && <span className="modelCount">1 hook actif</span>}
+                <button className="primary" disabled={isCreating || isBatchGenerating} onClick={generateAllHooks} type="button">
+                  {isBatchGenerating ? `Génération ${batchProgress.done}/${batchProgress.total}` : "Générer tous les hooks"}
+                </button>
+              </div>
             </div>
+
+            {isBatchGenerating && (
+              <div className="batchProgress" role="status">
+                <div><b>{batchProgress.done}/{batchProgress.total}</b> carrousels générés · {batchProgress.failed} échec{batchProgress.failed > 1 ? "s" : ""}</div>
+                <progress max={batchProgress.total} value={batchProgress.done + batchProgress.failed} />
+                <small>Chaque hook est envoyé à OpenAI, sauvegardé, rendu en PNG puis validé automatiquement.</small>
+              </div>
+            )}
 
             <div className="hookToolbar">
               <label>
