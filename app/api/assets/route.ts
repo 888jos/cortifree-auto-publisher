@@ -1,8 +1,9 @@
 import { supabase } from "../../lib/supabase.js";
+import { CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
 const fallback = ["fitness","food","morning","self care","work / study"].map((category,i)=>({ category, count:[47,50,50,45,34][i], filename:`${category.replaceAll(" ","_")}__library` }));
 export async function GET() {
   try {
-    const r = await supabase("assets?select=id,category,subcategory,filename,orientation,framing,activity,mood,colors,public_url,use_count&enabled=eq.true&order=category.asc,filename.asc&limit=1000");
+    const r = await supabase(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&storage_bucket=eq.cortifree-assets&select=id,category,subcategory,filename,orientation,framing,activity,mood,colors,public_url,use_count&enabled=eq.true&order=category.asc,filename.asc&limit=1000`);
     if (!r.ok) throw new Error(await r.text());
     const rows = await r.json() as Array<Record<string, unknown> & { category: string; public_url?: string }>;
     const grouped = Object.entries(rows.reduce<Record<string, number>>((accumulator, asset) => {

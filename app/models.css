@@ -10,6 +10,36 @@ nav button {
   cursor: pointer;
 }
 
+.workspaceSwitcher {
+  display: grid;
+  gap: 8px;
+  margin: 0 8px 42px;
+}
+
+.workspaceSwitcher .brand {
+  margin: 0 0 5px;
+}
+
+.workspaceSwitcher label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.workspaceSwitcher select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  padding: 9px 28px 9px 10px;
+  font: 600 12px/1.25 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+
 @media (max-width: 700px) {
   .blueprintHero { grid-template-columns:36px minmax(0,1fr) 36px; }
   .blueprintHero>button { width:36px; }
@@ -1317,6 +1347,15 @@ img[data-fallback="true"] + .referenceOverlay { display:flex; }
 
   .brand {
     margin: 0;
+  }
+
+  .workspaceSwitcher {
+    margin: 0;
+  }
+
+  .workspaceSwitcher label,
+  .workspaceSwitcher select {
+    display: none;
   }
 
   .brand span:not(.mark),

@@ -2,6 +2,7 @@ import sharp, { type OverlayOptions } from "sharp";
 import { chooseAssets, loadSelectableAssets, type AssetMatch } from "./asset-selector";
 import { getSlideGeometry } from "./layout-geometry.js";
 import { supabase } from "./supabase";
+import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 const BUCKET = "cortifree-assets";
 const WIDTH = 1080;
@@ -148,6 +149,7 @@ export async function renderCarousel(input: {
   references?: StoredReference[];
   spec: Record<string, unknown>;
 }) {
+  assertCortiFreeCarouselId(input.id);
   const assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
   const matches = chooseAssets({ assets, carouselType: input.carouselType, slides: input.slides });
@@ -170,7 +172,7 @@ export async function renderCarousel(input: {
     const primaryMatch = slideMatches[0]!;
     const renderMetadata = { geometry, storage_path: upload.storagePath, asset_score: primaryMatch.score, matched_terms: primaryMatch.matchedTerms, asset_ids: slideMatches.map((match) => match.asset.id) };
     return {
-      databaseRow: { carousel_id: input.id, position: slide.position, template_id: input.layout, headline: slide.headline, body: slide.body, asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent }, asset_id: primaryMatch.asset.id, rendered_url: upload.publicUrl, render_metadata: renderMetadata },
+      databaseRow: { workspace_id: CORTIFREE_WORKSPACE_ID, carousel_id: input.id, position: slide.position, template_id: input.layout, headline: slide.headline, body: slide.body, asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent }, asset_id: primaryMatch.asset.id, rendered_url: upload.publicUrl, render_metadata: renderMetadata },
       result: { position: slide.position, url: upload.publicUrl, assetId: primaryMatch.asset.id, assetFilename: primaryMatch.asset.filename, score: primaryMatch.score, matchedTerms: primaryMatch.matchedTerms, geometry, assetIds: slideMatches.map((match) => match.asset.id) },
     };
   }));
@@ -185,18 +187,18 @@ export async function renderCarousel(input: {
   const now = new Date().toISOString();
   await Promise.all(gridMatches.flatMap((slideMatches, index) => slideMatches.map(async (match) => {
     if (match !== slideMatches[0]) {
-      await supabase(`assets?id=eq.${encodeURIComponent(match.asset.id)}`, { method: "PATCH", body: JSON.stringify({ use_count: (match.asset.use_count ?? 0) + 1, last_used_at: now }) });
+      await supabase(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(match.asset.id)}`, { method: "PATCH", body: JSON.stringify({ use_count: (match.asset.use_count ?? 0) + 1, last_used_at: now }) });
       return;
     }
     await supabase("asset_usage_history?on_conflict=carousel_id,slide_position", {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ asset_id: match.asset.id, carousel_id: input.id, slide_position: input.slides[index].position, match_score: match.score, matched_terms: match.matchedTerms }),
+      body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, asset_id: match.asset.id, carousel_id: input.id, slide_position: input.slides[index].position, match_score: match.score, matched_terms: match.matchedTerms }),
     });
-    await supabase(`assets?id=eq.${encodeURIComponent(match.asset.id)}`, { method: "PATCH", body: JSON.stringify({ use_count: (match.asset.use_count ?? 0) + 1, last_used_at: now }) });
+    await supabase(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(match.asset.id)}`, { method: "PATCH", body: JSON.stringify({ use_count: (match.asset.use_count ?? 0) + 1, last_used_at: now }) });
   })));
 
   const updatedSpec = { ...input.spec, rendered_slides: rendered, rendered_at: now };
-  const carouselResponse = await supabase(`carousels?id=eq.${encodeURIComponent(input.id)}`, { method: "PATCH", body: JSON.stringify({ spec: updatedSpec, updated_at: now }) });
+  const carouselResponse = await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.id)}`, { method: "PATCH", body: JSON.stringify({ spec: updatedSpec, updated_at: now }) });
   if (!carouselResponse.ok) throw new Error(`Carousel render state save failed: ${await carouselResponse.text()}`);
   return rendered;
 }

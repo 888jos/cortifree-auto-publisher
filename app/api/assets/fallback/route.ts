@@ -1,4 +1,5 @@
 import { supabase } from "../../../lib/supabase";
+import { CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const seed = params.get("seed") || "cortifree-reference";
     const preferredCategory = params.get("category")?.trim().toLowerCase().replaceAll("_", " ");
-    const response = await supabase("assets?select=category,public_url&enabled=eq.true&public_url=not.is.null&order=filename.asc&limit=1000");
+    const response = await supabase(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&storage_bucket=eq.cortifree-assets&select=category,public_url&enabled=eq.true&public_url=not.is.null&order=filename.asc&limit=1000`);
     if (!response.ok) throw new Error(await response.text());
     const allAssets = await response.json() as Array<{ category: string; public_url: string }>;
     const normalized = (value: string) => value.trim().toLowerCase().replaceAll("_", " ").replaceAll(/\s+/g, " ");

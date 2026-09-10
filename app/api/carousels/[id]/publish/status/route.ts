@@ -1,12 +1,14 @@
 import { getUploadPostStatus, normalizeUploadPostResults } from "../../../../../lib/upload-post";
 import { supabase } from "../../../../../lib/supabase";
+import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../../lib/workspace";
 
 export const runtime = "nodejs";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const response = await supabase(`publish_jobs?carousel_id=eq.${encodeURIComponent(id)}&select=*&order=created_at.desc&limit=1`);
+    try { assertCortiFreeCarouselId(id); } catch { return Response.json({ error: "Invalid carousel id" }, { status: 400 }); }
+    const response = await supabase(`publish_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&carousel_id=eq.${encodeURIComponent(id)}&select=*&order=created_at.desc&limit=1`);
     if (!response.ok) throw new Error(await response.text());
     const job = ((await response.json()) as Array<Record<string, unknown> & { id: string; provider_request_id?: string; provider_job_id?: string }>)[0];
     if (!job) return Response.json({ error: "Publish job not found" }, { status: 404 });
@@ -26,8 +28,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? inboxFallback ? "TikTok received an inbox draft instead of a live post."
         : String(platformResult?.error ?? platformResult?.message ?? provider.message ?? "Upload failed")
       : null;
-    await supabase(`publish_jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: JSON.stringify({ status, post_url: postUrl, last_error: lastError }) });
-    await supabase(`carousels?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status, updated_at: new Date().toISOString() }) });
+    await supabase(`publish_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: JSON.stringify({ status, post_url: postUrl, last_error: lastError }) });
+    await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status, updated_at: new Date().toISOString() }) });
     return Response.json({ carouselId: id, status, postUrl, provider });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Status check failed" }, { status: 500 });

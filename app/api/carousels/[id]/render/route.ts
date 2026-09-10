@@ -2,6 +2,7 @@ import { z } from "zod";
 import { carouselSlideSchema } from "../../../../lib/ai/schemas";
 import { renderCarousel } from "../../../../lib/render-carousel";
 import { supabase } from "../../../../lib/supabase";
+import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,8 +17,8 @@ const storedSpecSchema = z.object({
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    if (!/^CF_[A-Z0-9_]+$/.test(id)) return Response.json({ error: "Invalid carousel id" }, { status: 400 });
-    const response = await supabase(`carousels?id=eq.${encodeURIComponent(id)}&select=id,spec&limit=1`);
+    try { assertCortiFreeCarouselId(id); } catch { return Response.json({ error: "Invalid carousel id" }, { status: 400 }); }
+    const response = await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,spec&limit=1`);
     if (!response.ok) throw new Error(await response.text());
     const rows = await response.json() as Array<{ id: string; spec: unknown }>;
     if (!rows[0]) return Response.json({ error: "Carousel not found" }, { status: 404 });

@@ -1,10 +1,11 @@
 import { supabase } from "./supabase.js";
 import type { CarouselGeneratorInput } from "./ai/types";
 import type { GenerateCarouselResult } from "./ai/carousel-generator";
+import { assertCortiFreeAccountId, assertCortiFreeCarouselId, CORTIFREE_ACCOUNT_ID, CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 export async function getRecentCarousels(limit = 6) {
   try {
-    const response = await supabase(`carousels?select=id,topic,angle,spec&order=created_at.desc&limit=${limit}`);
+    const response = await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=id,topic,angle,spec&order=created_at.desc&limit=${limit}`);
     if (!response.ok) return [];
     const rows = await response.json() as Array<{ id: string; topic: string; angle: string; spec?: { hook?: string } }>;
     return rows.map((row) => ({ id: row.id, topic: row.topic, angle: row.angle, hook: row.spec?.hook })).filter((row) => row.topic && row.angle);
@@ -21,9 +22,13 @@ export async function saveGeneratedCarousel(options: {
   personaId?: string;
 }) {
   const { id, input, result } = options;
+  const accountId = options.accountId || CORTIFREE_ACCOUNT_ID;
+  assertCortiFreeCarouselId(id);
+  assertCortiFreeAccountId(accountId);
   const row = {
     id,
-    account_id: options.accountId || "CF_EN_01",
+    workspace_id: CORTIFREE_WORKSPACE_ID,
+    account_id: accountId,
     persona_id: options.personaId || "P01",
     language: result.spec.language,
     content_type: input.carouselType,

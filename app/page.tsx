@@ -18,6 +18,8 @@ type AssetGroup = { category: string; count: number };
 type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string };
 
 const menus = ["Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
+const COCORISE_URL = process.env.NEXT_PUBLIC_COCORISE_URL
+  ?? "https://cocorise-auto-publisher-vid-os-cocorise-888jos-projects.vercel.app";
 
 const referenceImages = [
   {
@@ -666,9 +668,23 @@ export default function Home() {
   return (
     <main className="shell">
       <aside>
-        <div className="brand">
-          <span className="mark">CF</span>
-          <span>CortiFree</span>
+        <div className="workspaceSwitcher">
+          <div className="brand">
+            <span className="mark">CF</span>
+            <span>CortiFree</span>
+          </div>
+          <label htmlFor="workspace-select">Application</label>
+          <select
+            aria-label="Changer d’application"
+            id="workspace-select"
+            onChange={(event) => {
+              if (event.target.value === "cocorise") window.location.assign(COCORISE_URL);
+            }}
+            value="cortifree"
+          >
+            <option value="cortifree">CortiFree · Carrousels</option>
+            <option value="cocorise">Cocorise · Vidéos</option>
+          </select>
         </div>
 
         <nav aria-label="Main navigation">

@@ -3,6 +3,7 @@ import { evaluatePublishReadiness } from "../../../../lib/publish-readiness";
 import { resolvePublishingProfile } from "../../../../lib/publishing-profile";
 import { supabase } from "../../../../lib/supabase";
 import { uploadPhotoCarousel } from "../../../../lib/upload-post";
+import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -25,14 +26,15 @@ function assertScheduleDate(value?: string) {
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    try { assertCortiFreeCarouselId(id); } catch { return Response.json({ error: "Invalid carousel id" }, { status: 400 }); }
     const body = requestSchema.parse(await request.json());
     assertScheduleDate(body.scheduledDate);
-    const response = await supabase(`carousels?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    const response = await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
     if (!response.ok) throw new Error(await response.text());
     const carousel = ((await response.json()) as Array<Record<string, unknown> & { id: string; account_id: string; status: string; spec: Record<string, unknown>; caption: string }>)[0];
     if (!carousel) return Response.json({ error: "Carousel not found" }, { status: 404 });
     if (carousel.status !== "APPROVED") return Response.json({ error: "Carousel must pass approval before publishing", code: "NOT_APPROVED" }, { status: 409 });
-    const slideResponse = await supabase(`carousel_slides?carousel_id=eq.${encodeURIComponent(id)}&select=position,rendered_url,asset_id&order=position.asc`);
+    const slideResponse = await supabase(`carousel_slides?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&carousel_id=eq.${encodeURIComponent(id)}&select=position,rendered_url,asset_id&order=position.asc`);
     if (!slideResponse.ok) throw new Error(await slideResponse.text());
     const slideRows = await slideResponse.json() as Array<{ position: number; rendered_url: string | null; asset_id: string | number | null }>;
     const profile = await resolvePublishingProfile({ accountId: carousel.account_id, platform: body.platform, requestedProfile: body.profile });
@@ -46,7 +48,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (dryRun || !body.confirmPublish) return Response.json({ ready: true, dryRun, requiresConfirmation: !body.confirmPublish, preview });
     const jobInsert = await supabase("publish_jobs?on_conflict=idempotency_key", {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-      body: JSON.stringify({ carousel_id: id, account_id: carousel.account_id, platform: body.platform, scheduled_at: body.scheduledDate ?? null, external_id: id, idempotency_key: idempotencyKey, attempts: 1, status: body.scheduledDate ? "SCHEDULING" : "PUBLISHING" }),
+      body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, carousel_id: id, account_id: carousel.account_id, platform: body.platform, scheduled_at: body.scheduledDate ?? null, external_id: id, idempotency_key: idempotencyKey, attempts: 1, status: body.scheduledDate ? "SCHEDULING" : "PUBLISHING" }),
     });
     if (!jobInsert.ok) throw new Error(`Cannot create publish audit job: ${await jobInsert.text()}`);
     const job = ((await jobInsert.json()) as Array<{ id: string }>)[0];
@@ -55,11 +57,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const status = body.scheduledDate ? "SCHEDULED" : "PUBLISHING";
       const requestId = typeof result.request_id === "string" ? result.request_id : id;
       const jobId = typeof result.job_id === "string" ? result.job_id : null;
-      if (job) await supabase(`publish_jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: JSON.stringify({ status, provider_request_id: requestId, provider_job_id: jobId, last_error: null }) });
-      await supabase(`carousels?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status, updated_at: new Date().toISOString() }) });
+      if (job) await supabase(`publish_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: JSON.stringify({ status, provider_request_id: requestId, provider_job_id: jobId, last_error: null }) });
+      await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status, updated_at: new Date().toISOString() }) });
       return Response.json({ ready: true, dryRun: false, status, provider: "upload-post", requestId, jobId, result }, { status: body.scheduledDate ? 202 : 200 });
     } catch (error) {
-      if (job) await supabase(`publish_jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: JSON.stringify({ status: "FAILED", last_error: error instanceof Error ? error.message : "Upload failed" }) });
+      if (job) await supabase(`publish_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: JSON.stringify({ status: "FAILED", last_error: error instanceof Error ? error.message : "Upload failed" }) });
       throw error;
     }
   } catch (error) {

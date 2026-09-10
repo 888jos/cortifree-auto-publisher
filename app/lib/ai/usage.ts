@@ -1,6 +1,7 @@
 import { supabase } from "../supabase.js";
 import { estimateCostUsd } from "./pricing";
 import type { TokenUsage } from "./types";
+import { CORTIFREE_WORKSPACE_ID } from "../workspace";
 
 export class MonthlyCapExceededError extends Error {
   constructor(public readonly spent: number, public readonly cap: number) {
@@ -17,7 +18,7 @@ export function assertWithinMonthlyCap(spent: number, cap: number, bypass = fals
 export async function getMonthlyUsage(): Promise<MonthlyUsage> {
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
   try {
-    const response = await supabase(`ai_usage_logs?select=estimated_cost_usd,input_tokens,cached_input_tokens,output_tokens&created_at=gte.${encodeURIComponent(monthStart)}`);
+    const response = await supabase(`ai_usage_logs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=estimated_cost_usd,input_tokens,cached_input_tokens,output_tokens&created_at=gte.${encodeURIComponent(monthStart)}`);
     if (!response.ok) throw new Error("Usage query failed");
     const rows = await response.json() as Array<Record<string, number | string | null>>;
     return rows.reduce<MonthlyUsage>((total, row) => ({
@@ -42,6 +43,7 @@ export async function logAIUsage(entry: {
 }): Promise<void> {
   const usage = entry.usage ?? { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
   const row = {
+    workspace_id: CORTIFREE_WORKSPACE_ID,
     operation: entry.operation,
     model: entry.model,
     carousel_id: entry.carouselId ?? null,
