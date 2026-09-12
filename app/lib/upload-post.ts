@@ -1,6 +1,5 @@
 import type { CarouselSpec } from "./ai/schemas";
 import type { RenderedSlide } from "./publish-readiness";
-import sharp from "sharp";
 
 const API_ROOT = "https://api.upload-post.com/api";
 
@@ -99,6 +98,7 @@ export async function uploadPhotoCarousel(input: {
   slides: RenderedSlide[];
   scheduledDate?: string;
 }) {
+  const { default: sharp } = await import("sharp");
   const body = new FormData();
   body.append("user", input.profile);
   body.append("platform[]", input.platform);
