@@ -36,7 +36,7 @@ export async function resolvePublishingProfile(input: {
 }
 
 export async function listCortiFreePublishingProfiles() {
-  const response = await supabase(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=like.CF_*&select=id,upload_post_profile&enabled=eq.true`);
+  const response = await supabase(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=like.CF_*&select=*`);
   if (!response.ok) throw new Error(`Cannot read CortiFree account mappings: HTTP ${response.status}`);
   const accounts = (await response.json()) as Array<{ id: string; upload_post_profile?: string | null }>;
   const configuredProfiles = configuredCortiFreeProfiles();
