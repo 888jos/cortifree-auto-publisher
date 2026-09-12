@@ -370,6 +370,7 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState<ModelId>("single-image");
   const [selectedType, setSelectedType] = useState<CarouselTypeId>("C05_GLOW_UP");
   const [notice, setNotice] = useState("Systeme operationnel");
+  const [dryRun, setDryRun] = useState<boolean | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0, failed: 0 });
@@ -430,6 +431,16 @@ export default function Home() {
   useEffect(() => {
     const saved = window.localStorage.getItem("cortifree-product-version");
     if (saved === "next") setProductVersion("next");
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/health", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`API ${response.status}`);
+        return response.json();
+      })
+      .then((data) => setDryRun(Boolean(data.dryRun)))
+      .catch(() => setNotice("Impossible de verifier le mode de publication."));
   }, []);
 
   useEffect(() => {
@@ -801,7 +812,7 @@ export default function Home() {
         <div className="notice">
           <span className="pulse" />
           {notice}
-          <span className="dry">DRY RUN</span>
+          <span className="dry">{dryRun === null ? "VERIFICATION" : dryRun ? "DRY RUN" : "MODE REEL"}</span>
         </div>
 
         {lastDraftId && <div className="draftBadge">Dernier brouillon cree : {lastDraftId}</div>}
