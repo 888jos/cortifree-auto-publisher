@@ -17,7 +17,7 @@ const assets = [
 type AssetGroup = { category: string; count: number };
 type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string };
 
-const menus = ["Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
+const menus = ["Carrousels", "Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
 const COCORISE_URL = process.env.NEXT_PUBLIC_COCORISE_URL
   ?? "https://cocorise-auto-publisher-vid-os-coco.vercel.app";
 
@@ -184,6 +184,7 @@ const carouselTypes = [
 ] as const;
 
 type View = (typeof menus)[number];
+type ProductVersion = "current" | "next";
 type ModelId = (typeof modelData)[number]["id"];
 type LayoutName = keyof typeof layoutSpecs;
 type CarouselTypeId = (typeof carouselTypes)[number]["id"];
@@ -208,6 +209,23 @@ type AIStatus = {
   configured: boolean; enabled: boolean; primaryModel: string; qaModel: string; qaEnabled: boolean; qaSampleRate: number; monthlyCapUsd: number;
 };
 type AIUsage = { costUsd: number; calls: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; monthlyCapUsd: number };
+type StoredCarousel = {
+  id: string;
+  topic: string;
+  angle: string;
+  caption: string;
+  status: string;
+  content_type: string;
+  language: "en" | "fr";
+  created_at: string;
+  spec?: {
+    model_id?: string;
+    hook?: string;
+    rendered_slides?: Array<{ position: number; url: string; assetId?: string | number }>;
+    generated_slides?: Array<{ position: number; role: string; headline: string; body: string }>;
+    publish_review?: { publishReady?: boolean; profile?: string; platform?: string };
+  };
+};
 
 function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string, category = "self care") {
   const image = event.currentTarget;
@@ -347,7 +365,8 @@ function buildDraftPreview({
 }
 
 export default function Home() {
-  const [active, setActive] = useState<View>("Overview");
+  const [active, setActive] = useState<View>("Carrousels");
+  const [productVersion, setProductVersion] = useState<ProductVersion>("current");
   const [selectedModel, setSelectedModel] = useState<ModelId>("single-image");
   const [selectedType, setSelectedType] = useState<CarouselTypeId>("C05_GLOW_UP");
   const [notice, setNotice] = useState("Systeme operationnel");
@@ -367,6 +386,11 @@ export default function Home() {
   const [selectedHook, setSelectedHook] = useState<string | null>(null);
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>(assets.map(([category, count]) => ({ category, count })));
   const [assetPreviews, setAssetPreviews] = useState<AssetPreview[]>([]);
+  const [storedCarousels, setStoredCarousels] = useState<StoredCarousel[]>([]);
+  const [carouselsLoading, setCarouselsLoading] = useState(false);
+  const [carouselQuery, setCarouselQuery] = useState("");
+  const [carouselStatus, setCarouselStatus] = useState("ALL");
+  const [openedCarousel, setOpenedCarousel] = useState<StoredCarousel | null>(null);
 
   const currentModel = useMemo(
     () => modelData.find((model) => model.id === selectedModel) ?? modelData[0],
@@ -395,6 +419,37 @@ export default function Home() {
       && (!query || hook.text.toLowerCase().includes(query)),
     );
   }, [hookCategory, hookQuery]);
+  const filteredCarousels = useMemo(() => {
+    const query = carouselQuery.trim().toLowerCase();
+    return storedCarousels.filter((carousel) =>
+      (carouselStatus === "ALL" || carousel.status === carouselStatus)
+      && (!query || `${carousel.id} ${carousel.topic} ${carousel.angle} ${carousel.spec?.hook ?? ""}`.toLowerCase().includes(query)),
+    );
+  }, [carouselQuery, carouselStatus, storedCarousels]);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("cortifree-product-version");
+    if (saved === "next") setProductVersion("next");
+  }, []);
+
+  useEffect(() => {
+    if (active !== "Carrousels" || productVersion !== "current") return;
+    setCarouselsLoading(true);
+    fetch("/api/carousels", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`API ${response.status}`);
+        return response.json();
+      })
+      .then((data) => setStoredCarousels(Array.isArray(data.carousels) ? data.carousels : []))
+      .catch(() => setNotice("Impossible de charger les carrousels CortiFree."))
+      .finally(() => setCarouselsLoading(false));
+  }, [active, productVersion]);
+
+  function changeProductVersion(version: ProductVersion) {
+    setProductVersion(version);
+    window.localStorage.setItem("cortifree-product-version", version);
+    if (version === "current") setActive("Carrousels");
+  }
 
   useEffect(() => {
     if (active !== "Settings") return;
@@ -685,9 +740,13 @@ export default function Home() {
             <option value="cortifree">CortiFree · Carrousels</option>
             <option value="cocorise">Cocorise · Vidéos</option>
           </select>
+          <div className="versionSwitch" aria-label="Version de CortiFree" role="group">
+            <button className={productVersion === "current" ? "active" : ""} onClick={() => changeProductVersion("current")} type="button">Actuelle</button>
+            <button className={productVersion === "next" ? "active" : ""} onClick={() => changeProductVersion("next")} type="button">Nouvelle</button>
+          </div>
         </div>
 
-        <nav aria-label="Main navigation">
+        {productVersion === "current" && <nav aria-label="Main navigation">
           {menus.map((menu) => (
             <button
               key={menu}
@@ -698,7 +757,7 @@ export default function Home() {
               {menu}
             </button>
           ))}
-        </nav>
+        </nav>}
 
         <div className="account">
           <div className="avatar">CF</div>
@@ -710,19 +769,32 @@ export default function Home() {
       </aside>
 
       <section className="content">
+        {productVersion === "next" ? (
+          <section className="nextVersion">
+            <p className="eyebrow">CORTIFREE · NOUVELLE VERSION</p>
+            <h1>Un espace neuf, prêt pour ton prochain prompt.</h1>
+            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent intactes dans Supabase, mais aucune ancienne complexité n’est reprise automatiquement.</p>
+            <div className="nextVersionStatus">
+              <div><span>Données</span><b>Séparées et conservées</b></div>
+              <div><span>Interface</span><b>À définir</b></div>
+              <div><span>Publication</span><b>Non activée ici</b></div>
+            </div>
+            <button className="secondary" onClick={() => changeProductVersion("current")} type="button">Revenir à la version actuelle</button>
+          </section>
+        ) : <>
         <header>
           <div>
             <p className="eyebrow">CONTENT OPERATIONS</p>
             <h1>{active === "Overview" ? "Choisis un modèle" : active}</h1>
-            <p className="muted">Sélectionne un type de carrousel, puis ouvre ses références et layouts.</p>
+            <p className="muted">{active === "Carrousels" ? "Retrouve tous les carrousels générés et leurs slides finales." : "Sélectionne un type de carrousel, puis ouvre ses références et layouts."}</p>
           </div>
           <button
             className="primary"
             disabled={isCreating}
-            onClick={active === "Content studio" ? create : () => setActive("Models")}
+            onClick={active === "Content studio" ? create : () => setActive("Content studio")}
             type="button"
           >
-            {active === "Content studio" ? (isCreating ? "Création..." : "Créer ce brouillon") : "Voir modèles"}
+            {active === "Content studio" ? (isCreating ? "Création..." : "Créer ce brouillon") : "Créer un carrousel"}
           </button>
         </header>
 
@@ -733,6 +805,41 @@ export default function Home() {
         </div>
 
         {lastDraftId && <div className="draftBadge">Dernier brouillon cree : {lastDraftId}</div>}
+
+        {active === "Carrousels" && (
+          <section className="carouselLibrary">
+            <div className="librarySummary">
+              <div><span>Total</span><b>{storedCarousels.length}</b></div>
+              <div><span>Validés</span><b>{storedCarousels.filter((item) => item.status === "APPROVED").length}</b></div>
+              <div><span>Prêts à publier</span><b>{storedCarousels.filter((item) => item.spec?.publish_review?.publishReady).length}</b></div>
+              <div><span>Avec PNG</span><b>{storedCarousels.filter((item) => item.spec?.rendered_slides?.length).length}</b></div>
+            </div>
+            <div className="carouselToolbar">
+              <label><span>Rechercher</span><input onChange={(event) => setCarouselQuery(event.target.value)} placeholder="Titre, hook ou identifiant" type="search" value={carouselQuery} /></label>
+              <label><span>Statut</span><select onChange={(event) => setCarouselStatus(event.target.value)} value={carouselStatus}><option value="ALL">Tous</option><option value="APPROVED">Validés</option><option value="DRAFT">Brouillons</option><option value="READY_FOR_REVIEW">À revoir</option><option value="SCHEDULED">Planifiés</option><option value="PUBLISHED">Publiés</option><option value="FAILED">Échecs</option></select></label>
+            </div>
+            {carouselsLoading ? <div className="libraryEmpty">Chargement des carrousels…</div> : filteredCarousels.length === 0 ? <div className="libraryEmpty">Aucun carrousel ne correspond à ce filtre.</div> : (
+              <div className="carouselGrid">
+                {filteredCarousels.map((carousel) => {
+                  const cover = carousel.spec?.rendered_slides?.slice().sort((a, b) => a.position - b.position)[0]?.url;
+                  const slideCount = carousel.spec?.rendered_slides?.length ?? carousel.spec?.generated_slides?.length ?? 0;
+                  return <article className="carouselItem" key={carousel.id}>
+                    <button className="carouselCover" onClick={() => setOpenedCarousel(carousel)} type="button">
+                      {cover ? <img alt={`Couverture de ${carousel.topic}`} loading="lazy" src={cover} /> : <div className="missingCover"><span>Pas encore rendu</span><b>{carousel.spec?.hook ?? carousel.topic}</b></div>}
+                      <span className="slideCount">{slideCount} slides</span>
+                    </button>
+                    <div className="carouselInfo">
+                      <div><span className={`statusTag status-${carousel.status.toLowerCase()}`}>{carousel.status}</span><time>{new Date(carousel.created_at).toLocaleDateString("fr-FR")}</time></div>
+                      <h2>{carousel.spec?.hook ?? carousel.topic}</h2>
+                      <p>{carousel.topic}</p>
+                      <button onClick={() => setOpenedCarousel(carousel)} type="button">Voir les slides</button>
+                    </div>
+                  </article>;
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {active === "Content studio" && (
           <section className="referenceBand">
@@ -1196,6 +1303,20 @@ export default function Home() {
             </section>
           )}
         </div>
+        {openedCarousel && (
+          <div className="carouselModal" onClick={() => setOpenedCarousel(null)} role="presentation">
+            <section aria-label={`Aperçu de ${openedCarousel.topic}`} aria-modal="true" className="carouselModalPanel" onClick={(event) => event.stopPropagation()} role="dialog">
+              <div className="modalHead"><div><p className="eyebrow">{openedCarousel.id}</p><h2>{openedCarousel.spec?.hook ?? openedCarousel.topic}</h2></div><button aria-label="Fermer" onClick={() => setOpenedCarousel(null)} type="button">×</button></div>
+              <div className="modalMeta"><span className={`statusTag status-${openedCarousel.status.toLowerCase()}`}>{openedCarousel.status}</span><span>{openedCarousel.spec?.model_id ?? "Layout inconnu"}</span><span>{openedCarousel.language.toUpperCase()}</span></div>
+              <div className="modalSlides">
+                {(openedCarousel.spec?.rendered_slides ?? []).slice().sort((a, b) => a.position - b.position).map((slide) => <figure key={slide.position}><img alt={`Slide ${slide.position}`} src={slide.url} /><figcaption>{slide.position}</figcaption></figure>)}
+              </div>
+              {!openedCarousel.spec?.rendered_slides?.length && <div className="libraryEmpty">Ce brouillon n’a pas encore de PNG rendu.</div>}
+              <div className="modalCaption"><b>Légende</b><p>{openedCarousel.caption}</p></div>
+            </section>
+          </div>
+        )}
+        </>}
       </section>
     </main>
   );
