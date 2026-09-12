@@ -9,7 +9,7 @@ import { shouldRunQA } from "../app/lib/ai/carousel-reviewer.js";
 import { assertWithinMonthlyCap, MonthlyCapExceededError } from "../app/lib/ai/usage.js";
 import { validateCarouselSpec } from "../app/lib/ai/validation.js";
 import { makeTextOverlay } from "../app/lib/render-carousel.js";
-import { connectedPlatforms, normalizeUploadPostResults, parseUploadPostProfiles, pickUploadPostProfile } from "../app/lib/upload-post.js";
+import { connectedPlatforms, filterUploadPostProfiles, normalizeUploadPostResults, parseUploadPostProfiles, pickAssignedUploadPostProfile } from "../app/lib/upload-post.js";
 import type { CarouselGeneratorInput } from "../app/lib/ai/types.js";
 
 const originalEnv = { ...process.env };
@@ -84,14 +84,24 @@ describe("CortiFree AI schemas and generation", () => {
     assert.match(svg, />A softer everyday routine</);
   });
 
-  it("reads Upload-Post profiles and selects a connected account", () => {
+  it("reads Upload-Post profiles and connected platforms", () => {
     const profiles = parseUploadPostProfiles({ profiles: [
       { username: "empty", social_accounts: { tiktok: "" } },
       { username: "cortifree", social_accounts: { tiktok: { display_name: "CortiFree" }, instagram: null } },
     ] });
     assert.deepEqual(connectedPlatforms(profiles[1]!), ["tiktok"]);
-    assert.equal(pickUploadPostProfile(profiles, "tiktok"), "cortifree");
-    assert.equal(pickUploadPostProfile(profiles, "instagram"), undefined);
+  });
+
+  it("keeps Cocorise profiles outside the CortiFree publishing boundary", () => {
+    const profiles = parseUploadPostProfiles({ profiles: [
+      { username: "cocorise-01", social_accounts: { tiktok: { display_name: "Cocorise" } } },
+      { username: "cortifree-01", social_accounts: { tiktok: { display_name: "CortiFree" } } },
+    ] });
+    const allowed = filterUploadPostProfiles(profiles, ["cortifree-01"]);
+    assert.deepEqual(allowed.map((profile) => profile.username), ["cortifree-01"]);
+    assert.equal(pickAssignedUploadPostProfile(profiles, "tiktok", undefined), undefined);
+    assert.equal(pickAssignedUploadPostProfile(allowed, "tiktok", "cocorise-01"), undefined);
+    assert.equal(pickAssignedUploadPostProfile(allowed, "tiktok", "cortifree-01"), "cortifree-01");
   });
 
   it("normalizes Upload-Post results returned as arrays or platform maps", () => {

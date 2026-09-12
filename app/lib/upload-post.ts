@@ -47,9 +47,19 @@ export function connectedPlatforms(profile: UploadPostProfile): string[] {
   }).map(([platform]) => platform);
 }
 
-export function pickUploadPostProfile(profiles: UploadPostProfile[], platform: "tiktok" | "instagram", preferred?: string | null) {
-  const connected = profiles.filter((profile) => connectedPlatforms(profile).includes(platform));
-  return connected.find((profile) => profile.username === preferred)?.username ?? connected[0]?.username;
+export function filterUploadPostProfiles(profiles: UploadPostProfile[], allowedUsernames: string[]) {
+  const allowed = new Set(allowedUsernames.map((username) => username.trim()).filter(Boolean));
+  return profiles.filter((profile) => allowed.has(profile.username));
+}
+
+export function pickAssignedUploadPostProfile(
+  profiles: UploadPostProfile[],
+  platform: "tiktok" | "instagram",
+  assignedUsername?: string | null,
+) {
+  if (!assignedUsername) return undefined;
+  const profile = profiles.find((candidate) => candidate.username === assignedUsername);
+  return profile && connectedPlatforms(profile).includes(platform) ? profile.username : undefined;
 }
 
 export function normalizeUploadPostResults(payload: unknown): UploadPostResult[] {
@@ -66,10 +76,6 @@ export async function listUploadPostProfiles(): Promise<UploadPostProfile[]> {
   const response = await fetch(`${API_ROOT}/uploadposts/users`, { headers: { Authorization: `Apikey ${apiKey()}` }, cache: "no-store" });
   if (!response.ok) throw new Error(`Upload-Post profile check failed: HTTP ${response.status}`);
   return parseUploadPostProfiles(await response.json());
-}
-
-export async function resolveUploadPostProfile(platform: "tiktok" | "instagram", preferred?: string | null) {
-  return pickUploadPostProfile(await listUploadPostProfiles(), platform, preferred);
 }
 
 export async function getUploadPostStatus(input: { requestId?: string | null; jobId?: string | null }) {

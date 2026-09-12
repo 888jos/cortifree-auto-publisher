@@ -46,6 +46,8 @@ OPENAI_TIMEOUT_MS=45000
 
 Apply `migrations/002_ai_usage_logs.sql` to Supabase before enabling AI cost tracking. Pricing lives in one module and must be reviewed periodically. The API key is server-only and is never returned by `/api/ai/status` or exposed through a `NEXT_PUBLIC_*` variable. Social publishing remains protected by `DRY_RUN=true`.
 
+Upload-Post is shared at the provider level, so CortiFree only exposes profiles listed in `CORTIFREE_UPLOAD_POST_PROFILES` and explicitly mapped to a `CF_*` account in Supabase. An empty allowlist intentionally means zero CortiFree publishing profiles; Cocorise profiles are never selected as a fallback.
+
 ## Structure
 
 - `src/domain.ts` : schémas Zod stricts.
