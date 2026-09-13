@@ -38,7 +38,7 @@ async function main() {
   const personas = loadPersonas(env.DRIVE_ROOT);
   const personaResponse = await supabase('personas?on_conflict=id', {
     method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(personas.map(({ folder, masterPath: _master, referenceImages: _refs, lifestyleAssets: _assets, ...config }) => ({ id: config.id, name: config.name, folder, config, workspace_id: WORKSPACE, updated_at: new Date().toISOString() }))),
+    body: JSON.stringify(personas.map(({ id, name, folder }) => ({ id, name, folder, workspace_id: WORKSPACE }))),
   });
   if (!personaResponse.ok) throw new Error(`Persona sync failed: ${await personaResponse.text()}`);
 
