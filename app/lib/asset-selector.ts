@@ -6,6 +6,11 @@ export type SelectableAsset = {
   activity: string; mood: string; colors: string[]; tags: string[]; public_url: string; use_count: number; last_used_at: string | null;
 };
 
+export type JitSelectableAsset = SelectableAsset & { source_type?: string; persona_id?: string | null };
+export type JitAssetDecision =
+  | { action: "reuse_persona" | "reuse_stock"; match: AssetMatch }
+  | { action: "generate"; reason: string };
+
 export type AssetMatch = { asset: SelectableAsset; score: number; matchedTerms: string[] };
 
 const categoryByType: Record<string, string[]> = {
@@ -65,4 +70,31 @@ export function chooseAssets(options: {
     used.add(selected.asset.id);
     return { ...selected, score: Number(selected.score.toFixed(2)) };
   });
+}
+
+export function selectAssetOrGeneration(options: {
+  assets: JitSelectableAsset[];
+  personaId: string;
+  category: string;
+  visualIntent: string;
+  minimumScore?: number;
+}): JitAssetDecision {
+  const minimumScore = options.minimumScore ?? 20;
+  const score = (asset: JitSelectableAsset) => {
+    const queryTerms = terms(`${options.category} ${options.visualIntent}`);
+    const haystack = assetText(asset);
+    const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
+    let value = matchedTerms.length * 9 + (asset.category === options.category ? 24 : 0);
+    value += asset.orientation === "portrait" ? 8 : 0;
+    value -= Math.min(asset.use_count ?? 0, 12) * 1.8;
+    if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 14 * 86_400_000) value -= 16;
+    return { asset, score: Number(value.toFixed(2)), matchedTerms };
+  };
+  const persona = options.assets
+    .filter((asset) => asset.persona_id === options.personaId && asset.source_type === "persona_generated")
+    .map(score).sort((a, b) => b.score - a.score)[0];
+  if (persona && persona.score >= minimumScore) return { action: "reuse_persona", match: persona };
+  const stock = options.assets.filter((asset) => asset.source_type === "stock").map(score).sort((a, b) => b.score - a.score)[0];
+  if (stock && stock.score >= minimumScore) return { action: "reuse_stock", match: stock };
+  return { action: "generate", reason: "No suitable persona or stock asset met the relevance threshold" };
 }

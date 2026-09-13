@@ -3,7 +3,16 @@ import path from 'node:path';
 import { personaConfigSchema, type PersonaConfig } from '../domain.js';
 import { resolveDriveLayout } from '../config/paths.js';
 
-export type LoadedPersona = PersonaConfig & { folder: string; masterPath?: string };
+export type LoadedPersona = PersonaConfig & { folder: string; masterPath?: string; referenceImages: string[]; lifestyleAssets: string[] };
+
+function imagesBelow(directory: string): string[] {
+  if (!fs.existsSync(directory)) return [];
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) return imagesBelow(full);
+    return entry.isFile() && /\.(jpe?g|png|webp|avif)$/i.test(entry.name) ? [full] : [];
+  });
+}
 
 export function loadPersonas(driveRoot: string): LoadedPersona[] {
   const layout = resolveDriveLayout(driveRoot);
@@ -23,7 +32,13 @@ export function loadPersonas(driveRoot: string): LoadedPersona[] {
     const masterDir = path.join(personaDir, '00_MASTER');
     const masterFiles = fs.existsSync(masterDir) ? fs.readdirSync(masterDir).filter((name) => /\.(jpe?g|png|webp)$/i.test(name)) : [];
     if (masterFiles.length > 1) throw new Error(`Persona ${parsed.data.id} has more than one MASTER in ${masterDir}`);
-    personas.push({ ...parsed.data, folder, ...(masterFiles[0] ? { masterPath: path.join(masterDir, masterFiles[0]) } : {}) });
+    personas.push({
+      ...parsed.data,
+      folder,
+      ...(masterFiles[0] ? { masterPath: path.join(masterDir, masterFiles[0]) } : {}),
+      referenceImages: imagesBelow(path.join(personaDir, '01_REFERENCES')),
+      lifestyleAssets: fs.readdirSync(personaDir, { withFileTypes: true }).filter((entry) => entry.isDirectory() && !['00_MASTER', '01_REFERENCES'].includes(entry.name)).flatMap((entry) => imagesBelow(path.join(personaDir, entry.name))),
+    });
   }
   const ids = new Set(personas.map((p) => p.id));
   if (ids.size !== 16 || [...ids].sort().join(',') !== Array.from({ length: 16 }, (_, i) => `P${String(i + 1).padStart(2, '0')}`).join(',')) throw new Error('Persona IDs must be exactly P01..P16');

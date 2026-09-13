@@ -12,6 +12,7 @@ function loadLocalDotEnv() {
 }
 
 const bool = z.preprocess((v) => v === undefined ? undefined : String(v).toLowerCase() === 'true', z.boolean().default(true));
+const boolDefaultFalse = z.preprocess((v) => v === undefined ? undefined : String(v).toLowerCase() === 'true', z.boolean().default(false));
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DRIVE_ROOT: z.string().default('/Users/jos/Library/CloudStorage/GoogleDrive-jossel1.biot@gmail.com/Mon Drive/CORTIFREE_CONTENT'),
@@ -21,6 +22,9 @@ const schema = z.object({
   AI_GENERATION_ENABLED: bool, OPENAI_QA_ENABLED: bool, OPENAI_QA_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.2),
   OPENAI_MAX_MONTHLY_USD: z.coerce.number().positive().default(15), OPENAI_TIMEOUT_MS: z.coerce.number().int().min(5000).default(45000),
   MODELARK_API_KEY: z.string().optional(), MODELARK_MODEL_ID: z.string().optional(),
+  IMAGE_GENERATION_ENABLED: boolDefaultFalse, IMAGE_GENERATION_MAX_RETRIES: z.coerce.number().int().min(1).max(3).default(3),
+  IMAGE_GENERATION_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(3).default(3), IMAGE_GENERATION_DAILY_CAP_USD: z.coerce.number().nonnegative().default(0),
+  IMAGE_GENERATION_UNIT_COST_USD: z.coerce.number().nonnegative().default(0), MAX_NEW_AI_IMAGES_PER_CAROUSEL: z.coerce.number().int().min(0).max(3).default(2),
   UPLOAD_POST_API_KEY: z.string().optional(), TELEGRAM_BOT_TOKEN: z.string().optional(), TELEGRAM_CHAT_ID: z.string().optional(),
   DRY_RUN: bool, REQUIRE_APPROVAL: bool, AI_DISCLOSURE_MODE: z.enum(['auto', 'always', 'never']).default('auto'),
   TARGET_READY_BUFFER_DAYS: z.coerce.number().int().positive().default(3),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import "./image-studio.css";
 import { referenceCarousels } from "./reference-carousels.js";
 import { carouselBlueprints, getCarouselBlueprint } from "./carousel-blueprints.js";
 import { hookCategories, hookLibrary } from "./hook-library.js";
@@ -15,7 +16,16 @@ const assets = [
 ] as const;
 
 type AssetGroup = { category: string; count: number };
-type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string };
+type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string; source_type?: string; persona_id?: string | null };
+type PersonaSummary = { id: string; name: string; ready: boolean; master: { id: string | number; public_url: string; filename: string } | null };
+type VisualReferenceSummary = {
+  id: string; category: string; source_url: string | null; thumbnail_url: string | null; storage_path: string | null;
+  pose: string; framing: string; outfit: string; environment: string; lighting: string; mood: string[]; good_for: string[];
+};
+type ImageGenerationStatus = { configured: boolean; enabled: boolean; provider: string; model: string | null; maxRetries: number; dailyCapUsd: number; unitCostUsd: number; usage: { images: number; costUsd: number } };
+type ImageJob = { id: string; status: string; output_asset_id?: string | number; last_error?: string | null };
+type PersonaScene = { id: string; category: string; scene_description: string };
+type AssetTab = "All Assets" | "Stock" | "Persona Generated" | "Masters" | "Visual References";
 
 const menus = ["Carrousels", "Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
 const COCORISE_URL = process.env.NEXT_PUBLIC_COCORISE_URL
@@ -392,6 +402,30 @@ export default function Home() {
   const [carouselQuery, setCarouselQuery] = useState("");
   const [carouselStatus, setCarouselStatus] = useState("ALL");
   const [openedCarousel, setOpenedCarousel] = useState<StoredCarousel | null>(null);
+  const [assetTab, setAssetTab] = useState<AssetTab>("All Assets");
+  const [assetQuery, setAssetQuery] = useState("");
+  const [referenceCategory, setReferenceCategory] = useState("all");
+  const [visualReferences, setVisualReferences] = useState<VisualReferenceSummary[]>([]);
+  const [personas, setPersonas] = useState<PersonaSummary[]>([]);
+  const [imageGenerationStatus, setImageGenerationStatus] = useState<ImageGenerationStatus | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imagePersonaId, setImagePersonaId] = useState("P06");
+  const [imageReferenceId, setImageReferenceId] = useState("MIRROR_001");
+  const [imageScene, setImageScene] = useState("casual mirror selfie");
+  const [imageCategory, setImageCategory] = useState("other");
+  const [imageFraming, setImageFraming] = useState("");
+  const [imageOutfit, setImageOutfit] = useState("");
+  const [imageInstructions, setImageInstructions] = useState("");
+  const [imageJob, setImageJob] = useState<ImageJob | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchScenes, setBatchScenes] = useState<PersonaScene[]>([]);
+  const [batchPersonaIds, setBatchPersonaIds] = useState<string[]>([]);
+  const [batchSceneIds, setBatchSceneIds] = useState<string[]>([]);
+  const [batchVariations, setBatchVariations] = useState(1);
+  const [batchConcurrency, setBatchConcurrency] = useState(1);
+  const [batchConfirmed, setBatchConfirmed] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const currentModel = useMemo(
     () => modelData.find((model) => model.id === selectedModel) ?? modelData[0],
@@ -427,6 +461,26 @@ export default function Home() {
       && (!query || `${carousel.id} ${carousel.topic} ${carousel.angle} ${carousel.spec?.hook ?? ""}`.toLowerCase().includes(query)),
     );
   }, [carouselQuery, carouselStatus, storedCarousels]);
+  const filteredAssetPreviews = useMemo(() => {
+    const query = assetQuery.trim().toLowerCase();
+    const sourceByTab: Partial<Record<AssetTab, string>> = {
+      Stock: "stock", "Persona Generated": "persona_generated", Masters: "persona_master",
+    };
+    const expectedSource = sourceByTab[assetTab];
+    return assetPreviews.filter((asset) =>
+      (!expectedSource || asset.source_type === expectedSource)
+      && (!query || [asset.filename, asset.category, asset.subcategory, asset.persona_id ?? "", asset.mood].join(" ").toLowerCase().includes(query)),
+    );
+  }, [assetPreviews, assetQuery, assetTab]);
+  const filteredVisualReferences = useMemo(() => {
+    const query = assetQuery.trim().toLowerCase();
+    return visualReferences.filter((reference) =>
+      (referenceCategory === "all" || reference.category === referenceCategory)
+      && (!query || JSON.stringify(reference).toLowerCase().includes(query)),
+    );
+  }, [assetQuery, referenceCategory, visualReferences]);
+  const selectedImagePersona = personas.find((persona) => persona.id === imagePersonaId) ?? null;
+  const selectedImageReference = visualReferences.find((reference) => reference.id === imageReferenceId) ?? null;
 
   useEffect(() => {
     const saved = window.localStorage.getItem("cortifree-product-version");
@@ -474,12 +528,78 @@ export default function Home() {
   }, [active]);
 
   useEffect(() => {
-    if (active !== "Asset library") return;
-    fetch("/api/assets", { cache: "no-store" }).then((response) => response.json()).then((data) => {
-      if (Array.isArray(data.assets)) setAssetGroups(data.assets);
-      if (Array.isArray(data.previews)) setAssetPreviews(data.previews);
-    }).catch(() => setNotice("Impossible de charger le catalogue d’images."));
+    if (active !== "Asset library" && active !== "Content studio") return;
+    Promise.all([
+      fetch("/api/assets", { cache: "no-store" }).then((response) => response.json()),
+      fetch("/api/personas", { cache: "no-store" }).then((response) => response.json()),
+      fetch("/api/visual-references", { cache: "no-store" }).then((response) => response.json()),
+      fetch("/api/image-generation/status", { cache: "no-store" }).then((response) => response.json()),
+      fetch("/api/image-generation/batch", { cache: "no-store" }).then((response) => response.json()),
+    ]).then(([assetData, personaData, referenceData, generationData, batchData]) => {
+      if (Array.isArray(assetData.assets)) setAssetGroups(assetData.assets);
+      if (Array.isArray(assetData.previews)) setAssetPreviews(assetData.previews);
+      if (Array.isArray(personaData.personas)) setPersonas(personaData.personas);
+      if (Array.isArray(referenceData.references)) setVisualReferences(referenceData.references);
+      setImageGenerationStatus(generationData);
+      if (Array.isArray(batchData.scenes)) setBatchScenes(batchData.scenes);
+    }).catch(() => setNotice("Impossible de charger l’infrastructure images."));
   }, [active]);
+
+  async function generatePersonaImage() {
+    if (imageBusy) return;
+    const persona = personas.find((item) => item.id === imagePersonaId);
+    if (!persona?.master) { setNotice("Cette persona n’a pas de MASTER indexé."); return; }
+    setImageBusy(true);
+    setImageJob({ id: "pending", status: "PENDING" });
+    try {
+      const createResponse = await fetch("/api/image-generation/jobs", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          persona_id: imagePersonaId, master_asset_id: persona.master.id, visual_reference_id: imageReferenceId,
+          scene: imageScene, category: imageCategory, framing: imageFraming || undefined, outfit: imageOutfit || undefined,
+          prompt_additions: imageInstructions || undefined,
+        }),
+      });
+      const created = await createResponse.json();
+      if (!createResponse.ok) throw new Error(created.error || "Création du job impossible");
+      setImageJob(created.job);
+      const runResponse = await fetch("/api/image-generation/jobs/" + created.job.id, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "run" }),
+      });
+      const completed = await runResponse.json();
+      if (!runResponse.ok) throw new Error(completed.error || "Génération impossible");
+      setImageJob({ ...created.job, status: "DONE", output_asset_id: completed.asset.id });
+      setNotice("Image générée, vérifiée et ajoutée à l’Asset Library.");
+      const refreshed = await fetch("/api/assets", { cache: "no-store" }).then((response) => response.json());
+      if (Array.isArray(refreshed.previews)) setAssetPreviews(refreshed.previews);
+    } catch (error) {
+      setImageJob((current) => ({ id: current?.id ?? "failed", status: "FAILED", last_error: error instanceof Error ? error.message : String(error) }));
+      setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
+  async function createImageBatch() {
+    const total = batchPersonaIds.length * batchSceneIds.length * batchVariations;
+    if (!batchConfirmed || total < 1 || total > 100 || batchBusy) return;
+    setBatchBusy(true);
+    try {
+      const response = await fetch("/api/image-generation/batch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_ids: batchPersonaIds, scene_ids: batchSceneIds, variations: batchVariations, max_concurrency: batchConcurrency, confirmed: true }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Création du batch impossible");
+      setNotice(`${result.total} jobs image ajoutés à la file. Aucune génération n’a été lancée automatiquement.`);
+      setBatchModalOpen(false);
+      setBatchConfirmed(false);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBatchBusy(false);
+    }
+  }
 
   async function create() {
     if (isCreating) return;
@@ -1222,6 +1342,20 @@ export default function Home() {
           </section>
         )}
 
+        {active === "Content studio" && (
+          <section className="imageStudioBar">
+            <div>
+              <p className="eyebrow">IMAGE</p>
+              <h2>Visuels persona</h2>
+              <p>Choisis un asset existant ou crée une variation à partir d’un MASTER et d’une référence de scène.</p>
+            </div>
+            <div className="imageStudioActions">
+              <button className="secondary" onClick={() => setActive("Asset library")} type="button">Changer d’asset</button>
+              <button className="primary" onClick={() => { setImageJob(null); setImageModalOpen(true); }} type="button">Générer une image</button>
+            </div>
+          </section>
+        )}
+
         <div className="grid">
           {active === "Asset library" && (
             <section className="panel wide">
@@ -1230,11 +1364,20 @@ export default function Home() {
                   <p className="eyebrow">LIBRARY</p>
                   <h2>Asset library</h2>
                 </div>
-                <button className="ghost" onClick={() => setActive("Asset library")} type="button">
-                  Voir tout
-                </button>
+                <button className="batchButton" onClick={() => { setBatchConfirmed(false); setBatchModalOpen(true); }} type="button">Batch personas</button>
               </div>
-              <div className="assetList">
+              <div className="assetTabs" role="tablist" aria-label="Type d’asset">
+                {(["All Assets", "Stock", "Persona Generated", "Masters", "Visual References"] as AssetTab[]).map((tab) => (
+                  <button aria-selected={assetTab === tab} className={assetTab === tab ? "selected" : ""} key={tab} onClick={() => setAssetTab(tab)} role="tab" type="button">{tab}</button>
+                ))}
+              </div>
+              <div className="assetFilters">
+                <label><span>Recherche</span><input onChange={(event) => setAssetQuery(event.target.value)} placeholder="full body mirror casual bedroom" type="search" value={assetQuery} /></label>
+                {assetTab === "Visual References" && (
+                  <label><span>Catégorie</span><select onChange={(event) => setReferenceCategory(event.target.value)} value={referenceCategory}><option value="all">Toutes</option>{[...new Set(visualReferences.map((reference) => reference.category))].map((category) => <option key={category} value={category}>{category.replaceAll("_", " ")}</option>)}</select></label>
+                )}
+              </div>
+              {assetTab !== "Visual References" && (assetTab === "All Assets" || assetTab === "Stock") && <div className="assetList">
                 {assetGroups.map(({ category, count }) => (
                   <div className="asset" key={category}>
                     <div className="assetIcon">{category.charAt(0).toUpperCase()}</div>
@@ -1245,14 +1388,25 @@ export default function Home() {
                     <strong>{count}</strong>
                   </div>
                 ))}
-              </div>
-              {assetPreviews.length > 0 && (
+              </div>}
+              {assetTab !== "Visual References" && filteredAssetPreviews.length > 0 && (
                 <div className="assetPreviewGrid">
-                  {assetPreviews.map((asset) => (
+                  {filteredAssetPreviews.map((asset) => (
                     <figure key={asset.id}>
                       <img alt={asset.filename} loading="lazy" src={asset.public_url} />
-                      <figcaption><b>{asset.subcategory.replaceAll("_", " ")}</b><span>{asset.category.replaceAll("_", " ")} · {asset.orientation} · {asset.framing}</span></figcaption>
+                      <figcaption><b>{asset.source_type === "persona_master" ? "MASTER · " : ""}{asset.subcategory.replaceAll("_", " ")}</b><span>{asset.persona_id ? asset.persona_id + " · " : ""}{asset.category.replaceAll("_", " ")} · {asset.orientation} · {asset.framing}</span></figcaption>
                     </figure>
+                  ))}
+                </div>
+              )}
+              {assetTab !== "Visual References" && !filteredAssetPreviews.length && <div className="libraryEmpty">Aucun asset correspondant dans Supabase Storage.</div>}
+              {assetTab === "Visual References" && (
+                <div className="visualReferenceGrid">
+                  {filteredVisualReferences.map((reference) => (
+                    <article key={reference.id}>
+                      {reference.thumbnail_url ? <img alt={reference.id} loading="lazy" referrerPolicy="no-referrer" src={reference.thumbnail_url} /> : <div className="referencePlaceholder">Référence URL</div>}
+                      <div><span>{reference.category.replaceAll("_", " ")}</span><h3>{reference.id}</h3><p>{reference.pose || reference.environment}</p><small>{reference.framing} · {reference.lighting}</small><a href={reference.source_url ?? "#"} rel="noreferrer" target="_blank">Source Pinterest</a></div>
+                    </article>
                   ))}
                 </div>
               )}
@@ -1324,6 +1478,54 @@ export default function Home() {
               </div>
               {!openedCarousel.spec?.rendered_slides?.length && <div className="libraryEmpty">Ce brouillon n’a pas encore de PNG rendu.</div>}
               <div className="modalCaption"><b>Légende</b><p>{openedCarousel.caption}</p></div>
+            </section>
+          </div>
+        )}
+        {imageModalOpen && (
+          <div className="carouselModal" onClick={() => setImageModalOpen(false)} role="presentation">
+            <section aria-label="Générer une image persona" aria-modal="true" className="imageGeneratorModal" onClick={(event) => event.stopPropagation()} role="dialog">
+              <div className="modalHead"><div><p className="eyebrow">PERSONA IMAGE GENERATOR</p><h2>MASTER + référence de scène</h2></div><button aria-label="Fermer" onClick={() => setImageModalOpen(false)} type="button">×</button></div>
+              <div className="identityEquation">
+                <figure>{selectedImagePersona?.master?.public_url ? <img alt={"MASTER " + selectedImagePersona.name} src={selectedImagePersona.master.public_url} /> : <div className="referencePlaceholder">MASTER manquant</div>}<figcaption><b>WHO</b><span>{selectedImagePersona?.name ?? imagePersonaId}</span></figcaption></figure>
+                <strong>+</strong>
+                <figure>{selectedImageReference?.thumbnail_url ? <img alt={selectedImageReference.id} referrerPolicy="no-referrer" src={selectedImageReference.thumbnail_url} /> : <div className="referencePlaceholder">Image à importer</div>}<figcaption><b>HOW + WHERE</b><span>{selectedImageReference?.id ?? imageReferenceId}</span></figcaption></figure>
+              </div>
+              <div className="imageGeneratorFields">
+                <label><span>Persona</span><select onChange={(event) => setImagePersonaId(event.target.value)} value={imagePersonaId}>{personas.map((persona) => <option key={persona.id} value={persona.id}>{persona.id} · {persona.name}{persona.ready ? "" : " · MASTER non indexé"}</option>)}</select></label>
+                <label><span>Scène</span><input onChange={(event) => setImageScene(event.target.value)} value={imageScene} /></label>
+                <label><span>Catégorie</span><select onChange={(event) => setImageCategory(event.target.value)} value={imageCategory}><option value="other">Other</option><option value="home">Home</option><option value="fitness">Fitness</option><option value="outdoors">Outdoors</option><option value="self_care">Self care</option><option value="food">Food</option><option value="work_study">Work / Study</option></select></label>
+                <label><span>Référence visuelle</span><select onChange={(event) => setImageReferenceId(event.target.value)} value={imageReferenceId}>{visualReferences.map((reference) => <option key={reference.id} value={reference.id}>{reference.id} · {reference.category.replaceAll("_", " ")}</option>)}</select></label>
+                <label><span>Cadrage</span><input onChange={(event) => setImageFraming(event.target.value)} placeholder={selectedImageReference?.framing || "full body"} value={imageFraming} /></label>
+                <label><span>Tenue</span><input onChange={(event) => setImageOutfit(event.target.value)} placeholder={selectedImageReference?.outfit || "casual neutral"} value={imageOutfit} /></label>
+                <label className="full"><span>Instructions additionnelles</span><textarea onChange={(event) => setImageInstructions(event.target.value)} placeholder="Détails optionnels, sans changer l’identité du MASTER" value={imageInstructions} /></label>
+              </div>
+              <div className="generationReadiness">
+                <span className={imageGenerationStatus?.enabled && imageGenerationStatus?.configured ? "ready" : "off"}>{imageGenerationStatus?.enabled && imageGenerationStatus?.configured ? "Seedream prêt" : "Seedream désactivé"}</span>
+                <small>{imageGenerationStatus?.model ?? "MODELARK_MODEL_ID absent"} · {imageGenerationStatus?.usage.images ?? 0} image(s) ce mois</small>
+              </div>
+              {imageJob && <div className={"jobState state-" + imageJob.status.toLowerCase()}><b>{imageJob.status}</b><span>{imageJob.last_error ?? (imageJob.status === "DONE" ? "Nouvel asset ajouté à la bibliothèque" : "Traitement du job")}</span></div>}
+              <div className="modalActions">
+                <button className="ghost" onClick={() => setImageReferenceId(visualReferences[(Math.max(0, visualReferences.findIndex((item) => item.id === imageReferenceId)) + 1) % Math.max(visualReferences.length, 1)]?.id ?? imageReferenceId)} type="button">Changer de référence</button>
+                <button className="primary" disabled={imageBusy || !selectedImagePersona?.master || !selectedImageReference} onClick={generatePersonaImage} type="button">{imageBusy ? "Génération…" : imageJob?.status === "DONE" ? "Régénérer" : "Générer l’image"}</button>
+              </div>
+            </section>
+          </div>
+        )}
+        {batchModalOpen && (
+          <div className="carouselModal" onClick={() => setBatchModalOpen(false)} role="presentation">
+            <section aria-label="Générateur batch de personas" aria-modal="true" className="imageGeneratorModal batchGeneratorModal" onClick={(event) => event.stopPropagation()} role="dialog">
+              <div className="modalHead"><div><p className="eyebrow">PERSONA IMAGE GENERATOR</p><h2>Créer un batch contrôlé</h2></div><button aria-label="Fermer" onClick={() => setBatchModalOpen(false)} type="button">×</button></div>
+              <div className="batchColumns">
+                <fieldset><legend>Personas</legend><div className="batchChecks">{personas.map((persona) => <label key={persona.id}><input checked={batchPersonaIds.includes(persona.id)} disabled={!persona.ready} onChange={(event) => setBatchPersonaIds((current) => event.target.checked ? [...current, persona.id] : current.filter((id) => id !== persona.id))} type="checkbox" /><span>{persona.id} · {persona.name}{persona.ready ? "" : " · MASTER absent"}</span></label>)}</div></fieldset>
+                <fieldset><legend>Scènes</legend><div className="batchChecks">{batchScenes.map((scene) => <label key={scene.id}><input checked={batchSceneIds.includes(scene.id)} onChange={(event) => setBatchSceneIds((current) => event.target.checked ? [...current, scene.id] : current.filter((id) => id !== scene.id))} type="checkbox" /><span>{scene.id.replaceAll("_", " ")}</span></label>)}</div></fieldset>
+              </div>
+              <div className="batchControls">
+                <label><span>Variations</span><select onChange={(event) => setBatchVariations(Number(event.target.value))} value={batchVariations}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></label>
+                <label><span>Concurrence demandée</span><select onChange={(event) => setBatchConcurrency(Number(event.target.value))} value={batchConcurrency}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></label>
+              </div>
+              <div className="batchEstimate"><div><span>Personas</span><b>{batchPersonaIds.length}</b></div><div><span>Scènes</span><b>{batchSceneIds.length}</b></div><div><span>Total</span><b>{batchPersonaIds.length * batchSceneIds.length * batchVariations}</b></div><div><span>Coût estimé</span><b>${((imageGenerationStatus?.unitCostUsd ?? 0) * batchPersonaIds.length * batchSceneIds.length * batchVariations).toFixed(2)}</b></div></div>
+              <label className="batchConfirmation"><input checked={batchConfirmed} onChange={(event) => setBatchConfirmed(event.target.checked)} type="checkbox" /><span>Je confirme la création de ces jobs. Ils resteront en attente et ne seront pas exécutés automatiquement.</span></label>
+              <div className="modalActions"><button className="ghost" onClick={() => setBatchModalOpen(false)} type="button">Annuler</button><button className="primary" disabled={batchBusy || !batchConfirmed || batchPersonaIds.length * batchSceneIds.length * batchVariations < 1 || batchPersonaIds.length * batchSceneIds.length * batchVariations > 100} onClick={createImageBatch} type="button">{batchBusy ? "Création…" : "Ajouter à la file"}</button></div>
             </section>
           </div>
         )}

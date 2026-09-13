@@ -48,11 +48,39 @@ Apply `migrations/002_ai_usage_logs.sql` to Supabase before enabling AI cost tra
 
 Upload-Post is shared at the provider level, so CortiFree only exposes profiles listed in `CORTIFREE_UPLOAD_POST_PROFILES` and explicitly mapped to a `CF_*` account in Supabase. An empty allowlist intentionally means zero CortiFree publishing profiles; Cocorise profiles are never selected as a fallback.
 
+## Persona Images
+
+The image system treats the persona MASTER as identity (`WHO`) and a visual reference only as pose, outfit, setting, framing and light (`HOW + WHERE`). Bootstrap and inspect the local Drive library without changing any MASTER:
+
+```bash
+npm run personas:bootstrap
+npm run personas:validate
+npm run refs:bootstrap
+npm run refs:import-pinterest
+npm run refs:scan
+```
+
+Apply `migrations/006_persona_image_infrastructure.sql`, then run `npm run personas:sync` from a trusted machine with server-side Supabase credentials. The sync uses the dedicated `cortifree-assets` bucket, never overwrites storage objects, and namespaces every database row with `workspace_id=cortifree`.
+
+Vision tagging is paid and deliberately requires explicit IDs:
+
+```bash
+npm run refs:analyze -- --ids MIRROR_001,MORNING_HOME_001
+```
+
+Seedream generation has three independent locks: `IMAGE_GENERATION_ENABLED=false`, `IMAGE_GENERATION_DAILY_CAP_USD=0`, and the Content Studio confirmation flow. Set a verified model ID and a manually reviewed unit cost before changing either lock. Never add a `NEXT_PUBLIC_MODELARK_API_KEY` variable. ModelArk documentation currently prohibits restricted Seedream models in the EU and on the EU market; keep this provider disabled for France/EU deployments and select a legally available provider before a real test.
+
+The Asset Library exposes Stock, Persona Generated, protected Masters and Visual References. Content Studio can create or regenerate one image, while Batch personas only queues confirmed jobs (maximum 100); it does not execute them automatically.
+
 ## Structure
 
 - `src/domain.ts` : schémas Zod stricts.
 - `src/personas/loader.ts` : mapping P01..P16 ↔ nom ↔ dossier, avec erreur explicite.
 - `src/assets/scanner.ts` : scan idempotent, hash SHA-256, dimensions et index local.
+- `src/visual-references/` : scan, hash dedupe, naming and reference search.
+- `src/image-generation/` : provider boundary, stable identity prompt, retry and budget guards.
+- `scripts/sync-persona-image-assets.ts` : non-destructive Drive to Supabase Storage sync.
 - `src/render/` : tokens de design, registre de templates, SVG + Sharp et QA.
 - `migrations/001_initial.sql` : schéma Supabase CortiFree séparé.
+- `migrations/006_persona_image_infrastructure.sql` : visual references, scenes, image jobs and cost usage.
 - `config/accounts.json` : configuration de comptes, non hardcodée dans le moteur.

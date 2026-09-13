@@ -12,3 +12,4 @@ coverage/
 .env*.local
 work/
 supabase/.temp/
+.env*

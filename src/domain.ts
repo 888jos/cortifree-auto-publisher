@@ -7,7 +7,8 @@ export const personaConfigSchema = z.object({
   id: z.string().regex(/^P\d{2}$/), name: z.string().min(1), age: z.number().int().min(18).max(80), background: z.string().min(1),
   physical: z.object({ skin: z.string(), hair: z.string(), eyes: z.string(), face: z.string(), build: z.string() }), situation: z.string(), visual_style: z.string(), signature_scene: z.string(),
   image_generation: z.object({ master_prompt: z.string(), identity_reference_prompt: z.string(), negative_prompt: z.string() }),
-  content: z.object({ primary_topics: z.array(z.string()).min(1), voice: z.string(), cta_style: z.string(), medical_guardrails: z.array(z.string()).min(1) })
+  content: z.object({ primary_topics: z.array(z.string()).min(1), voice: z.string(), cta_style: z.string(), medical_guardrails: z.array(z.string()).min(1) }),
+  archetype: z.object({ preferred_categories: z.array(z.string()).default([]), outfit_families: z.array(z.string()).default([]), environments: z.array(z.string()).default([]), scene_weights: z.record(z.string(), z.number().min(0).max(1)).default({}) }).optional()
 });
 export type PersonaConfig = z.infer<typeof personaConfigSchema>;
 export const accountSchema = z.object({ id: z.string().min(1), name: z.string().min(1), persona_id: z.string().regex(/^P\d{2}$/), language: languageSchema, market: z.string().min(2), timezone: z.string().min(1), platforms: z.array(platformSchema).min(1), upload_post_profile: z.string().optional(), daily_target: z.number().int().min(0).max(2), posting_slots: z.array(z.string().regex(/^\d{2}:\d{2}$/)), enabled: z.boolean(), warmup_status: z.enum(['CREATED', 'WARMING', 'ACTIVE', 'PAUSED', 'ERROR']).default('CREATED'), created_at: z.string().datetime().optional() });
