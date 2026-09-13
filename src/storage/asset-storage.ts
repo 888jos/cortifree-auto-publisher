@@ -26,24 +26,3 @@ export class LocalDriveAssetStorage implements AssetStorageProvider {
     }
   }
 }
-
-export class SupabaseAssetStorage implements AssetStorageProvider {
-  readonly name = 'supabase_storage';
-  constructor(private readonly options: { url: string; serviceRoleKey: string; bucket: string }) {}
-
-  private objectUrl(storagePath: string, publicObject = false) {
-    const encoded = storagePath.split('/').map(encodeURIComponent).join('/');
-    return `${this.options.url}/storage/v1/${publicObject ? 'object/public' : 'object'}/${this.options.bucket}/${encoded}`;
-  }
-
-  async putIfAbsent(input: { storagePath: string; bytes: Uint8Array; contentType: string }) {
-    const target = this.objectUrl(input.storagePath);
-    const headers = { apikey: this.options.serviceRoleKey, Authorization: `Bearer ${this.options.serviceRoleKey}` };
-    const exists = await fetch(target, { method: 'HEAD', headers });
-    if (exists.ok) return { created: false, publicUrl: this.objectUrl(input.storagePath, true) };
-    if (exists.status !== 400 && exists.status !== 404) throw new Error(`Storage check failed: ${exists.status}`);
-    const response = await fetch(target, { method: 'POST', headers: { ...headers, 'Content-Type': input.contentType, 'x-upsert': 'false' }, body: new Uint8Array(input.bytes) });
-    if (!response.ok) throw new Error(`Storage upload failed: ${(await response.text()).slice(0, 500)}`);
-    return { created: true, publicUrl: this.objectUrl(input.storagePath, true) };
-  }
-}

@@ -1,12 +1,13 @@
 # CortiFree Auto Publisher
 
-Projet indépendant de publication de carrousels CortiFree. Le Milestone 1 est volontairement local et sans publication réelle : les assets sont lus via `DRIVE_ROOT`, les sorties de test vont vers le Drive local, et `DRY_RUN=true` reste le défaut.
+Projet indépendant de publication de carrousels CortiFree. Convex est l'unique backend de l'application pour les données et les fichiers. `DRY_RUN=true` et `REQUIRE_APPROVAL=true` restent les défauts de sécurité.
 
 ## Démarrage
 
 ```bash
 npm install
 cp .env.example .env
+npx convex dev
 npm run doctor
 npm run personas:validate
 npm run carousel:create -- --account CF_EN_01 --id CF_TEST_001
@@ -19,7 +20,20 @@ Le renderer est un pipeline SVG déterministe + Sharp : il ne lance pas de navig
 
 ## Conventions de sécurité
 
-Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés et tokens restent dans l’environnement. OpenAI et Supabase sont isolés dans des modules serveur; aucun secret n’est envoyé au navigateur. Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
+Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés et tokens restent dans l’environnement. Le secret backend Convex et la clé OpenAI sont utilisés uniquement côté serveur. Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
+
+## Convex
+
+Les routes sous `app/api` lisent et écrivent exclusivement dans Convex. Le backend force systématiquement `workspace_id=cortifree`; une requête ne peut pas être redirigée vers les données Cocorise. Les noms de comptes historiques Supabase restent uniquement dans le script d'export ponctuel `scripts/export-cortifree-supabase.ts`.
+
+```bash
+npm run convex:dev
+npm run convex:export-supabase
+npm run convex:migrate-files
+npm run convex:deploy
+```
+
+Vercel utilise `npm run vercel-build`, `CONVEX_DEPLOY_KEY`, `NEXT_PUBLIC_CONVEX_URL` et `CORTIFREE_BACKEND_SECRET`. L'ancien Supabase doit être conservé en lecture seule pendant la période de retour arrière, mais il n'est plus requis par l'application déployée.
 
 ## OpenAI Setup
 
@@ -44,9 +58,9 @@ OPENAI_MAX_MONTHLY_USD=15
 OPENAI_TIMEOUT_MS=45000
 ```
 
-Apply `migrations/002_ai_usage_logs.sql` to Supabase before enabling AI cost tracking. Pricing lives in one module and must be reviewed periodically. The API key is server-only and is never returned by `/api/ai/status` or exposed through a `NEXT_PUBLIC_*` variable. Social publishing remains protected by `DRY_RUN=true`.
+AI cost tracking is stored in the Convex `ai_usage_logs` table. Pricing lives in one module and must be reviewed periodically. The API key is server-only and is never returned by `/api/ai/status` or exposed through a `NEXT_PUBLIC_*` variable. Social publishing remains protected by `DRY_RUN=true`.
 
-Upload-Post is shared at the provider level, so CortiFree only exposes profiles listed in `CORTIFREE_UPLOAD_POST_PROFILES` and explicitly mapped to a `CF_*` account in Supabase. An empty allowlist intentionally means zero CortiFree publishing profiles; Cocorise profiles are never selected as a fallback.
+Upload-Post is shared at the provider level, so CortiFree only exposes profiles listed in `CORTIFREE_UPLOAD_POST_PROFILES` and explicitly mapped to a `CF_*` account in Convex. An empty allowlist intentionally means zero CortiFree publishing profiles; Cocorise profiles are never selected as a fallback.
 
 ## Persona Images
 
@@ -60,7 +74,7 @@ npm run refs:import-pinterest
 npm run refs:scan
 ```
 
-Apply `migrations/006_persona_image_infrastructure.sql`, then run `npm run personas:sync` from a trusted machine with server-side Supabase credentials. The sync uses the dedicated `cortifree-assets` bucket, never overwrites storage objects, and namespaces every database row with `workspace_id=cortifree`.
+Run `npm run personas:sync` from a trusted machine with the Convex server credentials. Images are stored in Convex file storage and every database row is forced into `workspace_id=cortifree`.
 
 Vision tagging is paid and deliberately requires explicit IDs:
 
@@ -79,8 +93,8 @@ The Asset Library exposes Stock, Persona Generated, protected Masters and Visual
 - `src/assets/scanner.ts` : scan idempotent, hash SHA-256, dimensions et index local.
 - `src/visual-references/` : scan, hash dedupe, naming and reference search.
 - `src/image-generation/` : provider boundary, stable identity prompt, retry and budget guards.
-- `scripts/sync-persona-image-assets.ts` : non-destructive Drive to Supabase Storage sync.
+- `scripts/sync-persona-image-assets.ts` : non-destructive Drive to Convex file-storage sync.
 - `src/render/` : tokens de design, registre de templates, SVG + Sharp et QA.
-- `migrations/001_initial.sql` : schéma Supabase CortiFree séparé.
-- `migrations/006_persona_image_infrastructure.sql` : visual references, scenes, image jobs and cost usage.
+- `convex/schema.ts` : schéma de données CortiFree isolé.
+- `convex/data.ts` : requêtes, écritures et stockage protégés par secret serveur.
 - `config/accounts.json` : configuration de comptes, non hardcodée dans le moteur.

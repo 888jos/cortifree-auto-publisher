@@ -1,4 +1,4 @@
-import { supabase } from "../supabase.js";
+import { dataBackend } from "../data-backend";
 import { estimateCostUsd } from "./pricing";
 import type { TokenUsage } from "./types";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";
@@ -18,7 +18,7 @@ export function assertWithinMonthlyCap(spent: number, cap: number, bypass = fals
 export async function getMonthlyUsage(): Promise<MonthlyUsage> {
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
   try {
-    const response = await supabase(`ai_usage_logs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=estimated_cost_usd,input_tokens,cached_input_tokens,output_tokens&created_at=gte.${encodeURIComponent(monthStart)}`);
+    const response = await dataBackend(`ai_usage_logs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=estimated_cost_usd,input_tokens,cached_input_tokens,output_tokens&created_at=gte.${encodeURIComponent(monthStart)}`);
     if (!response.ok) throw new Error("Usage query failed");
     const rows = await response.json() as Array<Record<string, number | string | null>>;
     return rows.reduce<MonthlyUsage>((total, row) => ({
@@ -55,7 +55,7 @@ export async function logAIUsage(entry: {
     error: entry.error?.slice(0, 1_000) ?? null,
   };
   try {
-    await supabase("ai_usage_logs", { method: "POST", body: JSON.stringify(row) });
+    await dataBackend("ai_usage_logs", { method: "POST", body: JSON.stringify(row) });
   } catch {
     // Usage storage must never turn a valid draft into a failed draft.
   }

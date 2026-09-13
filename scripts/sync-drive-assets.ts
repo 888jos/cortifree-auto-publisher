@@ -2,22 +2,11 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { dataBackend, convexConfigured } from "../src/lib/data-backend.js";
+import { uploadConvexFile } from "../app/lib/convex-storage.js";
 
-const BUCKET = "cortifree-assets";
 const DRIVE_FOLDER_ID = "1I7OJ8juCsXINUMNJZ5IO5qhIrjYJlqi_";
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
-
-function loadEnv(source: string) {
-  return Object.fromEntries(source.split(/\r?\n/).flatMap((line) => {
-    const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (!match) return [];
-    let value = match[2] ?? "";
-    if (value.startsWith('"') && value.endsWith('"')) {
-      try { value = JSON.parse(value); } catch { value = value.slice(1, -1); }
-    }
-    return [[match[1], value]];
-  }));
-}
 
 async function walk(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -76,22 +65,7 @@ function mimeType(file: string) {
 async function main() {
   const root = process.argv[2];
   if (!root) throw new Error("Usage: sync-drive-assets <extracted asset directory>");
-  const env = loadEnv(await readFile(".env.local", "utf8"));
-  const supabaseUrl = process.env.SUPABASE_URL || env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceKey) throw new Error("Supabase production environment is missing");
-  const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
-
-  const bucketResponse = await fetch(`${supabaseUrl}/storage/v1/bucket`, {
-    method: "POST", headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ id: BUCKET, name: BUCKET, public: true, file_size_limit: 20_971_520, allowed_mime_types: [...new Set(["image/jpeg", "image/png", "image/webp", "image/avif"])] }),
-  });
-  if (!bucketResponse.ok) {
-    const bucketFailure = await bucketResponse.text();
-    if (bucketResponse.status !== 409 && !bucketFailure.includes("BucketAlreadyExists")) {
-      throw new Error(`Bucket creation failed: ${bucketFailure}`);
-    }
-  }
+  if (!convexConfigured()) throw new Error("Convex server credentials are required");
 
   const files = await walk(root);
   let completed = 0;
@@ -106,29 +80,28 @@ async function main() {
     const filename = path.basename(file).normalize("NFC");
     const safeExtension = path.extname(filename).toLowerCase().replace(".jpeg", ".jpg");
     const storagePath = `stock/${category}/${hash}${safeExtension}`;
-    const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
     const image = sharp(bytes);
     const [metadata, stats] = await Promise.all([image.metadata(), image.clone().resize({ width: 64, height: 64, fit: "inside" }).stats()]);
     if (!metadata.width || !metadata.height) continue;
-    if (process.env.SKIP_UPLOAD !== "1") {
-      const upload = await fetch(`${supabaseUrl}/storage/v1/object/${BUCKET}/${encodedPath}`, {
-        method: "POST", headers: { ...headers, "Content-Type": mimeType(file), "x-upsert": "true" }, body: bytes,
-      });
-      if (!upload.ok) throw new Error(`Upload failed for ${filename}: ${await upload.text()}`);
-    }
+    const recordPath = `convex://${storagePath}`;
+    const existingResponse = await dataBackend(`assets?path=eq.${encodeURIComponent(recordPath)}&select=public_url&limit=1`);
+    if (!existingResponse.ok) throw new Error(await existingResponse.text());
+    const [existing] = await existingResponse.json() as Array<{ public_url?: string }>;
+    const upload = existing?.public_url ? null : await uploadConvexFile(new Uint8Array(bytes), mimeType(file));
 
     const terms = tokensFor(filename).filter((term) => term !== category);
     const dominant = stats.dominant;
     const dominantHex = `#${[dominant.r, dominant.g, dominant.b].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
-    const publicUrl = `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${encodedPath}`;
+    const publicUrl = existing?.public_url ?? upload?.publicUrl;
+    if (!publicUrl) throw new Error(`No Convex file URL for ${filename}`);
     rows.push({
-      path: `supabase://${BUCKET}/${storagePath}`, filename, relative_path: relative, category,
+      workspace_id: "cortifree", path: recordPath, filename, relative_path: relative, category,
       subcategory: inferSubcategory(category, terms), persona_id: null, source_type: "stock",
       width: metadata.width, height: metadata.height, orientation: metadata.height > metadata.width ? "portrait" : metadata.width > metadata.height ? "landscape" : "square",
       framing: inferFraming(category, terms, metadata.width, metadata.height), activity: terms.slice(0, 10).join(" ") || "lifestyle",
       mood: inferMood(category, terms), colors: [dominantHex], tags: [...new Set([category, ...terms])].slice(0, 24), hash,
-      storage_bucket: BUCKET, storage_path: storagePath, public_url: publicUrl, indexed_at: new Date().toISOString(), enabled: true,
-      metadata: { source: "google_drive", drive_folder_id: DRIVE_FOLDER_ID, aspect_ratio: Number((metadata.width / metadata.height).toFixed(4)), dominant_rgb: dominant },
+      storage_bucket: "convex", storage_path: storagePath, public_url: publicUrl, indexed_at: new Date().toISOString(), enabled: true,
+      metadata: { source: "google_drive", drive_folder_id: DRIVE_FOLDER_ID, convex_storage_id: upload?.storageId, aspect_ratio: Number((metadata.width / metadata.height).toFixed(4)), dominant_rgb: dominant },
     });
     completed += 1;
     if (completed % 25 === 0 || completed === files.length) console.log(`Prepared ${completed}/${files.length}`);
@@ -137,13 +110,11 @@ async function main() {
   const uniqueRows = [...new Map(rows.map((row) => [row.path, row])).values()];
   for (let offset = 0; offset < uniqueRows.length; offset += 50) {
     const batch = uniqueRows.slice(offset, offset + 50);
-    const response = await fetch(`${supabaseUrl}/rest/v1/assets?on_conflict=path`, {
-      method: "POST", headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(batch),
-    });
+    const response = await dataBackend("assets?on_conflict=path", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(batch) });
     if (!response.ok) throw new Error(`Asset upsert failed: ${await response.text()}`);
   }
 
-  console.log(`Synced ${uniqueRows.length} unique assets to ${BUCKET}`);
+  console.log(`Synced ${uniqueRows.length} unique assets to Convex`);
 }
 
 await main();

@@ -1,5 +1,5 @@
 import personas from "../../../config/personas.json" with { type: "json" };
-import { supabase } from "../../lib/supabase";
+import { dataBackend } from "../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
 
 export const runtime = "nodejs";
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET() {
   let masters: Array<{ id: string | number; persona_id: string; public_url: string; filename: string }> = [];
   try {
-    const response = await supabase("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&source_type=eq.persona_master&select=id,persona_id,public_url,filename");
+    const response = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&source_type=eq.persona_master&select=id,persona_id,public_url,filename");
     if (response.ok) masters = await response.json();
   } catch {}
   return Response.json({

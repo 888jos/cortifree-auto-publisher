@@ -2,7 +2,7 @@ import { z } from 'zod';
 import personas from '../../../../config/personas.json' with { type: 'json' };
 import { batchGenerationCount, buildImagePrompt, imageGenerationInputSchema } from '../../../../src/image-generation/core';
 import { visualReferenceSchema } from '../../../../src/visual-references';
-import { supabase } from '../../../lib/supabase';
+import { dataBackend } from '../../../lib/data-backend';
 import { CORTIFREE_WORKSPACE_ID } from '../../../lib/workspace';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,7 @@ const batchSchema = z.object({
 type Scene = { id: string; category: string; scene_description: string; recommended_reference_categories: string[]; recommended_framing: string | null; recommended_outfit: string | null };
 
 async function rows<T>(resource: string): Promise<T[]> {
-  const response = await supabase(resource);
+  const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
   return await response.json() as T[];
 }
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       }
     }
     if (jobs.length !== total) throw new Error('Batch generation count mismatch');
-    const response = await supabase('image_generation_jobs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(jobs) });
+    const response = await dataBackend('image_generation_jobs', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(jobs) });
     if (!response.ok) throw new Error(await response.text());
     return Response.json({ total, max_concurrency: batch.max_concurrency, jobs: await response.json(), execution: 'queued_only' }, { status: 201 });
   } catch (error) {

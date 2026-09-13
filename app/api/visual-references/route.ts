@@ -1,6 +1,6 @@
 import seed from "../../../config/visual-references.seed.json" with { type: "json" };
 import { visualReferenceSchema } from "../../../src/visual-references";
-import { supabase } from "../../lib/supabase";
+import { dataBackend } from "../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
 
 export const runtime = "nodejs";
@@ -11,11 +11,11 @@ export async function GET(request: Request) {
   const query = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
   try {
     const categoryFilter = category && category !== "all" ? "&category=eq." + encodeURIComponent(category) : "";
-    const response = await supabase("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&enabled=eq.true" + categoryFilter + "&select=*&order=id.asc&limit=500");
+    const response = await dataBackend("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&enabled=eq.true" + categoryFilter + "&select=*&order=id.asc&limit=500");
     if (!response.ok) throw new Error(await response.text());
     let references = await response.json() as typeof seed;
     if (query) references = references.filter((item) => JSON.stringify(item).toLowerCase().includes(query));
-    return Response.json({ references, source: "supabase" });
+    return Response.json({ references, source: "convex" });
   } catch {
     let references = seed.filter((item) => !category || category === "all" || item.category === category);
     if (query) references = references.filter((item) => JSON.stringify(item).toLowerCase().includes(query));
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const entries = Array.isArray(body) ? body : body.references;
     const references = visualReferenceSchema.array().max(200).parse(entries);
-    const response = await supabase("visual_references?on_conflict=id", {
+    const response = await dataBackend("visual_references?on_conflict=id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },
       body: JSON.stringify(references.map((reference) => ({ ...reference, workspace_id: CORTIFREE_WORKSPACE_ID, updated_at: new Date().toISOString() }))),

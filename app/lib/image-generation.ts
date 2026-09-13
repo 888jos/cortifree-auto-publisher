@@ -12,11 +12,11 @@ import {
   type ImageGenerationProvider,
 } from "../../src/image-generation/core";
 import { visualReferenceSchema } from "../../src/visual-references";
-import { SupabaseAssetStorage } from "../../src/storage/asset-storage";
-import { supabase } from "./supabase";
+import { uploadConvexFile } from "./convex-storage";
+import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 
-const BUCKET = "cortifree-assets";
+const BUCKET = "convex-files";
 
 function settings() {
   return {
@@ -30,7 +30,7 @@ function settings() {
 }
 
 async function queryOne<T>(resource: string): Promise<T> {
-  const response = await supabase(resource);
+  const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
   const rows = await response.json() as T[];
   if (!rows[0]) throw new Error("Required record not found");
@@ -39,7 +39,7 @@ async function queryOne<T>(resource: string): Promise<T> {
 
 async function patchJob(id: string, values: Record<string, unknown>) {
   const resource = "image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(id);
-  const response = await supabase(resource, {
+  const response = await dataBackend(resource, {
     method: "PATCH", body: JSON.stringify({ ...values, updated_at: new Date().toISOString() }),
   });
   if (!response.ok) throw new Error(await response.text());
@@ -63,29 +63,25 @@ async function uploadGeneratedAsset(options: {
   const jpeg = await sharp(options.bytes).rotate().jpeg({ quality: 92 }).toBuffer();
   if (jpeg.length < 8_000) throw new Error("Generated image is unexpectedly small");
 
-  const existingResponse = await supabase("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&persona_id=eq." + options.personaId + "&source_type=eq.persona_generated&select=filename");
+  const existingResponse = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&persona_id=eq." + options.personaId + "&source_type=eq.persona_generated&select=filename");
   const existing = existingResponse.ok ? (await existingResponse.json() as Array<{ filename: string }>).map((item) => item.filename) : [];
   const filename = generatedAssetName(options.personaName, options.category, existing);
   const folder = personaAssetFolder(options.category);
   const storagePath = "personas/" + options.personaId + "/" + folder + "/" + filename;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Supabase storage is not configured");
-  const storage = new SupabaseAssetStorage({ url, serviceRoleKey: key, bucket: BUCKET });
-  const { publicUrl } = await storage.putIfAbsent({ storagePath, bytes: new Uint8Array(jpeg), contentType: "image/jpeg" });
+  const { publicUrl, storageId } = await uploadConvexFile(new Uint8Array(jpeg), "image/jpeg");
   const row = {
-    workspace_id: CORTIFREE_WORKSPACE_ID, path: "supabase://" + BUCKET + "/" + storagePath, relative_path: storagePath, filename,
+    workspace_id: CORTIFREE_WORKSPACE_ID, path: "convex://" + storagePath, relative_path: storagePath, filename,
     category: options.category, subcategory: options.scene.toLowerCase().replace(/[^a-z0-9]+/g, "_"), persona_id: options.personaId,
     source_type: "persona_generated", width: metadata.width, height: metadata.height,
     hash: options.jobId + ":" + jpeg.length, storage_bucket: BUCKET, storage_path: storagePath, public_url: publicUrl,
     orientation: metadata.width === metadata.height ? "square" : metadata.height > metadata.width ? "portrait" : "landscape",
     framing: options.reference.framing || "medium", activity: options.scene, mood: options.reference.mood.join(" ") || "natural",
     colors: [], tags: [...new Set([options.category, options.scene, ...options.reference.tags])],
-    metadata: { generation_job_id: options.jobId, visual_reference_id: options.reference.id },
+    metadata: { generation_job_id: options.jobId, visual_reference_id: options.reference.id, convex_storage_id: storageId },
     scene: options.scene, pose: options.reference.pose, outfit: options.reference.outfit, environment: options.reference.environment,
     lighting: options.reference.lighting, good_for: options.reference.good_for, enabled: true,
   };
-  const insert = await supabase("assets", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
+  const insert = await dataBackend("assets", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
   if (!insert.ok) throw new Error("Asset index failed: " + (await insert.text()).slice(0, 500));
   const asset = (await insert.json() as Array<{ id: string | number }>)[0];
   if (!asset) throw new Error("Asset index returned no row");
@@ -99,7 +95,7 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
   if (!injectedProvider) {
     const dayStart = new Date();
     dayStart.setUTCHours(0, 0, 0, 0);
-    const usageResponse = await supabase("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(dayStart.toISOString()) + "&select=estimated_cost_usd");
+    const usageResponse = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(dayStart.toISOString()) + "&select=estimated_cost_usd");
     if (!usageResponse.ok) throw new Error("Cannot verify daily image generation budget");
     const usage = await usageResponse.json() as Array<{ estimated_cost_usd: number }>;
     assertGenerationBudget({
@@ -127,7 +123,7 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
     );
     const asset = await uploadGeneratedAsset({ bytes: await outputBytes(result), personaId: persona.id, personaName: persona.name, category: String(job.category), scene: String(job.scene), reference, jobId });
     await patchJob(jobId, { status: "DONE", output_asset_id: asset.id, finished_at: new Date().toISOString(), cost_estimate_usd: current.unitCostUsd });
-    await supabase("image_generation_usage", { method: "POST", body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, job_id: jobId, persona_id: persona.id, provider: provider.name, model: result.model, images_generated: 1, estimated_cost_usd: current.unitCostUsd }) });
+    await dataBackend("image_generation_usage", { method: "POST", body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, job_id: jobId, persona_id: persona.id, provider: provider.name, model: result.model, images_generated: 1, estimated_cost_usd: current.unitCostUsd }) });
     return asset;
   } catch (error) {
     await patchJob(jobId, { status: "FAILED", last_error: (error instanceof Error ? error.message : String(error)).slice(0, 1_000), finished_at: new Date().toISOString() });

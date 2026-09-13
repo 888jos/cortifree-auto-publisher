@@ -11,7 +11,7 @@ import { renderCarousel } from '../render/renderer.js';
 import { buildDryRunPayload } from '../publishing/dry-run.js';
 import type { AssetRecord } from '../domain.js';
 import { scanVisualReferences } from '../visual-references/index.js';
-import { supabase, supabaseConfigured } from '../lib/supabase.js';
+import { dataBackend, convexConfigured } from '../lib/data-backend.js';
 import sharp from 'sharp';
 import { OpenAIVisualReferenceAnalyzer } from '../../app/lib/ai/visual-reference-analyzer.js';
 import { logAIUsage } from '../../app/lib/ai/usage.js';
@@ -22,18 +22,18 @@ function fail(error: unknown): never { console.error(error instanceof Error ? er
 async function personaAssets(root: string, personaFolder: string): Promise<AssetRecord[]> { const base = path.join(resolveDriveLayout(root)['02_PERSONAS'] ?? '', personaFolder); const files: string[] = []; const walk = async (dir: string) => { if (!fs.existsSync(dir)) return; for (const entry of fs.readdirSync(dir, { withFileTypes: true })) { const full = path.join(dir, entry.name); if (entry.isDirectory()) await walk(full); else if (/\.(jpe?g|png|webp|avif)$/i.test(entry.name)) files.push(full); } }; await walk(base); return files.map((file, index) => ({ id: `local_${index}`, path: file, relative_path: path.relative(root, file), filename: path.basename(file), category: path.basename(path.dirname(file)).toLowerCase(), persona_id: personaFolder, source_type: path.basename(path.dirname(file)) === '00_MASTER' ? 'persona_master' : 'persona_generated', width: 1, height: 1, hash: '', created_at: new Date(0).toISOString(), indexed_at: new Date().toISOString(), last_used_at: null, use_count: 0, enabled: true })); }
 async function main() {
   const env = loadEnv();
-  if (command === 'doctor') { const layout = resolveDriveLayout(env.DRIVE_ROOT); const result = validatePersonas(env.DRIVE_ROOT); console.log(JSON.stringify({ drive: fs.existsSync(env.DRIVE_ROOT) ? 'OK' : 'FAIL', directories: Object.fromEntries(Object.entries(layout).filter(([key]) => key !== 'root').map(([key, value]) => [key, value ? 'FOUND' : 'MISSING'])), persona_configs: result.personas.length === 16 ? 'OK' : 'FAIL', masters_found: result.personas.length - result.missingMasters.length, missing_masters: result.missingMasters, renderer: 'Satori-compatible SVG + Sharp', dry_run: env.DRY_RUN, external_apis: { supabase: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY), openai: Boolean(env.OPENAI_API_KEY), modelark: Boolean(env.MODELARK_API_KEY && env.MODELARK_MODEL_ID), upload_post: Boolean(env.UPLOAD_POST_API_KEY) } }, null, 2)); return; }
+  if (command === 'doctor') { const layout = resolveDriveLayout(env.DRIVE_ROOT); const result = validatePersonas(env.DRIVE_ROOT); console.log(JSON.stringify({ drive: fs.existsSync(env.DRIVE_ROOT) ? 'OK' : 'FAIL', directories: Object.fromEntries(Object.entries(layout).filter(([key]) => key !== 'root').map(([key, value]) => [key, value ? 'FOUND' : 'MISSING'])), persona_configs: result.personas.length === 16 ? 'OK' : 'FAIL', masters_found: result.personas.length - result.missingMasters.length, missing_masters: result.missingMasters, renderer: 'Satori-compatible SVG + Sharp', dry_run: env.DRY_RUN, external_apis: { convex: convexConfigured(), openai: Boolean(env.OPENAI_API_KEY), modelark: Boolean(env.MODELARK_API_KEY && env.MODELARK_MODEL_ID), upload_post: Boolean(env.UPLOAD_POST_API_KEY) } }, null, 2)); return; }
   if (command === 'personas:validate') { const result = validatePersonas(env.DRIVE_ROOT); console.log(`Validated ${result.personas.length} persona configs. MASTER files found: ${result.personas.length - result.missingMasters.length}/16.`); if (result.missingMasters.length) console.log(`UNVERIFIED/MISSING MASTER: ${result.missingMasters.join(', ')}`); return; }
   if (command === 'assets:scan') { const previous = loadAssetIndex(); const result = await scanAssets(env.DRIVE_ROOT, previous); saveAssetIndex(result.assets); console.log(JSON.stringify({ indexed: result.assets.length, added: result.added, updated: result.updated, removed: result.removed.length, warnings: result.warnings }, null, 2)); return; }
   if (command === 'refs:scan') {
     const references = await scanVisualReferences(env.DRIVE_ROOT);
     fs.mkdirSync(path.resolve('.data'), { recursive: true });
     fs.writeFileSync(path.resolve('.data/visual-references.json'), `${JSON.stringify(references, null, 2)}\n`);
-    if (supabaseConfigured()) {
-      const response = await supabase('visual_references?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(references.map((record) => ({ ...record, workspace_id: 'cortifree', updated_at: new Date().toISOString() }))) });
+    if (convexConfigured()) {
+      const response = await dataBackend('visual_references?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(references.map((record) => ({ ...record, workspace_id: 'cortifree', updated_at: new Date().toISOString() }))) });
       if (!response.ok) fail(`Visual reference sync failed: ${await response.text()}`);
     }
-    console.log(JSON.stringify({ indexed: references.length, source: supabaseConfigured() ? 'supabase+local' : 'local', output: '.data/visual-references.json' }, null, 2));
+    console.log(JSON.stringify({ indexed: references.length, source: convexConfigured() ? 'convex+local' : 'local', output: '.data/visual-references.json' }, null, 2));
     return;
   }
   if (command === 'refs:analyze') {
@@ -60,8 +60,8 @@ async function main() {
     fs.writeFileSync(path.join(referenceRoot, 'visual_references.json'), `${JSON.stringify(references, null, 2)}\n`);
     fs.mkdirSync(path.resolve('.data'), { recursive: true });
     fs.writeFileSync(path.resolve('.data/visual-references.json'), `${JSON.stringify(references, null, 2)}\n`);
-    if (supabaseConfigured()) {
-      const response = await supabase('visual_references?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(selected.map((record) => ({ ...record, workspace_id: 'cortifree', updated_at: new Date().toISOString() }))) });
+    if (convexConfigured()) {
+      const response = await dataBackend('visual_references?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(selected.map((record) => ({ ...record, workspace_id: 'cortifree', updated_at: new Date().toISOString() }))) });
       if (!response.ok) fail(`Visual reference analysis sync failed: ${await response.text()}`);
     }
     console.log(`Completed explicit one-time analysis for ${selected.length} reference(s).`);

@@ -1,5 +1,5 @@
 import { filterUploadPostProfiles, listUploadPostProfiles, pickAssignedUploadPostProfile } from "./upload-post";
-import { supabase } from "./supabase";
+import { dataBackend } from "./data-backend";
 import { assertCortiFreeAccountId, CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 function configuredCortiFreeProfiles() {
@@ -16,7 +16,7 @@ export async function resolvePublishingProfile(input: {
 }) {
   assertCortiFreeAccountId(input.accountId);
   let storedProfile: string | undefined;
-  const accountResponse = await supabase(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.accountId)}&select=upload_post_profile&limit=1`);
+  const accountResponse = await dataBackend(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.accountId)}&select=upload_post_profile&limit=1`);
   if (accountResponse.ok) {
     storedProfile = ((await accountResponse.json()) as Array<{ upload_post_profile?: string }>)[0]?.upload_post_profile || undefined;
   }
@@ -36,7 +36,7 @@ export async function resolvePublishingProfile(input: {
 }
 
 export async function listCortiFreePublishingProfiles() {
-  const response = await supabase(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=like.CF_*&select=*`);
+  const response = await dataBackend(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=like.CF_*&select=*`);
   if (!response.ok) throw new Error(`Cannot read CortiFree account mappings: HTTP ${response.status}`);
   const accounts = (await response.json()) as Array<{ id: string; upload_post_profile?: string | null }>;
   const configuredProfiles = configuredCortiFreeProfiles();

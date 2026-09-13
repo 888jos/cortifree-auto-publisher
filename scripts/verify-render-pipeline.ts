@@ -1,5 +1,5 @@
 import { renderCarousel } from "../app/lib/render-carousel.js";
-import { supabase } from "../app/lib/supabase.js";
+import { dataBackend } from "../app/lib/data-backend";
 
 const id = process.argv[2] ?? `CF_RENDER_VERIFY_${Date.now()}`;
 const slides = [
@@ -9,7 +9,7 @@ const slides = [
   { position: 4, role: "CTA", layout: "cover-hero", headline: "Save this for tomorrow", body: "Pick one habit. You do not need a perfect routine.", assetQuery: "journal tea calm morning", visualIntent: "soft lifestyle image with clear text space" },
 ];
 const spec = { carousel_type: "C01_MORNING_ROUTINE", model_id: "cover-hero", references: [], generated_slides: slides };
-const save = await supabase("carousels?on_conflict=id", {
+const save = await dataBackend("carousels?on_conflict=id", {
   method: "POST",
   headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
   body: JSON.stringify({ id, account_id: "CF_EN_01", persona_id: "P01", language: "en", content_type: "C01_MORNING_ROUTINE", topic: "render pipeline verification", angle: "automatic asset matching", caption: "Pipeline verification", cta_type: "save", status: "DRAFT", spec }),

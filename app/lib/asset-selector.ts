@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 export type SelectableAsset = {
@@ -38,7 +38,7 @@ function assetText(asset: SelectableAsset) {
 }
 
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
-  const response = await supabase(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&storage_bucket=eq.cortifree-assets&select=id,filename,category,subcategory,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at&enabled=eq.true&public_url=not.is.null&limit=1000`);
+  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
   return await response.json() as SelectableAsset[];
 }

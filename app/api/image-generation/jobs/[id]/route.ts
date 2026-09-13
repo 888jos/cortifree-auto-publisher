@@ -1,5 +1,5 @@
 import { processImageGenerationJob } from "../../../../lib/image-generation";
-import { supabase } from "../../../../lib/supabase";
+import { dataBackend } from "../../../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   try {
-    const response = await supabase("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(id) + "&select=*");
+    const response = await dataBackend("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(id) + "&select=*");
     if (!response.ok) throw new Error(await response.text());
     const job = (await response.json())[0];
     return job ? Response.json({ job }) : Response.json({ error: "Job not found" }, { status: 404 });

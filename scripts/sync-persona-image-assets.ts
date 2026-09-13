@@ -5,25 +5,16 @@ import sharp from 'sharp';
 import { loadEnv } from '../src/config/env.js';
 import { loadPersonas } from '../src/personas/loader.js';
 import { scanVisualReferences } from '../src/visual-references/index.js';
-import { supabase, supabaseConfigured } from '../src/lib/supabase.js';
+import { dataBackend, convexConfigured } from '../src/lib/data-backend.js';
+import { uploadConvexFile } from '../app/lib/convex-storage.js';
 
-const BUCKET = 'cortifree-assets';
 const WORKSPACE = 'cortifree';
 
-function storageUrl(base: string, storagePath: string, object = true) {
-  const encoded = storagePath.split('/').map(encodeURIComponent).join('/');
-  return `${base}/storage/v1/${object ? 'object' : 'object/public'}/${BUCKET}/${encoded}`;
-}
-
-async function uploadIfMissing(file: string, storagePath: string, contentType: string, base: string, key: string) {
-  const target = storageUrl(base, storagePath);
-  const headers = { apikey: key, Authorization: `Bearer ${key}` };
-  const exists = await fetch(target, { method: 'HEAD', headers });
-  if (exists.ok) return false;
-  if (exists.status !== 400 && exists.status !== 404) throw new Error(`Storage check failed for ${storagePath}: ${exists.status}`);
-  const response = await fetch(target, { method: 'POST', headers: { ...headers, 'Content-Type': contentType, 'x-upsert': 'false' }, body: new Uint8Array(await fs.readFile(file)) });
-  if (!response.ok) throw new Error(`Storage upload failed for ${storagePath}: ${(await response.text()).slice(0, 300)}`);
-  return true;
+async function existingUrl(resource: string, field: string) {
+  const response = await dataBackend(resource);
+  if (!response.ok) throw new Error(await response.text());
+  const [row] = await response.json() as Array<Record<string, unknown>>;
+  return typeof row?.[field] === 'string' ? String(row[field]) : null;
 }
 
 function folderCategory(file: string) {
@@ -34,9 +25,9 @@ function folderCategory(file: string) {
 
 async function main() {
   const env = loadEnv();
-  if (!supabaseConfigured() || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Supabase service credentials are required');
+  if (!convexConfigured()) throw new Error('Convex server credentials are required');
   const personas = loadPersonas(env.DRIVE_ROOT);
-  const personaResponse = await supabase('personas?on_conflict=id', {
+  const personaResponse = await dataBackend('personas?on_conflict=id', {
     method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(personas.map(({ id, name, folder }) => ({ id, name, folder, workspace_id: WORKSPACE }))),
   });
@@ -52,18 +43,25 @@ async function main() {
       const category = folderCategory(file);
       const storagePath = `personas/${persona.id}/${path.basename(path.dirname(file))}/${path.basename(file)}`;
       const mime = metadata.format === 'png' ? 'image/png' : metadata.format === 'webp' ? 'image/webp' : 'image/jpeg';
-      if (await uploadIfMissing(file, storagePath, mime, env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)) uploaded += 1;
       const bytes = await fs.readFile(file);
+      const recordPath = `convex://${storagePath}`;
+      let publicUrl = await existingUrl(`assets?path=eq.${encodeURIComponent(recordPath)}&select=public_url&limit=1`, 'public_url');
+      let convexStorageId: string | undefined;
+      if (!publicUrl) {
+        const upload = await uploadConvexFile(new Uint8Array(bytes), mime);
+        publicUrl = upload.publicUrl;
+        convexStorageId = upload.storageId;
+        uploaded += 1;
+      }
       const sourceType = category === 'master' ? 'persona_master' : category === 'reference' ? 'persona_reference' : 'persona_generated';
-      const publicUrl = storageUrl(env.SUPABASE_URL, storagePath, false);
       const row = {
-        workspace_id: WORKSPACE, path: `supabase://${BUCKET}/${storagePath}`, relative_path: storagePath, filename: path.basename(file),
+        workspace_id: WORKSPACE, path: recordPath, relative_path: storagePath, filename: path.basename(file),
         category, subcategory: category, persona_id: persona.id, source_type: sourceType, width: metadata.width, height: metadata.height,
-        hash: crypto.createHash('sha256').update(bytes).digest('hex'), storage_bucket: BUCKET, storage_path: storagePath, public_url: publicUrl,
+        hash: crypto.createHash('sha256').update(bytes).digest('hex'), storage_bucket: 'convex', storage_path: storagePath, public_url: publicUrl,
         orientation: metadata.width === metadata.height ? 'square' : metadata.height > metadata.width ? 'portrait' : 'landscape',
-        framing: 'medium', activity: category, mood: 'natural', colors: [], tags: [category, persona.name.toLowerCase()], metadata: { local_source: path.relative(env.DRIVE_ROOT, file), protected_master: sourceType === 'persona_master' }, enabled: true,
+        framing: 'medium', activity: category, mood: 'natural', colors: [], tags: [category, persona.name.toLowerCase()], metadata: { local_source: path.relative(env.DRIVE_ROOT, file), protected_master: sourceType === 'persona_master', convex_storage_id: convexStorageId }, enabled: true,
       };
-      const response = await supabase('assets?on_conflict=path', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+      const response = await dataBackend('assets?on_conflict=path', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
       if (!response.ok) throw new Error(`Asset index failed for ${file}: ${await response.text()}`);
       indexed += 1;
     }
@@ -77,13 +75,17 @@ async function main() {
     const storagePath = `visual-references/${reference.category}/${path.basename(local)}`;
     const metadata = await sharp(local).metadata();
     const mime = metadata.format === 'png' ? 'image/png' : metadata.format === 'webp' ? 'image/webp' : 'image/jpeg';
-    if (await uploadIfMissing(local, storagePath, mime, env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)) uploaded += 1;
-    const row = { ...reference, workspace_id: WORKSPACE, storage_path: storagePath, thumbnail_url: storageUrl(env.SUPABASE_URL, storagePath, false), updated_at: new Date().toISOString() };
-    const response = await supabase('visual_references?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+    let thumbnailUrl = await existingUrl(`visual_references?id=eq.${encodeURIComponent(reference.id)}&select=thumbnail_url&limit=1`, 'thumbnail_url');
+    if (!thumbnailUrl) {
+      thumbnailUrl = (await uploadConvexFile(new Uint8Array(await fs.readFile(local)), mime)).publicUrl;
+      uploaded += 1;
+    }
+    const row = { ...reference, workspace_id: WORKSPACE, storage_path: storagePath, thumbnail_url: thumbnailUrl, updated_at: new Date().toISOString() };
+    const response = await dataBackend('visual_references?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
     if (!response.ok) throw new Error(`Reference index failed for ${reference.id}: ${await response.text()}`);
     indexed += 1;
   }
-  console.log(JSON.stringify({ workspace: WORKSPACE, bucket: BUCKET, uploaded, indexed, masters_modified: 0 }, null, 2));
+  console.log(JSON.stringify({ workspace: WORKSPACE, storage: 'convex', uploaded, indexed, masters_modified: 0 }, null, 2));
 }
 
 main().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });

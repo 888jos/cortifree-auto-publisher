@@ -1,11 +1,11 @@
-import { supabase } from "./supabase.js";
+import { dataBackend } from "./data-backend";
 import type { CarouselGeneratorInput } from "./ai/types";
 import type { GenerateCarouselResult } from "./ai/carousel-generator";
 import { assertCortiFreeAccountId, assertCortiFreeCarouselId, CORTIFREE_ACCOUNT_ID, CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 export async function getRecentCarousels(limit = 6) {
   try {
-    const response = await supabase(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=id,topic,angle,spec&order=created_at.desc&limit=${limit}`);
+    const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=id,topic,angle,spec&order=created_at.desc&limit=${limit}`);
     if (!response.ok) return [];
     const rows = await response.json() as Array<{ id: string; topic: string; angle: string; spec?: { hook?: string } }>;
     return rows.map((row) => ({ id: row.id, topic: row.topic, angle: row.angle, hook: row.spec?.hook })).filter((row) => row.topic && row.angle);
@@ -57,7 +57,7 @@ export async function saveGeneratedCarousel(options: {
     },
   };
 
-  const response = await supabase("carousels", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
+  const response = await dataBackend("carousels", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
   if (!response.ok) throw new Error(await response.text());
   const saved = await response.json() as Array<typeof row>;
   return saved[0] ?? row;

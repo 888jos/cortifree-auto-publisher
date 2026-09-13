@@ -1,13 +1,13 @@
 import personas from "../../../../config/personas.json" with { type: "json" };
 import { buildImagePrompt, imageGenerationInputSchema } from "../../../../src/image-generation/core";
 import { visualReferenceSchema } from "../../../../src/visual-references";
-import { supabase } from "../../../lib/supabase";
+import { dataBackend } from "../../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
 
 export const runtime = "nodejs";
 
 async function one<T>(resource: string): Promise<T> {
-  const response = await supabase(resource);
+  const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
   const row = (await response.json() as T[])[0];
   if (!row) throw new Error("Required record not found");
@@ -16,7 +16,7 @@ async function one<T>(resource: string): Promise<T> {
 
 export async function GET() {
   try {
-    const response = await supabase("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&select=*&order=created_at.desc&limit=100");
+    const response = await dataBackend("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&select=*&order=created_at.desc&limit=100");
     if (!response.ok) throw new Error(await response.text());
     return Response.json({ jobs: await response.json() });
   } catch (error) {
@@ -31,13 +31,13 @@ export async function POST(request: Request) {
     if (!persona) throw new Error("Unknown persona");
     const reference = visualReferenceSchema.parse(await one("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(input.visual_reference_id) + "&enabled=eq.true&select=*"));
     if (input.carousel_id) {
-      const countResponse = await supabase("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&carousel_id=eq." + encodeURIComponent(input.carousel_id) + "&status=in.(PENDING,RUNNING,DONE)&select=id");
+      const countResponse = await dataBackend("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&carousel_id=eq." + encodeURIComponent(input.carousel_id) + "&status=in.(PENDING,RUNNING,DONE)&select=id");
       const count = countResponse.ok ? (await countResponse.json() as unknown[]).length : 0;
       const limit = Math.min(3, Math.max(0, Number(process.env.MAX_NEW_AI_IMAGES_PER_CAROUSEL ?? 2)));
       if (count >= limit) throw new Error("MAX_NEW_AI_IMAGES_PER_CAROUSEL reached");
     }
     const prompt = buildImagePrompt(persona, reference, input);
-    const response = await supabase("image_generation_jobs", {
+    const response = await dataBackend("image_generation_jobs", {
       method: "POST", headers: { Prefer: "return=representation" },
       body: JSON.stringify({
         workspace_id: CORTIFREE_WORKSPACE_ID, persona_id: input.persona_id, carousel_id: input.carousel_id ?? null,

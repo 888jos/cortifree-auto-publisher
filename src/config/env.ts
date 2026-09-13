@@ -16,7 +16,7 @@ const boolDefaultFalse = z.preprocess((v) => v === undefined ? undefined : Strin
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DRIVE_ROOT: z.string().default('/Users/jos/Library/CloudStorage/GoogleDrive-jossel1.biot@gmail.com/Mon Drive/CORTIFREE_CONTENT'),
-  SUPABASE_URL: z.string().optional(), SUPABASE_ANON_KEY: z.string().optional(), SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  NEXT_PUBLIC_CONVEX_URL: z.string().optional(), CORTIFREE_BACKEND_SECRET: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL_PRIMARY: z.string().default('gpt-5.6-luna'), OPENAI_MODEL_QA: z.string().default('gpt-5.6-terra'),
   AI_GENERATION_ENABLED: bool, OPENAI_QA_ENABLED: bool, OPENAI_QA_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.2),
