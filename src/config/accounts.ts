@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { accountSchema, type Account } from '../domain.js';
+import { accountSchema, type Account } from '../domain';
 export function loadAccounts(file = path.resolve('config/accounts.json')): Account[] {
   const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
   if (!Array.isArray(raw)) throw new Error('config/accounts.json must contain an array');

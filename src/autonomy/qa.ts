@@ -1,5 +1,5 @@
-import { validateTemplateConstraints } from '../templates/registry.js';
-import type { CarouselSpec } from '../domain.js';
+import { validateTemplateConstraints } from '../templates/registry';
+import type { CarouselSpec } from '../domain';
 
 export type ClaimRule = {
   topic: string; risk_level: string; avoid_wording?: string | null; source_ids?: string | null; active?: boolean | null;

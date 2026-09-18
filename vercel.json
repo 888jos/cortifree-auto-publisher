@@ -6,5 +6,6 @@
       "path": "/api/autonomy/run",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "ignoreCommand": "node scripts/vercel-ignore.mjs"
 }

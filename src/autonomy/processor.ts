@@ -1,11 +1,11 @@
-import { carouselGeneratorInputSchema } from '../../app/lib/ai/schemas.js';
-import { generateCarousel } from '../../app/lib/ai/carousel-generator.js';
-import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carousel-store.js';
-import { renderCarousel } from '../../app/lib/render-carousel.js';
-import { evaluatePublishReadiness } from '../../app/lib/publish-readiness.js';
-import { dataBackend } from '../lib/data-backend.js';
-import { loadEditorialSnapshot } from '../editorial/snapshot.js';
-import { loadAccounts } from '../config/accounts.js';
+import { carouselGeneratorInputSchema } from '../../app/lib/ai/schemas';
+import { generateCarousel } from '../../app/lib/ai/carousel-generator';
+import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carousel-store';
+import { renderCarousel } from '../../app/lib/render-carousel';
+import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
+import { dataBackend } from '../lib/data-backend';
+import { loadEditorialSnapshot } from '../editorial/snapshot';
+import { loadAccounts } from '../config/accounts';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
