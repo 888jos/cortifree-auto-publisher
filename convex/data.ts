@@ -3,8 +3,11 @@ import { v } from "convex/values";
 import type { DataModel } from "./_generated/dataModel";
 
 export const tableNames = [
-  "personas", "accounts", "assets", "content_formats", "carousel_ideas", "carousels", "carousel_slides",
-  "image_generation_jobs", "render_jobs", "publish_jobs", "platform_posts", "analytics_snapshots",
+  "personas", "accounts", "assets", "content_formats",
+  "content_config", "content_pillars", "content_topics", "content_hooks", "content_ctas",
+  "content_claim_rules", "content_health_sources", "content_template_specs", "content_sync_runs",
+  "content_generation_qa", "content_asset_usage", "carousel_ideas", "carousels", "carousel_slides",
+  "image_generation_jobs", "render_jobs", "publish_jobs", "platform_posts", "analytics_snapshots", "content_performance",
   "template_performance", "topic_performance", "persona_performance", "system_logs", "ai_usage_logs",
   "asset_usage_history", "visual_references", "persona_scene_templates", "image_generation_usage",
 ] as const;
@@ -44,6 +47,8 @@ function matches(data: Record<string, unknown>, filters: Filter[]) {
 
 function legacyId(table: TableName, row: Record<string, unknown>, conflictFields: string[]) {
   if (row.id !== undefined && row.id !== null) return String(row.id);
+  const preferredKeys = ["persona_id", "account_id", "format_id", "pillar_id", "topic_id", "hook_id", "cta_id", "rule_id", "source_id", "template_id", "key"];
+  for (const key of preferredKeys) if (row[key] !== undefined && row[key] !== null) return `${table}:${key}=${String(row[key])}`;
   const fields = conflictFields.length ? conflictFields : Object.keys(row).sort();
   return `${table}:${fields.map((field) => `${field}=${String(row[field] ?? "")}`).join("|")}`;
 }
