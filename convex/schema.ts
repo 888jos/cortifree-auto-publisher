@@ -28,6 +28,8 @@ export default defineSchema({
   content_sources: cortiFreeTable(),
   autonomy_rules: cortiFreeTable(),
   template_specs: cortiFreeTable(),
+  remix_sources: cortiFreeTable(),
+  remix_variants: cortiFreeTable(),
   carousel_ideas: cortiFreeTable(),
   carousels: cortiFreeTable(),
   carousel_slides: cortiFreeTable(),
