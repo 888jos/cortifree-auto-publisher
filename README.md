@@ -1,6 +1,6 @@
 # CortiFree Auto Publisher
 
-Projet indépendant de publication de carrousels CortiFree. Convex est l'unique backend de l'application pour les données et les fichiers. `DRY_RUN=true` et `REQUIRE_APPROVAL=true` restent les défauts de sécurité.
+Projet indépendant de publication de carrousels CortiFree. Convex est l'unique backend runtime de l'application pour les données et les fichiers. `DRY_RUN=true` et `REQUIRE_APPROVAL=true` restent les défauts de sécurité.
 
 ## Démarrage
 
@@ -98,3 +98,17 @@ The Asset Library exposes Stock, Persona Generated, protected Masters and Visual
 - `convex/schema.ts` : schéma de données CortiFree isolé.
 - `convex/data.ts` : requêtes, écritures et stockage protégés par secret serveur.
 - `config/accounts.json` : configuration de comptes, non hardcodée dans le moteur.
+
+
+## Isolation CortiFree / Cocorise
+
+CortiFree est un service autonome et ne dépend d'aucune ressource Cocorise en production.
+
+- Vercel attendu : `cortifree-auto-publisher.vercel.app` ou une valeur explicitement définie dans `CORTIFREE_CANONICAL_HOST`.
+- Convex : déploiement CortiFree dédié, protégé par `CORTIFREE_BACKEND_SECRET`.
+- Workspace runtime : `cortifree`.
+- Supabase : **aucune dépendance runtime**. Le projet historique `adwyqshphctqbdfckvno` est uniquement une source legacy d'export/rollback.
+- Upload-Post : seuls les profils explicitement listés dans `CORTIFREE_UPLOAD_POST_PROFILES` sont éligibles.
+- Aucune variable `NEXT_PUBLIC_COCORISE_URL` n'est autorisée dans ce repo.
+
+Le endpoint `/api/health` renvoie HTTP 503 si le déploiement CortiFree est branché sur un hostname Vercel différent du hostname canonique. Cette vérification existe précisément pour empêcher un nouveau déploiement de CortiFree dans le projet Cocorise.
