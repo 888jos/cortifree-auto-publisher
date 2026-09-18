@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import { loadAccounts } from '../config/accounts.js';
-import { dataBackend } from '../lib/data-backend.js';
-import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot.js';
-import { selectEditorial, type EditorialTopic, type EditorialHook, type EditorialCta, type SelectionHistory } from './selection.js';
+import { loadAccounts } from '../config/accounts';
+import { dataBackend } from '../lib/data-backend';
+import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot';
+import { selectEditorial, type EditorialTopic, type EditorialHook, type EditorialCta, type SelectionHistory } from './selection';
 
 type AnyRow = Record<string, unknown>;
 
