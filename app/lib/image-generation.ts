@@ -1,6 +1,4 @@
 import sharp from "sharp";
-import personas from "../../config/personas.json" with { type: "json" };
-import { personaConfigSchema } from "../../src/domain";
 import {
   buildImagePrompt,
   assertGenerationBudget,
@@ -15,6 +13,7 @@ import { visualReferenceSchema } from "../../src/visual-references";
 import { uploadConvexFile } from "./convex-storage";
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
+import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 
 const BUCKET = "convex-files";
 
@@ -108,7 +107,9 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
   if (!["PENDING", "RETRY", "FAILED"].includes(String(job.status))) throw new Error("Job cannot run from " + job.status);
   await patchJob(jobId, { status: "RUNNING", started_at: new Date().toISOString(), last_error: null });
   try {
-    const persona = personaConfigSchema.parse(personas.find((item) => item.id === job.persona_id));
+    const personas = await loadRuntimePersonaConfigs();
+    const persona = personas.find((item) => item.id === job.persona_id);
+    if (!persona) throw new Error("Persona config not found in Convex runtime");
     const master = await queryOne<{ id: string | number; public_url: string }>("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + job.master_asset_id + "&source_type=eq.persona_master&select=id,public_url");
     const reference = visualReferenceSchema.parse(await queryOne("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(String(job.visual_reference_id)) + "&enabled=eq.true&select=*"));
     const referenceUrl = reference.thumbnail_url || (reference.storage_path?.startsWith("http") ? reference.storage_path : null);
