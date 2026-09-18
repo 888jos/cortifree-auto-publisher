@@ -14,6 +14,8 @@ const topics: Record<CarouselGeneratorInput["carouselType"], { en: string; fr: s
   C10_BEFORE_AFTER: { en: "before and after choosing a slower routine", fr: "avant et après avoir choisi une routine plus douce" },
   C11_HORMONE_EDUCATION: { en: "everyday habits that support a calmer routine", fr: "des habitudes quotidiennes pour une routine plus calme" },
   C12_NIGHT_ROUTINE: { en: "a realistic night routine to wind down", fr: "une routine du soir réaliste pour ralentir" },
+  C13_EDUCATIONAL_EXPLAINER: { en: "a simple wellness explainer for real life", fr: "une explication bien-être simple pour la vraie vie" },
+  C14_STORY_TRANSFORMATION: { en: "a realistic behavior-change story", fr: "une histoire réaliste de changement d’habitudes" },
 };
 
 const enSteps = [
@@ -35,7 +37,7 @@ const frSteps = [
 
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
   const language = input.language;
-  const topic = topics[input.carouselType][language];
+  const topic = input.preferredTopic ?? topics[input.carouselType][language];
   const steps = language === "fr" ? frSteps : enSteps;
   const hook = input.preferredHook ?? (language === "fr" ? `${topic} — sans routine parfaite` : `${topic} — no perfect routine required`);
   const middleCount = input.requestedSlideCount - 2;
@@ -46,13 +48,13 @@ export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselS
       const copy = steps[index % steps.length]!;
       return { position: index + 2, role: roles[index % roles.length]!, layout: input.layout, headline: copy[0], body: copy[1], visualIntent: "One clear everyday lifestyle action, candid and attainable", assetType: "stock" as const, assetQuery: `${copy[0]} wellness lifestyle natural light` };
     }),
-    { position: input.requestedSlideCount, role: "CTA" as const, layout: input.layout, headline: language === "fr" ? "Sauvegarde pour ton prochain reset" : "Save this for your next reset", body: language === "fr" ? "Choisis une seule idée et commence par là." : "Pick one idea and start there.", visualIntent: "Minimal closing frame with calm background and strong save prompt", assetType: "text_only" as const, assetQuery: "minimal warm neutral paper texture" },
+    { position: input.requestedSlideCount, role: "CTA" as const, layout: input.layout, headline: input.preferredCtaText ?? (language === "fr" ? "Sauvegarde pour ton prochain reset" : "Save this for your next reset"), body: language === "fr" ? "Choisis une seule idée et commence par là." : "Pick one idea and start there.", visualIntent: "Minimal closing frame with calm background and strong save prompt", assetType: "text_only" as const, assetQuery: "minimal warm neutral paper texture" },
   ];
 
   return {
     title: topic,
     topic,
-    angle: language === "fr" ? "Une approche douce, réaliste et sans promesse médicale." : "A gentle, realistic angle without medical promises.",
+    angle: input.preferredAngle ?? (language === "fr" ? "Une approche douce, réaliste et sans promesse médicale." : "A gentle, realistic angle without medical promises."),
     hook,
     language,
     caption: language === "fr" ? "Une routine calme peut rester simple. Sauvegarde ces idées pour plus tard. ✨" : "A calmer routine can stay simple. Save these ideas for later. ✨",
