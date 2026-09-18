@@ -1,5 +1,49 @@
 import { dataBackend } from "../../lib/data-backend";
 import { assertCortiFreeAccountId, assertCortiFreeCarouselId, CORTIFREE_ACCOUNT_ID, CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
 
-export async function GET(){try{const r=await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=*&order=created_at.desc`);return Response.json({carousels:r.ok?await r.json():[]});}catch{return Response.json({carousels:[]});}}
-export async function POST(req:Request){const body=await req.json();const id=body.id||`CF_${Date.now()}`;const accountId=body.account_id||CORTIFREE_ACCOUNT_ID;try{assertCortiFreeCarouselId(id);assertCortiFreeAccountId(accountId);}catch(e){return Response.json({error:String(e)},{status:400});}const spec=body.spec||{slides:7};const row={id,workspace_id:CORTIFREE_WORKSPACE_ID,account_id:accountId,persona_id:body.persona_id||"P01",language:body.language||"en",content_type:body.content_type||spec.carousel_type||"EDUCATIONAL",topic:body.topic||spec.carousel_type_name||"Carousel draft",angle:body.angle||`Draft generated with ${spec.model_id||"selected model"}`,caption:body.caption||"Save this for later.",status:"DRAFT",spec};try{const r=await dataBackend("carousels",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(row)});if(!r.ok)throw new Error(await r.text());return Response.json({carousel:(await r.json())[0]||row}, {status:201});}catch(e){return Response.json({carousel:row,mode:"local-fallback",error:String(e)}, {status:201});}}
+export async function GET() {
+  try {
+    const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=*&order=created_at.desc`);
+    if (!response.ok) throw new Error(await response.text());
+    return Response.json({ carousels: await response.json(), source: "convex" });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : String(error), carousels: [] }, { status: 503 });
+  }
+}
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const id = body.id || `CF_${Date.now()}`;
+  const accountId = body.account_id || CORTIFREE_ACCOUNT_ID;
+  try {
+    assertCortiFreeCarouselId(id);
+    assertCortiFreeAccountId(accountId);
+  } catch (error) {
+    return Response.json({ error: String(error) }, { status: 400 });
+  }
+  const spec = body.spec || { slides: 7 };
+  const row = {
+    id,
+    workspace_id: CORTIFREE_WORKSPACE_ID,
+    account_id: accountId,
+    persona_id: body.persona_id || "P01",
+    language: body.language || "en",
+    content_type: body.content_type || spec.carousel_type || "C13_EDUCATIONAL_EXPLAINER",
+    topic: body.topic || spec.carousel_type_name || "Carousel draft",
+    angle: body.angle || `Draft generated with ${spec.model_id || "selected model"}`,
+    caption: body.caption || "Save this for later.",
+    status: "DRAFT",
+    spec,
+  };
+  try {
+    const response = await dataBackend("carousels", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify(row),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    return Response.json({ carousel: (await response.json())[0] || row, source: "convex" }, { status: 201 });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 503 });
+  }
+}

@@ -65,6 +65,26 @@ export async function syncEditorialSheetToConvex() {
       .map((row) => mapping.transform ? mapping.transform(row) : row);
     counts[mapping.table] = await upsert(mapping.table, mapping.key, rows);
   }
+
+  const derivedConfig: Row[] = [
+    { key: "PERSONA_COUNT", value: counts.personas ?? 0, value_type: "number", description: "Derived from synced persona rows", source: "derived", active: true },
+    { key: "ACCOUNT_COUNT", value: counts.accounts ?? 0, value_type: "number", description: "Derived from synced account rows", source: "derived", active: true },
+    { key: "FORMAT_COUNT", value: counts.content_formats ?? 0, value_type: "number", description: "Derived from synced format rows", source: "derived", active: true },
+    { key: "CONTENT_PILLAR_COUNT", value: counts.content_pillars ?? 0, value_type: "number", description: "Derived from synced pillar rows", source: "derived", active: true },
+    { key: "TOPIC_ANGLE_COUNT", value: counts.content_topics ?? 0, value_type: "number", description: "Derived from synced topic rows", source: "derived", active: true },
+    { key: "HOOK_COUNT", value: counts.content_hooks ?? 0, value_type: "number", description: "Derived from synced hook rows", source: "derived", active: true },
+    { key: "CTA_COUNT", value: counts.content_ctas ?? 0, value_type: "number", description: "Derived from synced CTA rows", source: "derived", active: true },
+    { key: "CLAIM_RULE_COUNT", value: counts.content_claim_rules ?? 0, value_type: "number", description: "Derived from synced claim-rule rows", source: "derived", active: true },
+    { key: "HEALTH_SOURCE_COUNT", value: counts.content_sources ?? 0, value_type: "number", description: "Derived from synced health-source rows", source: "derived", active: true },
+    { key: "AUTONOMY_RULE_COUNT", value: counts.autonomy_rules ?? 0, value_type: "number", description: "Derived from synced autonomy-rule rows", source: "derived", active: true },
+    { key: "TEMPLATE_SPEC_COUNT", value: counts.template_specs ?? 0, value_type: "number", description: "Derived from synced template rows", source: "derived", active: true },
+    { key: "RUNTIME_TRUTH", value: "CONVEX", value_type: "enum", description: "Autonomous runtime reads Convex", source: "system", active: true },
+    { key: "GOOGLE_SYNC_MODE", value: "CLOUD_API", value_type: "enum", description: "Google Sheet and Drive sync through cloud APIs", source: "system", active: true },
+    { key: "JSON_RUNTIME_FALLBACK_DEFAULT", value: false, value_type: "boolean", description: "JSON fallback is emergency-only and opt-in", source: "system", active: true },
+  ];
+  await upsert("content_config", "key", derivedConfig);
+  counts.content_config_derived = derivedConfig.length;
+
   const log = {
     id: `SYNC_SHEET_${Date.now()}`,
     workspace_id: "cortifree",

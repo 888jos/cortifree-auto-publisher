@@ -1,8 +1,8 @@
-import personas from "../../../../config/personas.json" with { type: "json" };
 import { buildImagePrompt, imageGenerationInputSchema } from "../../../../src/image-generation/core";
 import { visualReferenceSchema } from "../../../../src/visual-references";
 import { dataBackend } from "../../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
+import { loadRuntimePersonaConfigs } from "../../../../src/runtime/config";
 
 export const runtime = "nodejs";
 
@@ -20,13 +20,14 @@ export async function GET() {
     if (!response.ok) throw new Error(await response.text());
     return Response.json({ jobs: await response.json() });
   } catch (error) {
-    return Response.json({ jobs: [], error: error instanceof Error ? error.message : String(error) });
+    return Response.json({ jobs: [], error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     const input = imageGenerationInputSchema.parse(await request.json());
+    const personas = await loadRuntimePersonaConfigs();
     const persona = personas.find((item) => item.id === input.persona_id);
     if (!persona) throw new Error("Unknown persona");
     const reference = visualReferenceSchema.parse(await one("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(input.visual_reference_id) + "&enabled=eq.true&select=*"));

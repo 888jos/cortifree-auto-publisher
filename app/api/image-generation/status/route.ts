@@ -12,7 +12,7 @@ export async function GET() {
     if (!response.ok) throw new Error();
     const rows = await response.json() as Array<{ images_generated: number; estimated_cost_usd: number }>;
     return Response.json({ ...status, usage: rows.reduce((total, row) => ({ images: total.images + Number(row.images_generated), costUsd: total.costUsd + Number(row.estimated_cost_usd) }), { images: 0, costUsd: 0 }) });
-  } catch {
-    return Response.json({ ...status, usage: { images: 0, costUsd: 0 } });
+  } catch (error) {
+    return Response.json({ ...status, usage: { images: 0, costUsd: 0 }, error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }
 }

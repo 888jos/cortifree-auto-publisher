@@ -7,14 +7,6 @@ import { carouselBlueprints, getCarouselBlueprint } from "./carousel-blueprints.
 import { hookCategories, hookLibrary } from "./hook-library.js";
 import { getHookGenerationPlan } from "./lib/hook-selector";
 
-const assets = [
-  ["fitness", 47],
-  ["food", 50],
-  ["morning", 50],
-  ["self care", 45],
-  ["work / study", 34],
-] as const;
-
 type AssetGroup = { category: string; count: number };
 type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string; source_type?: string; persona_id?: string | null };
 type PersonaSummary = { id: string; name: string; ready: boolean; master: { id: string | number; public_url: string; filename: string } | null };
@@ -28,9 +20,6 @@ type PersonaScene = { id: string; category: string; scene_description: string };
 type AssetTab = "All Assets" | "Stock" | "Persona Generated" | "Masters" | "Visual References";
 
 const menus = ["Carrousels", "Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
-const COCORISE_URL = process.env.NEXT_PUBLIC_COCORISE_URL
-  ?? "https://cocorise-auto-publisher-vid-os-coco.vercel.app";
-
 const referenceImages = [
   {
     src: "https://p16-common-sign.tiktokcdn-eu.com/tos-no1a-i-photomode-no/d6e07a2a6336432d936d5f58dfb95676~tplv-photomode-image.jpeg?dr=10375&x-expires=1788782400&x-signature=W%2F68OxVnQe7H1cgTkzl1CfanNcM%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=9b759fb9&idc=no1a&ftpl=1",
@@ -191,6 +180,22 @@ const carouselTypes = [
     refIds: [],
     note: "À compléter en priorité : idéalement 3 refs night routine / sleep reset.",
   },
+  {
+    id: "C13_EDUCATIONAL_EXPLAINER",
+    name: "Educational wellness explainer",
+    keep: true,
+    modelIds: ["single-image", "grid-2x2"],
+    refIds: ["lower-cortisol", "rhea-hormones"],
+    note: "Explainer bien-être général avec wording prudent et sources si nécessaire.",
+  },
+  {
+    id: "C14_STORY_TRANSFORMATION",
+    name: "Story / transformation réaliste",
+    keep: true,
+    modelIds: ["single-image", "grid-2x2"],
+    refIds: ["motion-hope", "girlsonly-habits"],
+    note: "Transformation comportementale crédible, sans avant/après médical.",
+  },
 ] as const;
 
 type View = (typeof menus)[number];
@@ -219,6 +224,22 @@ type AIStatus = {
   configured: boolean; enabled: boolean; primaryModel: string; qaModel: string; qaEnabled: boolean; qaSampleRate: number; monthlyCapUsd: number;
 };
 type AIUsage = { costUsd: number; calls: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; monthlyCapUsd: number };
+type HealthStatus = {
+  dryRun: boolean;
+  convexLive?: boolean;
+  googleSyncConfigured?: boolean;
+  productionReady?: boolean;
+  productionBlockers?: string[];
+  productionWarnings?: string[];
+  productionChecks?: {
+    mappedPublishingAccounts?: string[];
+    acceptance?: { reviewed?: number; usable?: number; passed?: boolean };
+    masterCount?: number;
+    personaCacheMin?: number;
+    cacheMissingForPublishingPersonas?: string[];
+    [key: string]: unknown;
+  };
+};
 type StoredCarousel = {
   id: string;
   topic: string;
@@ -249,6 +270,7 @@ const fallbackCategoryByType: Record<CarouselTypeId, string> = {
   C04_THINGS_I_STARTED: "self care", C05_GLOW_UP: "self care", C06_POV_RELATABLE: "self care",
   C07_MISTAKES: "self care", C08_MY_REALISTIC: "morning", C09_LIST: "food",
   C10_BEFORE_AFTER: "fitness", C11_HORMONE_EDUCATION: "self care", C12_NIGHT_ROUTINE: "self care",
+  C13_EDUCATIONAL_EXPLAINER: "self care", C14_STORY_TRANSFORMATION: "self care",
 };
 
 function referenceCopy(title: string, role: string, position: number) {
@@ -335,6 +357,8 @@ function buildDraftPreview({
     C10_BEFORE_AFTER: "before and after nervous-system habits",
     C11_HORMONE_EDUCATION: "hormone and cortisol education",
     C12_NIGHT_ROUTINE: "night routine for lower cortisol",
+    C13_EDUCATIONAL_EXPLAINER: "simple wellness education",
+    C14_STORY_TRANSFORMATION: "realistic behavior-change story",
   };
   const topic = topicByType[type.id];
   const angle = `${type.name} avec layout ${model.name}, inspiré par ${refNames}.`;
@@ -381,6 +405,7 @@ export default function Home() {
   const [selectedType, setSelectedType] = useState<CarouselTypeId>("C05_GLOW_UP");
   const [notice, setNotice] = useState("Systeme operationnel");
   const [dryRun, setDryRun] = useState<boolean | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0, failed: 0 });
@@ -395,7 +420,7 @@ export default function Home() {
   const [hookQuery, setHookQuery] = useState("");
   const [hookCategory, setHookCategory] = useState("All");
   const [selectedHook, setSelectedHook] = useState<string | null>(null);
-  const [assetGroups, setAssetGroups] = useState<AssetGroup[]>(assets.map(([category, count]) => ({ category, count })));
+  const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
   const [assetPreviews, setAssetPreviews] = useState<AssetPreview[]>([]);
   const [storedCarousels, setStoredCarousels] = useState<StoredCarousel[]>([]);
   const [carouselsLoading, setCarouselsLoading] = useState(false);
@@ -489,12 +514,13 @@ export default function Home() {
 
   useEffect(() => {
     fetch("/api/health", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error(`API ${response.status}`);
-        return response.json();
+      .then(async (response) => {
+        const data = await response.json();
+        setHealthStatus(data);
+        setDryRun(Boolean(data.dryRun));
+        if (!response.ok) setNotice("Infrastructure CortiFree incomplète : consulte Settings.");
       })
-      .then((data) => setDryRun(Boolean(data.dryRun)))
-      .catch(() => setNotice("Impossible de verifier le mode de publication."));
+      .catch(() => setNotice("Impossible de vérifier l’état de l’infrastructure CortiFree."));
   }, []);
 
   useEffect(() => {
@@ -770,7 +796,7 @@ export default function Home() {
       throw new Error(failure.error || `API ${response.status}`);
     }
     const data = await response.json();
-    if (!data.saved) throw new Error(data.storageWarning || "Brouillon non sauvegardé dans Supabase");
+    if (!data.saved) throw new Error(data.storageWarning || "Brouillon non sauvegardé dans Convex");
 
     const renderResponse = await fetch(`/api/carousels/${encodeURIComponent(data.carousel.id)}/render`, { method: "POST" });
     const renderData = await renderResponse.json().catch(() => ({}));
@@ -860,16 +886,8 @@ export default function Home() {
             <span>CortiFree</span>
           </div>
           <label htmlFor="workspace-select">Application</label>
-          <select
-            aria-label="Changer d’application"
-            id="workspace-select"
-            onChange={(event) => {
-              if (event.target.value === "cocorise") window.location.assign(COCORISE_URL);
-            }}
-            value="cortifree"
-          >
+          <select aria-label="Application CortiFree" disabled id="workspace-select" value="cortifree">
             <option value="cortifree">CortiFree · Carrousels</option>
-            <option value="cocorise">Cocorise · Vidéos</option>
           </select>
           <div className="versionSwitch" aria-label="Version de CortiFree" role="group">
             <button className={productVersion === "current" ? "active" : ""} onClick={() => changeProductVersion("current")} type="button">Actuelle</button>
@@ -904,7 +922,7 @@ export default function Home() {
           <section className="nextVersion">
             <p className="eyebrow">CORTIFREE · NOUVELLE VERSION</p>
             <h1>Un espace neuf, prêt pour ton prochain prompt.</h1>
-            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent intactes dans Supabase, mais aucune ancienne complexité n’est reprise automatiquement.</p>
+            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent isolées dans Convex, sans dépendance runtime à Cocorise ou Supabase.</p>
             <div className="nextVersionStatus">
               <div><span>Données</span><b>Séparées et conservées</b></div>
               <div><span>Interface</span><b>À définir</b></div>
@@ -1399,7 +1417,7 @@ export default function Home() {
                   ))}
                 </div>
               )}
-              {assetTab !== "Visual References" && !filteredAssetPreviews.length && <div className="libraryEmpty">Aucun asset correspondant dans Supabase Storage.</div>}
+              {assetTab !== "Visual References" && !filteredAssetPreviews.length && <div className="libraryEmpty">Aucun asset correspondant dans Convex Storage.</div>}
               {assetTab === "Visual References" && (
                 <div className="visualReferenceGrid">
                   {filteredVisualReferences.map((reference) => (
@@ -1433,10 +1451,15 @@ export default function Home() {
               <p className="eyebrow">CONFIGURATION</p>
               <h2>Integrations</h2>
               <div className="settingsList">
-                <span>Supabase connecte</span>
-                <span>Upload-Post configure</span>
-                <span>DRY_RUN actif</span>
+                <span>{healthStatus?.convexLive ? "Convex live ✓" : "Convex à connecter"}</span>
+                <span>{healthStatus?.googleSyncConfigured ? "Google sync configuré ✓" : "Google sync à connecter"}</span>
+                <span>{(healthStatus?.productionChecks?.mappedPublishingAccounts?.length ?? 0) > 0 ? `Upload-Post · ${healthStatus?.productionChecks?.mappedPublishingAccounts?.length} profil(s) ✓` : "Upload-Post non mappé"}</span>
+                <span>{healthStatus?.productionReady ? "Production gate READY ✓" : `${healthStatus?.productionBlockers?.length ?? "?"} blocker(s) production`}</span>
+                <span>{dryRun === false ? "DRY_RUN désactivé" : "DRY_RUN actif"}</span>
               </div>
+              {!healthStatus?.productionReady && (healthStatus?.productionBlockers?.length ?? 0) > 0 && (
+                <div className="libraryEmpty">Blockers : {healthStatus!.productionBlockers!.join(" · ")}</div>
+              )}
               <div className="openaiSettings">
                 <div className="panelHead">
                   <div>
