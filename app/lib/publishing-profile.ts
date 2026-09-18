@@ -16,9 +16,11 @@ export async function resolvePublishingProfile(input: {
 }) {
   assertCortiFreeAccountId(input.accountId);
   let storedProfile: string | undefined;
-  const accountResponse = await dataBackend(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.accountId)}&select=upload_post_profile&limit=1`);
+  const accountResponse = await dataBackend(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.accountId)}&select=upload_post_profile,enabled,posting_enabled,warmup_status&limit=1`);
   if (accountResponse.ok) {
-    storedProfile = ((await accountResponse.json()) as Array<{ upload_post_profile?: string }>)[0]?.upload_post_profile || undefined;
+    const stored = ((await accountResponse.json()) as Array<{ upload_post_profile?: string; enabled?: boolean; posting_enabled?: boolean; warmup_status?: string }>)[0];
+    if (!stored?.enabled || !stored?.posting_enabled || stored?.warmup_status !== "ACTIVE") return undefined;
+    storedProfile = stored.upload_post_profile || undefined;
   }
 
   if (input.requestedProfile && input.requestedProfile !== storedProfile) {

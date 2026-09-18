@@ -20,6 +20,8 @@ const categoryByType: Record<string, string[]> = {
   C10_BEFORE_AFTER: ["Morning & night", "Glow-up & feminine"],
   C11_HORMONE_EDUCATION: ["Hormones & cortisol"],
   C12_NIGHT_ROUTINE: ["Morning & night", "Stress & calm"],
+  C13_EDUCATIONAL_EXPLAINER: ["Hormones & cortisol", "Stress & calm", "Energy & food"],
+  C14_STORY_TRANSFORMATION: ["Glow-up & feminine", "Stress & calm", "Productivity & boundaries"],
 };
 
 export function selectAutomaticHook(input: { carouselType: string; recentHooks?: string[]; referenceTitles?: string[] }) {

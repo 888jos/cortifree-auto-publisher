@@ -16,6 +16,7 @@ type GeneratedSlide = {
   body: string;
   assetQuery: string;
   visualIntent: string;
+  assetType?: string;
 };
 
 type Frame = { x: number; y: number; width: number; height?: number; fit?: "cover" | "contain"; mode?: "single" | "grid-2x2" };
@@ -132,18 +133,19 @@ export async function renderCarousel(input: {
   carouselType: string;
   layout: string;
   slides: GeneratedSlide[];
+  personaId?: string;
   references?: StoredReference[];
   spec: Record<string, unknown>;
 }) {
   assertCortiFreeCarouselId(input.id);
   const assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
-  const matches = chooseAssets({ assets, carouselType: input.carouselType, slides: input.slides });
+  const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, slides: input.slides });
   const reservedGridAssets = new Set<string>();
   const gridMatches = input.layout === "grid-2x2"
     ? input.slides.map((slide) => {
       const available = assets.filter((asset) => !reservedGridAssets.has(asset.id));
-      const selected = chooseAssets({ assets: available.length >= 4 ? available : assets, carouselType: input.carouselType, slides: [slide, slide, slide, slide] });
+      const selected = chooseAssets({ assets: available.length >= 4 ? available : assets, carouselType: input.carouselType, personaId: input.personaId, slides: [slide, slide, slide, slide] });
       selected.forEach((match) => reservedGridAssets.add(match.asset.id));
       return selected;
     })

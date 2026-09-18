@@ -1,0 +1,103 @@
+import crypto from 'node:crypto';
+import { loadAccounts } from '../config/accounts.js';
+import { dataBackend } from '../lib/data-backend.js';
+import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot.js';
+import { selectEditorial, type EditorialTopic, type EditorialHook, type EditorialCta, type SelectionHistory } from './selection.js';
+
+type AnyRow = Record<string, unknown>;
+
+async function rows(resource: string): Promise<AnyRow[]> {
+  const response = await dataBackend(resource);
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json() as AnyRow[];
+}
+async function write(resource: string, body: unknown) {
+  const response = await dataBackend(resource, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(body) });
+  if (!response.ok) throw new Error(await response.text());
+}
+function seed(accountId: string, index: number) {
+  return crypto.createHash('sha1').update(`${accountId}:${new Date().toISOString().slice(0, 10)}:${index}`).digest('hex');
+}
+function strategy(index: number) {
+  const slot = index % 10;
+  return slot < 7 ? 'PROVEN' : slot < 9 ? 'ADJACENT' : 'EXPERIMENT';
+}
+function formatIds(account: ReturnType<typeof loadAccounts>[number]) {
+  const configured = Object.keys(account.format_mix ?? {}).filter((key) => /^C\d{2}_/.test(key) || /^C\d{2}$/.test(key));
+  return configured.length ? configured : ['C01_MORNING_ROUTINE','C02_CHECKLIST','C05_GLOW_UP','C08_MY_REALISTIC','C09_LIST','C12_NIGHT_ROUTINE','C13_EDUCATIONAL_EXPLAINER'];
+}
+function pillarIds(account: ReturnType<typeof loadAccounts>[number]) {
+  const configured = Object.keys(account.pillar_mix ?? {}).filter((key) => key.startsWith('PILLAR_'));
+  return configured.length ? configured : [account.primary_pillar_id, ...(account.secondary_pillar_ids ?? [])].filter(Boolean) as string[];
+}
+
+export async function runScheduler() {
+  const snapshot = loadEditorialSnapshot();
+  const topics = snapshot.tables.content_topics as unknown as EditorialTopic[];
+  const hooks = snapshot.tables.content_hooks as unknown as EditorialHook[];
+  const ctas = snapshot.tables.content_ctas as unknown as EditorialCta[];
+  const accountTopicCooldownDays = autonomyValue(snapshot, 'account_topic_cooldown_days', 14);
+  const accountHookCooldownDays = autonomyValue(snapshot, 'account_hook_cooldown_days', 7);
+  const networkTopicCooldownHours = autonomyValue(snapshot, 'network_topic_cooldown_hours', 48);
+  const networkHookCooldownHours = autonomyValue(snapshot, 'network_final_hook_cooldown_hours', 48);
+  const report: Array<Record<string, unknown>> = [];
+  const networkIdeas = await rows('carousel_ideas?order=created_at.desc&limit=2000');
+  const networkHistory: SelectionHistory[] = networkIdeas.map((row) => ({
+    account_id: String(row.account_id ?? ''),
+    topic_id: row.topic_id ? String(row.topic_id) : undefined,
+    hook_id: row.hook_id ? String(row.hook_id) : undefined,
+    final_hook: row.final_hook ? String(row.final_hook) : undefined,
+    visual_ref_id: row.visual_ref_id ? String(row.visual_ref_id) : undefined,
+    combo_key: row.combo_key ? String(row.combo_key) : undefined,
+    created_at: row.created_at ? String(row.created_at) : undefined,
+  }));
+
+  for (const account of loadAccounts()) {
+    if (!account.enabled || ['PAUSED','ERROR'].includes(account.warmup_status)) {
+      report.push({ account_id: account.id, action: 'SKIP_DISABLED' });
+      continue;
+    }
+    const existingIdeas = await rows(`carousel_ideas?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
+    const readyCarousels = await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
+    const bufferedCarousels = readyCarousels.filter((row) => ['DRAFT','READY_FOR_REVIEW','APPROVED','SCHEDULED'].includes(String(row.status)));
+    const queuedIdeas = existingIdeas.filter((row) => ['QUEUED','GENERATING'].includes(String(row.status)));
+    const target = Math.max(1, account.daily_target * (account.ready_buffer_days ?? 3));
+    const missing = Math.max(0, target - bufferedCarousels.length - queuedIdeas.length);
+    const history: SelectionHistory[] = [...networkHistory];
+
+    let created = 0;
+    for (let index = 0; index < missing; index += 1) {
+      let picked: ReturnType<typeof selectEditorial> | null = null;
+      let selectedSeed = '';
+      for (let attempt = 0; attempt < 12 && !picked; attempt += 1) {
+        selectedSeed = seed(account.id, index * 20 + attempt);
+        try {
+          picked = selectEditorial({
+            seed: selectedSeed, accountId: account.id, personaId: account.persona_id,
+            pillarIds: pillarIds(account), formatIds: formatIds(account), topics, hooks, ctas, history,
+            accountTopicCooldownDays, accountHookCooldownDays, networkTopicCooldownHours, networkHookCooldownHours,
+          });
+        } catch {
+          // Try another deterministic seed before conceding that the eligible pool is exhausted.
+        }
+      }
+      if (!picked) break;
+      const dayKey = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+      const id = `CF_IDEA_${account.id.replace(/[^A-Z0-9]/gi, '')}_${dayKey}_${picked.comboKey}`;
+      const row = {
+        id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
+        pillar_id: picked.topic.pillar_id, content_type: picked.formatId,
+        topic_id: picked.topic.topic_id, topic: picked.topic.topic, angle: picked.topic.angle,
+        hook_id: picked.hook.hook_id, hook_formula: picked.hook.formula, final_hook: picked.finalHook,
+        cta_id: picked.cta.cta_id, cta_text: picked.cta.text, combo_key: picked.comboKey,
+        strategy: strategy(index), status: 'QUEUED', seed: selectedSeed, created_at: new Date().toISOString(),
+      };
+      await write('carousel_ideas?on_conflict=id', row);
+      history.push(row as SelectionHistory);
+      networkHistory.push(row as SelectionHistory);
+      created += 1;
+    }
+    report.push({ account_id: account.id, target, buffered: bufferedCarousels.length, queued: queuedIdeas.length, created });
+  }
+  return report;
+}

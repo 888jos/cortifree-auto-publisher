@@ -14,6 +14,8 @@ const topics: Record<CarouselGeneratorInput["carouselType"], { en: string; fr: s
   C10_BEFORE_AFTER: { en: "before and after choosing a slower routine", fr: "avant et après avoir choisi une routine plus douce" },
   C11_HORMONE_EDUCATION: { en: "everyday habits that support a calmer routine", fr: "des habitudes quotidiennes pour une routine plus calme" },
   C12_NIGHT_ROUTINE: { en: "a realistic night routine to wind down", fr: "une routine du soir réaliste pour ralentir" },
+  C13_EDUCATIONAL_EXPLAINER: { en: "a simple wellness explainer without miracle claims", fr: "une explication wellness simple sans promesse miracle" },
+  C14_STORY_TRANSFORMATION: { en: "a realistic story about rebuilding one small routine", fr: "une histoire réaliste pour reconstruire une petite routine" },
 };
 
 const enSteps = [

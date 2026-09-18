@@ -15,6 +15,9 @@ import { dataBackend, convexConfigured } from '../lib/data-backend.js';
 import sharp from 'sharp';
 import { OpenAIVisualReferenceAnalyzer } from '../../app/lib/ai/visual-reference-analyzer.js';
 import { logAIUsage } from '../../app/lib/ai/usage.js';
+import { runScheduler } from '../autonomy/scheduler.js';
+import { qaCarousel } from '../autonomy/qa.js';
+import { loadEditorialSnapshot } from '../editorial/snapshot.js';
 
 const args = process.argv.slice(2); const command = args[0];
 const flag = (name: string, fallback?: string) => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] ?? fallback : fallback; };
@@ -69,10 +72,35 @@ async function main() {
   }
   if (command === 'carousel:create') { const accountId = flag('--account', 'CF_EN_01')!; const account = loadAccounts().find((item) => item.id === accountId); if (!account) fail(`Unknown account ${accountId}`); const spec = goldenCarousel(account.id, account.persona_id, flag('--id', 'CF_TEST_001')); saveCarousel(spec); console.log(`Created ${spec.id} for ${account.id} (${spec.slides.length} slides) in .data/carousels/${spec.id}.json`); return; }
   if (command === 'carousel:render') { const id = flag('--id', 'CF_TEST_001')!; const spec = loadCarousel(id); const personas = loadPersonas(env.DRIVE_ROOT); const persona = personas.find((item) => item.id === spec.persona_id); if (!persona) fail(`Unknown persona ${spec.persona_id}`); const assets = await personaAssets(env.DRIVE_ROOT, persona.folder); if (!assets.length) console.warn('UNVERIFIED: no local persona assets found; renderer will use deterministic paper backgrounds.'); const result = await renderCarousel(spec, assets, env.DRIVE_ROOT, persona.name); console.log(JSON.stringify(result, null, 2)); return; }
-  if (command === 'carousel:approve') { const id = flag('--id', 'CF_TEST_001')!; const spec = loadCarousel(id); saveCarousel({ ...spec, status: 'APPROVED' }); console.log(`Approved ${id}`); return; }
+  if (command === 'carousel:approve') {
+    const id = flag('--id', 'CF_TEST_001')!;
+    const spec = loadCarousel(id);
+    const snapshot = loadEditorialSnapshot();
+    const qa = qaCarousel(spec, snapshot.tables.content_claim_rules as any[]);
+    if (!qa.ok) fail(`Cannot approve ${id}: ${qa.issues.filter((issue) => issue.level === 'FAIL').map((issue) => issue.message).join('; ')}`);
+    saveCarousel({ ...spec, status: 'APPROVED' });
+    console.log(JSON.stringify({ approved: id, warnings: qa.issues.filter((issue) => issue.level === 'WARN') }, null, 2));
+    return;
+  }
   if (command === 'publish:dry') { const id = flag('--id', 'CF_TEST_001')!; const spec = loadCarousel(id); const account = loadAccounts().find((item) => item.id === spec.account_id); if (!account) fail(`Unknown account ${spec.account_id}`); for (const platform of account.platforms) console.log(JSON.stringify(buildDryRunPayload(spec, account, platform), null, 2)); return; }
-  if (command === 'jobs:failures') { console.log('No local failure queue is configured yet. Supabase job queries are Milestone 5+.'); return; }
-  if (command === 'scheduler:run') { console.log(`Scheduler dry-run: ${env.DRY_RUN ? 'enabled' : 'disabled'}; buffer=${env.TARGET_READY_BUFFER_DAYS} days. No publish calls made.`); return; }
+  if (command === 'jobs:failures') {
+    if (!convexConfigured()) fail('Convex is required to inspect failures');
+    const tables = ['image_generation_jobs', 'render_jobs', 'publish_jobs'] as const;
+    const failures: Record<string, unknown[]> = {};
+    for (const table of tables) {
+      const response = await dataBackend(`${table}?status=eq.FAILED&limit=200`);
+      if (!response.ok) fail(`Failure query failed for ${table}: ${await response.text()}`);
+      failures[table] = await response.json() as unknown[];
+    }
+    console.log(JSON.stringify(failures, null, 2));
+    return;
+  }
+  if (command === 'scheduler:run') {
+    if (!convexConfigured()) fail('Convex is required for the autonomous scheduler');
+    const report = await runScheduler();
+    console.log(JSON.stringify({ dry_run: env.DRY_RUN, require_approval: env.REQUIRE_APPROVAL, report }, null, 2));
+    return;
+  }
   fail(`Unknown command ${command ?? '(missing)'}`);
 }
 main().catch(fail);

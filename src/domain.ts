@@ -1,7 +1,7 @@
 import { z } from 'zod';
 export const languageSchema = z.enum(['en', 'fr']);
 export const platformSchema = z.enum(['tiktok', 'instagram']);
-export const contentTypeSchema = z.enum(['C01_MORNING_ROUTINE', 'C02_CHECKLIST', 'C03_THINGS_I_STOPPED', 'C04_THINGS_I_STARTED', 'C05_GLOW_UP', 'C06_POV_RELATABLE', 'C07_MISTAKES', 'C08_MY_REALISTIC', 'C09_LIST', 'C10_BEFORE_AFTER', 'C11_HORMONE_EDUCATION', 'C12_NIGHT_ROUTINE']);
+export const contentTypeSchema = z.enum(['C01_MORNING_ROUTINE', 'C02_CHECKLIST', 'C03_THINGS_I_STOPPED', 'C04_THINGS_I_STARTED', 'C05_GLOW_UP', 'C06_POV_RELATABLE', 'C07_MISTAKES', 'C08_MY_REALISTIC', 'C09_LIST', 'C10_BEFORE_AFTER', 'C11_HORMONE_EDUCATION', 'C12_NIGHT_ROUTINE', 'C13_EDUCATIONAL_EXPLAINER', 'C14_STORY_TRANSFORMATION']);
 export const ctaTypeSchema = z.enum(['none', 'soft', 'save', 'comment', 'follow']);
 export const personaConfigSchema = z.object({
   id: z.string().regex(/^P\d{2}$/), name: z.string().min(1), age: z.number().int().min(18).max(80), background: z.string().min(1),
@@ -11,7 +11,15 @@ export const personaConfigSchema = z.object({
   archetype: z.object({ preferred_categories: z.array(z.string()).default([]), outfit_families: z.array(z.string()).default([]), environments: z.array(z.string()).default([]), scene_weights: z.record(z.string(), z.number().min(0).max(1)).default({}) }).optional()
 });
 export type PersonaConfig = z.infer<typeof personaConfigSchema>;
-export const accountSchema = z.object({ id: z.string().min(1), name: z.string().min(1), persona_id: z.string().regex(/^P\d{2}$/), language: languageSchema, market: z.string().min(2), timezone: z.string().min(1), platforms: z.array(platformSchema).min(1), upload_post_profile: z.string().optional(), daily_target: z.number().int().min(0).max(2), posting_slots: z.array(z.string().regex(/^\d{2}:\d{2}$/)), enabled: z.boolean(), warmup_status: z.enum(['CREATED', 'WARMING', 'ACTIVE', 'PAUSED', 'ERROR']).default('CREATED'), created_at: z.string().datetime().optional() });
+export const accountSchema = z.object({ id: z.string().min(1), name: z.string().min(1), persona_id: z.string().regex(/^P\d{2}$/), language: languageSchema, market: z.string().min(2), timezone: z.string().min(1), platforms: z.array(platformSchema).min(1), upload_post_profile: z.string().optional(), daily_target: z.number().int().min(0).max(2), posting_slots: z.array(z.string().regex(/^\d{2}:\d{2}$/)), enabled: z.boolean(),
+  posting_enabled: z.boolean().default(false),
+  primary_pillar_id: z.string().optional(),
+  secondary_pillar_ids: z.array(z.string()).default([]),
+  pillar_mix: z.record(z.string(), z.number().min(0).max(1)).default({}),
+  format_mix: z.record(z.string(), z.number().min(0).max(1)).default({}),
+  promo_ratio: z.number().min(0).max(1).default(0.08),
+  ready_buffer_days: z.number().int().min(1).max(14).default(3),
+  warmup_status: z.enum(['CREATED', 'WARMING', 'ACTIVE', 'PAUSED', 'ERROR']).default('CREATED'), created_at: z.string().datetime().optional() });
 export type Account = z.infer<typeof accountSchema>;
 export const templateConstraintSchema = z.object({ id: z.string(), requires_image: z.boolean(), supports_subheadline: z.boolean(), max_headline_chars: z.number().int().positive(), max_body_chars: z.number().int().nonnegative(), max_items: z.number().int().nonnegative(), allowed_slide_positions: z.array(z.number().int().positive()) });
 export type TemplateConstraint = z.infer<typeof templateConstraintSchema>;

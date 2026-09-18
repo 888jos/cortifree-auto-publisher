@@ -90,6 +90,18 @@ export async function getUploadPostStatus(input: { requestId?: string | null; jo
   return payload as Record<string, unknown>;
 }
 
+export async function getUploadPostPostAnalytics(requestId: string, platform?: "tiktok" | "instagram") {
+  const query = platform ? `?platform=${encodeURIComponent(platform)}` : "";
+  const response = await fetch(`${API_ROOT}/uploadposts/post-analytics/${encodeURIComponent(requestId)}${query}`, {
+    headers: { Authorization: `Apikey ${apiKey()}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `Upload-Post analytics failed: HTTP ${response.status}`);
+  return payload as Record<string, unknown>;
+}
+
 export async function uploadPhotoCarousel(input: {
   carouselId: string;
   profile: string;

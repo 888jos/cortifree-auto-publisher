@@ -1,3 +1,690 @@
 [
-  {"id":"CF_EN_01","name":"CortiFree Ava Test","persona_id":"P06","language":"en","market":"US","timezone":"America/New_York","platforms":["tiktok","instagram"],"upload_post_profile":"","daily_target":1,"posting_slots":["11:30","19:00"],"enabled":true,"warmup_status":"WARMING"}
+  {
+    "id": "CF_EN_01",
+    "name": "CortiFree Ava Test",
+    "persona_id": "P06",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": true,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_GLOW",
+    "secondary_pillar_ids": [
+      "PILLAR_STRESS",
+      "PILLAR_MORNING"
+    ],
+    "pillar_mix": {
+      "PILLAR_GLOW": 0.45,
+      "PILLAR_STRESS": 0.3,
+      "PILLAR_MORNING": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "WARMING"
+  },
+  {
+    "id": "CF_EN_02",
+    "name": "CortiFree Emma",
+    "persona_id": "P01",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_MORNING",
+    "secondary_pillar_ids": [
+      "PILLAR_STRESS",
+      "PILLAR_GLOW"
+    ],
+    "pillar_mix": {
+      "PILLAR_MORNING": 0.45,
+      "PILLAR_STRESS": 0.3,
+      "PILLAR_GLOW": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_03",
+    "name": "CortiFree Lily",
+    "persona_id": "P02",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_WORK",
+    "secondary_pillar_ids": [
+      "PILLAR_MORNING",
+      "PILLAR_OUTDOORS"
+    ],
+    "pillar_mix": {
+      "PILLAR_WORK": 0.45,
+      "PILLAR_MORNING": 0.3,
+      "PILLAR_OUTDOORS": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_04",
+    "name": "CortiFree Maya",
+    "persona_id": "P03",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_CONFIDENCE",
+    "secondary_pillar_ids": [
+      "PILLAR_WORK",
+      "PILLAR_STRESS"
+    ],
+    "pillar_mix": {
+      "PILLAR_CONFIDENCE": 0.45,
+      "PILLAR_WORK": 0.3,
+      "PILLAR_STRESS": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_05",
+    "name": "CortiFree Nora",
+    "persona_id": "P04",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_SLEEP",
+    "secondary_pillar_ids": [
+      "PILLAR_STRESS",
+      "PILLAR_SEASONAL"
+    ],
+    "pillar_mix": {
+      "PILLAR_SLEEP": 0.45,
+      "PILLAR_STRESS": 0.3,
+      "PILLAR_SEASONAL": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_06",
+    "name": "CortiFree Grace",
+    "persona_id": "P05",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_FOOD",
+    "secondary_pillar_ids": [
+      "PILLAR_HOME",
+      "PILLAR_SEASONAL"
+    ],
+    "pillar_mix": {
+      "PILLAR_FOOD": 0.45,
+      "PILLAR_HOME": 0.3,
+      "PILLAR_SEASONAL": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_07",
+    "name": "CortiFree Chloe",
+    "persona_id": "P07",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_MOVEMENT",
+    "secondary_pillar_ids": [
+      "PILLAR_OUTDOORS",
+      "PILLAR_STRESS"
+    ],
+    "pillar_mix": {
+      "PILLAR_MOVEMENT": 0.45,
+      "PILLAR_OUTDOORS": 0.3,
+      "PILLAR_STRESS": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_08",
+    "name": "CortiFree Isabela",
+    "persona_id": "P08",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_MOVEMENT",
+    "secondary_pillar_ids": [
+      "PILLAR_GLOW",
+      "PILLAR_FOOD"
+    ],
+    "pillar_mix": {
+      "PILLAR_MOVEMENT": 0.45,
+      "PILLAR_GLOW": 0.3,
+      "PILLAR_FOOD": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_09",
+    "name": "CortiFree Camila",
+    "persona_id": "P09",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_FOOD",
+    "secondary_pillar_ids": [
+      "PILLAR_MORNING",
+      "PILLAR_HOME"
+    ],
+    "pillar_mix": {
+      "PILLAR_FOOD": 0.45,
+      "PILLAR_MORNING": 0.3,
+      "PILLAR_HOME": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_10",
+    "name": "CortiFree Hana",
+    "persona_id": "P10",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_WORK",
+    "secondary_pillar_ids": [
+      "PILLAR_SLEEP",
+      "PILLAR_STRESS"
+    ],
+    "pillar_mix": {
+      "PILLAR_WORK": 0.45,
+      "PILLAR_SLEEP": 0.3,
+      "PILLAR_STRESS": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_11",
+    "name": "CortiFree Zoey",
+    "persona_id": "P11",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_GLOW",
+    "secondary_pillar_ids": [
+      "PILLAR_MOVEMENT",
+      "PILLAR_OUTDOORS"
+    ],
+    "pillar_mix": {
+      "PILLAR_GLOW": 0.45,
+      "PILLAR_MOVEMENT": 0.3,
+      "PILLAR_OUTDOORS": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_12",
+    "name": "CortiFree Eliana",
+    "persona_id": "P12",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_STRESS",
+    "secondary_pillar_ids": [
+      "PILLAR_SLEEP",
+      "PILLAR_CORTISOL"
+    ],
+    "pillar_mix": {
+      "PILLAR_STRESS": 0.45,
+      "PILLAR_SLEEP": 0.3,
+      "PILLAR_CORTISOL": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_13",
+    "name": "CortiFree Jade",
+    "persona_id": "P13",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_MOVEMENT",
+    "secondary_pillar_ids": [
+      "PILLAR_FOOD",
+      "PILLAR_STRESS"
+    ],
+    "pillar_mix": {
+      "PILLAR_MOVEMENT": 0.45,
+      "PILLAR_FOOD": 0.3,
+      "PILLAR_STRESS": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_14",
+    "name": "CortiFree Sofia",
+    "persona_id": "P14",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_WORK",
+    "secondary_pillar_ids": [
+      "PILLAR_OUTDOORS",
+      "PILLAR_SEASONAL"
+    ],
+    "pillar_mix": {
+      "PILLAR_WORK": 0.45,
+      "PILLAR_OUTDOORS": 0.3,
+      "PILLAR_SEASONAL": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_15",
+    "name": "CortiFree Mia",
+    "persona_id": "P15",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_FOOD",
+    "secondary_pillar_ids": [
+      "PILLAR_MOVEMENT",
+      "PILLAR_MORNING"
+    ],
+    "pillar_mix": {
+      "PILLAR_FOOD": 0.45,
+      "PILLAR_MOVEMENT": 0.3,
+      "PILLAR_MORNING": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  },
+  {
+    "id": "CF_EN_16",
+    "name": "CortiFree Olivia",
+    "persona_id": "P16",
+    "language": "en",
+    "market": "US",
+    "timezone": "America/New_York",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "upload_post_profile": "",
+    "daily_target": 1,
+    "posting_slots": [
+      "11:30",
+      "19:00"
+    ],
+    "enabled": false,
+    "posting_enabled": false,
+    "primary_pillar_id": "PILLAR_GLOW",
+    "secondary_pillar_ids": [
+      "PILLAR_CONFIDENCE",
+      "PILLAR_SEASONAL"
+    ],
+    "pillar_mix": {
+      "PILLAR_GLOW": 0.45,
+      "PILLAR_CONFIDENCE": 0.3,
+      "PILLAR_SEASONAL": 0.25
+    },
+    "format_mix": {
+      "C02_CHECKLIST": 0.15,
+      "C05_GLOW_UP": 0.15,
+      "C08_MY_REALISTIC": 0.15,
+      "C09_LIST": 0.15,
+      "C01_MORNING_ROUTINE": 0.1,
+      "C12_NIGHT_ROUTINE": 0.1,
+      "C13_EDUCATIONAL_EXPLAINER": 0.1,
+      "EXPERIMENT": 0.1
+    },
+    "promo_ratio": 0.08,
+    "ready_buffer_days": 3,
+    "warmup_status": "CREATED"
+  }
 ]

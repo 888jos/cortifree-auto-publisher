@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { resolveDriveLayout } from '../config/paths.js';
 import { type AssetRecord } from '../domain.js';
+import { personaIdFromFolder } from '../personas/identity.js';
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 const categoryMap: Record<string, string> = { '02_HOME': 'home', '03_FITNESS': 'fitness', '04_OUTDOORS': 'outdoors', '05_SELF_CARE': 'self_care', '06_FOOD': 'food', '07_WORK_STUDY': 'work_study', '07_OTHER': 'other' };
@@ -30,10 +31,11 @@ function classify(file: string, root: string): Pick<AssetRecord, 'category' | 'p
   if (top === '01_STOCK_ASSETS') return { category: parts[1] ?? 'uncategorized', persona_id: null, source_type: 'stock' };
   if (top === '09_VISUAL_REFERENCES') return { category: parts[1] ?? 'uncategorized', persona_id: null, source_type: 'visual_reference' };
   if (top === '02_PERSONAS') {
-    const persona = parts[1] ?? 'UNKNOWN'; const section = parts[2] ?? '';
-    if (section === '00_MASTER') return { category: 'master', persona_id: persona, source_type: 'persona_master' };
-    if (section === '01_REFERENCES') return { category: 'reference', persona_id: persona, source_type: 'persona_reference' };
-    return { category: categoryMap[section] ?? section.toLowerCase(), persona_id: persona, source_type: 'persona_generated' };
+    const personaFolder = parts[1] ?? 'UNKNOWN'; const section = parts[2] ?? '';
+    const personaId = personaIdFromFolder(personaFolder);
+    if (section === '00_MASTER') return { category: 'master', persona_id: personaId, source_type: 'persona_master' };
+    if (section === '01_REFERENCES') return { category: 'reference', persona_id: personaId, source_type: 'persona_reference' };
+    return { category: categoryMap[section] ?? section.toLowerCase(), persona_id: personaId, source_type: 'persona_generated' };
   }
   return { category: 'uncategorized', persona_id: null, source_type: 'stock' };
 }

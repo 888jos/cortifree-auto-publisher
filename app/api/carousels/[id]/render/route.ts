@@ -18,12 +18,12 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   try {
     const { id } = await context.params;
     try { assertCortiFreeCarouselId(id); } catch { return Response.json({ error: "Invalid carousel id" }, { status: 400 }); }
-    const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,spec&limit=1`);
+    const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,persona_id,spec&limit=1`);
     if (!response.ok) throw new Error(await response.text());
-    const rows = await response.json() as Array<{ id: string; spec: unknown }>;
+    const rows = await response.json() as Array<{ id: string; persona_id?: string; spec: unknown }>;
     if (!rows[0]) return Response.json({ error: "Carousel not found" }, { status: 404 });
     const spec = storedSpecSchema.parse(rows[0].spec);
-    const slides = await renderCarousel({ id, carouselType: spec.carousel_type, layout: spec.model_id, slides: spec.generated_slides, references: spec.references, spec });
+    const slides = await renderCarousel({ id, carouselType: spec.carousel_type, layout: spec.model_id, personaId: rows[0].persona_id, slides: spec.generated_slides, references: spec.references, spec });
     return Response.json({ id, slides, rendered: true });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Stored carousel is incomplete", details: error.issues }, { status: 422 });
