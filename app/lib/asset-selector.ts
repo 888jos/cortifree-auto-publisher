@@ -1,5 +1,6 @@
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
+import { DEFAULT_AUTONOMY_POLICY, noveltyPenalty } from "./autonomy-policy";
 
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
@@ -47,9 +48,11 @@ export function chooseAssets(options: {
   assets: SelectableAsset[];
   carouselType: string;
   slides: Array<{ position: number; headline: string; body: string; assetQuery: string; visualIntent: string }>;
+  blockedAssetIds?: string[];
 }): AssetMatch[] {
   const preferred = categoryByType[options.carouselType] ?? ["morning", "self_care", "food", "fitness", "outdoors", "work_study", "stress_reset", "night"];
   const used = new Set<string>();
+  const blocked = new Set(options.blockedAssetIds ?? []);
   return options.slides.map((slide) => {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
     const candidates = options.assets.map((asset) => {
@@ -60,8 +63,8 @@ export function chooseAssets(options: {
       score += matchedTerms.length * 7;
       score += asset.orientation === "portrait" ? 12 : asset.orientation === "square" ? 4 : 0;
       score += asset.framing === "wide" && /wide|room|landscape/.test(slide.visualIntent.toLowerCase()) ? 8 : 0;
-      score -= Math.min(asset.use_count ?? 0, 12) * 1.8;
-      if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 14 * 86_400_000) score -= 16;
+      score -= noveltyPenalty(asset.last_used_at, asset.use_count, DEFAULT_AUTONOMY_POLICY.visualRefCooldownDays);
+      if (blocked.has(asset.id)) score -= 2_000;
       if (used.has(asset.id)) score -= 1_000;
       return { asset, score, matchedTerms };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
@@ -78,16 +81,18 @@ export function selectAssetOrGeneration(options: {
   category: string;
   visualIntent: string;
   minimumScore?: number;
+  blockedAssetIds?: string[];
 }): JitAssetDecision {
   const minimumScore = options.minimumScore ?? 20;
+  const blocked = new Set(options.blockedAssetIds ?? []);
   const score = (asset: JitSelectableAsset) => {
     const queryTerms = terms(`${options.category} ${options.visualIntent}`);
     const haystack = assetText(asset);
     const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
     let value = matchedTerms.length * 9 + (asset.category === options.category ? 24 : 0);
     value += asset.orientation === "portrait" ? 8 : 0;
-    value -= Math.min(asset.use_count ?? 0, 12) * 1.8;
-    if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 14 * 86_400_000) value -= 16;
+    value -= noveltyPenalty(asset.last_used_at, asset.use_count, DEFAULT_AUTONOMY_POLICY.visualRefCooldownDays);
+    if (blocked.has(asset.id)) value -= 2_000;
     return { asset, score: Number(value.toFixed(2)), matchedTerms };
   };
   const persona = options.assets
