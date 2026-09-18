@@ -3,6 +3,7 @@ import { dataBackend } from '../lib/data-backend';
 import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
 import { resolvePublishingProfile } from '../../app/lib/publishing-profile';
 import { uploadPhotoCarousel } from '../../app/lib/upload-post';
+import { productionGateStatus } from './production-gate';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
@@ -47,6 +48,8 @@ export function nextPostingTime(slots: string[], timezone: string, now = new Dat
 export async function autoScheduleApproved() {
   if (process.env.AUTONOMY_AUTO_PUBLISH !== 'true') return [{ action:'AUTO_PUBLISH_DISABLED' }];
   if (process.env.DRY_RUN !== 'false') return [{ action:'BLOCKED_DRY_RUN' }];
+  const gate = await productionGateStatus();
+  if (!gate.ready) return [{ action:'BLOCKED_PRODUCTION_GATE', blockers: gate.blockers, warnings: gate.warnings }];
   const report: Row[]=[];
   const accounts = await loadRuntimeAccounts();
   for (const account of accounts.filter((a)=>a.enabled&&a.posting_enabled&&a.warmup_status==='ACTIVE'&&Boolean(a.upload_post_profile))) {
