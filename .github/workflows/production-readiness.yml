@@ -1,0 +1,31 @@
+name: Check CortiFree production readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL || vars.NEXT_PUBLIC_CONVEX_URL }}
+      CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL || vars.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MODELARK_API_KEY: ${{ secrets.MODELARK_API_KEY }}
+      MODELARK_MODEL_ID: ${{ secrets.MODELARK_MODEL_ID || vars.MODELARK_MODEL_ID }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      IMAGE_GENERATION_ENABLED: ${{ vars.IMAGE_GENERATION_ENABLED || 'false' }}
+      ALLOW_RUNTIME_JSON_FALLBACK: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run production:check
