@@ -22,6 +22,14 @@ Le renderer est un pipeline SVG déterministe + Sharp : il ne lance pas de navig
 
 Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés et tokens restent dans l’environnement. Le secret backend Convex et la clé OpenAI sont utilisés uniquement côté serveur. Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
 
+## Isolation produit
+
+CortiFree doit être déployé dans un projet Vercel dédié avec l'URL canonique `https://cortifree-auto-publisher.vercel.app`. Le lien vers Cocorise est uniquement un raccourci d'interface et pointe vers `https://cocorise-auto-publisher.vercel.app`.
+
+Le runtime CortiFree n'utilise que son déploiement Convex, son `CORTIFREE_BACKEND_SECRET`, son `CONVEX_DEPLOY_KEY` et son `NEXT_PUBLIC_CONVEX_URL`. Ne réutilisez jamais les variables Convex de Cocorise dans ce projet Vercel. L'ancien projet Supabase partagé `Auto-publish-drifft` est legacy/rollback uniquement et ne doit pas être remis dans le chemin runtime CortiFree.
+
+Le endpoint `/api/health` expose `product=cortifree`, l'URL canonique et le statut `crossProductUrlsSeparated` pour détecter immédiatement un mélange de déploiement.
+
 ## Convex
 
 Les routes sous `app/api` lisent et écrivent exclusivement dans Convex. Le backend force systématiquement `workspace_id=cortifree`; une requête ne peut pas être redirigée vers les données Cocorise. Les noms de comptes historiques Supabase restent uniquement dans le script d'export ponctuel `scripts/export-cortifree-supabase.ts`.
