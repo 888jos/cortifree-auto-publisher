@@ -1,0 +1,56 @@
+name: Generate CortiFree acceptance 20
+
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        description: "CortiFree account used for the acceptance batch"
+        required: false
+        default: "CF_EN_01"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cortifree-acceptance-20
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL || vars.NEXT_PUBLIC_CONVEX_URL }}
+      CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL_PRIMARY: ${{ vars.OPENAI_MODEL_PRIMARY || 'gpt-5.6-luna' }}
+      OPENAI_MODEL_QA: ${{ vars.OPENAI_MODEL_QA || 'gpt-5.6-terra' }}
+      MODELARK_API_KEY: ${{ secrets.MODELARK_API_KEY }}
+      MODELARK_MODEL_ID: ${{ secrets.MODELARK_MODEL_ID || vars.MODELARK_MODEL_ID }}
+      IMAGE_GENERATION_ENABLED: "false"
+      ACCEPTANCE_ACCOUNT_ID: ${{ inputs.account_id }}
+      ALLOW_RUNTIME_JSON_FALLBACK: "false"
+      DRY_RUN: "true"
+      AUTONOMY_AUTO_APPROVE: "false"
+      AUTONOMY_AUTO_PUBLISH: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Require runtime credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in NEXT_PUBLIC_CONVEX_URL CORTIFREE_BACKEND_SECRET OPENAI_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Generate 20 dry-run carousels
+        run: npm run acceptance:20
