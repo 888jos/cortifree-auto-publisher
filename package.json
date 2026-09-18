@@ -31,7 +31,9 @@
     "typecheck": "tsc --noEmit",
     "editorial:bootstrap": "tsx scripts/bootstrap-editorial-config.ts",
     "autonomy:check": "tsx src/cli/index.ts scheduler:run",
-    "google:sync": "tsx scripts/sync-google-to-convex.ts"
+    "google:sync": "tsx scripts/sync-google-to-convex.ts",
+    "p0:bootstrap-data": "tsx scripts/p0-bootstrap-data.ts",
+    "p0:check": "tsx scripts/p0-runtime-check.ts"
   },
   "dependencies": {
     "convex": "^1.45.0",
