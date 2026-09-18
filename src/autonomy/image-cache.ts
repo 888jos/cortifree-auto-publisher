@@ -1,7 +1,5 @@
-import personas from '../../config/personas.json' with { type: 'json' };
 import { dataBackend } from '../lib/data-backend';
-import { loadAccounts } from '../config/accounts';
-import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot';
+import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs, autonomyRuleValue } from '../runtime/config';
 import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core';
 import { visualReferenceSchema } from '../visual-references/index';
 import { processImageGenerationJob } from '../../app/lib/image-generation';
@@ -19,16 +17,20 @@ async function insert(resource: string, body: unknown) {
 }
 
 export async function refillPersonaCaches() {
-  const snapshot = loadEditorialSnapshot();
-  const min = autonomyValue(snapshot, 'persona_cache_min', 12);
-  const target = autonomyValue(snapshot, 'persona_cache_target', 20);
+  const [{ autonomyRules }, accounts, personas] = await Promise.all([
+    loadRuntimeEditorial(),
+    loadRuntimeAccounts(),
+    loadRuntimePersonaConfigs(),
+  ]);
+  const min = autonomyRuleValue(autonomyRules, 'persona_cache_min', 12);
+  const target = autonomyRuleValue(autonomyRules, 'persona_cache_target', 20);
   const generationEnabled = process.env.IMAGE_GENERATION_ENABLED === 'true';
   const report: Row[] = [];
-  const active = loadAccounts().filter((account) => account.enabled);
+  const active = accounts.filter((account) => account.enabled);
 
   for (const account of active) {
     const existing = await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`);
-    if (existing.length >= min) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'HEALTHY' }); continue; }
+    if (existing.length >= target) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'HEALTHY' }); continue; }
     const master = (await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_master&enabled=eq.true&select=id&limit=1`))[0];
     if (!master) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'BLOCKED_MASTER' }); continue; }
     if (!generationEnabled) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'GENERATION_DISABLED' }); continue; }
@@ -37,7 +39,7 @@ export async function refillPersonaCaches() {
     const refs = (await rows('visual_references?enabled=eq.true&select=*&limit=500')).map((row) => visualReferenceSchema.parse(row));
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
-    const need = Math.min(target - existing.length, 4);
+    const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);
     const jobs: Row[] = [];
     for (let index = 0; index < need; index += 1) {
       const scene = sceneRows[index % Math.max(sceneRows.length, 1)];
