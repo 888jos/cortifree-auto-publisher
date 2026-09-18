@@ -1,0 +1,34 @@
+name: P0 runtime readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [chore/p0-live-diagnostics]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL || vars.NEXT_PUBLIC_CONVEX_URL }}
+      CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL || vars.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      GOOGLE_SHEETS_CONTENT_DB_ID: ${{ vars.GOOGLE_SHEETS_CONTENT_DB_ID }}
+      GOOGLE_DRIVE_ROOT_ID: ${{ vars.GOOGLE_DRIVE_ROOT_ID }}
+      UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MODELARK_API_KEY: ${{ secrets.MODELARK_API_KEY }}
+      MODELARK_MODEL_ID: ${{ secrets.MODELARK_MODEL_ID || vars.MODELARK_MODEL_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: P0 readiness report
+        run: npx tsx scripts/p0-runtime-check.ts
