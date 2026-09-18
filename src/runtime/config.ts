@@ -2,6 +2,7 @@ import { accountSchema, personaConfigSchema, type Account, type PersonaConfig } 
 import { dataBackend, convexConfigured } from "../lib/data-backend";
 import { loadAccounts as loadJsonAccounts } from "../config/accounts";
 import { loadEditorialSnapshot } from "../editorial/snapshot";
+import fallbackPersonas from "../../config/personas.json" with { type: "json" };
 import type { EditorialTopic, EditorialHook, EditorialCta } from "../autonomy/selection";
 
 type AnyRow = Record<string, unknown>;
@@ -120,10 +121,9 @@ export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
         cta_style: row.cta_style,
         medical_guardrails: splitPipe(row.medical_guardrails),
       },
-    })).filter((result) => result.success).map((result) => result.data);
+    })).flatMap((result) => result.success ? [result.data] : []);
     if (parsed.length) return parsed;
   }
   if (!allowJsonFallback()) throw new Error("Convex personas are empty/unavailable and JSON fallback is disabled");
-  const module = await import("../../config/personas.json", { with: { type: "json" } });
-  return (module.default as unknown[]).map((value) => personaConfigSchema.parse(value));
+  return (fallbackPersonas as unknown[]).map((value) => personaConfigSchema.parse(value));
 }
