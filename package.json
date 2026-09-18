@@ -36,7 +36,8 @@
     "p0:check": "tsx scripts/p0-runtime-check.ts",
     "acceptance:20": "tsx scripts/acceptance-20.ts",
     "acceptance:record": "tsx scripts/acceptance-record.ts",
-    "production:check": "tsx scripts/production-gate-check.ts"
+    "production:check": "tsx scripts/production-gate-check.ts",
+    "secrets:generate": "tsx scripts/generate-cortifree-secrets.ts"
   },
   "dependencies": {
     "convex": "^1.45.0",
