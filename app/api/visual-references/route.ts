@@ -1,4 +1,3 @@
-import seed from "../../../config/visual-references.seed.json" with { type: "json" };
 import { visualReferenceSchema } from "../../../src/visual-references";
 import { dataBackend } from "../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
@@ -13,13 +12,11 @@ export async function GET(request: Request) {
     const categoryFilter = category && category !== "all" ? "&category=eq." + encodeURIComponent(category) : "";
     const response = await dataBackend("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&enabled=eq.true" + categoryFilter + "&select=*&order=id.asc&limit=500");
     if (!response.ok) throw new Error(await response.text());
-    let references = await response.json() as typeof seed;
+    let references = await response.json() as Array<Record<string, any>>;
     if (query) references = references.filter((item) => JSON.stringify(item).toLowerCase().includes(query));
     return Response.json({ references, source: "convex" });
-  } catch {
-    let references = seed.filter((item) => !category || category === "all" || item.category === category);
-    if (query) references = references.filter((item) => JSON.stringify(item).toLowerCase().includes(query));
-    return Response.json({ references, source: "seed" });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : String(error), references: [], source: "unavailable" }, { status: 503 });
   }
 }
 
