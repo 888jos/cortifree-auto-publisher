@@ -28,7 +28,9 @@
     "jobs:failures": "tsx src/cli/index.ts jobs:failures",
     "scheduler:run": "tsx src/cli/index.ts scheduler:run",
     "test": "node --import tsx --test tests/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "editorial:bootstrap": "tsx scripts/bootstrap-editorial-config.ts",
+    "autonomy:check": "tsx src/cli/index.ts scheduler:run"
   },
   "dependencies": {
     "convex": "^1.45.0",
