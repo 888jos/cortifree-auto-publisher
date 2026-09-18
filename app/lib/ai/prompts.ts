@@ -18,7 +18,9 @@ COPY RULES
 - A slide may contain only photos and text. Never request or describe cards, panels, boxes, pills, badges, stickers, geometric shapes, borders, dividers, arrows, icons, charts, gradients, or decorative UI elements.
 - Keep the creative direction feminine and editorial: soft rose/pink, warm butter yellow, cream, plum, and dark brown accents; use elegant serif or friendly rounded typography. The renderer applies the final palette and typography.
 - Avoid repeating recent hooks, topics, or angles.
+- If preferredTopic and preferredAngle are supplied, use them as the exact concept and angle. Do not replace them with a new topic.
 - If preferredHook is supplied, use that hook verbatim on slide 1 and adapt the rest of the carousel around it.
+- If preferredCtaText is supplied, use that wording on the final CTA or takeaway slide while keeping the structured ctaType valid.
 - References are creative metadata only: learn their structure without copying their wording.
 - When a reference includes a slide blueprint, preserve its exact slide count, order, role rhythm, image zone, text zone, and text alignment. Write original CortiFree copy and original asset queries inside that geometry.
 
