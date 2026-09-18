@@ -26,12 +26,18 @@ type CarouselStructuredRequest = (options: {
   maxOutputTokens?: number;
 }) => Promise<StructuredResult<CarouselSpec>>;
 
-function pinPreferredHook(spec: CarouselSpec, preferredHook?: string): CarouselSpec {
-  if (!preferredHook) return spec;
+function pinEditorialChoices(spec: CarouselSpec, input: CarouselGeneratorInput): CarouselSpec {
+  const finalSlideIndex = spec.slides.length - 1;
   return carouselSpecSchema.parse({
     ...spec,
-    hook: preferredHook,
-    slides: spec.slides.map((slide, index) => index === 0 ? { ...slide, headline: preferredHook } : slide),
+    topic: input.preferredTopic ?? spec.topic,
+    angle: input.preferredAngle ?? spec.angle,
+    hook: input.preferredHook ?? spec.hook,
+    slides: spec.slides.map((slide, index) => {
+      if (index === 0 && input.preferredHook) return { ...slide, headline: input.preferredHook };
+      if (index === finalSlideIndex && input.preferredCtaText) return { ...slide, headline: input.preferredCtaText };
+      return slide;
+    }),
   });
 }
 
@@ -94,10 +100,10 @@ export async function generateCarousel(
       if (!qa.approved && !qa.correctedSpec) throw new Error("AI QA rejected the generated draft");
       if (qa.correctedSpec) {
         assertValidCarouselSpec(qa.correctedSpec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        return { spec: pinPreferredHook(qa.correctedSpec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+        return { spec: pinEditorialChoices(qa.correctedSpec, input), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
       }
     }
-    return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+    return { spec: pinEditorialChoices(spec, input), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
   } catch (error) {
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
     return fallback(error instanceof Error ? error.message : "OpenAI request failed");
