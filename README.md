@@ -121,3 +121,5 @@ Vercel builds **must not deploy Convex**. The Vercel build command is only `next
 This prevents a wrongly linked Vercel project from mutating another product's database. `CONVEX_DEPLOY_KEY` belongs to the Convex deployment workflow, not to the Vercel runtime. Vercel runtime only needs the product-specific public Convex URL and backend secret.
 
 <!-- production-redeploy: 2026-09-18 cortifree canonical -->
+
+<!-- vercel-canonical-redeploy-probe: 2026-09-18T18:45 -->
