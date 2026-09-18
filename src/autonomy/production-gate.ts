@@ -67,8 +67,12 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   const latestDriveSync = driveSync[0];
   checks.latestSheetSync = latestSheetSync?.finished_at ?? null;
   checks.latestDriveSync = latestDriveSync?.finished_at ?? null;
+  const sheetSyncOk = String(latestSheetSync?.status ?? "").toUpperCase() === "SUCCESS";
+  const driveSyncOk = String(latestDriveSync?.status ?? "").toUpperCase() === "SUCCESS";
   checks.googleSyncFresh = isRecent(latestSheetSync?.finished_at, 36) && isRecent(latestDriveSync?.finished_at, 36);
+  checks.googleSyncSuccessful = sheetSyncOk && driveSyncOk;
   if (!checks.googleSyncFresh) blockers.push("GOOGLE_SYNC_STALE_OR_MISSING");
+  if (!checks.googleSyncSuccessful) blockers.push("GOOGLE_SYNC_NOT_SUCCESSFUL");
 
   const masters = await rows("assets?source_type=eq.persona_master&enabled=eq.true&limit=100").catch(() => []);
   const masterPersonaIds = new Set(masters.map((row) => String(row.persona_id ?? "")).filter(Boolean));
