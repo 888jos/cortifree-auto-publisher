@@ -4,8 +4,7 @@ import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carouse
 import { renderCarousel } from '../../app/lib/render-carousel';
 import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
 import { dataBackend } from '../lib/data-backend';
-import { loadEditorialSnapshot } from '../editorial/snapshot';
-import { loadAccounts } from '../config/accounts';
+import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
@@ -20,8 +19,8 @@ async function patch(resource: string, body: Record<string, unknown>) {
 function layoutFor(contentType: string) {
   return ['C02_CHECKLIST', 'C09_LIST'].includes(contentType) ? 'grid-2x2' : 'single-image';
 }
-function slideCountFor(contentType: string, snapshot: ReturnType<typeof loadEditorialSnapshot>) {
-  const row = snapshot.tables.content_formats?.find((item) => String(item.format_id) === contentType);
+function slideCountFor(contentType: string, formats: Row[]) {
+  const row = formats.find((item) => String(item.format_id) === contentType);
   const min = Number(row?.min_slides ?? 6), max = Number(row?.max_slides ?? 7);
   return Math.max(4, Math.min(12, Math.round((min + max) / 2)));
 }
@@ -34,9 +33,13 @@ function ctaModeFromIdea(idea: Row): 'none' | 'soft' | 'save' | 'comment' | 'fol
 }
 
 export async function processQueuedIdeas(limit = Math.max(1, Math.min(24, Number(process.env.AUTONOMY_MAX_DRAFTS_PER_RUN ?? 16)))) {
-  const snapshot = loadEditorialSnapshot();
-  const accountMap = new Map(loadAccounts().map((account) => [account.id, account]));
-  const personaNames = new Map((snapshot.tables.personas ?? []).map((row) => [String(row.persona_id), String(row.name ?? row.persona_id)]));
+  const [accounts, personas, formats] = await Promise.all([
+    loadRuntimeAccounts(),
+    loadRuntimePersonaConfigs(),
+    loadRuntimeRows("content_formats", 100),
+  ]);
+  const accountMap = new Map(accounts.map((account) => [account.id, account]));
+  const personaNames = new Map(personas.map((persona) => [persona.id, persona.name]));
   const ideas = (await rows(`carousel_ideas?status=eq.QUEUED&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
 
@@ -67,7 +70,7 @@ export async function processQueuedIdeas(limit = Math.max(1, Math.min(24, Number
         market: account.market,
         references: [],
         recentCarousels: await getRecentCarousels(10),
-        requestedSlideCount: slideCountFor(contentType, snapshot),
+        requestedSlideCount: slideCountFor(contentType, formats),
         preferredHook: String(idea.final_hook || idea.hook_formula || ''),
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
