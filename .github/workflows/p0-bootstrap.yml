@@ -26,7 +26,7 @@ jobs:
     env:
       CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
-      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: cortifree@cortifree-509021.iam.gserviceaccount.com
       GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
       GOOGLE_SHEETS_CONTENT_DB_ID: ${{ vars.GOOGLE_SHEETS_CONTENT_DB_ID || '1XqgyMRj_jUU3FkKg4HzEORMz3Jl8pHpKuBrXkmfw4Qw' }}
       GOOGLE_DRIVE_ROOT_ID: ${{ vars.GOOGLE_DRIVE_ROOT_ID || '1I7OJ8juCsXINUMNJZ5IO5qhIrjYJlqi_' }}
@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in CONVEX_DEPLOY_KEY CORTIFREE_BACKEND_SECRET GOOGLE_SERVICE_ACCOUNT_EMAIL GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY; do
+          for name in CONVEX_DEPLOY_KEY CORTIFREE_BACKEND_SECRET GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing required secret: $name"
               missing=1
