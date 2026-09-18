@@ -1,0 +1,68 @@
+name: Bootstrap CortiFree P0
+
+on:
+  workflow_dispatch:
+    inputs:
+      drive_batch:
+        description: "Drive assets per sync pass"
+        required: false
+        default: "250"
+      drive_passes:
+        description: "Maximum Drive sync passes"
+        required: false
+        default: "4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cortifree-p0-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      GOOGLE_SHEETS_CONTENT_DB_ID: ${{ vars.GOOGLE_SHEETS_CONTENT_DB_ID || '1XqgyMRj_jUU3FkKg4HzEORMz3Jl8pHpKuBrXkmfw4Qw' }}
+      GOOGLE_DRIVE_ROOT_ID: ${{ vars.GOOGLE_DRIVE_ROOT_ID || '1I7OJ8juCsXINUMNJZ5IO5qhIrjYJlqi_' }}
+      GOOGLE_DRIVE_STOCK_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_STOCK_FOLDER_ID || '12Jd3vxCe-B82Op_fTCVgEjHdzxJMxSCb' }}
+      GOOGLE_DRIVE_PERSONAS_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PERSONAS_FOLDER_ID || '1cnDHDfAGgwOxTT_kJsZNpnRHvB5sY6Ps' }}
+      GOOGLE_DRIVE_VISUAL_REFS_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_VISUAL_REFS_FOLDER_ID || '1kIdIzUptjOa6wIzCamp5cisDjLJqHxHL' }}
+      P0_DRIVE_BATCH: ${{ inputs.drive_batch }}
+      P0_DRIVE_MAX_PASSES: ${{ inputs.drive_passes }}
+      ALLOW_RUNTIME_JSON_FALLBACK: "false"
+      DRY_RUN: "true"
+      AUTONOMY_AUTO_APPROVE: "false"
+      AUTONOMY_AUTO_PUBLISH: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Require P0 bootstrap credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in CONVEX_DEPLOY_KEY CORTIFREE_BACKEND_SECRET GOOGLE_SERVICE_ACCOUNT_EMAIL GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Deploy Convex and bootstrap Sheet + Drive
+        run: >
+          npx convex deploy
+          --cmd "npx tsx scripts/p0-bootstrap-data.ts && npx tsx scripts/p0-runtime-check.ts"
+          --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
+          --message "CortiFree P0 bootstrap ${GITHUB_SHA}"
