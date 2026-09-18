@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import personas from '../../../../config/personas.json' with { type: 'json' };
 import { batchGenerationCount, buildImagePrompt, imageGenerationInputSchema } from '../../../../src/image-generation/core';
 import { visualReferenceSchema } from '../../../../src/visual-references';
 import { dataBackend } from '../../../lib/data-backend';
 import { CORTIFREE_WORKSPACE_ID } from '../../../lib/workspace';
+import { loadRuntimePersonaConfigs } from '../../../../src/runtime/config';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +28,7 @@ export async function GET() {
     const scenes = await rows<Scene>(`persona_scene_templates?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*&order=id.asc`);
     return Response.json({ scenes });
   } catch (error) {
-    return Response.json({ scenes: [], error: error instanceof Error ? error.message : String(error) });
+    return Response.json({ scenes: [], error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }
 }
 
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
   try {
     const batch = batchSchema.parse(await request.json());
     const total = batchGenerationCount(batch.persona_ids.length, batch.scene_ids.length, batch.variations);
+    const personas = await loadRuntimePersonaConfigs();
     const selectedPersonas = personas.filter((persona) => batch.persona_ids.includes(persona.id));
     if (selectedPersonas.length !== batch.persona_ids.length) throw new Error('Unknown persona in batch selection');
     const sceneIds = batch.scene_ids.map(encodeURIComponent).join(',');
