@@ -1,5 +1,6 @@
 import { convexConfigured, getConvexCounts } from "../../lib/data-backend";
 import { googleServiceAccountConfigured } from "../../lib/google/auth";
+import { productionGateStatus } from "../../../src/autonomy/production-gate";
 
 function hostname(value?: string) {
   if (!value) return null;
@@ -30,7 +31,7 @@ export async function GET() {
   const editorialReady = Boolean(
     counts &&
     (counts.personas ?? 0) >= 16 &&
-    (counts.accounts ?? 0) >= 1 &&
+    (counts.accounts ?? 0) >= 16 &&
     (counts.content_topics ?? 0) >= 500 &&
     (counts.content_hooks ?? 0) >= 200 &&
     (counts.content_ctas ?? 0) >= 30
@@ -38,6 +39,7 @@ export async function GET() {
   const googleSyncConfigured = googleServiceAccountConfigured();
   const ok = backendConfigured && convexLive && domainIsolationOk;
   const p0Ready = ok && editorialReady && googleSyncConfigured;
+  const production = backendConfigured && convexLive ? await productionGateStatus().catch((error) => ({ ready: false, blockers: ["PRODUCTION_GATE_ERROR"], warnings: [], checks: { error: error instanceof Error ? error.message : String(error) } })) : { ready: false, blockers: ["CONVEX_NOT_LIVE"], warnings: [], checks: {} };
 
   return Response.json(
     {
@@ -59,6 +61,10 @@ export async function GET() {
       deployedHost,
       legacySupabaseRuntimeEnabled: false,
       dryRun: process.env.DRY_RUN !== "false",
+      productionReady: production.ready,
+      productionBlockers: production.blockers,
+      productionWarnings: production.warnings,
+      productionChecks: production.checks,
     },
     { status: ok ? 200 : 503 },
   );
