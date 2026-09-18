@@ -1,10 +1,10 @@
 import personas from '../../config/personas.json' with { type: 'json' };
-import { dataBackend } from '../lib/data-backend.js';
-import { loadAccounts } from '../config/accounts.js';
-import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot.js';
-import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core.js';
-import { visualReferenceSchema } from '../visual-references/index.js';
-import { processImageGenerationJob } from '../../app/lib/image-generation.js';
+import { dataBackend } from '../lib/data-backend';
+import { loadAccounts } from '../config/accounts';
+import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot';
+import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core';
+import { visualReferenceSchema } from '../visual-references/index';
+import { processImageGenerationJob } from '../../app/lib/image-generation';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
