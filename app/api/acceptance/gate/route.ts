@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { acceptanceGateStatus, recordAcceptanceGate } from "../../../src/autonomy/acceptance";
+import { acceptanceGateStatus, recordAcceptanceGate } from "../../../../src/autonomy/acceptance";
 
 export const runtime = "nodejs";
 
