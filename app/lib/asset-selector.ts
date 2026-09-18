@@ -4,6 +4,7 @@ import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
   activity: string; mood: string; colors: string[]; tags: string[]; public_url: string; use_count: number; last_used_at: string | null;
+  source_type?: string; persona_id?: string | null;
 };
 
 export type JitSelectableAsset = SelectableAsset & { source_type?: string; persona_id?: string | null };
@@ -48,19 +49,28 @@ export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
 export function chooseAssets(options: {
   assets: SelectableAsset[];
   carouselType: string;
-  slides: Array<{ position: number; headline: string; body: string; assetQuery: string; visualIntent: string }>;
+  personaId?: string;
+  slides: Array<{ position: number; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const preferred = categoryByType[options.carouselType] ?? ["morning", "self_care", "food", "fitness", "outdoors", "work_study", "stress_reset", "night"];
   const used = new Set<string>();
   return options.slides.map((slide) => {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
-    const candidates = options.assets.map((asset) => {
+    const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
+    const requested = slide.assetType === "persona"
+      ? finalUse.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === options.personaId)
+      : slide.assetType === "stock" || slide.assetType === "text_only"
+        ? finalUse.filter((asset) => asset.source_type === "stock")
+        : finalUse;
+    if (slide.assetType === "persona" && requested.length === 0) throw new Error(`PERSONA_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
+    const candidates = requested.map((asset) => {
       const haystack = assetText(asset);
       const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
       const categoryRank = preferred.indexOf(asset.category);
       let score = categoryRank === 0 ? 44 : categoryRank > 0 ? Math.max(12, 34 - categoryRank * 7) : -20;
       score += matchedTerms.length * 7;
       score += asset.orientation === "portrait" ? 12 : asset.orientation === "square" ? 4 : 0;
+      if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 28;
       score += asset.framing === "wide" && /wide|room|landscape/.test(slide.visualIntent.toLowerCase()) ? 8 : 0;
       score -= Math.min(asset.use_count ?? 0, 12) * 1.8;
       if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000) score -= 16;
