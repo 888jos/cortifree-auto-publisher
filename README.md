@@ -112,3 +112,10 @@ CortiFree est un service autonome et ne dépend d'aucune ressource Cocorise en p
 - Aucune variable `NEXT_PUBLIC_COCORISE_URL` n'est autorisée dans ce repo.
 
 Le endpoint `/api/health` renvoie HTTP 503 si le déploiement CortiFree est branché sur un hostname Vercel différent du hostname canonique. Cette vérification existe précisément pour empêcher un nouveau déploiement de CortiFree dans le projet Cocorise.
+
+
+### Database deployment boundary
+
+Vercel builds **must not deploy Convex**. The Vercel build command is only `next build`. Deploy Convex separately with `npm run convex:deploy` from an explicitly linked deployment/CI context.
+
+This prevents a wrongly linked Vercel project from mutating another product's database. `CONVEX_DEPLOY_KEY` belongs to the Convex deployment workflow, not to the Vercel runtime. Vercel runtime only needs the product-specific public Convex URL and backend secret.
