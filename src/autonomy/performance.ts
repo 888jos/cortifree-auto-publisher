@@ -1,7 +1,7 @@
-import { dataBackend } from '../lib/data-backend.js';
-import { getUploadPostPostAnalytics, getUploadPostStatus, normalizeUploadPostResults } from '../../app/lib/upload-post.js';
-import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot.js';
-import { fillHook, type EditorialHook, type EditorialTopic } from './selection.js';
+import { dataBackend } from '../lib/data-backend';
+import { getUploadPostPostAnalytics, getUploadPostStatus, normalizeUploadPostResults } from '../../app/lib/upload-post';
+import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot';
+import { fillHook, type EditorialHook, type EditorialTopic } from './selection';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
