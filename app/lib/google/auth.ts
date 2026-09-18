@@ -2,20 +2,21 @@ import crypto from "node:crypto";
 
 type CachedToken = { accessToken: string; expiresAt: number };
 let cached: CachedToken | null = null;
+const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL = "cortifree@cortifree-509021.iam.gserviceaccount.com";
 
 function b64url(value: string | Buffer) {
   return Buffer.from(value).toString("base64url");
 }
 
 export function googleServiceAccountConfigured() {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
+  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
 }
 
 export async function getGoogleAccessToken() {
   if (cached && cached.expiresAt - Date.now() > 60_000) return cached.accessToken;
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-  if (!email || !rawKey) throw new Error("Google service account credentials are not configured");
+  if (!rawKey) throw new Error("Google service account private key is not configured");
   const privateKey = rawKey.replace(/\\n/g, "\n");
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
