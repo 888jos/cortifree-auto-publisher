@@ -34,7 +34,9 @@
     "google:sync": "tsx scripts/sync-google-to-convex.ts",
     "p0:bootstrap-data": "tsx scripts/p0-bootstrap-data.ts",
     "p0:check": "tsx scripts/p0-runtime-check.ts",
-    "acceptance:20": "tsx scripts/acceptance-20.ts"
+    "acceptance:20": "tsx scripts/acceptance-20.ts",
+    "acceptance:record": "tsx scripts/acceptance-record.ts",
+    "production:check": "tsx scripts/production-gate-check.ts"
   },
   "dependencies": {
     "convex": "^1.45.0",
