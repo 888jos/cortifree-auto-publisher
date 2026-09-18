@@ -41,6 +41,16 @@ export async function runScheduler() {
   const networkTopicCooldownHours = autonomyValue(snapshot, 'network_topic_cooldown_hours', 48);
   const networkHookCooldownHours = autonomyValue(snapshot, 'network_final_hook_cooldown_hours', 48);
   const report: Array<Record<string, unknown>> = [];
+  const networkIdeas = await rows('carousel_ideas?order=created_at.desc&limit=2000');
+  const networkHistory: SelectionHistory[] = networkIdeas.map((row) => ({
+    account_id: String(row.account_id ?? ''),
+    topic_id: row.topic_id ? String(row.topic_id) : undefined,
+    hook_id: row.hook_id ? String(row.hook_id) : undefined,
+    final_hook: row.final_hook ? String(row.final_hook) : undefined,
+    visual_ref_id: row.visual_ref_id ? String(row.visual_ref_id) : undefined,
+    combo_key: row.combo_key ? String(row.combo_key) : undefined,
+    created_at: row.created_at ? String(row.created_at) : undefined,
+  }));
 
   for (const account of loadAccounts()) {
     if (!account.enabled || ['PAUSED','ERROR'].includes(account.warmup_status)) {
@@ -49,19 +59,11 @@ export async function runScheduler() {
     }
     const existingIdeas = await rows(`carousel_ideas?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
     const readyCarousels = await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
-    const bufferedCarousels = readyCarousels.filter((row) => ['READY_FOR_REVIEW','APPROVED','SCHEDULED'].includes(String(row.status)));
+    const bufferedCarousels = readyCarousels.filter((row) => ['DRAFT','READY_FOR_REVIEW','APPROVED','SCHEDULED'].includes(String(row.status)));
     const queuedIdeas = existingIdeas.filter((row) => ['QUEUED','GENERATING'].includes(String(row.status)));
     const target = Math.max(1, account.daily_target * (account.ready_buffer_days ?? 3));
     const missing = Math.max(0, target - bufferedCarousels.length - queuedIdeas.length);
-    const history: SelectionHistory[] = existingIdeas.map((row) => ({
-      account_id: String(row.account_id ?? ''),
-      topic_id: row.topic_id ? String(row.topic_id) : undefined,
-      hook_id: row.hook_id ? String(row.hook_id) : undefined,
-      final_hook: row.final_hook ? String(row.final_hook) : undefined,
-      visual_ref_id: row.visual_ref_id ? String(row.visual_ref_id) : undefined,
-      combo_key: row.combo_key ? String(row.combo_key) : undefined,
-      created_at: row.created_at ? String(row.created_at) : undefined,
-    }));
+    const history: SelectionHistory[] = [...networkHistory];
 
     let created = 0;
     for (let index = 0; index < missing; index += 1) {
@@ -91,6 +93,7 @@ export async function runScheduler() {
       };
       await write('carousel_ideas?on_conflict=id', row);
       history.push(row as SelectionHistory);
+      networkHistory.push(row as SelectionHistory);
       created += 1;
     }
     report.push({ account_id: account.id, target, buffered: bufferedCarousels.length, queued: queuedIdeas.length, created });
