@@ -12,7 +12,7 @@ const TABLES = [
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const output = path.resolve(".data/convex-migration");
-if (!url || !key) throw new Error("Supabase export credentials are required");
+if (process.env.ALLOW_LEGACY_SUPABASE_EXPORT !== "true") throw new Error("Legacy Supabase export is disabled. Set ALLOW_LEGACY_SUPABASE_EXPORT=true explicitly.");\nconst expectedRef = process.env.LEGACY_SUPABASE_PROJECT_REF || "adwyqshphctqbdfckvno";\nif (!url || !key) throw new Error("Supabase export credentials are required");\nif (new URL(url).hostname.split(".")[0] !== expectedRef) throw new Error(`Refusing export from unexpected Supabase project: ${new URL(url).hostname}`);
 
 function queryFor(table: string) {
   const params = new URLSearchParams({ workspace_id: "eq.cortifree", select: "*" });
