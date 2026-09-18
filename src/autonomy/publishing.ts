@@ -1,4 +1,4 @@
-import { loadAccounts } from '../config/accounts';
+import { loadRuntimeAccounts } from '../runtime/config';
 import { dataBackend } from '../lib/data-backend';
 import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
 import { resolvePublishingProfile } from '../../app/lib/publishing-profile';
@@ -48,7 +48,8 @@ export async function autoScheduleApproved() {
   if (process.env.AUTONOMY_AUTO_PUBLISH !== 'true') return [{ action:'AUTO_PUBLISH_DISABLED' }];
   if (process.env.DRY_RUN !== 'false') return [{ action:'BLOCKED_DRY_RUN' }];
   const report: Row[]=[];
-  for (const account of loadAccounts().filter((a)=>a.enabled&&a.posting_enabled&&a.warmup_status==='ACTIVE'&&Boolean(a.upload_post_profile))) {
+  const accounts = await loadRuntimeAccounts();
+  for (const account of accounts.filter((a)=>a.enabled&&a.posting_enabled&&a.warmup_status==='ACTIVE'&&Boolean(a.upload_post_profile))) {
     const carousel=(await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&status=eq.APPROVED&order=created_at.asc&limit=1`))[0];
     if (!carousel) { report.push({account_id:account.id,action:'NO_APPROVED'}); continue; }
     const id=String(carousel.id);
