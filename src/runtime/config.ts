@@ -1,4 +1,4 @@
-import { accountSchema, type Account } from "../domain";
+import { accountSchema, personaConfigSchema, type Account, type PersonaConfig } from "../domain";
 import { dataBackend, convexConfigured } from "../lib/data-backend";
 import { loadAccounts as loadJsonAccounts } from "../config/accounts";
 import { loadEditorialSnapshot } from "../editorial/snapshot";
@@ -6,7 +6,7 @@ import type { EditorialTopic, EditorialHook, EditorialCta } from "../autonomy/se
 
 type AnyRow = Record<string, unknown>;
 
-async function rows(table: string, limit = 5000): Promise<AnyRow[]> {
+export async function loadRuntimeRows(table: string, limit = 5000): Promise<AnyRow[]> {
   const response = await dataBackend(`${table}?limit=${limit}`);
   if (!response.ok) throw new Error(`Convex runtime read failed for ${table}: ${await response.text()}`);
   return await response.json() as AnyRow[];
@@ -18,7 +18,7 @@ function allowJsonFallback() {
 
 export async function loadRuntimeAccounts(): Promise<Account[]> {
   if (convexConfigured()) {
-    const live = await rows("accounts", 100);
+    const live = await loadRuntimeRows("accounts", 100);
     const parsed = live
       .filter((row) => row.active !== false)
       .map((row, index) => {
@@ -64,10 +64,10 @@ export type RuntimeEditorial = {
 export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
   if (convexConfigured()) {
     const [topics, hooks, ctas, autonomyRules] = await Promise.all([
-      rows("content_topics"),
-      rows("content_hooks"),
-      rows("content_ctas"),
-      rows("autonomy_rules", 200),
+      loadRuntimeRows("content_topics"),
+      loadRuntimeRows("content_hooks"),
+      loadRuntimeRows("content_ctas"),
+      loadRuntimeRows("autonomy_rules", 200),
     ]);
     if (topics.length && hooks.length && ctas.length) {
       return {
@@ -92,4 +92,38 @@ export function autonomyRuleValue(rules: AnyRow[], key: string, fallback: number
   const row = rules.find((item) => String(item.key) === key && item.active !== false);
   const value = Number(row?.value);
   return Number.isFinite(value) ? value : fallback;
+}
+
+
+const splitPipe = (value: unknown) => String(value ?? "").split("|").map((x) => x.trim()).filter(Boolean);
+
+export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
+  if (convexConfigured()) {
+    const live = await loadRuntimeRows("personas", 100);
+    const parsed = live.map((row) => personaConfigSchema.safeParse({
+      id: row.persona_id ?? row.id,
+      name: row.name,
+      age: Number(row.age),
+      background: row.background,
+      physical: { skin: row.skin, hair: row.hair, eyes: row.eyes, face: row.face, build: row.build },
+      situation: row.situation,
+      visual_style: row.visual_style,
+      signature_scene: row.signature_scene,
+      image_generation: {
+        master_prompt: row.master_prompt,
+        identity_reference_prompt: row.identity_reference_prompt,
+        negative_prompt: row.negative_prompt,
+      },
+      content: {
+        primary_topics: splitPipe(row.primary_topics),
+        voice: row.voice,
+        cta_style: row.cta_style,
+        medical_guardrails: splitPipe(row.medical_guardrails),
+      },
+    })).filter((result) => result.success).map((result) => result.data);
+    if (parsed.length) return parsed;
+  }
+  if (!allowJsonFallback()) throw new Error("Convex personas are empty/unavailable and JSON fallback is disabled");
+  const module = await import("../../config/personas.json", { with: { type: "json" } });
+  return (module.default as unknown[]).map((value) => personaConfigSchema.parse(value));
 }
