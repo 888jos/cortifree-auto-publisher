@@ -1,6 +1,6 @@
 import { dataBackend } from '../lib/data-backend';
 import { getUploadPostPostAnalytics, getUploadPostStatus, normalizeUploadPostResults } from '../../app/lib/upload-post';
-import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot';
+import { loadRuntimeEditorial, autonomyRuleValue } from '../runtime/config';
 import { fillHook, type EditorialHook, type EditorialTopic } from './selection';
 
 type Row = Record<string, unknown>;
@@ -52,8 +52,8 @@ export async function refreshPublishStatuses(limit = 40) {
 }
 
 export async function refreshPostAnalytics(limit = 40) {
-  const snapshot = loadEditorialSnapshot();
-  const winnerMultiple = autonomyValue(snapshot, 'winner_threshold_vs_account_median', 2);
+  const { autonomyRules } = await loadRuntimeEditorial();
+  const winnerMultiple = autonomyRuleValue(autonomyRules, 'winner_threshold_vs_account_median', 2);
   const jobs = (await rows(`publish_jobs?status=eq.PUBLISHED&order=created_at.desc&limit=${Math.max(limit, 100)}`)).filter((job) => job.provider_request_id).slice(0, limit);
   const created: Row[] = [];
   for (const job of jobs) {
@@ -99,18 +99,18 @@ export async function refreshPostAnalytics(limit = 40) {
 }
 
 export async function queueWinnerVariants() {
-  const snapshot = loadEditorialSnapshot();
-  const count = autonomyValue(snapshot, 'winner_variants_to_queue', 3);
+  const { topics, hooks, autonomyRules } = await loadRuntimeEditorial();
+  const count = autonomyRuleValue(autonomyRules, 'winner_variants_to_queue', 3);
   const winners = (await rows('carousels?is_winner=eq.true&order=winner_at.desc&limit=20')).slice(0,20);
-  const topics = snapshot.tables.content_topics as unknown as EditorialTopic[];
-  const hooks = (snapshot.tables.content_hooks as unknown as EditorialHook[]).filter((h) => h.active !== false);
+  const runtimeTopics = topics as unknown as EditorialTopic[];
+  const runtimeHooks = (hooks as unknown as EditorialHook[]).filter((h) => h.active !== false);
   const queued: Row[] = [];
   for (const winner of winners) {
     const existing = await rows(`carousel_ideas?source_winner_id=eq.${encodeURIComponent(String(winner.id))}&limit=20`);
     if (existing.length >= count) continue;
-    const topic = topics.find((t) => t.topic === winner.topic && t.pillar_id === winner.pillar_id) ?? topics.find((t) => t.topic === winner.topic);
+    const topic = runtimeTopics.find((t) => t.topic === winner.topic && t.pillar_id === winner.pillar_id) ?? runtimeTopics.find((t) => t.topic === winner.topic);
     if (!topic) continue;
-    const compatible = hooks.filter((h) => String(h.compatible_formats).split('|').map(x=>x.trim()).includes(String(winner.content_type)));
+    const compatible = runtimeHooks.filter((h) => String(h.compatible_formats).split('|').map(x=>x.trim()).includes(String(winner.content_type)));
     for (const hook of compatible.slice(0, Math.max(0, count-existing.length))) {
       const id = `CF_WIN_${String(winner.id).replace(/[^A-Z0-9]/gi,'')}_${hook.hook_id}`;
       const idea = {

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { loadAccounts } from '../config/accounts';
+import type { Account } from '../domain';
 import { dataBackend } from '../lib/data-backend';
-import { loadEditorialSnapshot, autonomyValue } from '../editorial/snapshot';
+import { loadRuntimeAccounts, loadRuntimeEditorial, autonomyRuleValue } from '../runtime/config';
 import { selectEditorial, type EditorialTopic, type EditorialHook, type EditorialCta, type SelectionHistory } from './selection';
 
 type AnyRow = Record<string, unknown>;
@@ -22,24 +22,24 @@ function strategy(index: number) {
   const slot = index % 10;
   return slot < 7 ? 'PROVEN' : slot < 9 ? 'ADJACENT' : 'EXPERIMENT';
 }
-function formatIds(account: ReturnType<typeof loadAccounts>[number]) {
+function formatIds(account: Account) {
   const configured = Object.keys(account.format_mix ?? {}).filter((key) => /^C\d{2}_/.test(key) || /^C\d{2}$/.test(key));
   return configured.length ? configured : ['C01_MORNING_ROUTINE','C02_CHECKLIST','C05_GLOW_UP','C08_MY_REALISTIC','C09_LIST','C12_NIGHT_ROUTINE','C13_EDUCATIONAL_EXPLAINER'];
 }
-function pillarIds(account: ReturnType<typeof loadAccounts>[number]) {
+function pillarIds(account: Account) {
   const configured = Object.keys(account.pillar_mix ?? {}).filter((key) => key.startsWith('PILLAR_'));
   return configured.length ? configured : [account.primary_pillar_id, ...(account.secondary_pillar_ids ?? [])].filter(Boolean) as string[];
 }
 
 export async function runScheduler() {
-  const snapshot = loadEditorialSnapshot();
-  const topics = snapshot.tables.content_topics as unknown as EditorialTopic[];
-  const hooks = snapshot.tables.content_hooks as unknown as EditorialHook[];
-  const ctas = snapshot.tables.content_ctas as unknown as EditorialCta[];
-  const accountTopicCooldownDays = autonomyValue(snapshot, 'account_topic_cooldown_days', 14);
-  const accountHookCooldownDays = autonomyValue(snapshot, 'account_hook_cooldown_days', 7);
-  const networkTopicCooldownHours = autonomyValue(snapshot, 'network_topic_cooldown_hours', 48);
-  const networkHookCooldownHours = autonomyValue(snapshot, 'network_final_hook_cooldown_hours', 48);
+  const [{ topics, hooks, ctas, autonomyRules }, accounts] = await Promise.all([
+    loadRuntimeEditorial(),
+    loadRuntimeAccounts(),
+  ]);
+  const accountTopicCooldownDays = autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14);
+  const accountHookCooldownDays = autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7);
+  const networkTopicCooldownHours = autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48);
+  const networkHookCooldownHours = autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48);
   const report: Array<Record<string, unknown>> = [];
   const networkIdeas = await rows('carousel_ideas?order=created_at.desc&limit=2000');
   const networkHistory: SelectionHistory[] = networkIdeas.map((row) => ({
@@ -52,7 +52,7 @@ export async function runScheduler() {
     created_at: row.created_at ? String(row.created_at) : undefined,
   }));
 
-  for (const account of loadAccounts()) {
+  for (const account of accounts) {
     if (!account.enabled || ['PAUSED','ERROR'].includes(account.warmup_status)) {
       report.push({ account_id: account.id, action: 'SKIP_DISABLED' });
       continue;

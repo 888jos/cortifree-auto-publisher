@@ -3,6 +3,10 @@
   "buildCommand": "npm run vercel-build",
   "crons": [
     {
+      "path": "/api/sync/google",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/autonomy/run",
       "schedule": "0 5 * * *"
     }
