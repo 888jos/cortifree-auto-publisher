@@ -69,6 +69,10 @@ export async function processQueuedIdeas(limit = Math.max(1, Math.min(24, Number
       const result = await generateCarousel(input, {}, { carouselId });
       if (result.source !== 'openai') throw new Error(result.warning ?? 'Autonomous generation requires a successful AI draft');
       const saved = await saveGeneratedCarousel({ id: carouselId, input, result, accountId, personaId });
+      await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
+        pillar_id: idea.pillar_id ?? null, topic_id: idea.topic_id ?? null, hook_id: idea.hook_id ?? null,
+        cta_id: idea.cta_id ?? null, strategy: idea.strategy ?? null, source_idea_id: id, combo_key: idea.combo_key ?? null,
+      });
       let renderStatus = 'DRAFT';
       let renderError: string | null = null;
       try {
