@@ -2,13 +2,14 @@ import crypto from "node:crypto";
 
 type CachedToken = { accessToken: string; expiresAt: number };
 let cached: CachedToken | null = null;
+const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL = "cortifree@cortifree-509021.iam.gserviceaccount.com";
 
 function b64url(value: string | Buffer) {
   return Buffer.from(value).toString("base64url");
 }
 
 export function googleServiceAccountConfigured() {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
+  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
 }
 
 export async function getGoogleAccessToken() {
