@@ -87,3 +87,9 @@ export async function dataBackend(resource: string, init: RequestInit = {}) {
 export function convexConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CORTIFREE_BACKEND_SECRET);
 }
+
+
+export async function getConvexCounts() {
+  const { client: convex, secret } = backend();
+  return await convex.query(api.data.counts, { secret }) as Record<string, number>;
+}
