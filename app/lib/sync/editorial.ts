@@ -22,7 +22,7 @@ function account(row: Row): Row {
     posting_slots: split(row.posting_slots),
     pillar_mix: mix(row.pillar_mix),
     format_mix: mix(row.format_mix),
-    enabled: row.active === true,
+    enabled: row.active === true && ["WARMING", "ACTIVE"].includes(String(row.warmup_status || "CREATED")),
     upload_post_profile: row.upload_post_profile || "",
     workspace_id: "cortifree",
   };
