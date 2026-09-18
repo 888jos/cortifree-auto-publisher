@@ -97,7 +97,7 @@ The Asset Library exposes Stock, Persona Generated, protected Masters and Visual
 - `src/render/` : tokens de design, registre de templates, SVG + Sharp et QA.
 - `convex/schema.ts` : schéma de données CortiFree isolé.
 - `convex/data.ts` : requêtes, écritures et stockage protégés par secret serveur.
-- `config/accounts.json` : configuration de comptes, non hardcodée dans le moteur.
+- `src/runtime/config.ts` : comptes/personas/editorial lus depuis Convex en runtime. Les JSON locaux sont uniquement un fallback d'urgence opt-in.
 
 
 ## Isolation CortiFree / Cocorise
@@ -120,6 +120,27 @@ Vercel builds **must not deploy Convex**. The Vercel build command is only `next
 
 This prevents a wrongly linked Vercel project from mutating another product's database. `CONVEX_DEPLOY_KEY` belongs to the Convex deployment workflow, not to the Vercel runtime. Vercel runtime only needs the product-specific public Convex URL and backend secret.
 
-<!-- production-redeploy: 2026-09-18 cortifree canonical -->
 
-<!-- vercel-canonical-redeploy-probe: 2026-09-18T18:45 -->
+
+
+## Production gate
+
+Même si `AUTONOMY_AUTO_PUBLISH=true`, CortiFree refuse de programmer une publication tant que le gate de production n'est pas vert.
+
+Le gate vérifie notamment :
+- Convex live et banques éditoriales chargées ;
+- 16 personas et 16 comptes ;
+- Google Sheet/Drive synchronisés récemment ;
+- 16 persona masters ;
+- au moins un compte de publication actif avec profil Upload-Post ;
+- clé Upload-Post et clé OpenAI présentes ;
+- cache persona au-dessus du minimum pour les personas effectivement publiés ;
+- gate d'acceptance enregistré avec au moins 20 carrousels revus et 15 utilisables ;
+- `CRON_SECRET` présent.
+
+Endpoints privés :
+- `GET /api/production-gate`
+- `GET|POST /api/acceptance/gate`
+
+Workflow manuel :
+- `Generate CortiFree acceptance 20` crée 20 carrousels en dry-run pour la revue initiale.
