@@ -922,7 +922,7 @@ export default function Home() {
           <section className="nextVersion">
             <p className="eyebrow">CORTIFREE · NOUVELLE VERSION</p>
             <h1>Un espace neuf, prêt pour ton prochain prompt.</h1>
-            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent isolées dans Convex, sans dépendance runtime à Cocorise ou Supabase.</p>
+            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent isolées dans Convex et l’infrastructure dédiée.</p>
             <div className="nextVersionStatus">
               <div><span>Données</span><b>Séparées et conservées</b></div>
               <div><span>Interface</span><b>À définir</b></div>
