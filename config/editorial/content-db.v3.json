@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "generated_at": "2026-09-18",
+  "generated_at": "2026-09-18T12:00:00.000Z",
   "workspace_id": "cortifree",
   "tables": {
     "content_config": [
@@ -15044,7 +15044,7 @@
         "example_safe": "Paced breathing may help some people feel calmer in the moment.",
         "requires_source": true,
         "active": true,
-        "source_ids": "REVIEW_REQUIRED"
+        "source_ids": "SRC_007"
       },
       {
         "rule_id": "RULE_018",
@@ -15068,7 +15068,7 @@
         "example_safe": "Caffeine affects people differently, so timing and dose are personal.",
         "requires_source": true,
         "active": true,
-        "source_ids": "SRC_001 | SRC_002"
+        "source_ids": "SRC_008"
       },
       {
         "rule_id": "RULE_020",
@@ -15092,7 +15092,7 @@
         "example_safe": "Morning light is one cue that can support a consistent sleep-wake schedule.",
         "requires_source": true,
         "active": true,
-        "source_ids": "SRC_001"
+        "source_ids": "SRC_009 | SRC_001"
       },
       {
         "rule_id": "RULE_022",
@@ -15291,6 +15291,50 @@
         "url": "https://www.myplate.gov/",
         "evidence_level": "MEDIUM",
         "allowed_claim_scope": "general balanced meal framing; variety and food groups",
+        "last_reviewed": "2026-09-18",
+        "active": true
+      },
+      {
+        "source_id": "SRC_007",
+        "topic": "stress_breathing",
+        "organization": "NIH/NCCIH",
+        "title": "Relaxation Techniques: What You Need To Know",
+        "url": "https://www.nccih.nih.gov/health/relaxation-techniques-what-you-need-to-know",
+        "evidence_level": "HIGH",
+        "allowed_claim_scope": "relaxation response | slow/deep breathing | stress management | not a replacement for medical care",
+        "last_reviewed": "2026-09-18",
+        "active": true
+      },
+      {
+        "source_id": "SRC_008",
+        "topic": "caffeine",
+        "organization": "U.S. FDA",
+        "title": "Spilling the Beans: How Much Caffeine is Too Much?",
+        "url": "https://www.fda.gov/consumers/consumer-updates/spilling-beans-how-much-caffeine-too-much",
+        "evidence_level": "HIGH",
+        "allowed_claim_scope": "individual caffeine sensitivity | sleep disruption | general adult caffeine safety",
+        "last_reviewed": "2026-09-18",
+        "active": true
+      },
+      {
+        "source_id": "SRC_009",
+        "topic": "circadian",
+        "organization": "NIH/NHLBI",
+        "title": "What Makes You Sleep? Body Clock",
+        "url": "https://www.nhlbi.nih.gov/health/sleep-deprivation/body-clock",
+        "evidence_level": "HIGH",
+        "allowed_claim_scope": "circadian rhythm | light as a timing cue | normal daily cortisol rhythm",
+        "last_reviewed": "2026-09-18",
+        "active": true
+      },
+      {
+        "source_id": "SRC_010",
+        "topic": "sleep",
+        "organization": "U.S. CDC",
+        "title": "About Sleep",
+        "url": "https://www.cdc.gov/sleep/about/index.html",
+        "evidence_level": "HIGH",
+        "allowed_claim_scope": "adult sleep duration | consistent sleep habits | device and caffeine timing",
         "last_reviewed": "2026-09-18",
         "active": true
       }
