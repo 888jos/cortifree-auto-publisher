@@ -18,6 +18,16 @@ async function write(resource: string, body: Row) {
   return await response.json() as Row[];
 }
 
+export function acceptanceDecision(reviewed: number, usable: number) {
+  const normalizedReviewed = Math.max(0, Math.floor(reviewed));
+  const normalizedUsable = Math.max(0, Math.min(normalizedReviewed, Math.floor(usable)));
+  return {
+    reviewed: normalizedReviewed,
+    usable: normalizedUsable,
+    passed: normalizedReviewed >= 20 && normalizedUsable >= 15,
+  };
+}
+
 export async function acceptanceGateStatus() {
   const latest = (await rows("system_logs?event=eq.ACCEPTANCE_GATE&order=created_at.desc&limit=1"))[0] ?? null;
   return {
@@ -36,9 +46,7 @@ export async function recordAcceptanceGate(input: {
   batchId?: string;
   notes?: string;
 }) {
-  const reviewed = Math.max(0, Math.floor(input.reviewed));
-  const usable = Math.max(0, Math.min(reviewed, Math.floor(input.usable)));
-  const passed = reviewed >= 20 && usable >= 15;
+  const { reviewed, usable, passed } = acceptanceDecision(input.reviewed, input.usable);
   const row = {
     id: `ACCEPTANCE_GATE_${Date.now()}`,
     workspace_id: "cortifree",
