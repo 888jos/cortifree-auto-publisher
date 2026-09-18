@@ -50,8 +50,14 @@ export async function processQueuedIdeas(limit = Math.max(1, Math.min(24, Number
     }
     const contentType = String(idea.content_type);
     const layout = layoutFor(contentType);
-    const carouselId = `CF_AUTO_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const carouselId = `CF_AUTO_${id.replace(/^CF_IDEA_/, '').replace(/[^A-Z0-9_]/gi, '').slice(0, 72)}`;
     try {
+      const existingCarousel = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&limit=1`))[0];
+      if (existingCarousel) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'GENERATED', carousel_id: carouselId, last_error: null });
+        report.push({ id, carousel_id: carouselId, status: existingCarousel.status ?? 'DRAFT', action: 'IDEMPOTENT_REUSE' });
+        continue;
+      }
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'GENERATING', started_at: new Date().toISOString(), last_error: null });
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
