@@ -82,7 +82,8 @@ export async function runScheduler() {
         }
       }
       if (!picked) break;
-      const id = `CF_IDEA_${account.id.replace(/[^A-Z0-9]/gi, '')}_${Date.now()}_${index}`;
+      const dayKey = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+      const id = `CF_IDEA_${account.id.replace(/[^A-Z0-9]/gi, '')}_${dayKey}_${picked.comboKey}`;
       const row = {
         id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
         pillar_id: picked.topic.pillar_id, content_type: picked.formatId,
