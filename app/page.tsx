@@ -29,7 +29,7 @@ type AssetTab = "All Assets" | "Stock" | "Persona Generated" | "Masters" | "Visu
 
 const menus = ["Carrousels", "Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
 const COCORISE_URL = process.env.NEXT_PUBLIC_COCORISE_URL
-  ?? "https://cocorise-auto-publisher-vid-os-coco.vercel.app";
+  ?? "https://cocorise-auto-publisher.vercel.app";
 
 const referenceImages = [
   {
