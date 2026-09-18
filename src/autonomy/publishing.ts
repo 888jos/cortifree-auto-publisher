@@ -1,8 +1,8 @@
-import { loadAccounts } from '../config/accounts.js';
-import { dataBackend } from '../lib/data-backend.js';
-import { evaluatePublishReadiness } from '../../app/lib/publish-readiness.js';
-import { resolvePublishingProfile } from '../../app/lib/publishing-profile.js';
-import { uploadPhotoCarousel } from '../../app/lib/upload-post.js';
+import { loadAccounts } from '../config/accounts';
+import { dataBackend } from '../lib/data-backend';
+import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
+import { resolvePublishingProfile } from '../../app/lib/publishing-profile';
+import { uploadPhotoCarousel } from '../../app/lib/upload-post';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
