@@ -32,7 +32,10 @@ function ctaModeFromIdea(idea: Row): 'none' | 'soft' | 'save' | 'comment' | 'fol
   return 'soft';
 }
 
-export async function processQueuedIdeas(limit = Math.max(1, Math.min(24, Number(process.env.AUTONOMY_MAX_DRAFTS_PER_RUN ?? 16)))) {
+export async function processQueuedIdeas(
+  limit = Math.max(1, Math.min(24, Number(process.env.AUTONOMY_MAX_DRAFTS_PER_RUN ?? 16))),
+  options: { acceptanceBatchId?: string } = {},
+) {
   const [accounts, personas, formats] = await Promise.all([
     loadRuntimeAccounts(),
     loadRuntimePersonaConfigs(),
@@ -40,7 +43,8 @@ export async function processQueuedIdeas(limit = Math.max(1, Math.min(24, Number
   ]);
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const personaNames = new Map(personas.map((persona) => [persona.id, persona.name]));
-  const ideas = (await rows(`carousel_ideas?status=eq.QUEUED&order=created_at.asc&limit=${limit}`)).slice(0, limit);
+  const acceptanceFilter = options.acceptanceBatchId ? `&acceptance_batch_id=eq.${encodeURIComponent(options.acceptanceBatchId)}` : "";
+  const ideas = (await rows(`carousel_ideas?status=eq.QUEUED${acceptanceFilter}&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
 
   for (const idea of ideas) {

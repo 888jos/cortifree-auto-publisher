@@ -117,7 +117,7 @@ export async function runAcceptanceBatch(input: { accountId?: string; count?: nu
     created.push(id);
   }
 
-  const processed = await processQueuedIdeas(count);
+  const processed = await processQueuedIdeas(count, { acceptanceBatchId: batchId });
   return {
     batchId,
     accountId,
