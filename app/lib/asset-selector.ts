@@ -26,6 +26,8 @@ const categoryByType: Record<string, string[]> = {
   C10_BEFORE_AFTER: ["stress_reset", "morning", "self_care", "fitness"],
   C11_HORMONE_EDUCATION: ["food", "fitness", "morning", "self_care"],
   C12_NIGHT_ROUTINE: ["night", "self_care", "stress_reset"],
+  C13_EDUCATIONAL_EXPLAINER: ["stress_reset", "work_study", "morning", "food", "self_care"],
+  C14_STORY_TRANSFORMATION: ["self_care", "morning", "outdoors", "fitness", "work_study"],
 };
 
 const stopWords = new Set(["the", "and", "with", "this", "that", "your", "for", "from", "into", "one", "clear", "everyday", "lifestyle", "image", "photo", "slide", "natural"]);
@@ -61,7 +63,7 @@ export function chooseAssets(options: {
       score += asset.orientation === "portrait" ? 12 : asset.orientation === "square" ? 4 : 0;
       score += asset.framing === "wide" && /wide|room|landscape/.test(slide.visualIntent.toLowerCase()) ? 8 : 0;
       score -= Math.min(asset.use_count ?? 0, 12) * 1.8;
-      if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 14 * 86_400_000) score -= 16;
+      if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000) score -= 16;
       if (used.has(asset.id)) score -= 1_000;
       return { asset, score, matchedTerms };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
@@ -87,7 +89,7 @@ export function selectAssetOrGeneration(options: {
     let value = matchedTerms.length * 9 + (asset.category === options.category ? 24 : 0);
     value += asset.orientation === "portrait" ? 8 : 0;
     value -= Math.min(asset.use_count ?? 0, 12) * 1.8;
-    if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 14 * 86_400_000) value -= 16;
+    if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000) value -= 16;
     return { asset, score: Number(value.toFixed(2)), matchedTerms };
   };
   const persona = options.assets
