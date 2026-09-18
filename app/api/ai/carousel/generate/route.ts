@@ -4,6 +4,7 @@ import { carouselGeneratorInputSchema } from "../../../../lib/ai/schemas";
 import { MonthlyCapExceededError } from "../../../../lib/ai/usage";
 import { getRecentCarousels, saveGeneratedCarousel } from "../../../../lib/carousel-store";
 import { selectAutomaticHook } from "../../../../lib/hook-selector";
+import { markEditorialUsage, selectEditorialPackage } from "../../../../lib/editorial-selector";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,15 @@ export async function POST(request: Request) {
     const body = requestSchema.parse(await request.json());
     const id = body.id ?? `CF_${Date.now()}`;
     const recentCarousels = body.recentCarousels.length ? body.recentCarousels : await getRecentCarousels();
-    const preferredHook = body.preferredHook ?? selectAutomaticHook({
+    const editorial = (!body.preferredTopic || !body.preferredAngle || !body.preferredHook || !body.preferredCtaText)
+      ? await selectEditorialPackage({
+          carouselType: body.carouselType,
+          personaId: body.personaId,
+          recentTopics: recentCarousels.map((carousel) => carousel.topic).filter(Boolean),
+          recentHooks: recentCarousels.map((carousel) => carousel.hook).filter((hook): hook is string => Boolean(hook)),
+        })
+      : null;
+    const preferredHook = body.preferredHook ?? editorial?.hookText ?? selectAutomaticHook({
       carouselType: body.carouselType,
       recentHooks: recentCarousels.map((carousel) => carousel.hook).filter((hook): hook is string => Boolean(hook)),
       referenceTitles: body.references.map((reference) => reference.title),
@@ -34,6 +43,9 @@ export async function POST(request: Request) {
       recentCarousels,
       requestedSlideCount: body.requestedSlideCount,
       preferredHook,
+      preferredTopic: body.preferredTopic ?? editorial?.topic.topic,
+      preferredAngle: body.preferredAngle ?? editorial?.topic.angle,
+      preferredCtaText: body.preferredCtaText ?? editorial?.cta.text,
       ctaMode: body.ctaMode,
       bypassMonthlyCap: body.bypassMonthlyCap,
     };
@@ -48,11 +60,22 @@ export async function POST(request: Request) {
     try {
       carousel = await saveGeneratedCarousel({ id, input, result, accountId: body.accountId, personaId: body.personaId });
       saved = true;
+      if (editorial) {
+        try { await markEditorialUsage(editorial); }
+        catch (error) { storageWarning = `Draft saved, but editorial usage tracking failed: ${error instanceof Error ? error.message : "unknown error"}`; }
+      }
     } catch (error) {
-      storageWarning = `Draft generated but Supabase save failed: ${error instanceof Error ? error.message : "unknown error"}`;
+      storageWarning = `Draft generated but Convex save failed: ${error instanceof Error ? error.message : "unknown error"}`;
     }
 
-    return Response.json({ carousel, spec: result.spec, generation: { source: result.source, model: result.model, generatedAt: result.generatedAt, warning: result.warning, qa: result.qa }, saved, storageWarning }, { status: 201 });
+    return Response.json({
+      carousel,
+      spec: result.spec,
+      editorial: editorial ? { topicId: editorial.topic.topic_id, hookId: editorial.hook.hook_id, ctaId: editorial.cta.cta_id } : null,
+      generation: { source: result.source, model: result.model, generatedAt: result.generatedAt, warning: result.warning, qa: result.qa },
+      saved,
+      storageWarning,
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof MonthlyCapExceededError) {
       return Response.json({ error: error.message, code: "MONTHLY_CAP_EXCEEDED" }, { status: 429 });
