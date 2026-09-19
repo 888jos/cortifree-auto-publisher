@@ -1,4 +1,4 @@
-import { convexConfigured, getConvexCounts } from "../../lib/data-backend";
+import { convexConfigured, getConvexCounts, getConvexPing } from "../../lib/data-backend";
 import { googleServiceAccountConfigured } from "../../lib/google/auth";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
 
@@ -19,13 +19,24 @@ export async function GET() {
   const domainIsolationOk = !deployedHost || local || deployedHost === expectedHost;
   let counts: Record<string, number> | null = null;
   let convexLive = false;
+  let convexDataReady = false;
+  let convexPing: Record<string, unknown> | null = null;
   let convexError: string | null = null;
+  let convexDataError: string | null = null;
   if (backendConfigured) {
     try {
-      counts = await getConvexCounts();
+      convexPing = await getConvexPing();
       convexLive = true;
     } catch (error) {
       convexError = error instanceof Error ? error.message : String(error);
+    }
+    if (convexLive) {
+      try {
+        counts = await getConvexCounts();
+        convexDataReady = true;
+      } catch (error) {
+        convexDataError = error instanceof Error ? error.message : String(error);
+      }
     }
   }
   const editorialReady = Boolean(
@@ -37,7 +48,7 @@ export async function GET() {
     (counts.content_ctas ?? 0) >= 30
   );
   const googleSyncConfigured = googleServiceAccountConfigured();
-  const ok = backendConfigured && convexLive && domainIsolationOk;
+  const ok = backendConfigured && convexLive && convexDataReady && domainIsolationOk;
   const p0Ready = ok && editorialReady && googleSyncConfigured;
   const production = backendConfigured && convexLive ? await productionGateStatus().catch((error) => ({ ready: false, blockers: ["PRODUCTION_GATE_ERROR"], warnings: [], checks: { error: error instanceof Error ? error.message : String(error) } })) : { ready: false, blockers: ["CONVEX_NOT_LIVE"], warnings: [], checks: {} };
 
@@ -50,7 +61,10 @@ export async function GET() {
       backend: "convex",
       backendConfigured,
       convexLive,
+      convexDataReady,
+      convexPing,
       convexError,
+      convexDataError,
       counts,
       editorialReady,
       googleSyncConfigured,
