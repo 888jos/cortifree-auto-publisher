@@ -14,7 +14,7 @@ export function googleServiceAccountConfigured() {
 
 export async function getGoogleAccessToken() {
   if (cached && cached.expiresAt - Date.now() > 60_000) return cached.accessToken;
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const email = DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   if (!rawKey) throw new Error("Google service account private key is not configured");
   const privateKey = rawKey.replace(/\\n/g, "\n");
