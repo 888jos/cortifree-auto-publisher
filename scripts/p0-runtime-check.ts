@@ -1,4 +1,4 @@
-import { getConvexCounts, convexConfigured } from "../app/lib/data-backend";
+import { getConvexCounts, getConvexPing, convexConfigured } from "../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../app/lib/google/auth";
 import { readSheetRange } from "../app/lib/google/sheets";
 import { listDriveChildren } from "../app/lib/google/drive";
@@ -25,7 +25,9 @@ async function main() {
       configured: convexConfigured(),
       live: false,
       counts: null,
+      ping: null,
       error: null,
+      dataError: null,
     },
     google: {
       configured: googleServiceAccountConfigured(),
@@ -37,21 +39,28 @@ async function main() {
 
   if (convexConfigured()) {
     try {
-      const counts = await getConvexCounts();
+      (report.convex as any).ping = await getConvexPing();
       (report.convex as any).live = true;
-      (report.convex as any).counts = {
-        personas: counts.personas ?? 0,
-        accounts: counts.accounts ?? 0,
-        assets: counts.assets ?? 0,
-        content_topics: counts.content_topics ?? 0,
-        content_hooks: counts.content_hooks ?? 0,
-        content_ctas: counts.content_ctas ?? 0,
-        visual_references: counts.visual_references ?? 0,
-        carousels: counts.carousels ?? 0,
-        publish_jobs: counts.publish_jobs ?? 0,
-      };
     } catch (error) {
       (report.convex as any).error = error instanceof Error ? error.message : String(error);
+    }
+    if ((report.convex as any).live) {
+      try {
+        const counts = await getConvexCounts();
+        (report.convex as any).counts = {
+          personas: counts.personas ?? 0,
+          accounts: counts.accounts ?? 0,
+          assets: counts.assets ?? 0,
+          content_topics: counts.content_topics ?? 0,
+          content_hooks: counts.content_hooks ?? 0,
+          content_ctas: counts.content_ctas ?? 0,
+          visual_references: counts.visual_references ?? 0,
+          carousels: counts.carousels ?? 0,
+          publish_jobs: counts.publish_jobs ?? 0,
+        };
+      } catch (error) {
+        (report.convex as any).dataError = error instanceof Error ? error.message : String(error);
+      }
     }
   }
 
