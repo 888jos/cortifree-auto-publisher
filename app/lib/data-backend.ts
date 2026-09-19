@@ -89,6 +89,16 @@ export function convexConfigured() {
 }
 
 
+export async function getConvexPing() {
+  const { client: convex, secret } = backend();
+  return await convex.query(api.data.ping, { secret }) as {
+    ok: boolean;
+    workspace: "cortifree";
+    schemaVersion: number;
+    checkedAt: number;
+  };
+}
+
 export async function getConvexCounts() {
   const { client: convex, secret } = backend();
   return await convex.query(api.data.counts, { secret }) as Record<string, number>;
