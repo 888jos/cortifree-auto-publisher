@@ -1,0 +1,36 @@
+name: Deploy CortiFree Convex
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cortifree-convex-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify dedicated CortiFree deploy key
+        run: |
+          if [ -z "$CONVEX_DEPLOY_KEY" ]; then
+            echo "Missing CONVEX_DEPLOY_KEY GitHub secret."
+            exit 1
+          fi
+      - name: Install
+        run: npm ci
+      - name: Deploy Convex functions
+        run: npm run convex:deploy

@@ -225,8 +225,15 @@ type AIStatus = {
 };
 type AIUsage = { costUsd: number; calls: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; monthlyCapUsd: number };
 type HealthStatus = {
+  ok?: boolean;
+  p0Ready?: boolean;
   dryRun: boolean;
+  backendConfigured?: boolean;
   convexLive?: boolean;
+  convexDataReady?: boolean;
+  convexError?: string | null;
+  convexDataError?: string | null;
+  editorialReady?: boolean;
   googleSyncConfigured?: boolean;
   productionReady?: boolean;
   productionBlockers?: string[];
@@ -403,7 +410,7 @@ export default function Home() {
   const [productVersion, setProductVersion] = useState<ProductVersion>("current");
   const [selectedModel, setSelectedModel] = useState<ModelId>("single-image");
   const [selectedType, setSelectedType] = useState<CarouselTypeId>("C05_GLOW_UP");
-  const [notice, setNotice] = useState("Systeme operationnel");
+  const [notice, setNotice] = useState("Vérification de l’infrastructure CortiFree…");
   const [dryRun, setDryRun] = useState<boolean | null>(null);
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -515,12 +522,28 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/health", { cache: "no-store" })
       .then(async (response) => {
-        const data = await response.json();
+        const data = await response.json() as HealthStatus;
         setHealthStatus(data);
-        setDryRun(Boolean(data.dryRun));
-        if (!response.ok) setNotice("Infrastructure CortiFree incomplète : consulte Settings.");
+        setDryRun(typeof data.dryRun === "boolean" ? data.dryRun : null);
+        if (data.productionReady) {
+          setNotice("Production gate READY · infrastructure CortiFree opérationnelle.");
+        } else if (!data.backendConfigured) {
+          setNotice("BLOCKED · Convex n’est pas configuré sur ce déploiement.");
+        } else if (!data.convexLive) {
+          setNotice("BLOCKED · Convex est configuré mais le ping runtime échoue.");
+        } else if (!data.convexDataReady) {
+          setNotice("BLOCKED · Convex répond, mais les données runtime ne sont pas lisibles.");
+        } else if (!data.googleSyncConfigured) {
+          setNotice("BLOCKED · Google Sheet / Drive sync n’est pas configuré en production.");
+        } else {
+          const count = data.productionBlockers?.length ?? 0;
+          setNotice(`BLOCKED · production gate : ${count} blocker(s). Consulte Settings.`);
+        }
       })
-      .catch(() => setNotice("Impossible de vérifier l’état de l’infrastructure CortiFree."));
+      .catch(() => {
+        setDryRun(null);
+        setNotice("ERREUR · impossible de vérifier l’état de l’infrastructure CortiFree.");
+      });
   }, []);
 
   useEffect(() => {
@@ -947,7 +970,7 @@ export default function Home() {
           </button>
         </header>
 
-        <div className="notice">
+        <div className={`notice ${healthStatus?.productionReady ? "ready" : healthStatus ? "blocked" : "checking"}`}>
           <span className="pulse" />
           {notice}
           <span className="dry">{dryRun === null ? "VERIFICATION" : dryRun ? "DRY RUN" : "MODE REEL"}</span>
@@ -1451,11 +1474,15 @@ export default function Home() {
               <p className="eyebrow">CONFIGURATION</p>
               <h2>Integrations</h2>
               <div className="settingsList">
-                <span>{healthStatus?.convexLive ? "Convex live ✓" : "Convex à connecter"}</span>
-                <span>{healthStatus?.googleSyncConfigured ? "Google sync configuré ✓" : "Google sync à connecter"}</span>
+                <span>Vercel frontend ✓</span>
+                <span>{healthStatus?.backendConfigured ? "Convex configuré ✓" : "Convex non configuré ✕"}</span>
+                <span>{healthStatus?.convexLive ? "Convex ping ✓" : `Convex ping ✕${healthStatus?.convexError ? ` · ${healthStatus.convexError}` : ""}`}</span>
+                <span>{healthStatus?.convexDataReady ? "Convex data runtime ✓" : `Convex data runtime ✕${healthStatus?.convexDataError ? ` · ${healthStatus.convexDataError}` : ""}`}</span>
+                <span>{healthStatus?.editorialReady ? "Banques éditoriales ✓" : "Banques éditoriales incomplètes"}</span>
+                <span>{healthStatus?.googleSyncConfigured ? "Google sync configuré ✓" : "Google sync non configuré ✕"}</span>
                 <span>{(healthStatus?.productionChecks?.mappedPublishingAccounts?.length ?? 0) > 0 ? `Upload-Post · ${healthStatus?.productionChecks?.mappedPublishingAccounts?.length} profil(s) ✓` : "Upload-Post non mappé"}</span>
                 <span>{healthStatus?.productionReady ? "Production gate READY ✓" : `${healthStatus?.productionBlockers?.length ?? "?"} blocker(s) production`}</span>
-                <span>{dryRun === false ? "DRY_RUN désactivé" : "DRY_RUN actif"}</span>
+                <span>{dryRun === false ? "DRY_RUN désactivé · mode réel" : dryRun === true ? "DRY_RUN actif ✓" : "DRY_RUN inconnu"}</span>
               </div>
               {!healthStatus?.productionReady && (healthStatus?.productionBlockers?.length ?? 0) > 0 && (
                 <div className="libraryEmpty">Blockers : {healthStatus!.productionBlockers!.join(" · ")}</div>

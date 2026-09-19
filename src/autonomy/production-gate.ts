@@ -1,4 +1,4 @@
-import { dataBackend, convexConfigured, getConvexCounts } from "../../app/lib/data-backend";
+import { dataBackend, convexConfigured, getConvexCounts, getConvexPing } from "../../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../../app/lib/google/auth";
 import { loadRuntimeAccounts, loadRuntimeRows } from "../runtime/config";
 
@@ -38,12 +38,22 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   let counts: Record<string, number> = {};
   if (checks.convexConfigured) {
     try {
-      counts = await getConvexCounts();
+      checks.convexPing = await getConvexPing();
       checks.convexLive = true;
     } catch (error) {
       checks.convexLive = false;
       checks.convexError = error instanceof Error ? error.message : String(error);
       blockers.push("CONVEX_NOT_LIVE");
+    }
+    if (checks.convexLive) {
+      try {
+        counts = await getConvexCounts();
+        checks.convexDataReady = true;
+      } catch (error) {
+        checks.convexDataReady = false;
+        checks.convexDataError = error instanceof Error ? error.message : String(error);
+        blockers.push("CONVEX_DATA_NOT_READY");
+      }
     }
   }
 
