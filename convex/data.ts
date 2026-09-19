@@ -136,6 +136,19 @@ export const attachStorage = mutation({
   },
 });
 
+export const ping = query({
+  args: { secret: v.string() },
+  handler: async (_ctx, args) => {
+    assertSecret(args.secret);
+    return {
+      ok: true,
+      workspace: "cortifree",
+      schemaVersion: 2,
+      checkedAt: Date.now(),
+    };
+  },
+});
+
 export const counts = query({
   args: { secret: v.string() },
   handler: async (ctx, args) => {
