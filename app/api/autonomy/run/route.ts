@@ -17,15 +17,27 @@ export async function GET(request:Request){
   if(!authorized(request))return Response.json({error:'Unauthorized cron request'},{status:401});
   const startedAt=new Date().toISOString();
   const result:Record<string,unknown>={startedAt};
-  try{result.publishStatus=await refreshPublishStatuses();}catch(error){result.publishStatusError=error instanceof Error?error.message:String(error);}
-  try{result.analytics=await refreshPostAnalytics();}catch(error){result.analyticsError=error instanceof Error?error.message:String(error);}
-  try{result.winnerVariants=await queueWinnerVariants();}catch(error){result.winnerVariantsError=error instanceof Error?error.message:String(error);}
-  try{result.cacheRefill=await refillPersonaCaches();}catch(error){result.cacheRefillError=error instanceof Error?error.message:String(error);}
-  try{result.imageJobs=await processPendingImageJobs();}catch(error){result.imageJobsError=error instanceof Error?error.message:String(error);}
-  try{result.scheduler=await runScheduler();}catch(error){result.schedulerError=error instanceof Error?error.message:String(error);}
-  try{result.drafts=await processQueuedIdeas();}catch(error){result.draftsError=error instanceof Error?error.message:String(error);}
-  try{result.rerenders=await retryPendingRenders();}catch(error){result.rerendersError=error instanceof Error?error.message:String(error);}
-  try{result.publishing=await autoScheduleApproved();}catch(error){result.publishingError=error instanceof Error?error.message:String(error);}
+  const errors:Record<string,string>={};
+  async function stage<T>(name:string,run:()=>Promise<T>){
+    try{
+      result[name]=await run();
+    }catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      errors[name]=message;
+      result[`${name}Error`]=message;
+    }
+  }
+  await stage('publishStatus',refreshPublishStatuses);
+  await stage('analytics',refreshPostAnalytics);
+  await stage('winnerVariants',queueWinnerVariants);
+  await stage('cacheRefill',refillPersonaCaches);
+  await stage('imageJobs',processPendingImageJobs);
+  await stage('scheduler',runScheduler);
+  await stage('drafts',processQueuedIdeas);
+  await stage('rerenders',retryPendingRenders);
+  await stage('publishing',autoScheduleApproved);
   result.finishedAt=new Date().toISOString();
-  return Response.json(result);
+  result.ok=Object.keys(errors).length===0;
+  result.errors=errors;
+  return Response.json(result,{status:Object.keys(errors).length===0?200:500});
 }
