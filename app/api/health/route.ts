@@ -50,7 +50,14 @@ export async function GET() {
   const googleSyncConfigured = googleServiceAccountConfigured();
   const ok = backendConfigured && convexLive && convexDataReady && domainIsolationOk;
   const p0Ready = ok && editorialReady && googleSyncConfigured;
-  const production = backendConfigured && convexLive ? await productionGateStatus().catch((error) => ({ ready: false, blockers: ["PRODUCTION_GATE_ERROR"], warnings: [], checks: { error: error instanceof Error ? error.message : String(error) } })) : { ready: false, blockers: ["CONVEX_NOT_LIVE"], warnings: [], checks: {} };
+  const production = backendConfigured && convexLive && convexDataReady
+    ? await productionGateStatus().catch((error) => ({ ready: false, blockers: ["PRODUCTION_GATE_ERROR"], warnings: [], checks: { error: error instanceof Error ? error.message : String(error) } }))
+    : {
+        ready: false,
+        blockers: [!backendConfigured ? "CONVEX_NOT_CONFIGURED" : !convexLive ? "CONVEX_NOT_LIVE" : "CONVEX_DATA_NOT_READY"],
+        warnings: [],
+        checks: {},
+      };
 
   return Response.json(
     {
