@@ -9,9 +9,10 @@ test("CortiFree env template has no Cocorise runtime coupling", () => {
   assert.match(env, /LEGACY_SUPABASE_PROJECT_REF=adwyqshphctqbdfckvno/);
 });
 
-test("CortiFree runtime stays Convex-first", () => {
+test("CortiFree runtime supports the configured backend", () => {
   const backend = fs.readFileSync("app/lib/data-backend.ts", "utf8");
   assert.match(backend, /CORTIFREE_BACKEND_SECRET/);
+  assert.match(backend, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(backend, /DATA_BACKEND/);
   assert.match(backend, /workspace_id/);
-  assert.doesNotMatch(backend, /createClient\(.+supabase/i);
 });

@@ -1,4 +1,4 @@
-import { convexConfigured, getConvexCounts, getConvexPing } from "../../lib/data-backend";
+import { backendMode, convexConfigured, getConvexCounts, getConvexPing } from "../../lib/data-backend";
 import { googleServiceAccountConfigured } from "../../lib/google/auth";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
 
@@ -65,7 +65,7 @@ export async function GET() {
       p0Ready,
       service: "cortifree-auto-publisher",
       workspace: "cortifree",
-      backend: "convex",
+      backend: backendMode(),
       backendConfigured,
       convexLive,
       convexDataReady,
@@ -75,12 +75,12 @@ export async function GET() {
       counts,
       editorialReady,
       googleSyncConfigured,
-      runtimeTruth: "convex",
+      runtimeTruth: backendMode(),
       jsonFallbackEnabled: process.env.ALLOW_RUNTIME_JSON_FALLBACK === "true",
       domainIsolationOk,
       expectedHost,
       deployedHost,
-      legacySupabaseRuntimeEnabled: false,
+      legacySupabaseRuntimeEnabled: backendMode() === "supabase",
       dryRun: process.env.DRY_RUN !== "false",
       productionReady: production.ready,
       productionBlockers: production.blockers,

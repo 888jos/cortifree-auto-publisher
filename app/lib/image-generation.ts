@@ -11,11 +11,11 @@ import {
 } from "../../src/image-generation/core";
 import { visualReferenceSchema } from "../../src/visual-references";
 import { uploadConvexFile } from "./convex-storage";
-import { dataBackend } from "./data-backend";
+import { backendMode, dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 
-const BUCKET = "convex-files";
+const BUCKET = process.env.DATA_BACKEND?.toLowerCase() === "supabase" ? "cortifree-assets" : "convex-files";
 
 function settings() {
   return {
@@ -69,14 +69,14 @@ async function uploadGeneratedAsset(options: {
   const storagePath = "personas/" + options.personaId + "/" + folder + "/" + filename;
   const { publicUrl, storageId } = await uploadConvexFile(new Uint8Array(jpeg), "image/jpeg");
   const row = {
-    workspace_id: CORTIFREE_WORKSPACE_ID, path: "convex://" + storagePath, relative_path: storagePath, filename,
+    workspace_id: CORTIFREE_WORKSPACE_ID, path: `${backendMode()}://${storagePath}`, relative_path: storagePath, filename,
     category: options.category, subcategory: options.scene.toLowerCase().replace(/[^a-z0-9]+/g, "_"), persona_id: options.personaId,
     source_type: "persona_generated", width: metadata.width, height: metadata.height,
     hash: options.jobId + ":" + jpeg.length, storage_bucket: BUCKET, storage_path: storagePath, public_url: publicUrl,
     orientation: metadata.width === metadata.height ? "square" : metadata.height > metadata.width ? "portrait" : "landscape",
     framing: options.reference.framing || "medium", activity: options.scene, mood: options.reference.mood.join(" ") || "natural",
     colors: [], tags: [...new Set([options.category, options.scene, ...options.reference.tags])],
-    metadata: { generation_job_id: options.jobId, visual_reference_id: options.reference.id, convex_storage_id: storageId },
+    metadata: { generation_job_id: options.jobId, visual_reference_id: options.reference.id, storage_id: storageId, storage_backend: backendMode() },
     scene: options.scene, pose: options.reference.pose, outfit: options.reference.outfit, environment: options.reference.environment,
     lighting: options.reference.lighting, good_for: options.reference.good_for, enabled: true,
   };

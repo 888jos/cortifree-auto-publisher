@@ -12,7 +12,7 @@ function filesBelow(root: string): string[] {
   });
 }
 
-test("CortiFree runtime surface has no Cocorise or Supabase coupling", () => {
+test("CortiFree runtime surface has no cross-product coupling", () => {
   const files = [
     ...filesBelow("app"),
     ...filesBelow("src/autonomy"),
@@ -22,9 +22,6 @@ test("CortiFree runtime surface has no Cocorise or Supabase coupling", () => {
     const source = fs.readFileSync(file, "utf8");
     if (/NEXT_PUBLIC_COCORISE_URL|COCORISE_BACKEND_SECRET|cocorise-auto-publisher/i.test(source)) {
       violations.push(`${file}: cross-product Cocorise reference`);
-    }
-    if (/createClient\([^\n]*supabase|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY/i.test(source)) {
-      violations.push(`${file}: Supabase runtime dependency`);
     }
     if (/config\/personas\.json|config\/accounts\.json/i.test(source) && !file.endsWith(path.join("src","runtime","config.ts"))) {
       violations.push(`${file}: local JSON runtime dependency`);

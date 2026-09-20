@@ -5,6 +5,17 @@ type Filter = { field: string; op: "eq" | "gte" | "like" | "in" | "not_null"; va
 
 let client: ConvexHttpClient | null = null;
 
+export function backendMode(): "convex" | "supabase" {
+  return process.env.DATA_BACKEND?.trim().toLowerCase() === "supabase" ? "supabase" : "convex";
+}
+
+function supabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase is not configured for CortiFree");
+  return { url: url.replace(/\/$/, ""), key };
+}
+
 function backend() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   const secret = process.env.CORTIFREE_BACKEND_SECRET;
@@ -45,13 +56,48 @@ function projected(rows: Record<string, unknown>[], fields: string[]) {
 }
 
 function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "convex" } });
+  return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": backendMode() } });
+}
+
+function supabaseQuery(parsed: ReturnType<typeof parseConvexResource>) {
+  const { url, key } = supabase();
+  const query = new URLSearchParams();
+  query.set("select", parsed.select.length ? parsed.select.join(",") : "*");
+  for (const filter of parsed.filters) {
+    if (filter.op === "not_null") query.set(filter.field, "not.is.null");
+    else if (filter.op === "in") query.set(filter.field, `in.(${(filter.value as string[]).join(",")})`);
+    else query.set(filter.field, `${filter.op}.${String(filter.value)}`);
+  }
+  if (parsed.orderField) query.set("order", `${parsed.orderField}.${parsed.orderDirection}`);
+  query.set("limit", String(parsed.limit));
+  return { url: `${url}/rest/v1/${parsed.table}?${query}`, key };
 }
 
 // Small PostgREST-shaped boundary retained while route handlers are migrated.
 // Every read and write is executed by Convex and scoped to CortiFree.
 export async function dataBackend(resource: string, init: RequestInit = {}) {
   try {
+    if (backendMode() === "supabase") {
+      const parsed = parseConvexResource(resource);
+      const { url, key } = supabaseQuery(parsed);
+      const method = (init.method ?? "GET").toUpperCase();
+      const headers = new Headers(init.headers);
+      headers.set("apikey", key);
+      headers.set("Authorization", `Bearer ${key}`);
+      headers.set("Accept", "application/json");
+      if (method === "POST") {
+        if (parsed.conflictFields.length) {
+          const target = new URL(url);
+          target.searchParams.set("on_conflict", parsed.conflictFields.join(","));
+          headers.set("Prefer", "resolution=merge-duplicates,return=representation");
+          const response = await fetch(target, { ...init, method, headers });
+          return new Response(await response.text(), { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
+        }
+        headers.set("Prefer", headers.get("Prefer") ?? "return=minimal");
+      }
+      const response = await fetch(url, { ...init, method, headers });
+      return new Response(await response.text(), { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
+    }
     const { client: convex, secret } = backend();
     const parsed = parseConvexResource(resource);
     const method = (init.method ?? "GET").toUpperCase();
@@ -85,11 +131,18 @@ export async function dataBackend(resource: string, init: RequestInit = {}) {
 }
 
 export function convexConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CORTIFREE_BACKEND_SECRET);
+  return backendMode() === "supabase"
+    ? Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CORTIFREE_BACKEND_SECRET);
 }
 
 
 export async function getConvexPing() {
+  if (backendMode() === "supabase") {
+    const response = await dataBackend("personas?workspace_id=eq.cortifree&select=id&limit=1");
+    if (!response.ok) throw new Error(await response.text());
+    return { ok: true, workspace: "cortifree" as const, schemaVersion: 1, checkedAt: Date.now() };
+  }
   const { client: convex, secret } = backend();
   return await convex.query(api.data.ping, { secret }) as {
     ok: boolean;
@@ -100,6 +153,19 @@ export async function getConvexPing() {
 }
 
 export async function getConvexCounts() {
+  if (backendMode() === "supabase") {
+    const tables = ["personas", "accounts", "content_topics", "content_hooks", "content_ctas", "assets", "visual_references"];
+    const counts = await Promise.all(tables.map(async (table) => {
+      const { url, key } = supabase();
+      const response = await fetch(`${url}/rest/v1/${table}?workspace_id=eq.cortifree&select=id`, {
+        method: "HEAD", headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "count=exact" },
+      });
+      if (!response.ok) throw new Error(`${table}: ${await response.text()}`);
+      const range = response.headers.get("content-range") ?? "*/0";
+      return [table, Number(range.split("/")[1] ?? 0)] as const;
+    }));
+    return Object.fromEntries(counts);
+  }
   const { client: convex, secret } = backend();
   return await convex.query(api.data.counts, { secret }) as Record<string, number>;
 }
