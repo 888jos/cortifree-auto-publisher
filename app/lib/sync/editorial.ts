@@ -94,6 +94,10 @@ export async function syncEditorialSheetToConvex() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
+    if (backendMode() === "supabase" && mapping.table === "content_accounts") {
+      counts[mapping.table] = 0;
+      continue;
+    }
     const source = await readSheetObjects(mapping.sheet, mapping.range);
     const rows = source
       .filter((row) => row[mapping.key] !== null && row[mapping.key] !== undefined && String(row[mapping.key]).trim())
