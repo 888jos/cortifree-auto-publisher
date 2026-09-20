@@ -1,4 +1,4 @@
-import { dataBackend } from "../data-backend";
+import { backendMode, dataBackend } from "../data-backend";
 import { readSheetObjects } from "../google/sheets";
 
 type Row = Record<string, unknown>;
@@ -45,8 +45,9 @@ const mappings: Mapping[] = [
 
 async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
-  const payload = rows.map((row) => ({ ...row, id: row.id ?? row[key], workspace_id: "cortifree" }));
-  const response = await dataBackend(`${table}?on_conflict=id`, {
+  const supabaseRuntime = backendMode() === "supabase";
+  const payload = rows.map((row) => ({ ...row, ...(supabaseRuntime ? {} : { id: row.id ?? row[key] }), workspace_id: "cortifree" }));
+  const response = await dataBackend(`${table}?on_conflict=${supabaseRuntime ? key : "id"}`, {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(payload),
