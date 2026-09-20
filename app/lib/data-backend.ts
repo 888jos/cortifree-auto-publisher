@@ -85,6 +85,7 @@ export async function dataBackend(resource: string, init: RequestInit = {}) {
       headers.set("apikey", key);
       headers.set("Authorization", `Bearer ${key}`);
       headers.set("Accept", "application/json");
+      if (method === "POST" || method === "PATCH") headers.set("Content-Type", "application/json");
       if (method === "POST") {
         if (parsed.conflictFields.length) {
           const target = new URL(url);
