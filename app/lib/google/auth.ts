@@ -4,20 +4,35 @@ type CachedToken = { accessToken: string; expiresAt: number };
 let cached: CachedToken | null = null;
 const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL = "cortifree@cortifree-509021.iam.gserviceaccount.com";
 
+function googleCredentials() {
+  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
+  if (rawJson) {
+    try {
+      const parsed = JSON.parse(rawJson) as { client_email?: string; private_key?: string };
+      if (parsed.private_key) return { email: parsed.client_email || DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL, privateKey: parsed.private_key };
+    } catch {
+      // Fall through to the split environment variables for backwards compatibility.
+    }
+  }
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  if (!rawKey) return null;
+  return { email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL, privateKey: rawKey };
+}
+
 function b64url(value: string | Buffer) {
   return Buffer.from(value).toString("base64url");
 }
 
 export function googleServiceAccountConfigured() {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
+  return Boolean(googleCredentials());
 }
 
 export async function getGoogleAccessToken() {
   if (cached && cached.expiresAt - Date.now() > 60_000) return cached.accessToken;
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-  if (!rawKey) throw new Error("Google service account private key is not configured");
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  const credentials = googleCredentials();
+  if (!credentials) throw new Error("Google service account credentials are not configured");
+  const email = credentials.email;
+  const privateKey = credentials.privateKey.replace(/\\n/g, "\n");
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const payload = b64url(JSON.stringify({
