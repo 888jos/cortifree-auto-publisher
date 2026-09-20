@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     if (!response.ok) throw new Error(await response.text());
     let references = await response.json() as Array<Record<string, any>>;
     if (query) references = references.filter((item) => JSON.stringify(item).toLowerCase().includes(query));
-    return Response.json({ references, source: "convex" });
+    return Response.json({ references, source: "supabase" });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error), references: [], source: "unavailable" }, { status: 503 });
   }

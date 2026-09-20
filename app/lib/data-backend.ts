@@ -160,6 +160,7 @@ export async function getConvexCounts() {
       const response = await fetch(`${url}/rest/v1/${table}?workspace_id=eq.cortifree&select=id`, {
         method: "HEAD", headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "count=exact" },
       });
+      if (response.status === 404) return [table, 0] as const;
       if (!response.ok) throw new Error(`${table}: ${await response.text()}`);
       const range = response.headers.get("content-range") ?? "*/0";
       return [table, Number(range.split("/")[1] ?? 0)] as const;

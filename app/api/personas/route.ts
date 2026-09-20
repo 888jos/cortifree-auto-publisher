@@ -18,7 +18,7 @@ export async function GET() {
         return { ...persona, master: master ?? null, ready: Boolean(master?.public_url) };
       }),
       missingMasters: personas.filter((persona) => !masters.some((asset) => asset.persona_id === persona.id)).map((persona) => persona.id),
-      source: "convex",
+      source: "supabase",
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error), personas: [], missingMasters: [] }, { status: 503 });

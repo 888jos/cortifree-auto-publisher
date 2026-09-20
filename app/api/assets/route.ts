@@ -11,7 +11,7 @@ export async function GET() {
       return accumulator;
     }, {})).map(([category, count]) => ({ category, count }));
     const previews = rows.filter((asset) => asset.public_url).slice(0, 200);
-    return Response.json({ assets: grouped, previews, total: rows.length, source: "convex" });
+    return Response.json({ assets: grouped, previews, total: rows.length, source: "supabase" });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error), assets: [], previews: [], total: 0, source: "unavailable" }, { status: 503 });
   }

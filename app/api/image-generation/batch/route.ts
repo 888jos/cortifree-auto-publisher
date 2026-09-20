@@ -26,7 +26,7 @@ async function rows<T>(resource: string): Promise<T[]> {
 export async function GET() {
   try {
     const scenes = await rows<Scene>(`persona_scene_templates?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*&order=id.asc`);
-    return Response.json({ scenes });
+    return Response.json({ scenes, source: 'supabase' });
   } catch (error) {
     return Response.json({ scenes: [], error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }
