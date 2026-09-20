@@ -14,8 +14,21 @@ function mix(value: unknown) {
 
 function account(row: Row): Row {
   return {
-    ...row,
-    id: row.account_id,
+    account_id: row.account_id,
+    display_name_candidate: row.display_name_candidate,
+    username_candidate: row.username_candidate,
+    platform: row.platform || "tiktok",
+    language: row.language || "en",
+    market: row.market || "US",
+    timezone: row.timezone || "America/New_York",
+    active: row.active,
+    warmup_status: row.warmup_status || "CREATED",
+    upload_post_profile: row.upload_post_profile || "",
+    daily_target: row.daily_target || 1,
+    primary_pillar_id: row.primary_pillar_id,
+    promo_ratio: row.promo_ratio || 0.08,
+    ready_buffer_days: row.ready_buffer_days || 3,
+    posting_enabled: row.posting_enabled,
     name: row.display_name_candidate || row.username_candidate || row.account_id,
     platforms: [String(row.platform || "tiktok")],
     secondary_pillar_ids: split(row.secondary_pillar_ids),
@@ -23,8 +36,6 @@ function account(row: Row): Row {
     pillar_mix: mix(row.pillar_mix),
     format_mix: mix(row.format_mix),
     enabled: row.active === true && ["WARMING", "ACTIVE"].includes(String(row.warmup_status || "CREATED")),
-    upload_post_profile: row.upload_post_profile || "",
-    workspace_id: "cortifree",
   };
 }
 
