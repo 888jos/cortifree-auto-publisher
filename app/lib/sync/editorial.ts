@@ -29,7 +29,14 @@ function account(row: Row): Row {
 }
 
 const mappings: Mapping[] = [
-  { sheet: "00_CONFIG", range: "A1:F100", table: "content_config", key: "key" },
+  { sheet: "00_CONFIG", range: "A1:F100", table: "content_config", key: "key", transform: (row) => ({
+    key: row.key,
+    value: row.value,
+    value_type: row.value_type ?? row.type ?? "text",
+    description: row.description ?? row.notes ?? "",
+    source: row.source ?? "sheet",
+    active: row.active ?? true,
+  }) },
   { sheet: "01_PERSONAS", range: "A1:X40", table: "personas", key: "persona_id" },
   { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
