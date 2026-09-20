@@ -80,7 +80,12 @@ async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
   const supabaseRuntime = backendMode() === "supabase";
   const legacySupabase = new Set(["content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs"]).has(table);
-  const payload = rows.map((row) => ({ ...row, ...(supabaseRuntime && legacySupabase ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) }));
+  const payload = rows.map((row) => {
+    const normalized = supabaseRuntime
+      ? Object.fromEntries(Object.entries(row).map(([field, value]) => [field, value === "" ? null : value]))
+      : row;
+    return { ...normalized, ...(supabaseRuntime && legacySupabase ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
+  });
   const response = await dataBackend(`${table}?on_conflict=${supabaseRuntime ? key : "id"}`, {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
