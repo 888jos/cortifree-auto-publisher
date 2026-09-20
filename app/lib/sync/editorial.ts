@@ -28,8 +28,32 @@ function account(row: Row): Row {
   };
 }
 
+function persona(row: Row): Row {
+  return {
+    persona_id: row.persona_id,
+    name: row.name ?? row.display_name ?? row.display_name_candidate,
+    age: row.age,
+    background: row.background,
+    skin: row.skin,
+    hair: row.hair,
+    eyes: row.eyes,
+    face: row.face,
+    build: row.build,
+    situation: row.situation,
+    visual_style: row.visual_style,
+    signature_scene: row.signature_scene,
+    master_prompt: row.master_prompt,
+    identity_reference_prompt: row.identity_reference_prompt,
+    negative_prompt: row.negative_prompt,
+    primary_topics: row.primary_topics,
+    voice: row.voice,
+    cta_style: row.cta_style,
+    medical_guardrails: row.medical_guardrails,
+  };
+}
+
 const mappings: Mapping[] = [
-  { sheet: "01_PERSONAS", range: "A1:X40", table: "personas", key: "persona_id" },
+  { sheet: "01_PERSONAS", range: "A1:X40", table: "personas", key: "persona_id", transform: persona },
   { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id" },
