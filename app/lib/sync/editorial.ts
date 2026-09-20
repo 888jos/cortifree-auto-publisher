@@ -29,14 +29,6 @@ function account(row: Row): Row {
 }
 
 const mappings: Mapping[] = [
-  { sheet: "00_CONFIG", range: "A1:F100", table: "content_config", key: "key", transform: (row) => ({
-    key: row.key,
-    value: row.value,
-    value_type: row.value_type ?? row.type ?? "text",
-    description: row.description ?? row.notes ?? "",
-    source: row.source ?? "sheet",
-    active: row.active ?? true,
-  }) },
   { sheet: "01_PERSONAS", range: "A1:X40", table: "personas", key: "persona_id" },
   { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
@@ -90,8 +82,10 @@ export async function syncEditorialSheetToConvex() {
     { key: "GOOGLE_SYNC_MODE", value: "CLOUD_API", value_type: "enum", description: "Google Sheet and Drive sync through cloud APIs", source: "system", active: true },
     { key: "JSON_RUNTIME_FALLBACK_DEFAULT", value: false, value_type: "boolean", description: "JSON fallback is emergency-only and opt-in", source: "system", active: true },
   ];
-  await upsert("content_config", "key", derivedConfig);
-  counts.content_config_derived = derivedConfig.length;
+  if (backendMode() !== "supabase") {
+    await upsert("content_config", "key", derivedConfig);
+    counts.content_config_derived = derivedConfig.length;
+  }
 
   const log = {
     id: `SYNC_SHEET_${Date.now()}`,
