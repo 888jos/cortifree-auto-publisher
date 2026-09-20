@@ -4,6 +4,20 @@ import { api } from "../../convex/_generated/api";
 type Filter = { field: string; op: "eq" | "gte" | "like" | "in" | "not_null"; value: unknown };
 
 let client: ConvexHttpClient | null = null;
+const SUPABASE_TABLE_ALIASES: Record<string, string> = {
+  personas: "content_personas",
+  accounts: "content_accounts",
+  content_sources: "content_health_sources",
+  template_specs: "content_template_specs",
+};
+const SUPABASE_LEGACY_TABLES = new Set([
+  "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas",
+  "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs",
+]);
+
+export function supabaseTableName(table: string) {
+  return SUPABASE_TABLE_ALIASES[table] ?? table;
+}
 
 export function backendMode(): "convex" | "supabase" {
   return process.env.DATA_BACKEND?.trim().toLowerCase() === "supabase" ? "supabase" : "convex";
@@ -61,16 +75,18 @@ function jsonResponse(data: unknown, status = 200) {
 
 function supabaseQuery(parsed: ReturnType<typeof parseConvexResource>) {
   const { url, key } = supabase();
+  const table = supabaseTableName(parsed.table);
   const query = new URLSearchParams();
   query.set("select", parsed.select.length ? parsed.select.join(",") : "*");
   for (const filter of parsed.filters) {
+    if (filter.field === "workspace_id" && SUPABASE_LEGACY_TABLES.has(table)) continue;
     if (filter.op === "not_null") query.set(filter.field, "not.is.null");
     else if (filter.op === "in") query.set(filter.field, `in.(${(filter.value as string[]).join(",")})`);
     else query.set(filter.field, `${filter.op}.${String(filter.value)}`);
   }
   if (parsed.orderField) query.set("order", `${parsed.orderField}.${parsed.orderDirection}`);
   query.set("limit", String(parsed.limit));
-  return { url: `${url}/rest/v1/${parsed.table}?${query}`, key };
+  return { url: `${url}/rest/v1/${table}?${query}`, key };
 }
 
 // Small PostgREST-shaped boundary retained while route handlers are migrated.
@@ -158,7 +174,9 @@ export async function getConvexCounts() {
     const tables = ["personas", "accounts", "content_topics", "content_hooks", "content_ctas", "assets", "visual_references"];
     const counts = await Promise.all(tables.map(async (table) => {
       const { url, key } = supabase();
-      const response = await fetch(`${url}/rest/v1/${table}?workspace_id=eq.cortifree&select=*&limit=1`, {
+      const actualTable = supabaseTableName(table);
+      const workspace = SUPABASE_LEGACY_TABLES.has(actualTable) ? "" : "workspace_id=eq.cortifree&";
+      const response = await fetch(`${url}/rest/v1/${actualTable}?${workspace}select=*&limit=1`, {
         headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "count=exact" },
       });
       if (response.status === 404) return [table, 0] as const;

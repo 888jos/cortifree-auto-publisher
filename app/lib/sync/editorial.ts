@@ -53,23 +53,23 @@ function persona(row: Row): Row {
 }
 
 const mappings: Mapping[] = [
-  { sheet: "01_PERSONAS", range: "A1:X40", table: "personas", key: "persona_id", transform: persona },
-  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
+  { sheet: "01_PERSONAS", range: "A1:X40", table: "content_personas", key: "persona_id", transform: persona },
+  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "content_accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id" },
   { sheet: "05_TOPICS_ANGLES", range: "A1:O1000", table: "content_topics", key: "topic_id" },
   { sheet: "06_HOOKS", range: "A1:M500", table: "content_hooks", key: "hook_id" },
   { sheet: "07_CTAS", range: "A1:H100", table: "content_ctas", key: "cta_id" },
   { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id" },
-  { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_sources", key: "source_id" },
-  { sheet: "12_AUTONOMY_RULES", range: "A1:H100", table: "autonomy_rules", key: "rule_id" },
-  { sheet: "13_TEMPLATE_SPECS", range: "A1:J100", table: "template_specs", key: "template_id" },
+  { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id" },
+  { sheet: "13_TEMPLATE_SPECS", range: "A1:J100", table: "content_template_specs", key: "template_id" },
 ];
 
 async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
   const supabaseRuntime = backendMode() === "supabase";
-  const payload = rows.map((row) => ({ ...row, ...(supabaseRuntime ? {} : { id: row.id ?? row[key] }), workspace_id: "cortifree" }));
+  const legacySupabase = new Set(["content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs"]).has(table);
+  const payload = rows.map((row) => ({ ...row, ...(supabaseRuntime && legacySupabase ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) }));
   const response = await dataBackend(`${table}?on_conflict=${supabaseRuntime ? key : "id"}`, {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
