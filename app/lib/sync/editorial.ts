@@ -103,6 +103,10 @@ export async function syncEditorialSheetToConvex() {
       counts[mapping.table] = 0;
       continue;
     }
+    if (backendMode() === "supabase" && !new Set(["content_personas", "content_topics", "content_hooks", "content_ctas"]).has(mapping.table)) {
+      counts[mapping.table] = 0;
+      continue;
+    }
     const source = await readSheetObjects(mapping.sheet, mapping.range);
     const rows = source
       .filter((row) => row[mapping.key] !== null && row[mapping.key] !== undefined && String(row[mapping.key]).trim())
