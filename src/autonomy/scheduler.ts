@@ -61,7 +61,8 @@ export async function runScheduler() {
     const readyCarousels = await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
     const bufferedCarousels = readyCarousels.filter((row) => ['DRAFT','READY_FOR_REVIEW','APPROVED','SCHEDULED'].includes(String(row.status)));
     const queuedIdeas = existingIdeas.filter((row) => ['QUEUED','GENERATING'].includes(String(row.status)));
-    const target = Math.max(1, account.daily_target * (account.ready_buffer_days ?? 3));
+    const dailyCadence = Math.max(account.daily_target, account.posting_slots.length || 0, 1);
+    const target = Math.max(1, dailyCadence * (account.ready_buffer_days ?? 3));
     const missing = Math.max(0, target - bufferedCarousels.length - queuedIdeas.length);
     const history: SelectionHistory[] = [...networkHistory];
 

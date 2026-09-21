@@ -265,6 +265,9 @@ type StoredCarousel = {
     publish_review?: { publishReady?: boolean; profile?: string; platform?: string };
   };
 };
+type CalendarEntry = { id: string; account_id: string; account_name: string; persona_id: string; date: string; slot: string; timezone: string; platform: string; status: string; content_type: string; content_type_label: string; topic: string; angle: string; source: string };
+type CalendarAccount = { id: string; name: string; persona_id: string; timezone: string; enabled: boolean; posting_enabled: boolean; daily_target: number; slots: string[]; entries: CalendarEntry[] };
+type CalendarData = { accounts: CalendarAccount[]; dailyTotals: Array<{ date: string; total: number; byStatus: Record<string, number> }>; summary: { accountCount: number; postsPerDay: number; totalSlots: number } };
 
 function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string, category = "self care") {
   const image = event.currentTarget;
@@ -435,6 +438,9 @@ export default function Home() {
   const [carouselQuery, setCarouselQuery] = useState("");
   const [carouselStatus, setCarouselStatus] = useState("ALL");
   const [openedCarousel, setOpenedCarousel] = useState<StoredCarousel | null>(null);
+  const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
+  const [calendarDays, setCalendarDays] = useState(7);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [assetTab, setAssetTab] = useState<AssetTab>("All Assets");
   const [assetQuery, setAssetQuery] = useState("");
   const [referenceCategory, setReferenceCategory] = useState("all");
@@ -559,6 +565,16 @@ export default function Home() {
       .catch(() => setNotice("Impossible de charger les carrousels CortiFree."))
       .finally(() => setCarouselsLoading(false));
   }, [active, productVersion]);
+
+  useEffect(() => {
+    if (active !== "Calendar") return;
+    setCalendarLoading(true);
+    fetch(`/api/calendar?days=${calendarDays}`, { cache: "no-store" })
+      .then((response) => { if (!response.ok) throw new Error(`API ${response.status}`); return response.json(); })
+      .then((data) => setCalendarData(data))
+      .catch(() => setNotice("Impossible de charger le calendrier détaillé."))
+      .finally(() => setCalendarLoading(false));
+  }, [active, calendarDays]);
 
   function changeProductVersion(version: ProductVersion) {
     setProductVersion(version);
@@ -1457,17 +1473,31 @@ export default function Home() {
           )}
 
           {active === "Calendar" && (
-            <section className="panel">
-              <p className="eyebrow">NEXT ACTION</p>
-              <h2>Golden carousel</h2>
-              <p className="muted">Cree un brouillon, valide-le, puis branche Upload-Post quand tes comptes media sont prets.</p>
-              <div className="progress">
-                <span />
+            <section className="panel wide calendarPanel">
+              <div className="panelHead">
+                <div><p className="eyebrow">PUBLISHING CALENDAR</p><h2>Vue détaillée par compte</h2><p className="muted">Chaque compte dispose de deux créneaux par jour : environ 16 comptes × 2 = 32 posts planifiés par jour.</p></div>
+                <label className="calendarDays">Horizon
+                  <select value={calendarDays} onChange={(event) => setCalendarDays(Number(event.target.value))}><option value={3}>3 jours</option><option value={7}>7 jours</option><option value={14}>14 jours</option></select>
+                </label>
               </div>
-              <small>7 slides · 1080 x 1350</small>
-              <button className="secondary" onClick={() => setActive("Content studio")} type="button">
-                Ouvrir le studio
-              </button>
+              {calendarLoading && <div className="libraryEmpty">Chargement du planning…</div>}
+              {calendarData && <>
+                <div className="calendarSummary">
+                  <div><span>Comptes</span><strong>{calendarData.summary.accountCount}</strong></div>
+                  <div><span>Posts / jour</span><strong>{calendarData.summary.postsPerDay}</strong></div>
+                  <div><span>Slots affichés</span><strong>{calendarData.summary.totalSlots}</strong></div>
+                  <div><span>Créneaux / compte</span><strong>2</strong></div>
+                </div>
+                <div className="calendarDaysStrip">{calendarData.dailyTotals.map((day) => <div key={day.date}><b>{new Date(`${day.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</b><strong>{day.total}</strong><small>{Object.entries(day.byStatus).map(([status, count]) => `${status} ${count}`).join(" · ")}</small></div>)}</div>
+                <div className="calendarAccounts">
+                  {calendarData.accounts.map((account) => <article className="calendarAccount" key={account.id}>
+                    <div className="calendarAccountHead"><div><span className="eyebrow">{account.id} · {account.persona_id}</span><h3>{account.name}</h3></div><div className="calendarAccountState"><b>{account.entries.length / Math.max(1, calendarData.dailyTotals.length)} / jour</b><small>{account.timezone} · {account.enabled ? "enabled" : "disabled"}</small></div></div>
+                    <div className="calendarTable"><div className="calendarRow calendarHeader"><span>Date</span><span>Heure</span><span>Type de contenu</span><span>Topic / angle</span><span>Statut</span></div>
+                      {account.entries.map((entry) => <div className="calendarRow" key={entry.id + entry.date + entry.slot}><span>{new Date(`${entry.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</span><span>{entry.slot}</span><span><b>{entry.content_type_label}</b><small>{entry.content_type}</small></span><span><b>{entry.topic}</b><small>{entry.angle}</small></span><span><i className={`calendarStatus status-${entry.status.toLowerCase()}`}>{entry.status}</i><small>{entry.source}</small></span></div>)}
+                    </div>
+                  </article>)}
+                </div>
+              </>}
             </section>
           )}
 
