@@ -103,6 +103,7 @@ export function chooseAssets(options: {
   const usedIdentities = new Set<string>();
   return options.slides.map((slide) => {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
+    const assetQueryTerms = terms(slide.assetQuery);
     const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
@@ -135,9 +136,14 @@ export function chooseAssets(options: {
     const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
       const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
+      const matchedAssetQueryTerms = assetQueryTerms.filter((term) => haystack.includes(term));
       const categoryRank = preferred.indexOf(asset.category);
       let score = categoryRank === 0 ? 44 : categoryRank > 0 ? Math.max(12, 34 - categoryRank * 7) : -20;
       score += matchedTerms.length * 7;
+      // The explicit asset query is the strongest editorial signal. This keeps
+      // a requested coffee-at-a-desk portrait from losing to a generic mirror
+      // image merely because both are tagged as lifestyle/persona content.
+      score += matchedAssetQueryTerms.length * 12;
       score += asset.orientation === "portrait" ? 12 : asset.orientation === "square" ? 4 : 0;
       if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 28;
       score += asset.framing === "wide" && /wide|room|landscape/.test(slide.visualIntent.toLowerCase()) ? 8 : 0;

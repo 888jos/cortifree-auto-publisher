@@ -31,7 +31,7 @@ function typographyForCarousel(carouselId: string) {
   const hookFontFamily = bodyFontFamily === "Bricolage Grotesque"
     ? "TikTok Sans"
     : "Bricolage Grotesque";
-  return { hookFontFamily, bodyFontFamily, hookSize: 48, titleSize: 60, bodySize: 30, maxDistinctSizes: 3 };
+  return { hookFontFamily, bodyFontFamily, hookSize: 44, titleSize: 52, bodySize: 28, maxDistinctSizes: 3 };
 }
 function resolveFontPath(family = "TikTok Sans", weight = 500) {
   const slug = FONT_FILES[family] ?? FONT_FILES["TikTok Sans"];
@@ -91,7 +91,7 @@ const defaultGeometry: Geometry = {
   image: { x: 0, y: 0, width: WIDTH, height: HEIGHT, fit: "cover", mode: "single" },
   text: {
     x: 82, y: 810, width: 916, headlineY: 810, bodyY: 980, align: "left",
-    headlineSize: 60, bodySize: 30, headlineWeight: 700, bodyWeight: 500,
+    headlineSize: 52, bodySize: 28, headlineWeight: 700, bodyWeight: 500,
     headlineColor: "#fffdf8", bodyColor: "#f7f4ed", maxHeadlineLines: 3, maxBodyLines: 5,
   },
   overlay: { color: "#122019", opacity: 0.3 },
@@ -177,16 +177,16 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   const overlays: OverlayOptions[] = [];
   if (isHook) {
     const design = hookDesign ?? { format: "fallback", x: 600, y: 300, width: 390, size: 72, weight: 700, maxWordsPerLine: 2, lineGap: 8, align: "left" as const, textColor: "#20243A", accentColor: "#FFE26E", hookColor: "#FFE26E" };
-    const hookHeadline = wrapHook(slide.headline.toLowerCase(), Math.max(2, design.maxWordsPerLine), 5);
+    const hookHeadline = wrapHook(slide.headline.toLowerCase(), 4, 4);
     // Keep long hooks in a compact, high-contrast block instead of allowing
     // one word per line to run through the person or the focal object.
-    const hookSize = frame.hookSize ?? 48;
-    const hookTop = design.y;
+    const hookSize = frame.hookSize ?? 44;
+    const hookTop = 790;
     // The composition heuristic can prefer the visually quieter side while
     // still crossing a centered portrait. Keep long hooks in the opposite
     // lateral safe zone instead of covering the face or phone.
-    const hookX = design.x >= WIDTH / 2 ? 80 : design.x;
-    const hookWidth = Math.max(design.width, 440);
+    const hookX = 88;
+    const hookWidth = 904;
     for (const [index, line] of hookHeadline.entries()) {
       const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
       const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: hookFontFamily });
@@ -233,6 +233,10 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
   }
   if (imageFrame.mode === "grid-2x2" && !(slide.position === 1 || slide.role.toUpperCase() === "HOOK")) {
     const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="790" width="976" height="390" rx="28" fill="#122019" fill-opacity="0.62"/></svg>`);
+    composites.push({ input: panel, left: 0, top: 0 });
+  }
+  if (imageFrame.mode === "single" && (slide.position === 1 || slide.role.toUpperCase() === "HOOK")) {
+    const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="748" width="976" height="545" rx="28" fill="#122019" fill-opacity="0.68"/></svg>`);
     composites.push({ input: panel, left: 0, top: 0 });
   }
   composites.push(...await makeRasterTextOverlays(slide, geometry, hookDesign));
