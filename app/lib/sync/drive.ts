@@ -178,7 +178,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: taxonomy.enabled !== false,
-      metadata: { drive_path: entry.path, sheet_sync_status: taxonomy.sync_status ?? null, canonical_source: "08_STOCK_ASSETS" },
+      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
     if (md5Matches(existing, entry.file)) {
@@ -189,7 +189,6 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     }
     const storage = await upload(entry.file);
     await upsert("assets", {
-      id: taxonomy.stock_key || `DRIVE_STOCK_${entry.file.id}`,
       workspace_id: "cortifree",
       drive_file_id: entry.file.id,
       drive_md5: entry.file.md5Checksum ?? null,
