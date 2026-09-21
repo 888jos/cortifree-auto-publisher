@@ -58,7 +58,7 @@ export async function resolveCanonicalEditorialContext(input: {
   try {
     [editorial, accounts, personas, formats, historyRows] = await Promise.all([
       loadRuntimeEditorial(), loadRuntimeAccounts(), loadRuntimePersonaConfigs(),
-      rows("content_formats?limit=200"), rows("carousel_ideas?order=created_at.desc&limit=2000"),
+      rows("content_formats?limit=200"), rows("carousel_ideas?order=created_at.desc&limit=2000").catch(() => []),
     ]);
   } catch (error) {
     throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:${error instanceof Error ? error.message : String(error)}`);
