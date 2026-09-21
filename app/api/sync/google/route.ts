@@ -5,10 +5,10 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET;
+  const secret = process.env.CRON_SECRET || process.env.CORTIFREE_ADMIN_SECRET;
   if (!secret) return false;
   const auth = request.headers.get("authorization");
-  return auth === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret;
+  return auth === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret || request.headers.get("x-admin-token") === secret;
 }
 
 async function run(request: Request) {
