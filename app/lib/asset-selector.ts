@@ -130,7 +130,7 @@ export function chooseAssets(options: {
     const compatible = options.personaOnly
       ? usableRequested
       : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint));
-    const unused = compatible.filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)));
+    const unused = compatible.filter((asset) => !used.has(asset.id) && (options.personaOnly || !usedIdentities.has(assetIdentity(asset))));
     const distinct = unused.length || hookNeedsPersona ? compatible : [];
     const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
