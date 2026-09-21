@@ -164,7 +164,7 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   const overlays: OverlayOptions[] = [];
   if (isHook) {
     const design = hookDesign ?? { format: "fallback", x: 600, y: 300, width: 390, size: 72, weight: 700, maxWordsPerLine: 2, lineGap: 8, align: "left" as const, textColor: "#20243A", accentColor: "#FFE26E", hookColor: "#FFE26E" };
-    const hookHeadline = wrapHook(slide.headline.toLowerCase(), design.maxWordsPerLine, 6);
+    const hookHeadline = wrapHook(slide.headline.toLowerCase(), Math.max(2, design.maxWordsPerLine), 5);
     // Keep long hooks in a compact, high-contrast block instead of allowing
     // one word per line to run through the person or the focal object.
     const hookSize = hookHeadline.length > 4 ? Math.min(design.size, 44) : design.size;
