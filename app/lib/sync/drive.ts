@@ -212,9 +212,10 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     failures: failures.slice(0, 20),
     finished_at: new Date().toISOString(),
   };
-  await dataBackend("system_logs", {
+  const logResponse = await dataBackend("system_logs", {
     method: "POST",
     body: JSON.stringify({ timestamp: result.finished_at, stage: result.event, status: result.status, metadata: result }),
   });
+  if (!logResponse.ok) throw new Error(`Sync log write failed: ${await logResponse.text()}`);
   return result;
 }

@@ -144,9 +144,10 @@ export async function syncEditorialSheetToConvex() {
     finished_at: new Date().toISOString(),
     counts,
   };
-  await dataBackend("system_logs", {
+  const logResponse = await dataBackend("system_logs", {
     method: "POST",
     body: JSON.stringify({ timestamp: log.finished_at, stage: log.event, status: log.status, metadata: log }),
   });
+  if (!logResponse.ok) throw new Error(`Sync log write failed: ${await logResponse.text()}`);
   return log;
 }
