@@ -40,6 +40,16 @@ function assetText(asset: SelectableAsset) {
   return `${asset.filename} ${asset.category} ${asset.subcategory} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
 }
 
+function assetIdentity(asset: SelectableAsset) {
+  return (asset.filename || asset.public_url)
+    .toLowerCase()
+    .replace(/\.[a-z0-9]+$/, "")
+    .replace(/(?:__|_)0*\d+$/g, "")
+    .replace(/(?:__|_)v?0*\d+$/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
 type SceneConstraint = { required: (value: string) => boolean; forbidden: (value: string) => boolean };
 
 function sceneConstraint(slide: { headline: string; body: string; assetQuery: string; visualIntent: string }): SceneConstraint | null {
@@ -89,6 +99,7 @@ export function chooseAssets(options: {
 }): AssetMatch[] {
   const preferred = categoryByType[options.carouselType] ?? ["morning", "self_care", "food", "fitness", "outdoors", "work_study", "stress_reset", "night"];
   const used = new Set<string>();
+  const usedIdentities = new Set<string>();
   return options.slides.map((slide) => {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
     const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
@@ -110,7 +121,7 @@ export function chooseAssets(options: {
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;
     const compatible = usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
-    const unused = compatible.filter((asset) => !used.has(asset.id));
+    const unused = compatible.filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)));
     const distinct = unused.length || hookNeedsPersona ? compatible : [];
     const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
@@ -132,6 +143,7 @@ export function chooseAssets(options: {
       throw new Error(`No usable asset for slide ${slide.position}`);
     }
     used.add(selected.asset.id);
+    usedIdentities.add(assetIdentity(selected.asset));
     return { ...selected, score: Number(selected.score.toFixed(2)) };
   });
 }

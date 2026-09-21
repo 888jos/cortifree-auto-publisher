@@ -147,7 +147,8 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
     const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: hookDesign?.textColor ?? frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize) });
-    overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? frame.y + 180 });
+    const bodyTop = (frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22;
+    overlays.push({ input: bodyImage, left: frame.x, top: bodyTop });
   }
   return overlays;
 }
