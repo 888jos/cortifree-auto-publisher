@@ -50,13 +50,20 @@ export async function resolveCanonicalEditorialContext(input: {
   if (input.language !== "en" || input.market.toUpperCase() !== "US") {
     throw new Error("CANONICAL_CONTEXT_UNAVAILABLE:GENZ_GIRLY_US currently requires US English");
   }
-  const [{ topics, hooks, ctas }, accounts, personas, formats, historyRows] = await Promise.all([
-    loadRuntimeEditorial(),
-    loadRuntimeAccounts(),
-    loadRuntimePersonaConfigs(),
-    rows("content_formats?limit=200"),
-    rows("carousel_ideas?order=created_at.desc&limit=2000"),
-  ]);
+  let editorial: Awaited<ReturnType<typeof loadRuntimeEditorial>>;
+  let accounts: Awaited<ReturnType<typeof loadRuntimeAccounts>>;
+  let personas: Awaited<ReturnType<typeof loadRuntimePersonaConfigs>>;
+  let formats: Row[];
+  let historyRows: Row[];
+  try {
+    [editorial, accounts, personas, formats, historyRows] = await Promise.all([
+      loadRuntimeEditorial(), loadRuntimeAccounts(), loadRuntimePersonaConfigs(),
+      rows("content_formats?limit=200"), rows("carousel_ideas?order=created_at.desc&limit=2000"),
+    ]);
+  } catch (error) {
+    throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:${error instanceof Error ? error.message : String(error)}`);
+  }
+  const { topics, hooks, ctas } = editorial;
   const account = accounts.find((row) => row.id === input.accountId) as unknown as Row | undefined;
   const persona = personas.find((row) => row.id === input.personaId) as unknown as Row | undefined;
   if (!account) throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:account ${input.accountId}`);
