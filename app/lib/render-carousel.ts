@@ -23,6 +23,16 @@ const FONT_FILES: Record<string, string> = {
   Archivo: "archivo",
   Urbanist: "urbanist",
 };
+const ROTATING_BODY_FONTS = Object.keys(FONT_FILES);
+function typographyForCarousel(carouselId: string) {
+  const hash = [...carouselId].reduce((sum, character) => ((sum * 31) + character.charCodeAt(0)) >>> 0, 7);
+  const bodyIndex = hash % ROTATING_BODY_FONTS.length;
+  const bodyFontFamily = ROTATING_BODY_FONTS[bodyIndex] ?? "TikTok Sans";
+  const hookFontFamily = bodyFontFamily === "Bricolage Grotesque"
+    ? "TikTok Sans"
+    : "Bricolage Grotesque";
+  return { hookFontFamily, bodyFontFamily, hookSize: 48, titleSize: 60, bodySize: 30, maxDistinctSizes: 3 };
+}
 function resolveFontPath(family = "TikTok Sans", weight = 500) {
   const slug = FONT_FILES[family] ?? FONT_FILES["TikTok Sans"];
   const exact = path.join(FONT_ROOT, `${slug}-${weight}.ttf`);
@@ -31,10 +41,10 @@ function resolveFontPath(family = "TikTok Sans", weight = 500) {
   if (!nearest) throw new Error(`Downloaded carousel font missing for ${family}`);
   return nearest;
 }
-const FONT_PATH = resolveFontPath("TikTok Sans", 500);
-const embeddedFont = (() => {
-  return existsSync(FONT_PATH) ? readFileSync(FONT_PATH).toString("base64") : "";
-})();
+function embeddedFontForFamily(family: string) {
+  const fontPath = resolveFontPath(family, 500);
+  return existsSync(fontPath) ? readFileSync(fontPath).toString("base64") : "";
+}
 
 type GeneratedSlide = {
   position: number;
@@ -134,6 +144,7 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
   const filter = frame.shadow === "none" ? "none" : "url(#shadow)";
+  const embeddedFont = embeddedFontForFamily(fontFamily);
   const fontFace = embeddedFont ? `<style>@font-face{font-family:'${fontFamily}';src:url(data:font/ttf;base64,${embeddedFont}) format('truetype');font-weight:100 900;}</style>` : "";
   return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${fontFace}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="${fontFamily}" font-size="${bodySize}" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), fontFamily, filter) : ""}</svg>`);
 }
@@ -266,13 +277,7 @@ export async function renderCarousel(input: {
     // The selected model is authoritative. AI copy may return an old layout alias;
     // never let that silently turn a 2x2 request back into a single-photo slide.
     const slideLayout = index === 0 || slide.role.toUpperCase() === "HOOK" ? "single-image" : input.layout;
-    const typography = {
-      hookFontFamily: "Bricolage Grotesque",
-      bodyFontFamily: "TikTok Sans",
-      hookSize: 48,
-      titleSize: 60,
-      bodySize: 30,
-    };
+    const typography = typographyForCarousel(input.id);
     const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, index === input.slides.length - 1, typography) as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
@@ -306,7 +311,7 @@ export async function renderCarousel(input: {
 
   const updatedSpec = {
     ...input.spec,
-    typography: { hookFontFamily: "Bricolage Grotesque", bodyFontFamily: "TikTok Sans", hookSize: 48, titleSize: 60, bodySize: 30, maxDistinctSizes: 3 },
+    typography: typographyForCarousel(input.id),
     rendered_slides: rendered,
     rendered_at: now,
   };
