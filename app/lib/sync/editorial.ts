@@ -25,8 +25,6 @@ function account(row: Row): Row {
     upload_post_profile: row.upload_post_profile || "",
     primary_pillar_id: row.primary_pillar_id,
     posting_enabled: row.posting_enabled,
-    profile_picture_drive_file_id: row.profile_picture_drive_file_id || null,
-    profile_picture_filename: row.profile_picture_filename || null,
   };
 }
 
@@ -72,20 +70,26 @@ async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
   const supabaseRuntime = backendMode() === "supabase";
   const legacySupabase = new Set(["accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs"]).has(table);
-  const payload = rows.map((row) => {
+  let payload = rows.map((row) => {
     const normalized = supabaseRuntime
       ? Object.fromEntries(Object.entries(row).map(([field, value]) => [field, value === "" ? null : value]))
       : row;
     return { ...normalized, ...(supabaseRuntime && legacySupabase ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
   });
   const conflictKey = table === "accounts" ? "account_id" : (supabaseRuntime ? key : "id");
-  const response = await dataBackend(`${table}?on_conflict=${conflictKey}`, {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error(`Sheet sync failed for ${table}: ${await response.text()}`);
-  return payload.length;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await dataBackend(`${table}?on_conflict=${conflictKey}`, {
+      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(payload),
+    });
+    if (response.ok) return payload.length;
+    const errorText = await response.text();
+    const missingColumn = errorText.match(/Could not find the '([^']+)' column/);
+    if (!missingColumn || !payload.some((row) => Object.prototype.hasOwnProperty.call(row, missingColumn[1]))) {
+      throw new Error(`Sheet sync failed for ${table}: ${errorText}`);
+    }
+    payload = payload.map((row) => { const copy = { ...row }; delete copy[missingColumn[1]]; return copy; });
+  }
+  throw new Error(`Sheet sync failed for ${table}: too many schema compatibility retries`);
 }
 
 export async function syncEditorialSheetToConvex() {
