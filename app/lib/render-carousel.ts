@@ -235,7 +235,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="790" width="976" height="390" rx="28" fill="#122019" fill-opacity="0.62"/></svg>`);
     composites.push({ input: panel, left: 0, top: 0 });
   }
-  if (imageFrame.mode === "single" && (slide.position === 1 || slide.role.toUpperCase() === "HOOK")) {
+  if (imageFrame.mode === "single") {
     const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="748" width="976" height="545" rx="28" fill="#122019" fill-opacity="0.68"/></svg>`);
     composites.push({ input: panel, left: 0, top: 0 });
   }
