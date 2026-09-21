@@ -104,7 +104,7 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
     });
   }
   const job = await queryOne<Record<string, unknown>>("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(jobId) + "&select=*");
-  if (!["PENDING", "RETRY", "FAILED"].includes(String(job.status))) throw new Error("Job cannot run from " + job.status);
+  if (!["PENDING", "RETRY", "FAILED", "RUNNING"].includes(String(job.status))) throw new Error("Job cannot run from " + job.status);
   await patchJob(jobId, { status: "RUNNING", started_at: new Date().toISOString(), last_error: null });
   try {
     const personas = await loadRuntimePersonaConfigs();

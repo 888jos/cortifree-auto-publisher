@@ -108,12 +108,14 @@ export async function dataBackend(resource: string, init: RequestInit = {}) {
           target.searchParams.set("on_conflict", parsed.conflictFields.join(","));
           headers.set("Prefer", "resolution=merge-duplicates,return=representation");
           const response = await fetch(target, { ...init, method, headers });
-          return new Response(await response.text(), { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
+          const body = await response.text();
+          return new Response(response.status === 204 ? null : body, { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
         }
         headers.set("Prefer", headers.get("Prefer") ?? "return=minimal");
       }
       const response = await fetch(url, { ...init, method, headers });
-      return new Response(await response.text(), { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
+      const body = await response.text();
+      return new Response(response.status === 204 ? null : body, { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
     }
     const { client: convex, secret } = backend();
     const parsed = parseConvexResource(resource);
