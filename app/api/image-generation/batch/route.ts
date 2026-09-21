@@ -43,7 +43,13 @@ export async function POST(request: Request) {
     const scenes = await rows<Scene>(`persona_scene_templates?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=in.(${sceneIds})&enabled=eq.true&select=*`);
     if (scenes.length !== batch.scene_ids.length) throw new Error('Unknown or disabled scene in batch selection');
     const masters = await rows<{ id: string | number; persona_id: string }>(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&persona_id=in.(${batch.persona_ids.map(encodeURIComponent).join(',')})&source_type=eq.persona_master&enabled=eq.true&select=id,persona_id`);
-    const references = (await rows<unknown>(`visual_references?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*`)).map((row) => visualReferenceSchema.parse(row));
+    // A legacy visual-reference row must not make the whole batch unusable.
+    // Ignore malformed rows here; the selected reference is still validated
+    // again by the single-job runner before ModelArk is called.
+    const references = (await rows<unknown>(`visual_references?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*`))
+      .map((row) => visualReferenceSchema.safeParse(row))
+      .filter((result): result is { success: true; data: z.infer<typeof visualReferenceSchema> } => result.success)
+      .map((result) => result.data);
     const jobs: Record<string, unknown>[] = [];
     for (const persona of selectedPersonas) {
       const master = masters.find((item) => item.persona_id === persona.id);
