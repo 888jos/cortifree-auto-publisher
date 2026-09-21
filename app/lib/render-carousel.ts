@@ -1,4 +1,6 @@
 import sharp, { type OverlayOptions } from "sharp";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { chooseAssets, loadSelectableAssets, type AssetMatch } from "./asset-selector";
 import { getSlideGeometry } from "./layout-geometry.js";
 import { dataBackend } from "./data-backend";
@@ -7,6 +9,10 @@ import { uploadConvexFile } from "./convex-storage";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
+const embeddedFont = (() => {
+  const fontPath = path.join(process.cwd(), "public", "fonts", "CortiFreeSans.ttf");
+  return existsSync(fontPath) ? readFileSync(fontPath).toString("base64") : "";
+})();
 
 type GeneratedSlide = {
   position: number;
@@ -92,9 +98,10 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
   // Use a Linux-available generic face in Sharp/librsvg. Missing server fonts
   // render as tofu boxes, which makes otherwise valid copy unreadable.
-  const fontFamily = frame.fontFamily ?? "sans-serif";
+  const fontFamily = frame.fontFamily ?? "CortiFree";
   const filter = frame.shadow === "none" ? "none" : "url(#shadow)";
-  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs><text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="sans-serif" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), "sans-serif", filter) : ""}</svg>`);
+  const fontFace = embeddedFont ? `<style>@font-face{font-family:'CortiFree';src:url(data:font/ttf;base64,${embeddedFont}) format('truetype');font-weight:100 900;}</style>` : "";
+  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${fontFace}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="CortiFree, sans-serif" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), "CortiFree, sans-serif", filter) : ""}</svg>`);
 }
 
 async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometry: Geometry) {
