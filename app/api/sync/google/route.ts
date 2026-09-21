@@ -8,7 +8,7 @@ function authorized(request: Request) {
   const secret = process.env.CRON_SECRET || process.env.CORTIFREE_ADMIN_SECRET;
   if (!secret) return false;
   const auth = request.headers.get("authorization");
-  return auth === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret || request.headers.get("x-admin-token") === secret;
+  return auth === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret || request.headers.get("x-admin-token") === secret || request.headers.get("x-admin-password") === process.env.CORTIFREE_ADMIN_PASSWORD;
 }
 
 async function run(request: Request) {
