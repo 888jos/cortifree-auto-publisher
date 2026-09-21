@@ -45,15 +45,16 @@ async function upload(file: DriveFile) {
   return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
 }
 
-export async function syncGoogleDriveToConvex(options: { limit?: number } = {}) {
+export async function syncGoogleDriveToConvex(options: { limit?: number; scope?: "all" | "visual_refs" | "assets" } = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
+  const scope = options.scope ?? "all";
   const [stockTaxonomy, refTaxonomy, stockTree, personaTree, refTree, existingAssets, existingRefs] = await Promise.all([
-    readSheetObjects("08_STOCK_ASSETS", "A1:T500"),
+    scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:T500"),
     readSheetObjects("08_VISUAL_REFS", "A1:X300"),
-    walk(STOCK_ROOT),
-    walk(PERSONAS_ROOT),
+    scope === "visual_refs" ? Promise.resolve([]) : walk(STOCK_ROOT),
+    scope === "visual_refs" ? Promise.resolve([]) : walk(PERSONAS_ROOT),
     walk(VISUAL_REFS_ROOT),
-    backendRows("assets?select=*&limit=5000"),
+    scope === "visual_refs" ? Promise.resolve([]) : backendRows("assets?select=*&limit=5000"),
     backendRows("visual_references?select=*&limit=5000"),
   ]);
   const stockByDrive = new Map(stockTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
@@ -167,11 +168,15 @@ export async function syncGoogleDriveToConvex(options: { limit?: number } = {}) 
     uploaded += 1;
   }
 
-  const tasks: Array<() => Promise<void>> = [
-    ...personaTree.map((entry) => () => syncPersona(entry)),
-    ...stockTree.map((entry) => () => syncStock(entry)),
-    ...refTree.map((entry) => () => syncReference(entry)),
-  ];
+  const tasks: Array<() => Promise<void>> = scope === "visual_refs"
+    ? refTree.map((entry) => () => syncReference(entry))
+    : scope === "assets"
+      ? [...personaTree.map((entry) => () => syncPersona(entry)), ...stockTree.map((entry) => () => syncStock(entry))]
+      : [
+          ...personaTree.map((entry) => () => syncPersona(entry)),
+          ...stockTree.map((entry) => () => syncStock(entry)),
+          ...refTree.map((entry) => () => syncReference(entry)),
+        ];
   for (const task of tasks) {
     if (uploaded >= limit) break;
     try { await task(); }
@@ -189,7 +194,8 @@ export async function syncGoogleDriveToConvex(options: { limit?: number } = {}) 
     uploaded,
     skipped,
     failed,
-    remaining_hint: Math.max(0, stockTree.filter((x) => isImage(x.file)).length + personaTree.filter((x) => isImage(x.file)).length + refTree.filter((x) => isImage(x.file)).length - skipped - uploaded),
+    remaining_hint: Math.max(0, (scope === "visual_refs" ? refTree : [...stockTree, ...personaTree, ...refTree]).filter((x) => isImage(x.file)).length - skipped - uploaded),
+    scope,
     failures: failures.slice(0, 20),
     finished_at: new Date().toISOString(),
   };
