@@ -162,10 +162,13 @@ async function rasterText(text: string, options: { width: number; height: number
   const color = { r: Number.parseInt(hex.slice(0, 2), 16), g: Number.parseInt(hex.slice(2, 4), 16), b: Number.parseInt(hex.slice(4, 6), 16) };
   const textLayer = await sharp({ create: { width, height, channels: 3, background: color } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
   if (!options.shadow) return textLayer;
-  const shadowAlpha = await sharp(alpha, { raw: { width, height, channels: 1 } }).blur(4).raw().toBuffer();
+  const shadowAlpha = await sharp(alpha, { raw: { width, height, channels: 1 } }).blur(1).raw().toBuffer();
   const shadowLayer = await sharp({ create: { width, height, channels: 3, background: "#101615" } }).joinChannel(shadowAlpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
   return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([
-    { input: shadowLayer, left: 3, top: 4 },
+    { input: shadowLayer, left: -2, top: 0 },
+    { input: shadowLayer, left: 2, top: 0 },
+    { input: shadowLayer, left: 0, top: -2 },
+    { input: shadowLayer, left: 0, top: 2 },
     { input: textLayer, left: 0, top: 0 },
   ]).png().toBuffer();
 }
