@@ -139,7 +139,7 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     const hookTop = design.y;
     const hookX = design.x;
     const hookWidth = design.width;
-    const hookHeadline = wrap(slide.headline, Math.max(6, design.maxWordsPerLine * 5), 8);
+    const hookHeadline = wrap(slide.headline.toLowerCase(), Math.max(6, design.maxWordsPerLine * 5), 8);
     for (const [index, line] of hookHeadline.entries()) {
       const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(design.size * 1.35), size: design.size, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0 });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (design.size + design.lineGap) });

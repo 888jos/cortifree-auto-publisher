@@ -18,16 +18,16 @@ export type HookDesign = {
 const pastelAccents = ["#FFE26E", "#BCE8FF", "#FFB6D5", "#FFFFFF"];
 
 const formats = [
-  { name: "right_stack", y: 300, size: 72, width: 390, maxWords: 2, gap: 8 },
-  { name: "left_stack", y: 300, size: 72, width: 390, maxWords: 2, gap: 8 },
-  { name: "right_air", y: 190, size: 64, width: 410, maxWords: 2, gap: 4 },
-  { name: "left_air", y: 190, size: 64, width: 410, maxWords: 2, gap: 4 },
-  { name: "right_bold", y: 480, size: 82, width: 390, maxWords: 1, gap: 0 },
-  { name: "left_bold", y: 480, size: 82, width: 390, maxWords: 1, gap: 0 },
-  { name: "right_small_steps", y: 250, size: 58, width: 410, maxWords: 2, gap: 3 },
-  { name: "left_small_steps", y: 250, size: 58, width: 410, maxWords: 2, gap: 3 },
-  { name: "center_editorial", y: 420, size: 70, width: 860, maxWords: 2, gap: 5 },
-  { name: "bottom_editorial", y: 850, size: 66, width: 920, maxWords: 2, gap: 5 },
+  { name: "right_stack", y: 300, size: 44, width: 360, maxWords: 2, gap: 4 },
+  { name: "left_stack", y: 300, size: 44, width: 360, maxWords: 2, gap: 4 },
+  { name: "right_air", y: 190, size: 38, width: 390, maxWords: 2, gap: 3 },
+  { name: "left_air", y: 190, size: 38, width: 390, maxWords: 2, gap: 3 },
+  { name: "right_bold", y: 480, size: 54, width: 360, maxWords: 1, gap: 0 },
+  { name: "left_bold", y: 480, size: 54, width: 360, maxWords: 1, gap: 0 },
+  { name: "right_small_steps", y: 250, size: 34, width: 390, maxWords: 2, gap: 2 },
+  { name: "left_small_steps", y: 250, size: 34, width: 390, maxWords: 2, gap: 2 },
+  { name: "center_editorial", y: 420, size: 42, width: 860, maxWords: 2, gap: 3 },
+  { name: "bottom_editorial", y: 850, size: 40, width: 920, maxWords: 2, gap: 3 },
 ] as const;
 
 function hash(value: string) {
