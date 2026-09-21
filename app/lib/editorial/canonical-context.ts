@@ -77,11 +77,19 @@ export async function resolveCanonicalEditorialContext(input: {
     hook_id: row.hook_id ? String(row.hook_id) : undefined, final_hook: row.final_hook ? String(row.final_hook) : undefined,
     combo_key: row.combo_key ? String(row.combo_key) : undefined, created_at: row.created_at ? String(row.created_at) : undefined,
   }));
-  const selected = selectEditorial({
+  let selected = selectEditorial({
     seed: seed(input.accountId, input.personaId, input.formatId), accountId: input.accountId, personaId: input.personaId,
     pillarIds: accountPillars(account), formatIds: [input.formatId], topics, hooks, ctas, history,
     accountTopicCooldownDays: 14, accountHookCooldownDays: 7, networkTopicCooldownHours: 48, networkHookCooldownHours: 48,
   });
+  for (let attempt = 1; attempt <= 12 && selected.finalHook.length > 72; attempt += 1) {
+    selected = selectEditorial({
+      seed: `${seed(input.accountId, input.personaId, input.formatId)}:hook:${attempt}`, accountId: input.accountId, personaId: input.personaId,
+      pillarIds: accountPillars(account), formatIds: [input.formatId], topics, hooks, ctas, history,
+      accountTopicCooldownDays: 14, accountHookCooldownDays: 7, networkTopicCooldownHours: 48, networkHookCooldownHours: 48,
+    });
+  }
+  if (selected.finalHook.length > 72) throw new Error("CANONICAL_CONTEXT_UNAVAILABLE:no mobile-safe canonical hook for selected topic/format");
   const topic = selected.topic;
   const hook = selected.hook;
   const canonicalHook = selected.finalHook;
