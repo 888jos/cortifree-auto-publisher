@@ -1,6 +1,6 @@
 import { backendMode, convexConfigured, getConvexCounts, getConvexPing } from "../../lib/data-backend";
 import { googleServiceAccountConfigured, googleServiceAccountIdentity } from "../../lib/google/auth";
-import { CORTIFREE_SHEET_ID } from "../../lib/google/sheets";
+import { CORTIFREE_SHEET_ID, readSheetRange } from "../../lib/google/sheets";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
 
 function hostname(value?: string) {
@@ -49,6 +49,15 @@ export async function GET() {
     (counts.content_ctas ?? 0) >= 30
   );
   const googleSyncConfigured = googleServiceAccountConfigured();
+  let googleReadProbe: Record<string, unknown> = { ok: false, skipped: true };
+  if (googleSyncConfigured) {
+    try {
+      const values = await readSheetRange("00_INDEX", "A1:B2");
+      googleReadProbe = { ok: true, rows: values.length, columns: values[0]?.length ?? 0 };
+    } catch (error) {
+      googleReadProbe = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
   const ok = backendConfigured && convexLive && convexDataReady && domainIsolationOk;
   const p0Ready = ok && editorialReady && googleSyncConfigured;
   const production = backendConfigured && convexLive && convexDataReady
@@ -78,6 +87,7 @@ export async function GET() {
       googleSyncConfigured,
       googleServiceAccount: googleServiceAccountIdentity(),
       googleSheetId: CORTIFREE_SHEET_ID,
+      googleReadProbe,
       runtimeTruth: backendMode(),
       jsonFallbackEnabled: process.env.ALLOW_RUNTIME_JSON_FALLBACK === "true",
       domainIsolationOk,
