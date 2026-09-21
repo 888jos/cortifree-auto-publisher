@@ -1,6 +1,6 @@
 import { dataBackend } from "../data-backend";
 import { uploadConvexFile } from "../convex-storage";
-import { listDriveChildren, downloadDriveFile, type DriveFile } from "../google/drive";
+import { listDriveChildren, getDriveFile, downloadDriveFile, type DriveFile } from "../google/drive";
 import { readSheetObjects } from "../google/sheets";
 
 type Row = Record<string, unknown>;
@@ -50,12 +50,26 @@ async function upload(file: DriveFile) {
 export async function syncGoogleDriveToConvex(options: { limit?: number; scope?: "all" | "visual_refs" | "assets" } = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
   const scope = options.scope ?? "all";
+  const refTaxonomyPromise = readSheetObjects("08_VISUAL_REFS", "A1:X300");
+  const refTreePromise = scope === "visual_refs"
+    ? refTaxonomyPromise.then(async (rows) => {
+        const entries = await Promise.all(rows.filter((row) => row.drive_file_id).map(async (row) => {
+          try {
+            const file = await getDriveFile(String(row.drive_file_id));
+            return { file, path: [String(row.carousel_use || row.category || "hero_misc")] };
+          } catch {
+            return null;
+          }
+        }));
+        return entries.filter((entry): entry is WalkedFile => Boolean(entry));
+      })
+    : walk(VISUAL_REFS_ROOT);
   const [stockTaxonomy, refTaxonomy, stockTree, personaTree, refTree, existingAssets, existingRefs] = await Promise.all([
     scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:T500"),
-    readSheetObjects("08_VISUAL_REFS", "A1:X300"),
+    refTaxonomyPromise,
     scope === "visual_refs" ? Promise.resolve([]) : walk(STOCK_ROOT),
     scope === "visual_refs" ? Promise.resolve([]) : walk(PERSONAS_ROOT),
-    walk(VISUAL_REFS_ROOT),
+    refTreePromise,
     scope === "visual_refs" ? Promise.resolve([]) : backendRows("assets?select=*&limit=5000"),
     backendRows("visual_references?select=*&limit=5000"),
   ]);
