@@ -95,7 +95,8 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const headlineSize = frame.headlineSize ?? 62;
   const bodySize = frame.bodySize ?? 32;
-  const headline = wrap(slide.headline, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
+  const headlineText = slide.position === 1 || slide.role.toUpperCase() === "HOOK" ? slide.headline : slide.headline.replace(/^\d+[.)]\s*/, "");
+  const headline = wrap(headlineText, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
   // Use a Linux-available generic face in Sharp/librsvg. Missing server fonts
   // render as tofu boxes, which makes otherwise valid copy unreadable.
@@ -122,18 +123,14 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const headlineSize = frame.headlineSize ?? 62;
   const bodySize = frame.bodySize ?? 32;
-  const headline = wrap(slide.headline, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
+  const headlineText = slide.position === 1 || slide.role.toUpperCase() === "HOOK" ? slide.headline : slide.headline.replace(/^\d+[.)]\s*/, "");
+  const headline = wrap(headlineText, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
   const align = frame.align ?? "left";
   const headlineLineHeight = Math.round(headlineSize * 1.1);
   const bodyLineHeight = Math.round(bodySize * 1.32);
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
   const overlays: OverlayOptions[] = [];
-  if (!isHook) {
-    const label = `${String(slide.position).padStart(2, "0")} · ${slide.role}`;
-    const labelImage = await rasterText(label, { width: frame.width, height: 48, size: 22, weight: 700, color: frame.accentColor ?? "#ffb6c8", align: "left", spacing: 0 });
-    overlays.push({ input: labelImage, left: frame.x, top: (frame.headlineY ?? frame.y) - 72 });
-  }
   if (isHook) {
     const design = hookDesign ?? { format: "fallback", x: 600, y: 300, width: 390, size: 72, weight: 700, maxWordsPerLine: 2, lineGap: 8, align: "left" as const, textColor: "#20243A", accentColor: "#FFE26E", hookColor: "#FFE26E" };
     const hookTop = design.y;
@@ -146,10 +143,10 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     }
     return overlays;
   }
-  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize) });
+  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: hookDesign?.hookColor ?? frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize) });
   overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
-    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize) });
+    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: hookDesign?.textColor ?? frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize) });
     overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? frame.y + 180 });
   }
   return overlays;
@@ -168,7 +165,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       if (!imageResponse.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
       const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
       const fitted = await sharp(imageBytes).rotate().resize({ width: tileWidth, height: tileHeight, fit: "cover", position: "centre" }).png().toBuffer();
-      if (index === 0 && (slide.position === 1 || slide.role.toUpperCase() === "HOOK")) hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
+      if (index === 0) hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
       const [left, top] = positions[index]!;
       composites.push({ input: fitted, left, top });
     }
@@ -178,7 +175,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     if (!imageResponse.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
     const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
-    if (slide.position === 1 || slide.role.toUpperCase() === "HOOK") hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
+    hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
   }
   composites.push(...await makeRasterTextOverlays(slide, geometry, hookDesign));
