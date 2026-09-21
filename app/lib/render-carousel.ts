@@ -239,7 +239,9 @@ export async function renderCarousel(input: {
   assertCortiFreeCarouselId(input.id);
   const assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
-  const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, slides: input.slides });
+  // A mixed carousel only needs the persona asset for the hook here; the
+  // remaining 2×2 tiles are selected from persona-generated assets below.
+  const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides });
   const reservedGridAssets = new Set<string>();
   const gridMatches = input.layout === "grid-2x2"
     ? input.slides.map((slide, index) => {
