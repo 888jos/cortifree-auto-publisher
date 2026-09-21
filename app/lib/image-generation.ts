@@ -1,7 +1,6 @@
 import sharp from "sharp";
 import {
   buildImagePrompt,
-  assertGenerationBudget,
   generatedAssetName,
   ModelArkSeedreamProvider,
   personaAssetFolder,
@@ -93,16 +92,6 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
   if (!current.enabled && !injectedProvider) throw new Error("IMAGE_GENERATION_ENABLED is false");
   if ((!current.apiKey || !current.model) && !injectedProvider) throw new Error("ModelArk credentials are not configured");
   if (!injectedProvider) {
-    const dayStart = new Date();
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const usageResponse = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(dayStart.toISOString()) + "&select=estimated_cost_usd");
-    if (!usageResponse.ok) throw new Error("Cannot verify daily image generation budget");
-    const usage = await usageResponse.json() as Array<{ estimated_cost_usd: number }>;
-    assertGenerationBudget({
-      spentTodayUsd: usage.reduce((total, row) => total + Number(row.estimated_cost_usd ?? 0), 0),
-      unitCostUsd: current.unitCostUsd,
-      dailyCapUsd: current.dailyCapUsd,
-    });
     const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
     const monthResponse = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(monthStart.toISOString()) + "&select=estimated_cost_usd");
     if (!monthResponse.ok) throw new Error("Cannot verify monthly image generation budget");
