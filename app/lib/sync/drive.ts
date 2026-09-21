@@ -39,6 +39,13 @@ async function upsert(table: string, row: Row) {
   });
   if (!response.ok) throw new Error(await response.text());
 }
+async function patch(table: string, id: string, row: Row) {
+  const response = await dataBackend(`${table}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(row),
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
 function md5Matches(existing: Row | undefined, file: DriveFile) {
   return Boolean(existing?.public_url && file.md5Checksum && existing.drive_md5 === file.md5Checksum);
 }
@@ -80,6 +87,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   const refByDrive = new Map(existingRefs.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   let uploaded = 0;
   let skipped = 0;
+  let metadataRepaired = 0;
   let failed = 0;
   const failures: Array<{ id: string; name: string; error: string }> = [];
 
@@ -87,23 +95,10 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = stockByDrive.get(entry.file.id) ?? {};
     const existing = assetByDrive.get(entry.file.id);
-    if (md5Matches(existing, entry.file)) { skipped += 1; return; }
-    const storage = await upload(entry.file);
     const category = String(taxonomy.category || entry.path[0] || "uncategorized");
-    await upsert("assets", {
-      id: taxonomy.stock_key || `DRIVE_STOCK_${entry.file.id}`,
-      workspace_id: "cortifree",
-      drive_file_id: entry.file.id,
-      drive_md5: entry.file.md5Checksum ?? null,
-      drive_modified_time: entry.file.modifiedTime ?? null,
-      filename: entry.file.name,
+    const canonicalMetadata = {
       category,
-      subcategory: category,
-      persona_id: null,
-      source_type: "stock",
-      public_url: storage.publicUrl,
-      storage_bucket: "convex",
-      convex_storage_id: String(storage.storageId),
+      subcategory: taxonomy.scene || category,
       scene: taxonomy.scene ?? null,
       framing: taxonomy.framing ?? null,
       activity: taxonomy.activity ?? null,
@@ -112,9 +107,31 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       good_for: split(taxonomy.good_for_pillars),
       enabled: taxonomy.enabled !== false,
       weight: Number(taxonomy.weight ?? 1),
+      metadata: { drive_path: entry.path, sheet_sync_status: taxonomy.sync_status ?? null, canonical_source: "08_STOCK_ASSETS" },
+      indexed_at: new Date().toISOString(),
+    };
+    if (md5Matches(existing, entry.file)) {
+      await patch("assets", String(existing?.id), canonicalMetadata);
+      metadataRepaired += 1;
+      skipped += 1;
+      return;
+    }
+    const storage = await upload(entry.file);
+    await upsert("assets", {
+      id: taxonomy.stock_key || `DRIVE_STOCK_${entry.file.id}`,
+      workspace_id: "cortifree",
+      drive_file_id: entry.file.id,
+      drive_md5: entry.file.md5Checksum ?? null,
+      drive_modified_time: entry.file.modifiedTime ?? null,
+      filename: entry.file.name,
+      persona_id: null,
+      source_type: "stock",
+      public_url: storage.publicUrl,
+      storage_bucket: "convex",
+      convex_storage_id: String(storage.storageId),
+      ...canonicalMetadata,
       use_count: Number(taxonomy.use_count ?? 0),
       indexed_at: new Date().toISOString(),
-      metadata: { drive_path: entry.path, sheet_sync_status: taxonomy.sync_status ?? null },
     });
     uploaded += 1;
   }
@@ -154,15 +171,10 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = refsByDrive.get(entry.file.id) ?? {};
     const existing = refByDrive.get(entry.file.id);
-    if (existing?.thumbnail_url) { skipped += 1; return; }
-    const storage = await upload(entry.file);
-    await upsert("visual_references", {
-      id: taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`,
-      workspace_id: "cortifree",
+    const canonicalMetadata = {
       category: taxonomy.carousel_use || entry.path[0] || "hero_misc",
       source_url: taxonomy.source_url ?? null,
       source_platform: taxonomy.source_platform || "manual",
-      storage_path: storage.publicUrl,
       pose: taxonomy.pose_detail || taxonomy.pose_group || "",
       framing: taxonomy.framing_group || "",
       outfit: taxonomy.outfit_group || "",
@@ -172,11 +184,24 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       orientation: taxonomy.orientation || "portrait",
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
-      thumbnail_url: storage.publicUrl,
-      file_hash: entry.file.md5Checksum ?? null,
-      metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null },
+      metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       enabled: taxonomy.enabled !== false,
       updated_at: new Date().toISOString(),
+    };
+    if (existing?.thumbnail_url) {
+      await patch("visual_references", String(existing.id), canonicalMetadata);
+      metadataRepaired += 1;
+      skipped += 1;
+      return;
+    }
+    const storage = await upload(entry.file);
+    await upsert("visual_references", {
+      id: taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`,
+      workspace_id: "cortifree",
+      storage_path: storage.publicUrl,
+      ...canonicalMetadata,
+      thumbnail_url: storage.publicUrl,
+      file_hash: entry.file.md5Checksum ?? null,
     });
     uploaded += 1;
   }
@@ -206,10 +231,19 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     status: failed ? "PARTIAL" : "SUCCESS",
     uploaded,
     skipped,
+    metadata_repaired: metadataRepaired,
     failed,
     remaining_hint: Math.max(0, (scope === "visual_refs" ? refTree : [...stockTree, ...personaTree, ...refTree]).filter((x) => isImage(x.file)).length - skipped - uploaded),
     scope,
     failures: failures.slice(0, 20),
+    audit: {
+      stock_drive_images: stockTree.filter((entry) => isImage(entry.file)).length,
+      stock_sheet_rows: stockTaxonomy.length,
+      stock_drive_only_rows: stockTaxonomy.filter((row) => String(row.sync_status ?? "").toUpperCase() === "DRIVE_ONLY_NEEDS_SYNC").map((row) => String(row.stock_key ?? row.drive_file_id ?? "unknown")),
+      visual_ref_drive_images: refTree.filter((entry) => isImage(entry.file)).length,
+      visual_ref_sheet_rows: refTaxonomy.length,
+      canonical_metadata_repaired: metadataRepaired,
+    },
     finished_at: new Date().toISOString(),
   };
   const logResponse = await dataBackend("system_logs", {

@@ -3,7 +3,7 @@ import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
-  activity: string; mood: string; colors: string[]; tags: string[]; public_url: string; use_count: number; last_used_at: string | null;
+  activity: string; mood: string; scene?: string; good_for?: string[]; colors: string[]; tags: string[]; public_url: string; use_count: number; last_used_at: string | null;
   source_type?: string; persona_id?: string | null;
 };
 
@@ -12,7 +12,20 @@ export type JitAssetDecision =
   | { action: "reuse_persona" | "reuse_stock"; match: AssetMatch }
   | { action: "generate"; reason: string };
 
-export type AssetMatch = { asset: SelectableAsset; score: number; matchedTerms: string[] };
+export type AssetMatch = {
+  asset: SelectableAsset;
+  score: number;
+  matchedTerms: string[];
+  candidatePoolSize?: number;
+  matchedDimensions?: string[];
+  fallbackPath?: string;
+  threshold?: number;
+  thresholdBypassed?: boolean;
+};
+
+const AUTO_THRESHOLD = 60;
+const CRITICAL_THRESHOLD = 65;
+const EXPLICIT_FALLBACK_THRESHOLD = 50;
 
 const categoryByType: Record<string, string[]> = {
   C01_MORNING_ROUTINE: ["morning", "food", "self_care", "fitness"],
@@ -37,7 +50,15 @@ function terms(value: string) {
 }
 
 function assetText(asset: SelectableAsset) {
-  return `${asset.filename} ${asset.category} ${asset.subcategory} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+  return `${asset.filename} ${asset.category} ${asset.subcategory} ${asset.scene ?? ""} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+}
+
+function fieldTerms(value: unknown) {
+  return terms(Array.isArray(value) ? value.join(" ") : String(value ?? ""));
+}
+
+function criticalSlide(slide: { position: number; role?: string; assetType?: string }) {
+  return slide.position === 1 || slide.role?.toUpperCase() === "HOOK" || slide.assetType === "persona";
 }
 
 function assetIdentity(asset: SelectableAsset) {
@@ -86,7 +107,7 @@ function compatibleWithScene(asset: SelectableAsset, constraint: SceneConstraint
 }
 
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
-  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id&enabled=eq.true&public_url=not.is.null&limit=1000`);
+  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
   return await response.json() as SelectableAsset[];
 }
@@ -137,34 +158,65 @@ export function chooseAssets(options: {
       const haystack = assetText(asset);
       const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
       const matchedAssetQueryTerms = assetQueryTerms.filter((term) => haystack.includes(term));
+      const sceneTerms = fieldTerms(asset.scene);
+      const pillarTerms = fieldTerms(asset.good_for);
+      const activityTerms = fieldTerms(asset.activity);
+      const framingTerms = fieldTerms(asset.framing);
+      const moodTerms = fieldTerms(asset.mood);
+      const matchedScene = queryTerms.filter((term) => sceneTerms.includes(term) || haystack.includes(term) && /scene|bed|desk|phone|walk|journal|shower|room|couch|commute/.test(term));
+      const matchedPillar = queryTerms.filter((term) => pillarTerms.includes(term));
+      const matchedActivity = queryTerms.filter((term) => activityTerms.includes(term));
+      const matchedFraming = queryTerms.filter((term) => framingTerms.includes(term));
+      const matchedMood = queryTerms.filter((term) => moodTerms.includes(term));
       const categoryRank = preferred.indexOf(asset.category);
-      let score = categoryRank === 0 ? 44 : categoryRank > 0 ? Math.max(12, 34 - categoryRank * 7) : -20;
-      score += matchedTerms.length * 7;
+      let score = categoryRank === 0 ? 24 : categoryRank > 0 ? Math.max(8, 18 - categoryRank * 3) : 0;
+      score += matchedTerms.length * 3;
       // The explicit asset query is the strongest editorial signal. This keeps
       // a requested coffee-at-a-desk portrait from losing to a generic mirror
       // image merely because both are tagged as lifestyle/persona content.
-      score += matchedAssetQueryTerms.length * 12;
-      score += asset.orientation === "portrait" ? 12 : asset.orientation === "square" ? 4 : 0;
-      if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 28;
+      score += matchedAssetQueryTerms.length * 7;
+      score += matchedScene.length * 7;
+      score += matchedPillar.length * 6;
+      score += matchedActivity.length * 5;
+      score += matchedFraming.length * 3;
+      score += matchedMood.length * 2;
+      score += asset.orientation === "portrait" ? 8 : asset.orientation === "square" ? 3 : 0;
+      if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 34;
+      if (hookNeedsPersona && asset.source_type === "persona_generated") score += 12;
       score += asset.framing === "wide" && /wide|room|landscape/.test(slide.visualIntent.toLowerCase()) ? 8 : 0;
       score -= Math.min(asset.use_count ?? 0, 12) * 1.8;
       if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000) score -= 16;
       if (used.has(asset.id)) score -= 1_000;
-      return { asset, score, matchedTerms };
+      const matchedDimensions = [
+        matchedScene.length ? "scene" : "",
+        matchedPillar.length ? "good_for" : "",
+        matchedActivity.length ? "activity" : "",
+        matchedFraming.length ? "framing" : "",
+        matchedMood.length ? "mood" : "",
+        matchedAssetQueryTerms.length ? "asset_query" : "",
+      ].filter(Boolean);
+      return { asset, score, matchedTerms, matchedDimensions };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
-    const fallbackCandidates = !candidates.length && !hookNeedsPersona
-      ? usableRequested
-        .filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)) && (!constraint || !constraint.forbidden(assetText(asset))))
-        .map((asset) => ({ asset, score: -5, matchedTerms: [] as string[] }))
-      : [];
-    const selected = candidates[0] ?? fallbackCandidates[0];
+    const threshold = criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
+    const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
+    const fallbackCandidate = !selectedCandidate && !criticalSlide(slide)
+      ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)
+      : undefined;
+    const selected = selectedCandidate ?? fallbackCandidate;
     if (!selected) {
-      if (constraint || !hookNeedsPersona) throw new Error(`NO_COMPATIBLE_ASSET:GENERATE_REQUIRED:slide_${slide.position}`);
-      throw new Error(`No usable asset for slide ${slide.position}`);
+      const topScore = candidates[0]?.score ?? 0;
+      throw new Error(`LOW_CONFIDENCE_ASSET:slide_${slide.position}:score_${topScore.toFixed(1)}:required_${threshold}:candidates_${candidates.length}`);
     }
     used.add(selected.asset.id);
     usedIdentities.add(assetIdentity(selected.asset));
-    return { ...selected, score: Number(selected.score.toFixed(2)) };
+    return {
+      ...selected,
+      score: Number(selected.score.toFixed(2)),
+      candidatePoolSize: compatible.length,
+      fallbackPath: selectedCandidate ? "primary" : "explicit_noncritical_fallback",
+      threshold,
+      thresholdBypassed: false,
+    };
   });
 }
 
@@ -175,13 +227,16 @@ export function selectAssetOrGeneration(options: {
   visualIntent: string;
   minimumScore?: number;
 }): JitAssetDecision {
-  const minimumScore = options.minimumScore ?? 20;
+  const minimumScore = options.minimumScore ?? AUTO_THRESHOLD;
   const score = (asset: JitSelectableAsset) => {
     const queryTerms = terms(`${options.category} ${options.visualIntent}`);
     const haystack = assetText(asset);
     const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
-    let value = matchedTerms.length * 9 + (asset.category === options.category ? 24 : 0);
+    let value = matchedTerms.length * 8 + (asset.category === options.category ? 24 : 0);
+    value += fieldTerms(asset.scene).some((term) => matchedTerms.includes(term)) ? 12 : 0;
+    value += fieldTerms(asset.good_for).some((term) => matchedTerms.includes(term)) ? 12 : 0;
     value += asset.orientation === "portrait" ? 8 : 0;
+    value += asset.source_type === "persona_generated" ? 12 : asset.source_type === "stock" ? 8 : 0;
     value -= Math.min(asset.use_count ?? 0, 12) * 1.8;
     if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000) value -= 16;
     return { asset, score: Number(value.toFixed(2)), matchedTerms };

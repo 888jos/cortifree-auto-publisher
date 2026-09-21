@@ -301,7 +301,23 @@ export async function renderCarousel(input: {
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
-    const renderMetadata = { geometry, storage_path: upload.storagePath, asset_score: primaryMatch.score, matched_terms: primaryMatch.matchedTerms, asset_ids: slideMatches.map((match) => match.asset.id), asset_source_types: slideMatches.map((match) => match.asset.source_type ?? null) };
+    const renderMetadata = {
+      geometry,
+      storage_path: upload.storagePath,
+      asset_score: primaryMatch.score,
+      matched_terms: primaryMatch.matchedTerms,
+      selection: {
+        candidate_pool_size: primaryMatch.candidatePoolSize ?? null,
+        selected_asset_id: primaryMatch.asset.id,
+        final_score: primaryMatch.score,
+        matched_dimensions: primaryMatch.matchedDimensions ?? [],
+        fallback_path: primaryMatch.fallbackPath ?? "primary",
+        threshold: primaryMatch.threshold ?? null,
+        threshold_bypassed: primaryMatch.thresholdBypassed ?? false,
+      },
+      asset_ids: slideMatches.map((match) => match.asset.id),
+      asset_source_types: slideMatches.map((match) => match.asset.source_type ?? null),
+    };
     return {
       databaseRow: { workspace_id: CORTIFREE_WORKSPACE_ID, carousel_id: input.id, position: slide.position, template_id: input.layout, headline: slide.headline, body: slide.body, asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent }, asset_id: primaryMatch.asset.id, rendered_url: upload.publicUrl, render_metadata: renderMetadata },
       result: { position: slide.position, url: upload.publicUrl, assetId: primaryMatch.asset.id, assetFilename: primaryMatch.asset.filename, score: primaryMatch.score, matchedTerms: primaryMatch.matchedTerms, geometry, assetIds: slideMatches.map((match) => match.asset.id), assetSourceTypes: slideMatches.map((match) => match.asset.source_type ?? null) },
