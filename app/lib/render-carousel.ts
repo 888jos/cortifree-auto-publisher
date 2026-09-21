@@ -181,10 +181,10 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     return overlays;
   }
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
-  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: hookDesign?.hookColor ?? frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
+  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
   overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
-    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: hookDesign?.textColor ?? frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
+    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
     const bodyTop = (frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22;
     overlays.push({ input: bodyImage, left: frame.x, top: bodyTop });
   }
@@ -216,6 +216,10 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
+  }
+  if (imageFrame.mode === "grid-2x2" && !(slide.position === 1 || slide.role.toUpperCase() === "HOOK")) {
+    const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="790" width="976" height="390" rx="28" fill="#122019" fill-opacity="0.62"/></svg>`);
+    composites.push({ input: panel, left: 0, top: 0 });
   }
   composites.push(...await makeRasterTextOverlays(slide, geometry, hookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
