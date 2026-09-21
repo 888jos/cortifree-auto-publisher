@@ -173,7 +173,6 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
       thumbnail_url: storage.publicUrl,
-      convex_storage_id: String(storage.storageId),
       review_status: reviewStatus,
       qa_flag: taxonomy.qa_flag ?? null,
       enabled: taxonomy.enabled !== false && reviewStatus !== "REVIEW",
