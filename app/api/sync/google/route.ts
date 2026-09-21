@@ -18,7 +18,9 @@ async function run(request: Request) {
   const offset = Number(url.searchParams.get("offset") || 0);
   const scope = url.searchParams.get("scope") || "all";
   try {
-    const editorial = await syncEditorialSheetToConvex();
+    const editorial = scope === "all" || scope === "sheet"
+      ? await syncEditorialSheetToConvex()
+      : { status: "SKIPPED", reason: "Drive-only scope; canonical editorial mirror unchanged" };
     if (scope === "sheet") return Response.json({ ok: true, editorial, synced_at: new Date().toISOString() });
     const drive = await syncGoogleDriveToConvex({ limit, offset, scope: scope === "visual_refs" || scope === "assets" || scope === "stock" ? scope : "all" });
     return Response.json({ ok: true, editorial, drive, synced_at: new Date().toISOString() });
