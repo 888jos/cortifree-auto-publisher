@@ -32,12 +32,22 @@ async function backendRows(resource: string) {
   return await response.json() as Row[];
 }
 async function upsert(table: string, row: Row) {
-  const response = await dataBackend(`${table}?on_conflict=id`, {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify(row),
-  });
-  if (!response.ok) throw new Error(await response.text());
+  let payload = { ...row };
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await dataBackend(`${table}?on_conflict=id`, {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    if (response.ok) return;
+    const errorText = await response.text();
+    const missingColumn = errorText.match(/Could not find the '([^']+)' column/);
+    if (!missingColumn || !Object.prototype.hasOwnProperty.call(payload, missingColumn[1])) throw new Error(errorText);
+    const copy: Row = { ...payload };
+    delete copy[missingColumn[1]];
+    payload = copy;
+  }
+  throw new Error(`Drive sync failed for ${table}: too many schema compatibility retries`);
 }
 async function patch(table: string, id: string, row: Row) {
   const response = await dataBackend(`${table}?id=eq.${encodeURIComponent(id)}`, {
@@ -145,7 +155,6 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
           tags: split(row.tags),
           good_for: split(row.good_for_pillars),
           enabled: row.enabled !== false,
-          weight: Number(row.weight ?? 1),
           metadata: { ...(existing.metadata as Row ?? {}), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null },
           indexed_at: new Date().toISOString(),
         });
@@ -169,7 +178,6 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: taxonomy.enabled !== false,
-      weight: Number(taxonomy.weight ?? 1),
       metadata: { drive_path: entry.path, sheet_sync_status: taxonomy.sync_status ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
