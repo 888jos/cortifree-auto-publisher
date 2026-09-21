@@ -22,7 +22,7 @@ async function run(request: Request) {
       ? await syncEditorialSheetToConvex()
       : { status: "SKIPPED", reason: "Drive-only scope; canonical editorial mirror unchanged" };
     if (scope === "sheet") return Response.json({ ok: true, editorial, synced_at: new Date().toISOString() });
-    const drive = await syncGoogleDriveToConvex({ limit, offset, scope: scope === "visual_refs" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? scope : "all" });
+    const drive = await syncGoogleDriveToConvex({ limit, offset, scope: scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? scope : "all" });
     return Response.json({ ok: true, editorial, drive, synced_at: new Date().toISOString() });
   } catch (error) {
     return Response.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });

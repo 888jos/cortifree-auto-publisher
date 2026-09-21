@@ -70,19 +70,19 @@ async function upload(file: DriveFile) {
   return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
 }
 
-export async function syncGoogleDriveToConvex(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "assets" | "stock" | "stock_missing" } = {}) {
+export async function syncGoogleDriveToConvex(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" } = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
   const offset = Math.max(0, options.offset ?? 0);
   const scope = options.scope ?? "all";
   const refTaxonomyPromise = readSheetObjects("08_VISUAL_REFS", "A1:X300");
-  const refTreePromise = scope === "visual_refs" || scope === "assets" || scope === "stock" || scope === "stock_missing"
+  const refTreePromise = scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing"
     ? Promise.resolve([])
     : walk(VISUAL_REFS_ROOT);
   const [stockTaxonomy, refTaxonomy, stockTree, personaTree, refTree, existingAssets, existingRefs] = await Promise.all([
     scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:T500"),
     refTaxonomyPromise,
-    scope === "visual_refs" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(STOCK_ROOT),
-    scope === "visual_refs" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(PERSONAS_ROOT),
+    scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(STOCK_ROOT),
+    scope === "visual_refs" || scope === "visual_refs_missing" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(PERSONAS_ROOT),
     refTreePromise,
     scope === "visual_refs" ? Promise.resolve([]) : backendRows("assets?select=*&limit=5000"),
     backendRows("visual_references?select=*&limit=5000"),
@@ -113,7 +113,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     }))).filter((entry): entry is WalkedFile => Boolean(entry))
     : stockTree;
 
-  const visualRefEntries: WalkedFile[] = scope === "visual_refs"
+  const visualRefEntries: WalkedFile[] = scope === "visual_refs_missing"
     ? (await Promise.all(refTaxonomy.filter((row) => row.drive_file_id && !refById.has(String(row.ref_id))).slice(offset, offset + limit).map(async (row) => {
       try {
         return { file: await getDriveFile(String(row.drive_file_id)), path: [String(row.carousel_use || row.category || "hero_misc")] };
@@ -124,7 +124,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     }))).filter((entry): entry is WalkedFile => Boolean(entry))
     : refTree;
 
-  if (scope === "visual_refs") {
+  if (scope === "visual_refs" || scope === "visual_refs_missing") {
     const refRepairs = refTaxonomy.map((row) => {
       const existing = refById.get(String(row.ref_id ?? ""));
       if (!existing) return null;
@@ -323,7 +323,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     uploaded += 1;
   }
 
-  const tasks: Array<() => Promise<void>> = scope === "visual_refs"
+  const tasks: Array<() => Promise<void>> = scope === "visual_refs" || scope === "visual_refs_missing"
     ? visualRefEntries.map((entry) => () => syncReference(entry))
     : scope === "assets" || scope === "stock" || scope === "stock_missing"
       ? [...personaTree.map((entry) => () => syncPersona(entry)), ...stockEntries.map((entry) => () => syncStock(entry))]
@@ -360,8 +360,9 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       stock_sheet_sample: stockTaxonomy[0] ?? null,
       stock_drive_only_rows: stockTaxonomy.filter((row) => String(row.sync_status ?? "").toUpperCase() === "DRIVE_ONLY_NEEDS_SYNC").map((row) => String(row.stock_key ?? row.drive_file_id ?? "unknown")),
       stock_runtime_missing_rows: stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase())).map((row) => String(row.stock_key ?? row.drive_file_id)),
-      visual_ref_drive_images: refTree.filter((entry) => isImage(entry.file)).length,
+      visual_ref_drive_images: scope === "visual_refs" || scope === "visual_refs_missing" ? refTaxonomy.length : refTree.filter((entry) => isImage(entry.file)).length,
       visual_ref_sheet_rows: refTaxonomy.length,
+      visual_ref_runtime_missing_rows: refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id))).map((row) => String(row.ref_id)),
       canonical_metadata_repaired: metadataRepaired,
     },
     finished_at: new Date().toISOString(),
