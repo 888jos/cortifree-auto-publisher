@@ -72,6 +72,8 @@ describe('persona image infrastructure', () => {
     });
     assert.match(prompt, /Image 1 defines the exact identity/);
     assert.match(prompt, /Image 2 is only the visual reference/);
+    assert.match(prompt, /face-swap exactly one person/);
+    assert.match(prompt, /Never face-swap, merge, duplicate or alter the second person's face/);
     assert.match(prompt, /Do not copy the identity/);
     assert.match(prompt, /No text\. No logos\. No watermark/);
     assert.match(prompt, /full body/);
