@@ -167,10 +167,10 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     const hookHeadline = wrapHook(slide.headline.toLowerCase(), Math.max(2, design.maxWordsPerLine), 5);
     // Keep long hooks in a compact, high-contrast block instead of allowing
     // one word per line to run through the person or the focal object.
-    const hookSize = hookHeadline.length > 4 ? Math.min(design.size, 44) : design.size;
+    const hookSize = hookHeadline.length > 4 ? Math.min(design.size, 38) : design.size;
     const hookTop = hookHeadline.length > 4 ? 150 : design.y;
     const hookX = design.x;
-    const hookWidth = design.width;
+    const hookWidth = Math.max(design.width, 440);
     for (const [index, line] of hookHeadline.entries()) {
       const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.35), size: hookSize, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: "TikTok Sans" });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (hookSize + Math.max(8, design.lineGap)) });
