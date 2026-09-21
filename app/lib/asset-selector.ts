@@ -127,7 +127,9 @@ export function chooseAssets(options: {
     // For faceswapped persona assets, identity continuity is mandatory and
     // the generated scene is already the visual reference. Do not discard a
     // valid face asset only because its indexed keywords are sparse.
-    const compatible = options.personaOnly ? usableRequested : usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
+    const compatible = options.personaOnly
+      ? usableRequested
+      : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint));
     const unused = compatible.filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)));
     const distinct = unused.length || hookNeedsPersona ? compatible : [];
     const candidates = distinct.map((asset) => {
