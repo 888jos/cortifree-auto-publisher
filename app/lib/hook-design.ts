@@ -77,5 +77,6 @@ export async function analyzeHookComposition(imageBytes: Buffer, seed: string): 
   });
   const accentColor = pastelAccents[distances.indexOf(Math.max(...distances))]!;
   const hookColor = zoneLuma > 165 ? textColor : accentColor;
-  return { format: format.name, x, y: useCenter || useBottom ? format.y : format.y, width, size: format.size, weight: format.name.includes("bold") ? 800 : 700, maxWordsPerLine: format.maxWords, lineGap: format.gap, align: useCenter ? "center" : "left", textColor, accentColor, hookColor };
+  const y = useCenter || useBottom ? format.y : side === "left" ? Math.min(format.y, 165) : format.y;
+  return { format: format.name, x, y, width, size: format.size, weight: format.name.includes("bold") ? 800 : 700, maxWordsPerLine: format.maxWords, lineGap: format.gap, align: useCenter ? "center" : "left", textColor, accentColor, hookColor };
 }
