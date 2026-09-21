@@ -14,7 +14,6 @@ function mix(value: unknown) {
 
 function account(row: Row): Row {
   return {
-    id: row.account_id,
     account_id: row.account_id,
     persona_id: row.persona_id,
     platform: row.platform || "tiktok",
