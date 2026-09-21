@@ -14,7 +14,9 @@ function mix(value: unknown) {
 
 function account(row: Row): Row {
   return {
+    id: row.account_id,
     account_id: row.account_id,
+    persona_id: row.persona_id,
     display_name_candidate: row.display_name_candidate,
     username_candidate: row.username_candidate,
     platform: row.platform || "tiktok",
@@ -29,6 +31,9 @@ function account(row: Row): Row {
     promo_ratio: row.promo_ratio || 0.08,
     ready_buffer_days: row.ready_buffer_days || 3,
     posting_enabled: row.posting_enabled,
+    profile_picture_drive_file_id: row.profile_picture_drive_file_id || null,
+    profile_picture_filename: row.profile_picture_filename || null,
+    profile_picture_status: row.profile_picture_status || null,
     name: row.display_name_candidate || row.username_candidate || row.account_id,
     platforms: [String(row.platform || "tiktok")],
     secondary_pillar_ids: split(row.secondary_pillar_ids),
@@ -65,7 +70,7 @@ function persona(row: Row): Row {
 
 const mappings: Mapping[] = [
   { sheet: "01_PERSONAS", range: "A1:X40", table: "content_personas", key: "persona_id", transform: persona },
-  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "content_accounts", key: "account_id", transform: account },
+  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id" },
   { sheet: "05_TOPICS_ANGLES", range: "A1:O1000", table: "content_topics", key: "topic_id" },
@@ -86,7 +91,8 @@ async function upsert(table: string, key: string, rows: Row[]) {
       : row;
     return { ...normalized, ...(supabaseRuntime && legacySupabase ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
   });
-  const response = await dataBackend(`${table}?on_conflict=${supabaseRuntime ? key : "id"}`, {
+  const conflictKey = table === "accounts" ? "id" : (supabaseRuntime ? key : "id");
+  const response = await dataBackend(`${table}?on_conflict=${conflictKey}`, {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(payload),
@@ -99,11 +105,7 @@ export async function syncEditorialSheetToConvex() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
-    if (backendMode() === "supabase" && mapping.table === "content_accounts") {
-      counts[mapping.table] = 0;
-      continue;
-    }
-    if (backendMode() === "supabase" && !new Set(["content_personas", "content_topics", "content_hooks", "content_ctas"]).has(mapping.table)) {
+    if (backendMode() === "supabase" && !new Set(["accounts", "content_personas", "content_topics", "content_hooks", "content_ctas"]).has(mapping.table)) {
       counts[mapping.table] = 0;
       continue;
     }

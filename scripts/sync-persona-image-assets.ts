@@ -19,7 +19,7 @@ async function existingUrl(resource: string, field: string) {
 
 function folderCategory(file: string) {
   const folder = path.basename(path.dirname(file));
-  const map: Record<string, string> = { '00_MASTER': 'master', '01_REFERENCES': 'reference', '02_HOME': 'home', '03_FITNESS': 'fitness', '04_OUTDOORS': 'outdoors', '05_SELF_CARE': 'self_care', '06_FOOD': 'food', '07_WORK_STUDY': 'work_study', '08_OTHER': 'other' };
+  const map: Record<string, string> = { '00_MASTER': 'master', '01_REFERENCES': 'reference', '02_HOME': 'home', '03_FITNESS': 'fitness', '04_OUTDOORS': 'outdoors', '05_SELF_CARE': 'self_care', '06_FOOD': 'food', '07_OTHER': 'other', '07_WORK_STUDY': 'other', '08_OTHER': 'other' };
   return map[folder] ?? 'other';
 }
 

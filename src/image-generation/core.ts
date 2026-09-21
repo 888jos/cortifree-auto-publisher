@@ -28,8 +28,8 @@ export function buildImagePrompt(persona: PersonaConfig, reference: VisualRefere
 }
 
 export function personaAssetFolder(category: string) {
-  const mapping: Record<string, string> = { home: "02_HOME", fitness: "03_FITNESS", outdoors: "04_OUTDOORS", self_care: "05_SELF_CARE", food: "06_FOOD", work_study: "07_WORK_STUDY", other: "08_OTHER" };
-  return mapping[category] ?? "08_OTHER";
+  const mapping: Record<string, string> = { home: "02_HOME", fitness: "03_FITNESS", outdoors: "04_OUTDOORS", self_care: "05_SELF_CARE", food: "06_FOOD", work_study: "07_OTHER", other: "07_OTHER" };
+  return mapping[category] ?? "07_OTHER";
 }
 
 export function generatedAssetName(personaName: string, category: string, existing: string[]) {
