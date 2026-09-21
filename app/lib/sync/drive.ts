@@ -49,6 +49,12 @@ async function patch(table: string, id: string, row: Row) {
 function md5Matches(existing: Row | undefined, file: DriveFile) {
   return Boolean(existing?.public_url && file.md5Checksum && existing.drive_md5 === file.md5Checksum);
 }
+function canonicalArray(value: unknown) {
+  return Array.isArray(value) ? value.map(String).sort() : [];
+}
+function sameCanonicalValue(left: unknown, right: unknown) {
+  return JSON.stringify(canonicalArray(left)) === JSON.stringify(canonicalArray(right));
+}
 async function upload(file: DriveFile) {
   const downloaded = await downloadDriveFile(file.id);
   return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
@@ -109,9 +115,20 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     for (const row of stockTaxonomy) {
       const existing = row.drive_file_id ? assetByDrive.get(String(row.drive_file_id)) : undefined;
       if (!existing || !row.drive_file_id) continue;
+      const expectedCategory = String(row.category || existing.category || "uncategorized");
+      const expectedSubcategory = String(row.scene || row.category || existing.subcategory || "uncategorized");
+      const metadataNeedsRepair = String(existing.category ?? "") !== expectedCategory
+        || String(existing.subcategory ?? "") !== expectedSubcategory
+        || String(existing.scene ?? "") !== String(row.scene ?? "")
+        || String(existing.framing ?? "") !== String(row.framing ?? "")
+        || String(existing.activity ?? "") !== String(row.activity ?? "")
+        || String(existing.mood ?? "") !== String(row.mood ?? "")
+        || !sameCanonicalValue(existing.tags, split(row.tags))
+        || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars));
+      if (!metadataNeedsRepair) continue;
       await patch("assets", String(existing.id), {
-        category: String(row.category || existing.category || "uncategorized"),
-        subcategory: String(row.scene || row.category || existing.subcategory || "uncategorized"),
+        category: expectedCategory,
+        subcategory: expectedSubcategory,
         scene: row.scene ?? "",
         framing: row.framing ?? "",
         activity: row.activity ?? "",
@@ -225,6 +242,15 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       updated_at: new Date().toISOString(),
     };
     if (existing?.thumbnail_url) {
+      const metadataNeedsRepair = String(existing.category ?? "") !== String(canonicalMetadata.category ?? "")
+        || String(existing.pose ?? "") !== String(canonicalMetadata.pose ?? "")
+        || String(existing.framing ?? "") !== String(canonicalMetadata.framing ?? "")
+        || String(existing.outfit ?? "") !== String(canonicalMetadata.outfit ?? "")
+        || String(existing.environment ?? "") !== String(canonicalMetadata.environment ?? "")
+        || String(existing.lighting ?? "") !== String(canonicalMetadata.lighting ?? "")
+        || !sameCanonicalValue(existing.tags, canonicalMetadata.tags)
+        || !sameCanonicalValue(existing.good_for, canonicalMetadata.good_for);
+      if (!metadataNeedsRepair) { skipped += 1; return; }
       await patch("visual_references", String(existing.id), canonicalMetadata);
       metadataRepaired += 1;
       skipped += 1;
