@@ -9,9 +9,9 @@ import { uploadConvexFile } from "./convex-storage";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
+const FONT_PATH = path.join(process.cwd(), "public", "fonts", "CortiFreeSans.ttf");
 const embeddedFont = (() => {
-  const fontPath = path.join(process.cwd(), "public", "fonts", "CortiFreeSans.ttf");
-  return existsSync(fontPath) ? readFileSync(fontPath).toString("base64") : "";
+  return existsSync(FONT_PATH) ? readFileSync(FONT_PATH).toString("base64") : "";
 })();
 
 type GeneratedSlide = {
@@ -104,6 +104,35 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${fontFace}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="CortiFree, sans-serif" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), "CortiFree, sans-serif", filter) : ""}</svg>`);
 }
 
+async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number }) {
+  const font = `${options.weight >= 700 ? "bold " : ""}${options.size}px CortiFree`;
+  const image = sharp({ text: { text, font, fontfile: FONT_PATH, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } });
+  return image.tint(options.color).png().toBuffer();
+}
+
+async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
+  const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+  const headlineSize = frame.headlineSize ?? 62;
+  const bodySize = frame.bodySize ?? 32;
+  const headline = wrap(slide.headline, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
+  const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
+  const align = frame.align ?? "left";
+  const headlineLineHeight = Math.round(headlineSize * 1.1);
+  const bodyLineHeight = Math.round(bodySize * 1.32);
+  const label = `${String(slide.position).padStart(2, "0")} · ${slide.role}`;
+  const labelImage = await rasterText(label, { width: frame.width, height: 48, size: 22, weight: 700, color: frame.accentColor ?? "#ffb6c8", align: "left", spacing: 0 });
+  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize) });
+  const overlays: OverlayOptions[] = [
+    { input: labelImage, left: frame.x, top: (frame.headlineY ?? frame.y) - 72 },
+    { input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y },
+  ];
+  if (body.length) {
+    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize) });
+    overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? frame.y + 180 });
+  }
+  return overlays;
+}
+
 async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometry: Geometry) {
   const imageFrame = { ...defaultGeometry.image, ...geometry.image } as Frame;
   const composites: OverlayOptions[] = [];
@@ -127,7 +156,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
   }
-  composites.push({ input: makeTextOverlay(slide, geometry), left: 0, top: 0 });
+  composites.push(...await makeRasterTextOverlays(slide, geometry));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
 }
 
