@@ -154,32 +154,29 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = refsByDrive.get(entry.file.id) ?? {};
     const existing = refByDrive.get(entry.file.id);
-    if (existing?.thumbnail_url && entry.file.md5Checksum && existing.drive_md5 === entry.file.md5Checksum) { skipped += 1; return; }
+    if (existing?.thumbnail_url) { skipped += 1; return; }
     const storage = await upload(entry.file);
-    const reviewStatus = String(taxonomy.review_status || "REVIEW");
     await upsert("visual_references", {
       id: taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`,
       workspace_id: "cortifree",
-      drive_file_id: entry.file.id,
-      drive_md5: entry.file.md5Checksum ?? null,
-      drive_modified_time: entry.file.modifiedTime ?? null,
-      filename: entry.file.name,
       category: taxonomy.carousel_use || entry.path[0] || "hero_misc",
+      source_url: taxonomy.source_url ?? null,
+      source_platform: taxonomy.source_platform || "manual",
+      storage_path: storage.publicUrl,
       pose: taxonomy.pose_detail || taxonomy.pose_group || "",
       framing: taxonomy.framing_group || "",
       outfit: taxonomy.outfit_group || "",
       environment: taxonomy.decor_group || "",
+      lighting: taxonomy.lighting_group || "",
       mood: split(taxonomy.mood_palette),
+      orientation: taxonomy.orientation || "portrait",
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
       thumbnail_url: storage.publicUrl,
-      review_status: reviewStatus,
-      qa_flag: taxonomy.qa_flag ?? null,
-      enabled: taxonomy.enabled !== false && reviewStatus !== "REVIEW",
-      weight: Number(taxonomy.weight ?? 1),
-      use_count: Number(taxonomy.use_count ?? 0),
+      file_hash: entry.file.md5Checksum ?? null,
+      metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null },
+      enabled: taxonomy.enabled !== false,
       updated_at: new Date().toISOString(),
-      metadata: { drive_path: entry.path },
     });
     uploaded += 1;
   }
