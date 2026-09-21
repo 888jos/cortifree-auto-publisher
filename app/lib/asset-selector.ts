@@ -44,10 +44,26 @@ type SceneConstraint = { required: (value: string) => boolean; forbidden: (value
 
 function sceneConstraint(slide: { headline: string; body: string; assetQuery: string; visualIntent: string }): SceneConstraint | null {
   const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  const forbidden = (value: string) => /sauna|hammam|hamam|steam room|spa|jacuzzi|hot tub|bath(?:room)?|shower|pool|facial|massage|empty room/.test(value);
+  if (/five-minute walk|walking|walk outside|outdoors|leafy street/.test(text)) {
+    return { required: () => true, forbidden: (value) => forbidden(value) || /closet|wardrobe|skincare|flatlay|bedroom|bathroom|steam|hammam/.test(value) };
+  }
+  if (/evening reset|set up tomorrow|morning essential|bedroom at night/.test(text)) {
+    return { required: () => true, forbidden: (value) => forbidden(value) || /closet|wardrobe|skincare|flatlay|walking|outdoors/.test(value) };
+  }
+  if (/finishing touch|hoops|claw clip|accessory|scent/.test(text)) {
+    return { required: () => true, forbidden: (value) => forbidden(value) || /steam|hammam|skincare flatlay|cleaning supplies/.test(value) };
+  }
+  if (/skincare|lip balm|moisturizer|brows|beauty routine/.test(text)) {
+    return { required: () => true, forbidden: (value) => forbidden(value) || /steam|hammam|closet|wardrobe|cleaning supplies|walking/.test(value) };
+  }
+  if (/closing portrait|smiling naturally|with tea|low-pressure/.test(text)) {
+    return { required: () => true, forbidden: (value) => forbidden(value) || /closet|wardrobe|skincare|flatlay|cleaning supplies|steam|hammam/.test(value) };
+  }
   if (/steaming|steamer|outfit|clothing rack|getting dressed|dress(?:ing)?|wardrobe|hanger/.test(text)) {
     return {
       required: (value) => /steam|steamer|outfit|clothing|dress|wardrobe|hanger|closet|getting dressed|wear/.test(value),
-      forbidden: (value) => /sauna|hammam|hamam|steam room|spa|jacuzzi|hot tub|bath(?:room)?|shower|pool|facial|massage|empty room/.test(value),
+      forbidden,
     };
   }
   return null;
@@ -94,7 +110,9 @@ export function chooseAssets(options: {
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;
     const compatible = usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
-    const candidates = compatible.map((asset) => {
+    const unused = compatible.filter((asset) => !used.has(asset.id));
+    const distinct = unused.length || hookNeedsPersona ? compatible : [];
+    const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
       const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
       const categoryRank = preferred.indexOf(asset.category);
@@ -110,7 +128,7 @@ export function chooseAssets(options: {
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
     const selected = candidates[0];
     if (!selected) {
-      if (constraint) throw new Error(`NO_COMPATIBLE_ASSET:GENERATE_REQUIRED:slide_${slide.position}`);
+      if (constraint || !hookNeedsPersona) throw new Error(`NO_COMPATIBLE_ASSET:GENERATE_REQUIRED:slide_${slide.position}`);
       throw new Error(`No usable asset for slide ${slide.position}`);
     }
     used.add(selected.asset.id);
