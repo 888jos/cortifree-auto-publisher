@@ -75,19 +75,9 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   const offset = Math.max(0, options.offset ?? 0);
   const scope = options.scope ?? "all";
   const refTaxonomyPromise = readSheetObjects("08_VISUAL_REFS", "A1:X300");
-  const refTreePromise = scope === "visual_refs"
-    ? refTaxonomyPromise.then(async (rows) => {
-        const entries = await Promise.all(rows.filter((row) => row.drive_file_id).slice(offset, offset + limit).map(async (row) => {
-          try {
-            const file = await getDriveFile(String(row.drive_file_id));
-            return { file, path: [String(row.carousel_use || row.category || "hero_misc")] };
-          } catch {
-            return null;
-          }
-        }));
-        return entries.filter((entry): entry is WalkedFile => Boolean(entry));
-      })
-    : scope === "assets" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(VISUAL_REFS_ROOT);
+  const refTreePromise = scope === "visual_refs" || scope === "assets" || scope === "stock" || scope === "stock_missing"
+    ? Promise.resolve([])
+    : walk(VISUAL_REFS_ROOT);
   const [stockTaxonomy, refTaxonomy, stockTree, personaTree, refTree, existingAssets, existingRefs] = await Promise.all([
     scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:T500"),
     refTaxonomyPromise,
@@ -102,6 +92,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   const assetByDrive = new Map(existingAssets.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const assetByFilename = new Map(existingAssets.filter((row) => row.filename).map((row) => [String(row.filename).trim().toLowerCase(), row]));
   const refByDrive = new Map(existingRefs.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
+  const refById = new Map(existingRefs.filter((row) => row.id).map((row) => [String(row.id), row]));
   let uploaded = 0;
   let skipped = 0;
   let metadataRepaired = 0;
@@ -121,6 +112,53 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       }
     }))).filter((entry): entry is WalkedFile => Boolean(entry))
     : stockTree;
+
+  const visualRefEntries: WalkedFile[] = scope === "visual_refs"
+    ? (await Promise.all(refTaxonomy.filter((row) => row.drive_file_id && !refById.has(String(row.ref_id))).slice(offset, offset + limit).map(async (row) => {
+      try {
+        return { file: await getDriveFile(String(row.drive_file_id)), path: [String(row.carousel_use || row.category || "hero_misc")] };
+      } catch (error) {
+        failures.push({ id: String(row.drive_file_id), name: String(row.ref_id ?? "visual_reference"), error: error instanceof Error ? error.message : "Drive file lookup failed" });
+        return null;
+      }
+    }))).filter((entry): entry is WalkedFile => Boolean(entry))
+    : refTree;
+
+  if (scope === "visual_refs") {
+    const refRepairs = refTaxonomy.map((row) => {
+      const existing = refById.get(String(row.ref_id ?? ""));
+      if (!existing) return null;
+      const expected: Row = {
+        category: row.carousel_use || row.category || "hero_misc",
+        source_url: row.source_url ?? null,
+        source_platform: row.source_platform || "manual",
+        pose: row.pose_detail || row.pose_group || "",
+        framing: row.framing_group || "",
+        outfit: row.outfit_group || "",
+        environment: row.decor_group || "",
+        lighting: row.lighting_group || "",
+        mood: split(row.mood_palette),
+        orientation: row.orientation || "portrait",
+        tags: split(row.tags),
+        good_for: split(row.preferred_pillars),
+        enabled: row.enabled !== false,
+      };
+      const changed = String(existing.category ?? "") !== String(expected.category)
+        || String(existing.pose ?? "") !== String(expected.pose)
+        || String(existing.framing ?? "") !== String(expected.framing)
+        || String(existing.outfit ?? "") !== String(expected.outfit)
+        || String(existing.environment ?? "") !== String(expected.environment)
+        || String(existing.lighting ?? "") !== String(expected.lighting)
+        || !sameCanonicalValue(existing.tags, expected.tags)
+        || !sameCanonicalValue(existing.good_for, expected.good_for);
+      return changed ? { id: String(existing.id), expected } : null;
+    }).filter((repair): repair is { id: string; expected: Row } => Boolean(repair));
+    for (let index = 0; index < refRepairs.length; index += 20) {
+      const batch = refRepairs.slice(index, index + 20);
+      await Promise.all(batch.map(({ id, expected }) => patch("visual_references", id, { ...expected, updated_at: new Date().toISOString() })));
+      metadataRepaired += batch.length;
+    }
+  }
 
   if (scope === "assets" || scope === "stock" || scope === "stock_missing") {
     const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string }> = [];
@@ -286,7 +324,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   }
 
   const tasks: Array<() => Promise<void>> = scope === "visual_refs"
-    ? refTree.map((entry) => () => syncReference(entry))
+    ? visualRefEntries.map((entry) => () => syncReference(entry))
     : scope === "assets" || scope === "stock" || scope === "stock_missing"
       ? [...personaTree.map((entry) => () => syncPersona(entry)), ...stockEntries.map((entry) => () => syncStock(entry))]
       : [
