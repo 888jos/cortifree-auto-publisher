@@ -112,6 +112,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     : stockTree;
 
   if (scope === "assets" || scope === "stock" || scope === "stock_missing") {
+    const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string }> = [];
     for (const row of stockTaxonomy) {
       const existing = row.drive_file_id ? assetByDrive.get(String(row.drive_file_id)) : undefined;
       if (!existing || !row.drive_file_id) continue;
@@ -126,21 +127,27 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
         || !sameCanonicalValue(existing.tags, split(row.tags))
         || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars));
       if (!metadataNeedsRepair) continue;
-      await patch("assets", String(existing.id), {
-        category: expectedCategory,
-        subcategory: expectedSubcategory,
-        scene: row.scene ?? "",
-        framing: row.framing ?? "",
-        activity: row.activity ?? "",
-        mood: row.mood ?? "",
-        tags: split(row.tags),
-        good_for: split(row.good_for_pillars),
-        enabled: row.enabled !== false,
-        weight: Number(row.weight ?? 1),
-        metadata: { ...(existing.metadata as Row ?? {}), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null },
-        indexed_at: new Date().toISOString(),
-      });
-      metadataRepaired += 1;
+      repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory });
+    }
+    for (let index = 0; index < repairs.length; index += 20) {
+      const batch = repairs.slice(index, index + 20);
+      await Promise.all(batch.map(async ({ id, row, existing, expectedCategory, expectedSubcategory }) => {
+        await patch("assets", id, {
+          category: expectedCategory,
+          subcategory: expectedSubcategory,
+          scene: row.scene ?? "",
+          framing: row.framing ?? "",
+          activity: row.activity ?? "",
+          mood: row.mood ?? "",
+          tags: split(row.tags),
+          good_for: split(row.good_for_pillars),
+          enabled: row.enabled !== false,
+          weight: Number(row.weight ?? 1),
+          metadata: { ...(existing.metadata as Row ?? {}), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null },
+          indexed_at: new Date().toISOString(),
+        });
+      }));
+      metadataRepaired += batch.length;
     }
   }
 
