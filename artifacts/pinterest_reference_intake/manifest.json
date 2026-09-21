@@ -1,0 +1,94 @@
+{
+  "generated_at": "2026-09-21T14:55:21.319Z",
+  "purpose": "visual references only; verify original rights before publication",
+  "items": [
+    {
+      "file": "FACE_REF_self_care_lip_balm_mirror.jpg",
+      "type": "FACE_REF",
+      "category": "self_care",
+      "pinterest_url": "https://br.pinterest.com/pin/mulher-aplicando-batom-no-espelho--591449363584941708/",
+      "source_image_url": "https://i.pinimg.com/736x/ad/fd/86/adfd8615ffb1f9f202ca5bbbff2cc41b.jpg",
+      "sha256": "3405663817cec5610e02a672260939ba9aa0606b2ba707eac3896270db6534c2",
+      "bytes": 32072,
+      "review": "candidate",
+      "review_reason": "Natural-looking single-person mirror action; no visible watermark in the downloaded preview. Keep as visual reference only until the original source and reuse rights are verified."
+    },
+    {
+      "file": "FACELESS_REF_home_clothes_rack_bedroom.jpg",
+      "type": "FACELESS_REF",
+      "category": "home",
+      "pinterest_url": "https://jp.pinterest.com/pin/clothes-hanging-on-rack-in-front-of-bed--542120873865577716/",
+      "source_image_url": "https://i.pinimg.com/736x/8d/8a/58/8d8a582725130aadcf322dc7e8fcb461.jpg",
+      "sha256": "1c89c233e47826c9e1e3fdf5530a7531cbf135e156f858b2671f56c83245ac11",
+      "bytes": 97963,
+      "review": "reference_only",
+      "review_reason": "Useful clothing/environment composition, but the scene is heavily filtered and not a clean bedroom reference. Do not publish this Pinterest derivative."
+    },
+    {
+      "file": "FACELESS_REF_home_outfit_flatlay_bed.jpg",
+      "type": "FACELESS_REF",
+      "category": "home",
+      "pinterest_url": "https://br.pinterest.com/pin/1126462925532384397/",
+      "source_image_url": "https://i.pinimg.com/736x/ad/1b/9a/ad1b9a9370f94b95370b21e2b62d59f3.jpg",
+      "sha256": "08522d47c20c918bd6fa5bb1ab17d59c92b1b28deea0c57787b91097e836e159",
+      "bytes": 97767,
+      "review": "reject_for_publication",
+      "review_reason": "Visible social-media text/overlay and tags. Reference only; do not use in generated output or publish."
+    },
+    {
+      "file": "FACE_REF_home_outfit_on_hanger.jpg",
+      "type": "FACE_REF",
+      "category": "home",
+      "pinterest_url": "https://in.pinterest.com/pin/transgender-woman-looking-at-outfit-on-hanger--789255903458776949/",
+      "source_image_url": "https://i.pinimg.com/736x/1d/8f/af/1d8fafaaec3f1d786b99ca7c62d0e0d7.jpg",
+      "sha256": "0513a249d456bb8b7febc3d60542aad0a04b4c77b56dc73f7981e508f8946a19",
+      "bytes": 31273,
+      "review": "reject_for_publication",
+      "review_reason": "Visible stock watermark and multiple people/reflections; also unsuitable for one-person face-swap. Reference only."
+    },
+    {
+      "file": "FACE_REF_outdoors_walking_street.jpg",
+      "type": "FACE_REF",
+      "category": "outdoors",
+      "pinterest_url": "https://www.pinterest.com/pin/932245191619028249/",
+      "source_image_url": "https://i.pinimg.com/736x/b7/b0/d9/b7b0d9663336c2fde7bb0f956d1228c5.jpg",
+      "sha256": "90d96cb7ae2049816285565e02c332fbde71e56a34bd9e9240be54fb6a4d4cf6",
+      "bytes": 49106,
+      "review": "reject_for_publication",
+      "review_reason": "Visible stock watermark. Reference only until an original, licensed source is located."
+    },
+    {
+      "file": "FACE_REF_outdoors_walking_meadow_selfie.jpg",
+      "type": "FACE_REF",
+      "category": "outdoors",
+      "pinterest_url": "https://in.pinterest.com/pin/young-woman-on-a-walk-outdoors-on-meadow-in-summer-nature-taking-selfie--770326711255882747/",
+      "source_image_url": "https://i.pinimg.com/736x/23/b0/03/23b0030e3e88b2fa9903d08cd42b7b67.jpg",
+      "sha256": "1647097c9fc1630950294bfdb5e43c671e5543b6dc7d7ca893879320fd792662",
+      "bytes": 26660,
+      "review": "reject_for_publication",
+      "review_reason": "Visible stock watermark and selfie framing; not clean enough for production or face-swap input. Reference only."
+    },
+    {
+      "file": "FACE_REF_self_care_lip_balm_closeup.jpg",
+      "type": "FACE_REF",
+      "category": "self_care",
+      "pinterest_url": "https://in.pinterest.com/pin/young-woman-applying-lip-balm-on-grey-background-closeup--1077134435871981803/",
+      "source_image_url": "https://i.pinimg.com/736x/01/58/62/015862fbeefecd85386374d363e5e04d.jpg",
+      "sha256": "78f69e8321ca2be3ec927b4e1edbdb8ae227a16a5b4c5a95602c26aa00a69483",
+      "bytes": 25130,
+      "review": "reject_for_publication",
+      "review_reason": "Visible image-provider watermark and tightly cropped face. Reference only."
+    },
+    {
+      "file": "FACE_REF_self_care_lipstick_mirror.jpg",
+      "type": "FACE_REF",
+      "category": "self_care",
+      "pinterest_url": "https://co.pinterest.com/pin/caucasian-woman-applying-lipstick-in-mirror--796152040394133907/",
+      "source_image_url": "https://i.pinimg.com/736x/89/e7/68/89e768b52ac727ed683f11b081483b92.jpg",
+      "sha256": "5e5c2f9759fc28e95c2696420d286f1c0aebaea5b246d3ef7027f12e5b0a3fbb",
+      "bytes": 24632,
+      "review": "candidate",
+      "review_reason": "Natural-looking single-person mirror action with a usable face/gesture reference and no visible watermark in the downloaded preview. Keep as visual reference only until original source and reuse rights are verified."
+    }
+  ]
+}
