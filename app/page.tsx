@@ -58,7 +58,7 @@ const rawModels = [
     name: "2×2 images",
     format: "Quatre images en grille + texte éditorial",
     slides: "6 slides",
-    style: "Moodboard féminin, quatre scènes, texte lisible",
+    style: "Moodboard féminin, deux images en diagonale, texte lisible",
     layout: "grid-2x2",
   },
 ] as const;

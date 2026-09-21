@@ -245,9 +245,10 @@ export async function renderCarousel(input: {
     ? input.slides.map((slide, index) => {
       if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
       const available = assets.filter((asset) => !reservedGridAssets.has(asset.id));
-      const selected = chooseAssets({ assets: available.length >= 4 ? available : assets, carouselType: input.carouselType, personaId: input.personaId, slides: [slide, slide, slide, slide] });
+      const selected = chooseAssets({ assets: available.length >= 2 ? available : assets, carouselType: input.carouselType, personaId: input.personaId, slides: [slide, slide] });
       selected.forEach((match) => reservedGridAssets.add(match.asset.id));
-      return selected;
+      // Editorial 2×2 pattern: two distinct images repeated diagonally.
+      return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
     })
     : input.slides.map((_, index) => [matches[index]!]);
   const prepared = await Promise.all(input.slides.map(async (slide, index) => {

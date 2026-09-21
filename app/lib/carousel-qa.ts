@@ -34,9 +34,11 @@ export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
     const text = geometry?.text;
     if (text && ((text.x ?? 0) < 40 || (text.y ?? 0) < 40 || (text.x ?? 0) + (text.width ?? 0) > 1040)) issues.push({ code: "TEXT_SAFE_ZONE", message: "Text frame is outside the safe area", severity: "major", slidePosition: slide.position });
     const assetIds = slide.assetIds ?? [];
-    if (shouldBeGrid && assetIds.length !== 4) issues.push({ code: "GRID_ASSET_COUNT", message: "Each 2×2 slide must contain exactly four source images", severity: "major", slidePosition: slide.position });
-    if (new Set(assetIds.map(String)).size !== assetIds.length) issues.push({ code: "DUPLICATE_GRID_ASSET", message: "A slide contains the same source image more than once", severity: "major", slidePosition: slide.position });
-    for (const id of assetIds) {
+    if (shouldBeGrid && assetIds.length !== 4) issues.push({ code: "GRID_ASSET_COUNT", message: "Each 2×2 slide must contain four tiles", severity: "major", slidePosition: slide.position });
+    if (shouldBeGrid && !(String(assetIds[0]) === String(assetIds[3]) && String(assetIds[1]) === String(assetIds[2]) && String(assetIds[0]) !== String(assetIds[1]))) {
+      issues.push({ code: "GRID_DIAGONAL_PATTERN", message: "Each 2×2 slide must repeat exactly two distinct images diagonally", severity: "major", slidePosition: slide.position });
+    }
+    for (const id of new Set(assetIds.map(String))) {
       const key = String(id);
       if (usedAssets.has(key)) issues.push({ code: "DUPLICATE_SOURCE_IMAGE", message: "The same source image is reused in more than one slide", severity: "major", slidePosition: slide.position });
       usedAssets.add(key);
