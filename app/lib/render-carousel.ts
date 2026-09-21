@@ -90,9 +90,11 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const bodySize = frame.bodySize ?? 32;
   const headline = wrap(slide.headline, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
-  const fontFamily = frame.fontFamily ?? "Georgia, Times New Roman, serif";
+  // Use a Linux-available generic face in Sharp/librsvg. Missing server fonts
+  // render as tofu boxes, which makes otherwise valid copy unreadable.
+  const fontFamily = frame.fontFamily ?? "sans-serif";
   const filter = frame.shadow === "none" ? "none" : "url(#shadow)";
-  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs><text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), "Arial, Helvetica, sans-serif", filter) : ""}</svg>`);
+  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs><text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="sans-serif" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), "sans-serif", filter) : ""}</svg>`);
 }
 
 async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometry: Geometry) {

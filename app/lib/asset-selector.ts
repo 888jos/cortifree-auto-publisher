@@ -50,14 +50,15 @@ export function chooseAssets(options: {
   assets: SelectableAsset[];
   carouselType: string;
   personaId?: string;
-  slides: Array<{ position: number; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
+  slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const preferred = categoryByType[options.carouselType] ?? ["morning", "self_care", "food", "fitness", "outdoors", "work_study", "stress_reset", "night"];
   const used = new Set<string>();
   return options.slides.map((slide) => {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
     const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
-    const requested = slide.assetType === "persona"
+    const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
+    const requested = hookNeedsPersona || slide.assetType === "persona"
       ? finalUse.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === options.personaId)
       : slide.assetType === "stock" || slide.assetType === "text_only"
         ? finalUse.filter((asset) => asset.source_type === "stock")
@@ -65,6 +66,9 @@ export function chooseAssets(options: {
     // Keep drafts renderable while persona-generated assets are still syncing.
     // A stock lifestyle image is preferable to a completely invisible carousel;
     // the generated copy still remains associated with the requested persona.
+    if (hookNeedsPersona && requested.length === 0) {
+      throw new Error(`PERSONA_HOOK_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
+    }
     const usableRequested = slide.assetType === "persona" && requested.length === 0
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;

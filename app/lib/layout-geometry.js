@@ -30,7 +30,7 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false) {
       headlineColor: "#fffaf8",
       bodyColor: "#fff4b8",
       accentColor: layout === "grid-2x2" ? "#ffd86b" : "#ffb6c8",
-      fontFamily: "Georgia, Times New Roman, serif",
+      fontFamily: "sans-serif",
       shadow: "0 3px 18px rgba(0,0,0,.42)",
       maxHeadlineLines: isCover ? 4 : 3,
       maxBodyLines: 5,
