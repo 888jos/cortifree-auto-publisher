@@ -137,7 +137,12 @@ export function chooseAssets(options: {
       if (used.has(asset.id)) score -= 1_000;
       return { asset, score, matchedTerms };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
-    const selected = candidates[0];
+    const fallbackCandidates = !candidates.length && !hookNeedsPersona
+      ? usableRequested
+        .filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)) && (!constraint || !constraint.forbidden(assetText(asset))))
+        .map((asset) => ({ asset, score: -5, matchedTerms: [] as string[] }))
+      : [];
+    const selected = candidates[0] ?? fallbackCandidates[0];
     if (!selected) {
       if (constraint || !hookNeedsPersona) throw new Error(`NO_COMPATIBLE_ASSET:GENERATE_REQUIRED:slide_${slide.position}`);
       throw new Error(`No usable asset for slide ${slide.position}`);
