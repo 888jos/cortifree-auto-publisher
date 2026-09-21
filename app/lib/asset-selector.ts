@@ -40,6 +40,25 @@ function assetText(asset: SelectableAsset) {
   return `${asset.filename} ${asset.category} ${asset.subcategory} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
 }
 
+type SceneConstraint = { required: (value: string) => boolean; forbidden: (value: string) => boolean };
+
+function sceneConstraint(slide: { headline: string; body: string; assetQuery: string; visualIntent: string }): SceneConstraint | null {
+  const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  if (/steaming|steamer|outfit|clothing rack|getting dressed|dress(?:ing)?|wardrobe|hanger/.test(text)) {
+    return {
+      required: (value) => /steam|steamer|outfit|clothing|dress|wardrobe|hanger|closet|getting dressed|wear/.test(value),
+      forbidden: (value) => /sauna|hammam|hamam|steam room|spa|jacuzzi|hot tub|bath(?:room)?|shower|pool|facial|massage|empty room/.test(value),
+    };
+  }
+  return null;
+}
+
+function compatibleWithScene(asset: SelectableAsset, constraint: SceneConstraint | null) {
+  if (!constraint) return true;
+  const text = assetText(asset);
+  return !constraint.forbidden(text) && constraint.required(text);
+}
+
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
   const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
@@ -57,6 +76,7 @@ export function chooseAssets(options: {
   return options.slides.map((slide) => {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
     const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
+    const constraint = sceneConstraint(slide);
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
     const requested = hookNeedsPersona || slide.assetType === "persona"
@@ -73,7 +93,8 @@ export function chooseAssets(options: {
     const usableRequested = slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona && !requiresPersonaScene
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;
-    const candidates = usableRequested.map((asset) => {
+    const compatible = usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
+    const candidates = compatible.map((asset) => {
       const haystack = assetText(asset);
       const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
       const categoryRank = preferred.indexOf(asset.category);
@@ -88,7 +109,10 @@ export function chooseAssets(options: {
       return { asset, score, matchedTerms };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
     const selected = candidates[0];
-    if (!selected) throw new Error(`No usable asset for slide ${slide.position}`);
+    if (!selected) {
+      if (constraint) throw new Error(`NO_COMPATIBLE_ASSET:GENERATE_REQUIRED:slide_${slide.position}`);
+      throw new Error(`No usable asset for slide ${slide.position}`);
+    }
     used.add(selected.asset.id);
     return { ...selected, score: Number(selected.score.toFixed(2)) };
   });

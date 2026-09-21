@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
+import { chooseAssets } from '../app/lib/asset-selector';
 
 describe('asset scanner', () => {
   it('indexes stock and persona image metadata with canonical persona IDs', async () => {
@@ -34,5 +35,14 @@ describe('asset scanner', () => {
     assert.equal(second.assets.length, 2);
     assert.equal(second.added, 0);
     assert.equal(second.updated, 2);
+  });
+
+  it('rejects a sauna for an outfit-preparation slide instead of selecting the highest text score', () => {
+    const assets = [
+      { id: 'sauna', filename: 'sauna_room_warm_floor_lights.jpeg', category: 'self_care', subcategory: 'self_care', orientation: 'portrait', framing: 'wide', activity: 'steam room', mood: 'warm', colors: [], tags: ['sauna', 'steam room'], public_url: 'https://example.com/sauna.jpg', use_count: 0, last_used_at: null, source_type: 'stock' },
+      { id: 'outfit', filename: 'MAYA_HOME_001.jpg', category: 'home', subcategory: 'outfit', orientation: 'portrait', framing: 'medium', activity: 'steaming an outfit', mood: 'natural', colors: [], tags: ['outfit', 'steamer'], public_url: 'https://example.com/outfit.jpg', use_count: 0, last_used_at: null, source_type: 'persona_generated', persona_id: 'P03' },
+    ];
+    const selected = chooseAssets({ carouselType: 'C05_GLOW_UP', personaId: 'P03', assets, slides: [{ position: 3, role: 'TIP', headline: 'Steam the outfit you actually wear', body: 'Prepare tomorrow\'s clothes tonight.', assetType: 'persona', assetQuery: 'Maya steaming an outfit with a clothing rack', visualIntent: 'A woman visibly steaming a real outfit; no sauna or steam room.' }] });
+    assert.equal(selected[0]?.asset.id, 'outfit');
   });
 });
