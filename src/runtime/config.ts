@@ -64,13 +64,16 @@ export type RuntimeEditorial = {
 
 export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
   if (convexConfigured()) {
-    const [topics, hooks, ctas, autonomyRules] = await Promise.all([
+    const [topics, hooks, ctas] = await Promise.all([
       loadRuntimeRows("content_topics"),
       loadRuntimeRows("content_hooks"),
       loadRuntimeRows("content_ctas"),
-      loadRuntimeRows("autonomy_rules", 200),
     ]);
     if (topics.length && hooks.length && ctas.length) {
+      // Autonomy rules are optional in Supabase's editorial mirror. Selection
+      // has safe defaults, so a missing optional table must not mask the real
+      // canonical-context/account readiness error.
+      const autonomyRules = await loadRuntimeRows("autonomy_rules", 200).catch(() => []);
       return {
         topics: topics as unknown as EditorialTopic[],
         hooks: hooks as unknown as EditorialHook[],
