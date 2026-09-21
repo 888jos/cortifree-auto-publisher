@@ -311,6 +311,8 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     audit: {
       stock_drive_images: scope === "assets" || scope === "stock" || scope === "stock_missing" ? stockTaxonomy.length : stockTree.filter((entry) => isImage(entry.file)).length,
       stock_sheet_rows: stockTaxonomy.length,
+      stock_sheet_columns: Object.keys(stockTaxonomy[0] ?? {}),
+      stock_sheet_sample: stockTaxonomy[0] ?? null,
       stock_drive_only_rows: stockTaxonomy.filter((row) => String(row.sync_status ?? "").toUpperCase() === "DRIVE_ONLY_NEEDS_SYNC").map((row) => String(row.stock_key ?? row.drive_file_id ?? "unknown")),
       stock_runtime_missing_rows: stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase())).map((row) => String(row.stock_key ?? row.drive_file_id)),
       visual_ref_drive_images: refTree.filter((entry) => isImage(entry.file)).length,
