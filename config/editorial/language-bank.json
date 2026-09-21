@@ -1,0 +1,17 @@
+{
+  "profile_id": "GENZ_GIRLY_US",
+  "version": "genz-girly-us-v1",
+  "terms": [
+    { "term_id": "LB_001", "term": "lowkey", "category": "girly_wellness_slang", "weight": 0.4, "active": true },
+    { "term_id": "LB_002", "term": "doomscrolling", "category": "stress_overstimulation", "weight": 0.8, "active": true },
+    { "term_id": "LB_003", "term": "overstimulated", "category": "stress_overstimulation", "weight": 0.8, "active": true },
+    { "term_id": "LB_004", "term": "Sunday reset", "category": "lifestyle", "weight": 0.5, "active": true },
+    { "term_id": "LB_005", "term": "things that actually helped", "category": "hook_structure", "weight": 0.7, "active": true },
+    { "term_id": "LB_006", "term": "wellness ick", "category": "relatable_pain", "weight": 0.5, "active": true }
+  ],
+  "blacklist": [
+    "tiny steps count", "come back gently", "nourish your body", "sustainable wellness", "support everyday ease",
+    "prioritize yourself", "small intentional choices", "show up for yourself", "wellness journey", "make space for yourself",
+    "a routine you can repeat", "feel more grounded", "feel your best", "your best self"
+  ]
+}

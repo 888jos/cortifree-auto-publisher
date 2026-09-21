@@ -32,6 +32,26 @@ export type ReferenceMetadata = {
   slides?: ReferenceSlideBlueprint[];
 };
 export type RecentCarousel = { id: string; topic: string; angle: string; hook?: string };
+export type EditorialContext = {
+  search_query: string;
+  primary_keyword: string;
+  secondary_keywords: string[];
+  language_profile: "GENZ_GIRLY_US" | string;
+  language_version: string;
+  trend_terms: string[];
+  persona_voice: string;
+  golden_example_ids: string[];
+  topic_id: string;
+  hook_id: string;
+  format_id: string;
+  account_id: string;
+  persona_id: string;
+  brand_integration: {
+    required: boolean;
+    mention: string;
+    screenshot_required: boolean;
+  };
+};
 export type CarouselGeneratorInput = {
   carouselType: CarouselTypeId;
   layout: string;
@@ -43,6 +63,13 @@ export type CarouselGeneratorInput = {
   requestedSlideCount: number;
   preferredHook?: string;
   ctaMode: "none" | "soft" | "save" | "comment" | "follow";
+  accountId?: string;
+  personaId?: string;
+  topicId?: string;
+  hookId?: string;
+  formatId?: string;
+  editorialContext?: EditorialContext;
+  requireCanonicalContext?: boolean;
 };
 export type TokenUsage = { inputTokens: number; cachedInputTokens: number; outputTokens: number };
 export type AssetAnalysisMetadata = { scene: string; activity: string; framing: string; lighting: string; mood: string; category: string; goodFor: string[] };

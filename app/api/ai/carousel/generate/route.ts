@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { generateCarousel } from "../../../../lib/ai/carousel-generator";
+import { generateCarousel, CanonicalGenerationBlockedError } from "../../../../lib/ai/carousel-generator";
 import { carouselGeneratorInputSchema } from "../../../../lib/ai/schemas";
 import { MonthlyCapExceededError } from "../../../../lib/ai/usage";
 import { getRecentCarousels, saveGeneratedCarousel } from "../../../../lib/carousel-store";
-import { selectAutomaticHook } from "../../../../lib/hook-selector";
+import { resolveCanonicalEditorialContext } from "../../../../lib/editorial/canonical-context";
 
 export const runtime = "nodejs";
 
@@ -18,11 +18,12 @@ export async function POST(request: Request) {
   try {
     const body = requestSchema.parse(await request.json());
     const id = body.id ?? `CF_${Date.now()}`;
+    const accountId = body.accountId ?? "CF_EN_01";
+    const personaId = body.personaId ?? "P01";
     const recentCarousels = body.recentCarousels.length ? body.recentCarousels : await getRecentCarousels();
-    const preferredHook = body.preferredHook ?? selectAutomaticHook({
-      carouselType: body.carouselType,
-      recentHooks: recentCarousels.map((carousel) => carousel.hook).filter((hook): hook is string => Boolean(hook)),
-      referenceTitles: body.references.map((reference) => reference.title),
+    const canonical = await resolveCanonicalEditorialContext({
+      accountId, personaId, formatId: body.carouselType, language: body.language, market: body.market,
+      references: body.references.map((reference) => ({ id: reference.id, title: reference.title })), preferredHook: body.preferredHook,
     });
     const input = {
       carouselType: body.carouselType,
@@ -33,9 +34,11 @@ export async function POST(request: Request) {
       references: body.references,
       recentCarousels,
       requestedSlideCount: body.requestedSlideCount,
-      preferredHook,
+      preferredHook: canonical.preferredHook,
       ctaMode: body.ctaMode,
       bypassMonthlyCap: body.bypassMonthlyCap,
+      accountId, personaId, topicId: canonical.topicId, hookId: canonical.hookId, formatId: canonical.formatId,
+      editorialContext: canonical.editorialContext, requireCanonicalContext: true,
     };
     const result = await generateCarousel(input, {}, { carouselId: id });
     if (body.requireAI && result.source !== "openai") {
@@ -46,7 +49,7 @@ export async function POST(request: Request) {
     let carousel: unknown = { id, topic: result.spec.topic, angle: result.spec.angle, caption: result.spec.caption };
     let storageWarning: string | null = null;
     try {
-      carousel = await saveGeneratedCarousel({ id, input, result, accountId: body.accountId, personaId: body.personaId });
+      carousel = await saveGeneratedCarousel({ id, input, result, accountId, personaId });
       saved = true;
     } catch (error) {
       storageWarning = `Draft generated but Supabase save failed: ${error instanceof Error ? error.message : "unknown error"}`;
@@ -56,6 +59,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof MonthlyCapExceededError) {
       return Response.json({ error: error.message, code: "MONTHLY_CAP_EXCEEDED" }, { status: 429 });
+    }
+    if (error instanceof CanonicalGenerationBlockedError || (error instanceof Error && error.message.startsWith("CANONICAL_CONTEXT_UNAVAILABLE:"))) {
+      return Response.json({ error: error instanceof Error ? error.message : "Generation blocked", code: "CANONICAL_CONTEXT_REQUIRED" }, { status: 422 });
     }
     if (error instanceof z.ZodError) return Response.json({ error: "Invalid generation request", details: error.issues }, { status: 400 });
     return Response.json({ error: error instanceof Error ? error.message : "Generation failed" }, { status: 500 });

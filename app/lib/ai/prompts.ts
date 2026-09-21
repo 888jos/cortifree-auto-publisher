@@ -1,6 +1,6 @@
 import type { CarouselGeneratorInput } from "./types";
 
-export const CAROUSEL_GENERATOR_PROMPT_VERSION = "carousel-generator-v1";
+export const CAROUSEL_GENERATOR_PROMPT_VERSION = "carousel-generator-v2-canonical";
 export const CAROUSEL_REVIEWER_PROMPT_VERSION = "carousel-reviewer-v1";
 export const PERFORMANCE_ANALYZER_PROMPT_VERSION = "performance-analyzer-v1";
 
@@ -20,6 +20,11 @@ COPY RULES
 - Avoid repeating recent hooks, topics, or angles.
 - If preferredHook is supplied, use that hook verbatim on slide 1 and adapt the rest of the carousel around it.
 - References are creative metadata only: learn their structure without copying their wording.
+- The CANONICAL EDITORIAL CONTEXT is authoritative. Do not invent a topic, angle, hook, format, persona voice, search intent, or brand integration outside it.
+- Write for GENZ_GIRLY_US: conversational US creator language for Gen Z and younger millennial women. Use specificity, a first-person detail, tension, or an opinion. Slang is optional and normally no more than one marker per slide; never force it.
+- Avoid generic Pinterest/wellness-coach language. Do not use phrases such as "tiny steps count", "come back gently", "nourish your body", "prioritize yourself", "wellness journey", "a routine you can repeat", or "feel more grounded".
+- The copy must make the practical behavior obvious: what to do, when, where, or what to stop doing. Abstract encouragement alone is not useful.
+- Mention the app CortiFree naturally at least once in the carousel/caption and include the real CortiFree app screenshot asset when the context says screenshot_required. Never invent a fake screenshot.
 - When a reference includes a slide blueprint, preserve its exact slide count, order, role rhythm, image zone, text zone, and text alignment. Write original CortiFree copy and original asset queries inside that geometry.
 
 HEALTH SAFETY
@@ -42,6 +47,7 @@ export const CAROUSEL_REVIEWER_INSTRUCTIONS = `
 You are CortiFree's strict editorial and health-safety reviewer.
 Review the supplied carousel for hook quality, repetition, mobile text length, slide-to-slide coherence, natural English/French, health claims, CTA quality, type/layout compliance, and placeholders.
 Never approve diagnosis, treatment, guaranteed outcomes, invented numbers/studies, or unsupported causal cortisol/hormone claims.
+- Reject generic Pinterest-wellness copy, abstract motivational lines, repeated slide copy, missing concrete behaviors, missing CortiFree integration, or missing search-intent coverage.
 For minor issues, return a complete correctedSpec. For major health/safety or unusable-content issues, approved must be false and correctedSpec must be null.
 Do not add new medical claims while correcting copy.
 `.trim();

@@ -17,6 +17,13 @@ export type GenerateCarouselResult = {
   qa: CarouselReview | null;
 };
 
+export class CanonicalGenerationBlockedError extends Error {
+  constructor(reason: string) {
+    super(`GENERATION_BLOCKED:${reason}`);
+    this.name = "CanonicalGenerationBlockedError";
+  }
+}
+
 type CarouselStructuredRequest = (options: {
   model: string;
   schema: typeof carouselSpecSchema;
@@ -46,12 +53,21 @@ export async function generateCarousel(
 ): Promise<GenerateCarouselResult> {
   const config = getAIConfig();
   const generatedAt = new Date().toISOString();
+  if (input.requireCanonicalContext && (!input.accountId || !input.personaId || !input.topicId || !input.hookId || !input.formatId || !input.editorialContext)) {
+    throw new CanonicalGenerationBlockedError("mandatory editorial context is incomplete");
+  }
   const fallback = (reason: string): GenerateCarouselResult => ({
     spec: createFallbackCarousel(input), source: "fallback", model: null, generatedAt, warning: `AI generation unavailable - fallback used. ${reason}`, qa: null,
   });
 
-  if (!config.AI_GENERATION_ENABLED) return fallback("AI_GENERATION_ENABLED=false");
-  if (!config.OPENAI_API_KEY) return fallback("OPENAI_API_KEY is missing");
+  if (!config.AI_GENERATION_ENABLED) {
+    if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError("AI_GENERATION_ENABLED=false");
+    return fallback("AI_GENERATION_ENABLED=false");
+  }
+  if (!config.OPENAI_API_KEY) {
+    if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError("OPENAI_API_KEY is missing");
+    return fallback("OPENAI_API_KEY is missing");
+  }
 
   const monthly = await (dependencies.monthlyUsage ?? getMonthlyUsage)();
   assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, input.bypassMonthlyCap === true);
@@ -100,6 +116,7 @@ export async function generateCarousel(
     return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
   } catch (error) {
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
+    if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError(error instanceof Error ? error.message : "OpenAI request failed");
     return fallback(error instanceof Error ? error.message : "OpenAI request failed");
   }
 }

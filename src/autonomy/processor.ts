@@ -78,6 +78,20 @@ export async function processQueuedIdeas(
         preferredHook: String(idea.final_hook || idea.hook_formula || ''),
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
+        accountId,
+        personaId,
+        topicId: String(idea.topic_id || ''),
+        hookId: String(idea.hook_id || ''),
+        formatId: contentType,
+        editorialContext: {
+          search_query: `${String(idea.topic ?? '')} ${String(idea.angle ?? '')}`.trim(),
+          primary_keyword: String(idea.topic ?? ''), secondary_keywords: [], language_profile: 'GENZ_GIRLY_US',
+          language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
+          golden_example_ids: [], topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
+          format_id: contentType, account_id: accountId, persona_id: personaId,
+          brand_integration: { required: true, mention: 'CortiFree', screenshot_required: true },
+        },
+        requireCanonicalContext: true,
       });
       const result = await generateCarousel(input, {}, { carouselId });
       if (result.source !== 'openai') throw new Error(result.warning ?? 'Autonomous generation requires a successful AI draft');

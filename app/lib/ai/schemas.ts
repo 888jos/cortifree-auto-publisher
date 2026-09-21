@@ -20,6 +20,13 @@ export const referenceMetadataSchema = z.object({
 export const recentCarouselSchema = z.object({
   id: z.string().min(1).max(120), topic: z.string().min(1).max(180), angle: z.string().min(1).max(300), hook: z.string().max(140).optional(),
 });
+export const editorialContextSchema = z.object({
+  search_query: z.string(), primary_keyword: z.string(), secondary_keywords: z.array(z.string()),
+  language_profile: z.string(), language_version: z.string(), trend_terms: z.array(z.string()), persona_voice: z.string(),
+  golden_example_ids: z.array(z.string()), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
+  account_id: z.string(), persona_id: z.string(),
+  brand_integration: z.object({ required: z.boolean(), mention: z.string(), screenshot_required: z.boolean() }),
+});
 export const carouselGeneratorInputSchema = z.object({
   carouselType: carouselTypeSchema,
   layout: z.string().min(1).max(80),
@@ -32,6 +39,13 @@ export const carouselGeneratorInputSchema = z.object({
   preferredHook: z.string().min(1).max(140).optional(),
   ctaMode: ctaTypeSchema.default("save"),
   bypassMonthlyCap: z.boolean().default(false),
+  accountId: z.string().regex(/^CF_/).optional(),
+  personaId: z.string().regex(/^P\d{2}$/).optional(),
+  topicId: z.string().min(1).optional(),
+  hookId: z.string().min(1).optional(),
+  formatId: z.string().min(1).optional(),
+  editorialContext: editorialContextSchema.optional(),
+  requireCanonicalContext: z.boolean().default(false),
 });
 export const carouselSlideSchema = z.object({
   position: z.number().int().min(1).max(12), role: slideRoleSchema, layout: z.string().min(1).max(80),

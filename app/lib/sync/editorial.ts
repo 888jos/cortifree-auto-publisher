@@ -78,6 +78,7 @@ const mappings: Mapping[] = [
   { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id" },
   { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id" },
   { sheet: "13_TEMPLATE_SPECS", range: "A1:J100", table: "content_template_specs", key: "template_id" },
+  ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id" }] : []),
 ];
 
 async function upsert(table: string, key: string, rows: Row[]) {
@@ -104,7 +105,7 @@ export async function syncEditorialSheetToConvex() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
-    if (backendMode() === "supabase" && !new Set(["accounts", "content_personas", "content_topics", "content_hooks", "content_ctas"]).has(mapping.table)) {
+    if (backendMode() === "supabase" && !new Set(["accounts", "content_personas", "content_topics", "content_hooks", "content_ctas", "content_formats"]).has(mapping.table)) {
       counts[mapping.table] = 0;
       continue;
     }
@@ -127,7 +128,7 @@ export async function syncEditorialSheetToConvex() {
     { key: "HEALTH_SOURCE_COUNT", value: counts.content_sources ?? 0, value_type: "number", description: "Derived from synced health-source rows", source: "derived", active: true },
     { key: "AUTONOMY_RULE_COUNT", value: counts.autonomy_rules ?? 0, value_type: "number", description: "Derived from synced autonomy-rule rows", source: "derived", active: true },
     { key: "TEMPLATE_SPEC_COUNT", value: counts.template_specs ?? 0, value_type: "number", description: "Derived from synced template rows", source: "derived", active: true },
-    { key: "RUNTIME_TRUTH", value: "CONVEX", value_type: "enum", description: "Autonomous runtime reads Convex", source: "system", active: true },
+    { key: "RUNTIME_TRUTH", value: backendMode() === "supabase" ? "SUPABASE" : "CONVEX", value_type: "enum", description: "Autonomous runtime reads the configured Supabase editorial mirror", source: "system", active: true },
     { key: "GOOGLE_SYNC_MODE", value: "CLOUD_API", value_type: "enum", description: "Google Sheet and Drive sync through cloud APIs", source: "system", active: true },
     { key: "JSON_RUNTIME_FALLBACK_DEFAULT", value: false, value_type: "boolean", description: "JSON fallback is emergency-only and opt-in", source: "system", active: true },
   ];

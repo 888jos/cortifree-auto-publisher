@@ -1,4 +1,5 @@
 import type { CarouselSpec } from "./schemas";
+import { scoreGenericity } from "./genericity";
 
 export type ValidationIssue = { code: string; message: string; slidePosition?: number; severity: "minor" | "major" };
 
@@ -62,6 +63,8 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   if (unsafeHealthPatterns.some((pattern) => pattern.test(allCopy))) issues.push({ code: "HEALTH_CLAIM", message: "Unsafe or unsupported health claim", severity: "major" });
   if (spec.slides[0]?.role !== "HOOK") issues.push({ code: "HOOK_ROLE", message: "First slide must be HOOK", slidePosition: 1, severity: "major" });
   if (!new Set(["CTA", "TAKEAWAY"]).has(spec.slides.at(-1)?.role ?? "")) issues.push({ code: "FINAL_ROLE", message: "Final slide must be CTA or TAKEAWAY", severity: "minor" });
+  const genericity = scoreGenericity(spec);
+  if (genericity.score >= 3) issues.push({ code: "GENERICITY", message: genericity.issues.map((issue) => issue.message).join("; "), severity: "major" });
   return issues;
 }
 

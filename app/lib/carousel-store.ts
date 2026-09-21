@@ -22,6 +22,9 @@ export async function saveGeneratedCarousel(options: {
   personaId?: string;
 }) {
   const { id, input, result } = options;
+  if (input.requireCanonicalContext && (!input.accountId || !input.personaId || !input.topicId || !input.hookId || !input.formatId || !input.editorialContext || Object.keys(input.editorialContext).length === 0)) {
+    throw new Error("CANONICAL_CONTEXT_REQUIRED: refusing to save a carousel without editorial linkage");
+  }
   const accountId = options.accountId || CORTIFREE_ACCOUNT_ID;
   assertCortiFreeCarouselId(id);
   assertCortiFreeAccountId(accountId);
@@ -36,6 +39,11 @@ export async function saveGeneratedCarousel(options: {
     angle: result.spec.angle,
     caption: result.spec.caption,
     cta_type: result.spec.ctaType,
+    topic_id: input.topicId ?? null,
+    hook_id: input.hookId ?? null,
+    format_id: input.formatId ?? input.carouselType,
+    editorial_context: input.editorialContext ?? {},
+    brand_integration_id: input.editorialContext?.brand_integration?.required ? "CORTIFREE_APP" : null,
     status: "DRAFT",
     spec: {
       slides: result.spec.slides.length,
@@ -52,7 +60,7 @@ export async function saveGeneratedCarousel(options: {
         generated_at: result.generatedAt,
         qa_reviewed: result.qa !== null,
         qa_score: result.qa?.score ?? null,
-        prompt_version: "carousel-generator-v1",
+        prompt_version: "carousel-generator-v2-canonical",
       },
     },
   };
