@@ -18,10 +18,12 @@ function split(value: unknown) {
   return String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
 }
 async function walk(folderId: string, path: string[] = [], out: WalkedFile[] = []): Promise<WalkedFile[]> {
-  for (const child of await listDriveChildren(folderId)) {
-    if (child.mimeType === FOLDER_MIME) await walk(child.id, [...path, child.name], out);
-    else out.push({ file: child, path });
-  }
+  const children = await listDriveChildren(folderId);
+  const files = children.filter((child) => child.mimeType !== FOLDER_MIME).map((file) => ({ file, path }));
+  out.push(...files);
+  const folders = children.filter((child) => child.mimeType === FOLDER_MIME);
+  const nested = await Promise.all(folders.map((folder) => walk(folder.id, [...path, folder.name])));
+  for (const entries of nested) out.push(...entries);
   return out;
 }
 async function backendRows(resource: string) {
