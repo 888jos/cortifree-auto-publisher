@@ -26,20 +26,11 @@ function account(row: Row): Row {
     active: row.active,
     warmup_status: row.warmup_status || "CREATED",
     upload_post_profile: row.upload_post_profile || "",
-    daily_target: row.daily_target || 1,
     primary_pillar_id: row.primary_pillar_id,
     promo_ratio: row.promo_ratio || 0.08,
-    ready_buffer_days: row.ready_buffer_days || 3,
     posting_enabled: row.posting_enabled,
     profile_picture_drive_file_id: row.profile_picture_drive_file_id || null,
     profile_picture_filename: row.profile_picture_filename || null,
-    name: row.display_name_candidate || row.username_candidate || row.account_id,
-    platforms: [String(row.platform || "tiktok")],
-    secondary_pillar_ids: split(row.secondary_pillar_ids),
-    posting_slots: split(row.posting_slots),
-    pillar_mix: mix(row.pillar_mix),
-    format_mix: mix(row.format_mix),
-    enabled: row.active === true && ["WARMING", "ACTIVE"].includes(String(row.warmup_status || "CREATED")),
   };
 }
 
