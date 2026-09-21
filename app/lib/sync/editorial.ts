@@ -131,7 +131,7 @@ export async function syncEditorialSheetToConvex() {
   const log = {
     id: `SYNC_SHEET_${Date.now()}`,
     workspace_id: "cortifree",
-    event: "SHEET_TO_CONVEX",
+    event: `SHEET_TO_${backendMode().toUpperCase()}`,
     status: "SUCCESS",
     started_at: startedAt,
     finished_at: new Date().toISOString(),

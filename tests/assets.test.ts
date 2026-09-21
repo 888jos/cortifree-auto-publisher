@@ -6,6 +6,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
 import { chooseAssets } from '../app/lib/asset-selector';
+import { isAutomaticVisualReference } from '../src/visual-references';
 
 describe('asset scanner', () => {
   it('indexes stock and persona image metadata with canonical persona IDs', async () => {
@@ -44,5 +45,14 @@ describe('asset scanner', () => {
     ];
     const selected = chooseAssets({ carouselType: 'C05_GLOW_UP', personaId: 'P03', assets, slides: [{ position: 3, role: 'TIP', headline: 'Steam the outfit you actually wear', body: 'Prepare tomorrow\'s clothes tonight.', assetType: 'persona', assetQuery: 'Maya steaming an outfit with a clothing rack', visualIntent: 'A woman visibly steaming a real outfit; no sauna or steam room.' }] });
     assert.equal(selected[0]?.asset.id, 'outfit');
+  });
+
+  it('excludes duplicate, review, and multi-person visual references from automation', () => {
+    assert.equal(isAutomaticVisualReference({ enabled: true, metadata: {} }), true);
+    assert.equal(isAutomaticVisualReference({ enabled: false, metadata: {} }), false);
+    assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { review_status: 'DUPLICATE' } }), false);
+    assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { review_status: 'REVIEW' } }), false);
+    assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { qa_flag: 'MULTI_PERSON_AUTO_DISABLED' } }), false);
+    assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { review_status: 'APPROVED' } }), true);
   });
 });

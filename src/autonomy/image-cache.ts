@@ -1,7 +1,7 @@
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs, autonomyRuleValue } from '../runtime/config';
 import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core';
-import { visualReferenceSchema } from '../visual-references/index';
+import { isAutomaticVisualReference, visualReferenceSchema } from '../visual-references/index';
 import { processImageGenerationJob } from '../../app/lib/image-generation';
 
 type Row = Record<string, unknown>;
@@ -36,7 +36,11 @@ export async function refillPersonaCaches() {
     if (!generationEnabled) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'GENERATION_DISABLED' }); continue; }
 
     const sceneRows = await rows('persona_scene_templates?enabled=eq.true&select=*&limit=100');
-    const refs = (await rows('visual_references?enabled=eq.true&select=*&limit=500')).map((row) => visualReferenceSchema.parse(row));
+    const refs = (await rows('visual_references?enabled=eq.true&select=*&limit=500'))
+      .map((row) => visualReferenceSchema.safeParse(row))
+      .filter((result) => result.success)
+      .map((result) => result.data)
+      .filter(isAutomaticVisualReference);
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
     const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);

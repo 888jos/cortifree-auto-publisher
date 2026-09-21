@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { batchGenerationCount, buildImagePrompt, imageGenerationInputSchema } from '../../../../src/image-generation/core';
-import { visualReferenceSchema } from '../../../../src/visual-references';
+import { isAutomaticVisualReference, visualReferenceSchema } from '../../../../src/visual-references';
 import { dataBackend } from '../../../lib/data-backend';
 import { CORTIFREE_WORKSPACE_ID } from '../../../lib/workspace';
 import { loadRuntimePersonaConfigs } from '../../../../src/runtime/config';
@@ -49,7 +49,8 @@ export async function POST(request: Request) {
     const references = (await rows<unknown>(`visual_references?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*`))
       .map((row) => visualReferenceSchema.safeParse(row))
       .filter((result): result is { success: true; data: z.infer<typeof visualReferenceSchema> } => result.success)
-      .map((result) => result.data);
+      .map((result) => result.data)
+      .filter(isAutomaticVisualReference);
     const jobs: Record<string, unknown>[] = [];
     for (const persona of selectedPersonas) {
       const master = masters.find((item) => item.persona_id === persona.id);

@@ -1,4 +1,4 @@
-import { dataBackend, convexConfigured, getConvexCounts, getConvexPing } from "../../app/lib/data-backend";
+import { backendMode, dataBackend, convexConfigured, getConvexCounts, getConvexPing } from "../../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../../app/lib/google/auth";
 import { loadRuntimeAccounts, loadRuntimeRows } from "../runtime/config";
 
@@ -69,14 +69,19 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   checks.googleConfigured = googleServiceAccountConfigured();
   if (!checks.googleConfigured) blockers.push("GOOGLE_SERVICE_ACCOUNT_MISSING");
 
+  const sheetStage = `SHEET_TO_${backendMode().toUpperCase()}`;
+  const driveStage = `DRIVE_TO_${backendMode().toUpperCase()}`;
   const [sheetSync, driveSync] = await Promise.all([
-    rows("system_logs?stage=eq.SHEET_TO_CONVEX&order=created_at.desc&limit=1").catch(() => []),
-    rows("system_logs?stage=eq.DRIVE_TO_CONVEX&order=created_at.desc&limit=1").catch(() => []),
+    rows(`system_logs?stage=eq.${sheetStage}&order=created_at.desc&limit=1`).catch(() => []),
+    rows(`system_logs?stage=eq.${driveStage}&order=created_at.desc&limit=1`).catch(() => []),
   ]);
   const latestSheetSync = sheetSync[0];
   const latestDriveSync = driveSync[0];
   checks.latestSheetSync = latestSheetSync?.created_at ?? null;
   checks.latestDriveSync = latestDriveSync?.created_at ?? null;
+  checks.backendMode = backendMode();
+  checks.sheetSyncStage = sheetStage;
+  checks.driveSyncStage = driveStage;
   const sheetSyncOk = String(latestSheetSync?.status ?? "").toUpperCase() === "SUCCESS";
   const driveSyncOk = String(latestDriveSync?.status ?? "").toUpperCase() === "SUCCESS";
   checks.googleSyncFresh = isRecent(latestSheetSync?.created_at, 36) && isRecent(latestDriveSync?.created_at, 36);

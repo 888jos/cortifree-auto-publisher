@@ -8,7 +8,7 @@ import {
   type ImageGenerationInput,
   type ImageGenerationProvider,
 } from "../../src/image-generation/core";
-import { visualReferenceSchema } from "../../src/visual-references";
+import { isAutomaticVisualReference, visualReferenceSchema } from "../../src/visual-references";
 import { uploadConvexFile } from "./convex-storage";
 import { backendMode, dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
@@ -108,6 +108,7 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
     if (!persona) throw new Error(`Persona config not found in ${backendMode()} runtime`);
     const master = await queryOne<{ id: string | number; public_url: string }>("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + job.master_asset_id + "&source_type=eq.persona_master&select=id,public_url");
     const reference = visualReferenceSchema.parse(await queryOne("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(String(job.visual_reference_id)) + "&enabled=eq.true&select=*"));
+    if (!isAutomaticVisualReference(reference)) throw new Error(`VISUAL_REFERENCE_NOT_AUTOMATICALLY_SELECTABLE:${reference.id}`);
     const referenceUrl = reference.thumbnail_url || (reference.storage_path?.startsWith("http") ? reference.storage_path : null);
     if (!master.public_url) throw new Error(`Persona MASTER is not available through ${backendMode()} storage`);
     if (!referenceUrl) throw new Error("Visual reference has no stable accessible image; import a local file or thumbnail first");

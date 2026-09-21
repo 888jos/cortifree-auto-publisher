@@ -27,6 +27,21 @@ export const visualReferenceSchema = z.object({
 });
 export type VisualReference = z.infer<typeof visualReferenceSchema>;
 
+/**
+ * Sheet moderation is authoritative for automatic generation. Keep the
+ * status fields in metadata so the existing table remains backwards
+ * compatible, but centralise the rule so every selector applies it.
+ */
+export function isAutomaticVisualReference(reference: Pick<VisualReference, "enabled" | "metadata">) {
+  if (reference.enabled === false) return false;
+  const metadata = reference.metadata ?? {};
+  const reviewStatus = String(metadata.review_status ?? "").trim().toUpperCase();
+  const qaFlag = String(metadata.qa_flag ?? "").trim().toUpperCase();
+  if (reviewStatus === "DUPLICATE" || reviewStatus === "REVIEW") return false;
+  if (qaFlag === "MULTI_PERSON_AUTO_DISABLED") return false;
+  return true;
+}
+
 const prefixes: Record<(typeof visualReferenceCategories)[number], string> = {
   mirror_selfie: "MIRROR", morning_home: "MORNING_HOME", bedroom: "BEDROOM", kitchen: "KITCHEN",
   coffee_cafe: "COFFEE", outdoors_walk: "OUTDOORS", fitness_pilates: "PILATES", self_care: "SKINCARE",

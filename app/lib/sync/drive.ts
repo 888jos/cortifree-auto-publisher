@@ -1,4 +1,4 @@
-import { dataBackend } from "../data-backend";
+import { backendMode, dataBackend } from "../data-backend";
 import { uploadConvexFile } from "../convex-storage";
 import { listDriveChildren, getDriveFile, downloadDriveFile, type DriveFile } from "../google/drive";
 import { readSheetObjects } from "../google/sheets";
@@ -31,10 +31,11 @@ async function backendRows(resource: string) {
   if (!response.ok) throw new Error(await response.text());
   return await response.json() as Row[];
 }
-async function upsert(table: string, row: Row) {
+async function upsert(table: string, row: Row, conflictFields = ["id"]) {
   let payload = { ...row };
+  let conflicts = [...conflictFields];
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const response = await dataBackend(`${table}?on_conflict=id`, {
+    const response = await dataBackend(`${table}?on_conflict=${conflicts.join(",")}`, {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(payload),
@@ -46,6 +47,8 @@ async function upsert(table: string, row: Row) {
     const copy: Row = { ...payload };
     delete copy[missingColumn[1]];
     payload = copy;
+    conflicts = conflicts.filter((field) => field !== missingColumn[1]);
+    if (!conflicts.length) conflicts = ["id"];
   }
   throw new Error(`Drive sync failed for ${table}: too many schema compatibility retries`);
 }
@@ -70,7 +73,23 @@ async function upload(file: DriveFile) {
   return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
 }
 
-export async function syncGoogleDriveToConvex(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" } = {}) {
+function sheetReviewStatus(row: Row) {
+  return String(row.review_status ?? "").trim().toUpperCase();
+}
+function sheetQaFlag(row: Row) {
+  return String(row.qa_flag ?? "").trim().toUpperCase();
+}
+function sheetSelectable(row: Row) {
+  return row.enabled !== false && !["DUPLICATE", "REVIEW"].includes(sheetReviewStatus(row)) && sheetQaFlag(row) !== "MULTI_PERSON_AUTO_DISABLED";
+}
+function runtimeMetadata(row: Row) {
+  const metadata = row.metadata;
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Row : {};
+}
+
+const syncLocks = new Map<string, Promise<unknown>>();
+
+async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" } = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
   const offset = Math.max(0, options.offset ?? 0);
   const scope = options.scope ?? "all";
@@ -91,11 +110,20 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   const refsByDrive = new Map(refTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const assetByDrive = new Map(existingAssets.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const assetByFilename = new Map(existingAssets.filter((row) => row.filename).map((row) => [String(row.filename).trim().toLowerCase(), row]));
+  const assetByMd5 = new Map(existingAssets.filter((row) => row.drive_md5).map((row) => [String(row.drive_md5), row]));
   const refByDrive = new Map(existingRefs.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const refById = new Map(existingRefs.filter((row) => row.id).map((row) => [String(row.id), row]));
+  const refByHash = new Map<string, Row>();
+  for (const row of existingRefs.filter((item) => item.file_hash)) {
+    const hash = String(row.file_hash);
+    const current = refByHash.get(hash);
+    const rank = (candidate: Row) => candidate.enabled === true && !["DUPLICATE", "REVIEW"].includes(String(runtimeMetadata(candidate).review_status ?? "").toUpperCase()) && String(runtimeMetadata(candidate).qa_flag ?? "").toUpperCase() !== "MULTI_PERSON_AUTO_DISABLED" ? 0 : 1;
+    if (!current || rank(row) < rank(current)) refByHash.set(hash, row);
+  }
   let uploaded = 0;
   let skipped = 0;
   let metadataRepaired = 0;
+  let duplicatesSkipped = 0;
   let failed = 0;
   const failures: Array<{ id: string; name: string; error: string }> = [];
 
@@ -103,7 +131,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   // second full Drive tree walk: repair metadata in place and fetch only
   // canonical rows that are genuinely missing from runtime storage.
   const stockEntries: WalkedFile[] = scope === "stock_missing"
-    ? (await Promise.all(stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase())).map(async (row) => {
+    ? (await Promise.all(stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase()) && !assetByMd5.has(String(row.drive_md5 ?? row.md5 ?? ""))).map(async (row) => {
       try {
         return { file: await getDriveFile(String(row.drive_file_id)), path: [String(row.category || "uncategorized")] };
       } catch (error) {
@@ -141,7 +169,8 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
         orientation: row.orientation || "portrait",
         tags: split(row.tags),
         good_for: split(row.preferred_pillars),
-        enabled: row.enabled !== false,
+        enabled: sheetSelectable(row),
+        metadata: { qa_flag: row.qa_flag ?? null, review_status: row.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       };
       const changed = String(existing.category ?? "") !== String(expected.category)
         || String(existing.pose ?? "") !== String(expected.pose)
@@ -149,6 +178,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
         || String(existing.outfit ?? "") !== String(expected.outfit)
         || String(existing.environment ?? "") !== String(expected.environment)
         || String(existing.lighting ?? "") !== String(expected.lighting)
+        || existing.enabled !== expected.enabled
         || !sameCanonicalValue(existing.tags, expected.tags)
         || !sameCanonicalValue(existing.good_for, expected.good_for);
       return changed ? { id: String(existing.id), expected } : null;
@@ -164,8 +194,8 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string }> = [];
     for (const row of stockTaxonomy) {
       const existing = row.drive_file_id
-        ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase())
-        : assetByFilename.get(String(row.filename ?? "").trim().toLowerCase());
+        ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""))
+        : assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""));
       if (!existing || !row.drive_file_id) continue;
       const expectedCategory = String(row.category || existing.category || "uncategorized");
       const expectedSubcategory = String(row.scene || row.category || existing.subcategory || "uncategorized");
@@ -193,7 +223,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
           tags: split(row.tags),
           good_for: split(row.good_for_pillars),
           enabled: row.enabled !== false,
-          metadata: { ...(existing.metadata as Row ?? {}), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null },
+          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null },
           indexed_at: new Date().toISOString(),
         });
       }));
@@ -204,8 +234,11 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   async function syncStock(entry: WalkedFile) {
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = stockByDrive.get(entry.file.id) ?? {};
-    const existing = assetByDrive.get(entry.file.id) ?? assetByFilename.get(entry.file.name.trim().toLowerCase());
+    const existing = assetByDrive.get(entry.file.id)
+      ?? assetByFilename.get(entry.file.name.trim().toLowerCase())
+      ?? (entry.file.md5Checksum ? assetByMd5.get(entry.file.md5Checksum) : undefined);
     const category = String(taxonomy.category || entry.path[0] || "uncategorized");
+    const selectable = sheetSelectable(taxonomy);
     const canonicalMetadata = {
       category,
       subcategory: taxonomy.scene || category,
@@ -215,12 +248,17 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       mood: taxonomy.mood ?? null,
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
-      enabled: taxonomy.enabled !== false,
+      enabled: selectable,
       metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
-    if (md5Matches(existing, entry.file)) {
-      await patch("assets", String(existing?.id), canonicalMetadata);
+    if (existing && (md5Matches(existing, entry.file) || existing.filename === entry.file.name || existing.drive_file_id === entry.file.id)) {
+      await patch("assets", String(existing.id), {
+        ...canonicalMetadata,
+        drive_file_id: existing.drive_file_id ?? entry.file.id,
+        drive_md5: existing.drive_md5 ?? entry.file.md5Checksum ?? null,
+        drive_modified_time: entry.file.modifiedTime ?? existing.drive_modified_time ?? null,
+      });
       metadataRepaired += 1;
       skipped += 1;
       return;
@@ -235,12 +273,12 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       persona_id: null,
       source_type: "stock",
       public_url: storage.publicUrl,
-      storage_bucket: "convex",
+      storage_bucket: backendMode(),
       convex_storage_id: String(storage.storageId),
       ...canonicalMetadata,
       use_count: Number(taxonomy.use_count ?? 0),
       indexed_at: new Date().toISOString(),
-    });
+    }, ["workspace_id", "drive_file_id"]);
     uploaded += 1;
   }
 
@@ -266,7 +304,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       persona_id: personaId,
       source_type: sourceType,
       public_url: storage.publicUrl,
-      storage_bucket: "convex",
+      storage_bucket: backendMode(),
       convex_storage_id: String(storage.storageId),
       enabled: true,
       indexed_at: new Date().toISOString(),
@@ -279,6 +317,9 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = refsByDrive.get(entry.file.id) ?? {};
     const existing = refByDrive.get(entry.file.id);
+    const reviewStatus = sheetReviewStatus(taxonomy);
+    const qaFlag = sheetQaFlag(taxonomy);
+    const selectable = sheetSelectable(taxonomy);
     const canonicalMetadata = {
       category: taxonomy.carousel_use || entry.path[0] || "hero_misc",
       source_url: taxonomy.source_url ?? null,
@@ -293,9 +334,15 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
       metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
-      enabled: taxonomy.enabled !== false,
+      enabled: selectable,
       updated_at: new Date().toISOString(),
     };
+    if (reviewStatus === "DUPLICATE" || qaFlag === "MULTI_PERSON_AUTO_DISABLED") {
+      if (existing?.id) await patch("visual_references", String(existing.id), { ...canonicalMetadata, enabled: false });
+      duplicatesSkipped += 1;
+      skipped += 1;
+      return;
+    }
     if (existing?.thumbnail_url) {
       const metadataNeedsRepair = String(existing.category ?? "") !== String(canonicalMetadata.category ?? "")
         || String(existing.pose ?? "") !== String(canonicalMetadata.pose ?? "")
@@ -305,16 +352,24 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
         || String(existing.lighting ?? "") !== String(canonicalMetadata.lighting ?? "")
         || !sameCanonicalValue(existing.tags, canonicalMetadata.tags)
         || !sameCanonicalValue(existing.good_for, canonicalMetadata.good_for);
-      if (!metadataNeedsRepair) { skipped += 1; return; }
-      await patch("visual_references", String(existing.id), canonicalMetadata);
+      if (!metadataNeedsRepair && existing.enabled === canonicalMetadata.enabled) { skipped += 1; return; }
+      await patch("visual_references", String(existing.id), { ...canonicalMetadata, drive_file_id: entry.file.id });
       metadataRepaired += 1;
       skipped += 1;
       return;
     }
     if (entry.file.md5Checksum) {
-      const sameHash = await backendRows(`visual_references?file_hash=eq.${encodeURIComponent(entry.file.md5Checksum)}&limit=1`);
+      const sameHash = refByHash.get(entry.file.md5Checksum)
+        ? [refByHash.get(entry.file.md5Checksum)!]
+        : await backendRows(`visual_references?file_hash=eq.${encodeURIComponent(entry.file.md5Checksum)}&limit=1`);
       if (sameHash[0]?.id) {
-        await patch("visual_references", String(sameHash[0].id), canonicalMetadata);
+        const canonical = sameHash[0];
+        if (String(canonical.id) !== String(taxonomy.ref_id ?? "")) {
+          duplicatesSkipped += 1;
+          skipped += 1;
+          return;
+        }
+        await patch("visual_references", String(canonical.id), { ...canonicalMetadata, drive_file_id: entry.file.id });
         metadataRepaired += 1;
         skipped += 1;
         return;
@@ -328,7 +383,8 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       ...canonicalMetadata,
       thumbnail_url: storage.publicUrl,
       file_hash: entry.file.md5Checksum ?? null,
-    });
+      drive_file_id: entry.file.id,
+    }, ["workspace_id", "drive_file_id"]);
     uploaded += 1;
   }
 
@@ -350,25 +406,55 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
     }
   }
 
+  const stockAuditRows = stockTaxonomy.map((row) => {
+    const existing = row.drive_file_id
+      ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""))
+      : assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""));
+    return { row, existing, status: existing ? `INDEXED_${backendMode().toUpperCase()}` : "DRIVE_ONLY_NEEDS_SYNC" };
+  });
+  const visualAuditRows = refTaxonomy.map((row) => {
+    const existing = row.ref_id ? refById.get(String(row.ref_id)) : undefined;
+    const byHash = row.file_hash ? refByHash.get(String(row.file_hash)) : undefined;
+    return { row, existing: existing ?? byHash, status: existing || byHash ? `INDEXED_${backendMode().toUpperCase()}` : "DRIVE_ONLY_NEEDS_SYNC" };
+  });
+  const statusCounts = (items: Array<{ status: string }>) => items.reduce<Record<string, number>>((counts, item) => {
+    counts[item.status] = (counts[item.status] ?? 0) + 1;
+    return counts;
+  }, {});
+
   const result = {
     id: `SYNC_DRIVE_${Date.now()}`,
     workspace_id: "cortifree",
-    event: "DRIVE_TO_CONVEX",
+    event: backendMode() === "supabase" ? "DRIVE_TO_SUPABASE" : "DRIVE_TO_CONVEX",
     status: failed ? "PARTIAL" : "SUCCESS",
     uploaded,
     skipped,
+    duplicates_skipped: duplicatesSkipped,
     metadata_repaired: metadataRepaired,
     failed,
     remaining_hint: Math.max(0, (scope === "visual_refs" ? refTree : [...stockTree, ...personaTree, ...refTree]).filter((x) => isImage(x.file)).length - skipped - uploaded),
     scope,
     failures: failures.slice(0, 20),
     audit: {
+      sheet_count: scope === "visual_refs" || scope === "visual_refs_missing" ? refTaxonomy.length : stockTaxonomy.length,
+      drive_count: scope === "visual_refs" || scope === "visual_refs_missing"
+        ? refTaxonomy.filter((row) => row.drive_file_id).length
+        : stockTree.length ? stockTree.filter((entry) => isImage(entry.file)).length : stockTaxonomy.filter((row) => row.drive_file_id).length,
+      runtime_count: scope === "visual_refs" || scope === "visual_refs_missing" ? existingRefs.length : existingAssets.filter((row) => row.source_type === "stock").length,
+      missing_runtime: scope === "visual_refs" || scope === "visual_refs_missing"
+        ? refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id)) && !refByHash.has(String(row.file_hash ?? "")) && sheetSelectable(row)).length
+        : stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase()) && !assetByMd5.has(String(row.drive_md5 ?? row.md5 ?? ""))).length,
+      duplicates_skipped: duplicatesSkipped,
+      metadata_repaired: metadataRepaired,
+      uploaded,
       stock_drive_images: scope === "assets" || scope === "stock" || scope === "stock_missing" ? stockTaxonomy.length : stockTree.filter((entry) => isImage(entry.file)).length,
       stock_sheet_rows: stockTaxonomy.length,
       stock_sheet_columns: Object.keys(stockTaxonomy[0] ?? {}),
       stock_sheet_sample: stockTaxonomy[0] ?? null,
-      stock_drive_only_rows: stockTaxonomy.filter((row) => String(row.sync_status ?? "").toUpperCase() === "DRIVE_ONLY_NEEDS_SYNC").map((row) => String(row.stock_key ?? row.drive_file_id ?? "unknown")),
-      stock_runtime_missing_rows: stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase())).map((row) => String(row.stock_key ?? row.drive_file_id)),
+      stock_status_counts: statusCounts(stockAuditRows),
+      stock_drive_only_rows: stockAuditRows.filter((item) => item.status === "DRIVE_ONLY_NEEDS_SYNC").map(({ row }) => String(row.stock_key ?? row.drive_file_id ?? "unknown")),
+      stock_runtime_missing_rows: stockAuditRows.filter((item) => item.status === "DRIVE_ONLY_NEEDS_SYNC").map(({ row }) => String(row.stock_key ?? row.drive_file_id)),
+      visual_ref_status_counts: statusCounts(visualAuditRows),
       visual_ref_drive_images: scope === "visual_refs" || scope === "visual_refs_missing" ? refTaxonomy.length : refTree.filter((entry) => isImage(entry.file)).length,
       visual_ref_sheet_rows: refTaxonomy.length,
       visual_ref_runtime_missing_rows: refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id))).map((row) => String(row.ref_id)),
@@ -382,4 +468,18 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   });
   if (!logResponse.ok) throw new Error(`Sync log write failed: ${await logResponse.text()}`);
   return result;
+}
+
+/** Serialize syncs per scope in one process; database unique keys protect
+ * concurrent Vercel instances and retries across processes. */
+export async function syncGoogleDriveToConvex(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" } = {}) {
+  const key = `${backendMode()}:${options.scope ?? "all"}`;
+  const previous = syncLocks.get(key) ?? Promise.resolve();
+  const current = previous.then(() => syncGoogleDriveToBackendUnlocked(options));
+  syncLocks.set(key, current);
+  try {
+    return await current;
+  } finally {
+    if (syncLocks.get(key) === current) syncLocks.delete(key);
+  }
 }
