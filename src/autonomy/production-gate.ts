@@ -70,16 +70,16 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   if (!checks.googleConfigured) blockers.push("GOOGLE_SERVICE_ACCOUNT_MISSING");
 
   const [sheetSync, driveSync] = await Promise.all([
-    rows("system_logs?stage=eq.SHEET_TO_CONVEX&order=timestamp.desc&limit=1").catch(() => []),
-    rows("system_logs?stage=eq.DRIVE_TO_CONVEX&order=timestamp.desc&limit=1").catch(() => []),
+    rows("system_logs?stage=eq.SHEET_TO_CONVEX&order=created_at.desc&limit=1").catch(() => []),
+    rows("system_logs?stage=eq.DRIVE_TO_CONVEX&order=created_at.desc&limit=1").catch(() => []),
   ]);
   const latestSheetSync = sheetSync[0];
   const latestDriveSync = driveSync[0];
-  checks.latestSheetSync = latestSheetSync?.timestamp ?? null;
-  checks.latestDriveSync = latestDriveSync?.timestamp ?? null;
+  checks.latestSheetSync = latestSheetSync?.created_at ?? null;
+  checks.latestDriveSync = latestDriveSync?.created_at ?? null;
   const sheetSyncOk = String(latestSheetSync?.status ?? "").toUpperCase() === "SUCCESS";
   const driveSyncOk = String(latestDriveSync?.status ?? "").toUpperCase() === "SUCCESS";
-  checks.googleSyncFresh = isRecent(latestSheetSync?.timestamp, 36) && isRecent(latestDriveSync?.timestamp, 36);
+  checks.googleSyncFresh = isRecent(latestSheetSync?.created_at, 36) && isRecent(latestDriveSync?.created_at, 36);
   checks.googleSyncSuccessful = sheetSyncOk && driveSyncOk;
   if (!checks.googleSyncFresh) blockers.push("GOOGLE_SYNC_STALE_OR_MISSING");
   if (!checks.googleSyncSuccessful) blockers.push("GOOGLE_SYNC_NOT_SUCCESSFUL");

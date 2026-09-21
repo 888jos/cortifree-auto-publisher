@@ -146,7 +146,7 @@ export async function syncEditorialSheetToConvex() {
   };
   const logResponse = await dataBackend("system_logs", {
     method: "POST",
-    body: JSON.stringify({ timestamp: log.finished_at, stage: log.event, status: log.status, metadata: log }),
+    body: JSON.stringify({ created_at: log.finished_at, stage: log.event, status: log.status, metadata: log }),
   });
   if (!logResponse.ok) throw new Error(`Sync log write failed: ${await logResponse.text()}`);
   return log;
