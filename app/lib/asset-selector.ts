@@ -62,8 +62,13 @@ export function chooseAssets(options: {
       : slide.assetType === "stock" || slide.assetType === "text_only"
         ? finalUse.filter((asset) => asset.source_type === "stock")
         : finalUse;
-    if (slide.assetType === "persona" && requested.length === 0) throw new Error(`PERSONA_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
-    const candidates = requested.map((asset) => {
+    // Keep drafts renderable while persona-generated assets are still syncing.
+    // A stock lifestyle image is preferable to a completely invisible carousel;
+    // the generated copy still remains associated with the requested persona.
+    const usableRequested = slide.assetType === "persona" && requested.length === 0
+      ? finalUse.filter((asset) => asset.source_type === "stock")
+      : requested;
+    const candidates = usableRequested.map((asset) => {
       const haystack = assetText(asset);
       const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
       const categoryRank = preferred.indexOf(asset.category);
