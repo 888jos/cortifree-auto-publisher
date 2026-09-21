@@ -7,8 +7,9 @@ const LOCAL_FONTS = new Set([
 
 type SpecLike = {
   model_id?: string;
+  typography?: { hookFontFamily?: string; bodyFontFamily?: string; hookSize?: number; titleSize?: number; bodySize?: number; maxDistinctSizes?: number };
   generated_slides?: Array<{ position: number; role: string; headline: string; body: string; layout?: string }>;
-  rendered_slides?: Array<{ position: number; assetIds?: Array<string | number>; assetSourceTypes?: Array<string | null>; geometry?: { image?: { mode?: string }; text?: { fontFamily?: string; headlineSize?: number; bodySize?: number; x?: number; y?: number; width?: number } } }>;
+  rendered_slides?: Array<{ position: number; assetIds?: Array<string | number>; assetSourceTypes?: Array<string | null>; geometry?: { image?: { mode?: string }; text?: { fontFamily?: string; hookFontFamily?: string; hookSize?: number; headlineSize?: number; bodySize?: number; x?: number; y?: number; width?: number } } }>;
 };
 
 export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
@@ -17,6 +18,13 @@ export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
   const rendered = [...(spec.rendered_slides ?? [])].sort((a, b) => a.position - b.position);
   const expectedGrid = spec.model_id === "grid-2x2" || slides.some((slide) => slide.layout === "grid-2x2");
   const usedAssets = new Set<string>();
+  const sizes = new Set<number>();
+  if (spec.typography) {
+    for (const size of [spec.typography.hookSize, spec.typography.titleSize, spec.typography.bodySize]) if (typeof size === "number") sizes.add(size);
+    if (sizes.size > (spec.typography.maxDistinctSizes ?? 3)) issues.push({ code: "TYPOGRAPHY_TOO_MANY_SIZES", message: "Carousel exceeds the maximum number of font sizes", severity: "major" });
+    for (const family of [spec.typography.hookFontFamily, spec.typography.bodyFontFamily]) if (family && !LOCAL_FONTS.has(family)) issues.push({ code: "UNAPPROVED_FONT", message: `Carousel uses a font that is not downloaded: ${family}`, severity: "major" });
+  }
+  let baseline: { font?: string; headlineSize?: number; bodySize?: number } | undefined;
   const genericCopy = /routine you can repeat|a routine you can actually repeat|feel more together|small steps that add up|make tomorrow easier/i;
   for (const slide of slides) {
     if (genericCopy.test(`${slide.headline} ${slide.body}`)) issues.push({ code: "GENERIC_COPY", message: "Copy is too generic; replace it with a concrete action or observable result", severity: "major", slidePosition: slide.position });
@@ -32,6 +40,14 @@ export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
     const font = geometry?.text?.fontFamily;
     if (font && !LOCAL_FONTS.has(font)) issues.push({ code: "UNAPPROVED_FONT", message: `Carousel uses a font that is not downloaded: ${font}`, severity: "major", slidePosition: slide.position });
     const text = geometry?.text;
+    if (text) {
+      const current = { font: text.fontFamily, headlineSize: text.headlineSize, bodySize: text.bodySize };
+      if (baseline && (current.font !== baseline.font || current.headlineSize !== baseline.headlineSize || current.bodySize !== baseline.bodySize)) issues.push({ code: "TYPOGRAPHY_INCONSISTENT", message: "Title/body typography changes within the carousel", severity: "major", slidePosition: slide.position });
+      baseline ??= current;
+      if (typeof text.headlineSize === "number") sizes.add(text.headlineSize);
+      if (typeof text.bodySize === "number") sizes.add(text.bodySize);
+      if (sizes.size > 3) issues.push({ code: "TYPOGRAPHY_TOO_MANY_SIZES", message: "Carousel uses more than three distinct font sizes", severity: "major", slidePosition: slide.position });
+    }
     if (text && ((text.x ?? 0) < 40 || (text.y ?? 0) < 40 || (text.x ?? 0) + (text.width ?? 0) > 1040)) issues.push({ code: "TEXT_SAFE_ZONE", message: "Text frame is outside the safe area", severity: "major", slidePosition: slide.position });
     const assetIds = slide.assetIds ?? [];
     const sourceTypes = slide.assetSourceTypes ?? [];

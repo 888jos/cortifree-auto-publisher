@@ -66,6 +66,8 @@ type Geometry = {
     maxBodyLines?: number;
     accentColor?: string;
     fontFamily?: string;
+    hookFontFamily?: string;
+    hookSize?: number;
     shadow?: string;
   };
   overlay?: { color?: string; opacity?: number };
@@ -79,7 +81,7 @@ const defaultGeometry: Geometry = {
   image: { x: 0, y: 0, width: WIDTH, height: HEIGHT, fit: "cover", mode: "single" },
   text: {
     x: 82, y: 810, width: 916, headlineY: 810, bodyY: 980, align: "left",
-    headlineSize: 62, bodySize: 32, headlineWeight: 700, bodyWeight: 500,
+    headlineSize: 60, bodySize: 30, headlineWeight: 700, bodyWeight: 500,
     headlineColor: "#fffdf8", bodyColor: "#f7f4ed", maxHeadlineLines: 3, maxBodyLines: 5,
   },
   overlay: { color: "#122019", opacity: 0.3 },
@@ -167,15 +169,16 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     const hookHeadline = wrapHook(slide.headline.toLowerCase(), Math.max(2, design.maxWordsPerLine), 5);
     // Keep long hooks in a compact, high-contrast block instead of allowing
     // one word per line to run through the person or the focal object.
-    const hookSize = hookHeadline.length > 4 ? Math.min(design.size, 38) : design.size;
-    const hookTop = hookHeadline.length > 4 ? 150 : design.y;
+    const hookSize = frame.hookSize ?? 48;
+    const hookTop = design.y;
     // The composition heuristic can prefer the visually quieter side while
     // still crossing a centered portrait. Keep long hooks in the opposite
     // lateral safe zone instead of covering the face or phone.
     const hookX = design.x >= WIDTH / 2 ? 80 : design.x;
     const hookWidth = Math.max(design.width, 440);
     for (const [index, line] of hookHeadline.entries()) {
-      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.35), size: hookSize, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: "TikTok Sans" });
+      const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: hookFontFamily });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (hookSize + Math.max(8, design.lineGap)) });
     }
     return overlays;
@@ -263,7 +266,14 @@ export async function renderCarousel(input: {
     // The selected model is authoritative. AI copy may return an old layout alias;
     // never let that silently turn a 2x2 request back into a single-photo slide.
     const slideLayout = index === 0 || slide.role.toUpperCase() === "HOOK" ? "single-image" : input.layout;
-    const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, index === input.slides.length - 1) as Geometry;
+    const typography = {
+      hookFontFamily: "Bricolage Grotesque",
+      bodyFontFamily: "TikTok Sans",
+      hookSize: 48,
+      titleSize: 60,
+      bodySize: 30,
+    };
+    const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, index === input.slides.length - 1, typography) as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
@@ -294,7 +304,12 @@ export async function renderCarousel(input: {
     await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(match.asset.id)}`, { method: "PATCH", body: JSON.stringify({ use_count: (match.asset.use_count ?? 0) + 1, last_used_at: now }) });
   })));
 
-  const updatedSpec = { ...input.spec, rendered_slides: rendered, rendered_at: now };
+  const updatedSpec = {
+    ...input.spec,
+    typography: { hookFontFamily: "Bricolage Grotesque", bodyFontFamily: "TikTok Sans", hookSize: 48, titleSize: 60, bodySize: 30, maxDistinctSizes: 3 },
+    rendered_slides: rendered,
+    rendered_at: now,
+  };
   const carouselResponse = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.id)}`, { method: "PATCH", body: JSON.stringify({ spec: updatedSpec, updated_at: now }) });
   if (!carouselResponse.ok) throw new Error(`Carousel render state save failed: ${await carouselResponse.text()}`);
   return rendered;

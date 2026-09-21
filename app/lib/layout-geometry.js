@@ -11,7 +11,7 @@ const textFrames = {
   "grid-2x2": { x: 88, y: 840, width: 904, align: "center" },
 };
 
-export function getSlideGeometry(slide, isCover = false, isFinal = false) {
+export function getSlideGeometry(slide, isCover = false, isFinal = false, typography = {}) {
   const layout = slide.layout === "grid-2x2" ? "grid-2x2" : "single-image";
   const image = imageFrames[layout];
   const text = textFrames[layout];
@@ -22,17 +22,19 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false) {
     text: {
       ...text,
       headlineY: text.y,
-      bodyY: text.y + (isCover ? 210 : 150),
-      headlineSize: isCover ? 82 : isFinal ? 68 : 60,
-      bodySize: isCover ? 35 : 31,
+      bodyY: text.y + 150,
+      headlineSize: typography.titleSize ?? 60,
+      bodySize: typography.bodySize ?? 30,
       headlineWeight: 700,
       bodyWeight: 500,
       headlineColor: "#fffaf8",
       bodyColor: "#fff4b8",
       accentColor: layout === "grid-2x2" ? "#ffd86b" : "#ffb6c8",
-      fontFamily: "TikTok Sans",
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+      hookSize: typography.hookSize ?? 48,
       shadow: "0 3px 18px rgba(0,0,0,.42)",
-      maxHeadlineLines: isCover ? 4 : 3,
+      maxHeadlineLines: 3,
       maxBodyLines: 5,
     },
     overlay: { color: "#122019", opacity: 0 },
