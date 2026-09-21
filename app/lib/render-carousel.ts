@@ -149,7 +149,7 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${fontFace}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="${fontFamily}" font-size="${bodySize}" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), fontFamily, filter) : ""}</svg>`);
 }
 
-async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number; fontFamily?: string }) {
+async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number; fontFamily?: string; shadow?: boolean }) {
   const fontPath = resolveFontPath(options.fontFamily, options.weight);
   const font = `${options.weight >= 700 ? "bold " : ""}${options.size}px ${options.fontFamily ?? "TikTok Sans"}`;
   const input = { text: { text, font, fontfile: fontPath, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } };
@@ -160,7 +160,14 @@ async function rasterText(text: string, options: { width: number; height: number
   const alpha = await sharp(textBuffer).extractChannel(3).raw().toBuffer();
   const hex = options.color.replace("#", "");
   const color = { r: Number.parseInt(hex.slice(0, 2), 16), g: Number.parseInt(hex.slice(2, 4), 16), b: Number.parseInt(hex.slice(4, 6), 16) };
-  return sharp({ create: { width, height, channels: 3, background: color } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
+  const textLayer = await sharp({ create: { width, height, channels: 3, background: color } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
+  if (!options.shadow) return textLayer;
+  const shadowAlpha = await sharp(alpha, { raw: { width, height, channels: 1 } }).blur(4).raw().toBuffer();
+  const shadowLayer = await sharp({ create: { width, height, channels: 3, background: "#101615" } }).joinChannel(shadowAlpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
+  return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([
+    { input: shadowLayer, left: 3, top: 4 },
+    { input: textLayer, left: 0, top: 0 },
+  ]).png().toBuffer();
 }
 
 async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry, hookDesign?: HookDesign): Promise<OverlayOptions[]> {
@@ -189,16 +196,16 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     const hookWidth = 904;
     for (const [index, line] of hookHeadline.entries()) {
       const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
-      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: hookFontFamily });
+      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: design.hookColor, align: "left", spacing: 0, fontFamily: hookFontFamily, shadow: true });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (hookSize + Math.max(8, design.lineGap)) });
     }
     return overlays;
   }
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
-  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
+  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily, shadow: true });
   overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
-    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
+    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily, shadow: true });
     const bodyTop = (frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22;
     overlays.push({ input: bodyImage, left: frame.x, top: bodyTop });
   }
@@ -230,14 +237,6 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
-  }
-  if (imageFrame.mode === "grid-2x2" && !(slide.position === 1 || slide.role.toUpperCase() === "HOOK")) {
-    const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="790" width="976" height="390" rx="28" fill="#122019" fill-opacity="0.62"/></svg>`);
-    composites.push({ input: panel, left: 0, top: 0 });
-  }
-  if (imageFrame.mode === "single") {
-    const panel = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="52" y="748" width="976" height="545" rx="28" fill="#122019" fill-opacity="0.68"/></svg>`);
-    composites.push({ input: panel, left: 0, top: 0 });
   }
   composites.push(...await makeRasterTextOverlays(slide, geometry, hookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();

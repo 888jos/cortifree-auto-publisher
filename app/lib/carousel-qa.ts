@@ -39,6 +39,7 @@ export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
     if (shouldBeGrid && mode !== "grid-2x2") issues.push({ code: "GRID_LAYOUT", message: "Non-hook slides must use the 2×2 layout", severity: "major", slidePosition: slide.position });
     const font = geometry?.text?.fontFamily;
     if (font && !LOCAL_FONTS.has(font)) issues.push({ code: "UNAPPROVED_FONT", message: `Carousel uses a font that is not downloaded: ${font}`, severity: "major", slidePosition: slide.position });
+    if ((geometry as { overlay?: { opacity?: number } } | undefined)?.overlay?.opacity && (geometry as { overlay: { opacity: number } }).overlay.opacity > 0) issues.push({ code: "NON_TEXT_OVERLAY", message: "Carousel contains a non-text overlay; only photo and text are allowed", severity: "major", slidePosition: slide.position });
     const text = geometry?.text;
     if (text) {
       const current = { font: text.fontFamily, headlineSize: text.headlineSize, bodySize: text.bodySize };
