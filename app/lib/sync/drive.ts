@@ -90,6 +90,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   const stockByDrive = new Map(stockTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const refsByDrive = new Map(refTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const assetByDrive = new Map(existingAssets.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
+  const assetByFilename = new Map(existingAssets.filter((row) => row.filename).map((row) => [String(row.filename).trim().toLowerCase(), row]));
   const refByDrive = new Map(existingRefs.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   let uploaded = 0;
   let skipped = 0;
@@ -101,7 +102,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   // second full Drive tree walk: repair metadata in place and fetch only
   // canonical rows that are genuinely missing from runtime storage.
   const stockEntries: WalkedFile[] = scope === "stock_missing"
-    ? (await Promise.all(stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id))).map(async (row) => {
+    ? (await Promise.all(stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase())).map(async (row) => {
       try {
         return { file: await getDriveFile(String(row.drive_file_id)), path: [String(row.category || "uncategorized")] };
       } catch (error) {
@@ -114,7 +115,9 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   if (scope === "assets" || scope === "stock" || scope === "stock_missing") {
     const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string }> = [];
     for (const row of stockTaxonomy) {
-      const existing = row.drive_file_id ? assetByDrive.get(String(row.drive_file_id)) : undefined;
+      const existing = row.drive_file_id
+        ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase())
+        : assetByFilename.get(String(row.filename ?? "").trim().toLowerCase());
       if (!existing || !row.drive_file_id) continue;
       const expectedCategory = String(row.category || existing.category || "uncategorized");
       const expectedSubcategory = String(row.scene || row.category || existing.subcategory || "uncategorized");
@@ -154,7 +157,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
   async function syncStock(entry: WalkedFile) {
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = stockByDrive.get(entry.file.id) ?? {};
-    const existing = assetByDrive.get(entry.file.id);
+    const existing = assetByDrive.get(entry.file.id) ?? assetByFilename.get(entry.file.name.trim().toLowerCase());
     const category = String(taxonomy.category || entry.path[0] || "uncategorized");
     const canonicalMetadata = {
       category,
@@ -309,7 +312,7 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       stock_drive_images: scope === "assets" || scope === "stock" || scope === "stock_missing" ? stockTaxonomy.length : stockTree.filter((entry) => isImage(entry.file)).length,
       stock_sheet_rows: stockTaxonomy.length,
       stock_drive_only_rows: stockTaxonomy.filter((row) => String(row.sync_status ?? "").toUpperCase() === "DRIVE_ONLY_NEEDS_SYNC").map((row) => String(row.stock_key ?? row.drive_file_id ?? "unknown")),
-      stock_runtime_missing_rows: stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id))).map((row) => String(row.stock_key ?? row.drive_file_id)),
+      stock_runtime_missing_rows: stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase())).map((row) => String(row.stock_key ?? row.drive_file_id)),
       visual_ref_drive_images: refTree.filter((entry) => isImage(entry.file)).length,
       visual_ref_sheet_rows: refTaxonomy.length,
       canonical_metadata_repaired: metadataRepaired,
