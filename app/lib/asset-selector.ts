@@ -124,7 +124,10 @@ export function chooseAssets(options: {
     if (options.personaOnly && usableRequested.length < options.slides.length) {
       throw new Error(`PERSONA_ASSETS_REQUIRED:${options.personaId ?? "unknown"}:need_${options.slides.length}:found_${usableRequested.length}`);
     }
-    const compatible = usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
+    // For faceswapped persona assets, identity continuity is mandatory and
+    // the generated scene is already the visual reference. Do not discard a
+    // valid face asset only because its indexed keywords are sparse.
+    const compatible = options.personaOnly ? usableRequested : usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
     const unused = compatible.filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)));
     const distinct = unused.length || hookNeedsPersona ? compatible : [];
     const candidates = distinct.map((asset) => {
