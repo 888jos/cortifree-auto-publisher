@@ -27,6 +27,11 @@ export function googleServiceAccountConfigured() {
   return Boolean(googleCredentials());
 }
 
+export function googleServiceAccountIdentity() {
+  const credentials = googleCredentials();
+  return credentials ? { email: credentials.email, privateKeyPresent: Boolean(credentials.privateKey) } : null;
+}
+
 export async function getGoogleAccessToken() {
   if (cached && cached.expiresAt - Date.now() > 60_000) return cached.accessToken;
   const credentials = googleCredentials();

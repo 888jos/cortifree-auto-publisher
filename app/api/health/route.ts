@@ -1,5 +1,6 @@
 import { backendMode, convexConfigured, getConvexCounts, getConvexPing } from "../../lib/data-backend";
-import { googleServiceAccountConfigured } from "../../lib/google/auth";
+import { googleServiceAccountConfigured, googleServiceAccountIdentity } from "../../lib/google/auth";
+import { CORTIFREE_SHEET_ID } from "../../lib/google/sheets";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
 
 function hostname(value?: string) {
@@ -75,6 +76,8 @@ export async function GET() {
       counts,
       editorialReady,
       googleSyncConfigured,
+      googleServiceAccount: googleServiceAccountIdentity(),
+      googleSheetId: CORTIFREE_SHEET_ID,
       runtimeTruth: backendMode(),
       jsonFallbackEnabled: process.env.ALLOW_RUNTIME_JSON_FALLBACK === "true",
       domainIsolationOk,

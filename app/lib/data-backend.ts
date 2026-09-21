@@ -158,7 +158,7 @@ export function convexConfigured() {
 
 export async function getConvexPing() {
   if (backendMode() === "supabase") {
-    const response = await dataBackend("personas?workspace_id=eq.cortifree&select=id&limit=1");
+    const response = await dataBackend("personas?select=*&limit=1");
     if (!response.ok) throw new Error(await response.text());
     return { ok: true, workspace: "cortifree" as const, schemaVersion: 1, checkedAt: Date.now() };
   }

@@ -1,6 +1,8 @@
 import { googleFetch } from "./auth";
 
-export const CORTIFREE_SHEET_ID = process.env.GOOGLE_SHEETS_CONTENT_DB_ID || "1XqgyMRj_jUU3FkKg4HzEORMz3Jl8pHpKuBrXkmfw4Qw";
+export const CORTIFREE_SHEET_ID = process.env.GOOGLE_SHEETS_CONTENT_DB_ID
+  || process.env.CORTIFREE_CONTENT_DB_SHEET_ID
+  || "1XqgyMRj_jUU3FkKg4HzEORMz3Jl8pHpKuBrXkmfw4Qw";
 
 export type SheetRow = Record<string, unknown>;
 
