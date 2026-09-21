@@ -69,7 +69,7 @@ export function chooseAssets(options: {
     if (hookNeedsPersona && requested.length === 0) {
       throw new Error(`PERSONA_HOOK_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
-    const usableRequested = slide.assetType === "persona" && requested.length < 2 && !hookNeedsPersona
+    const usableRequested = slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;
     const candidates = usableRequested.map((asset) => {
