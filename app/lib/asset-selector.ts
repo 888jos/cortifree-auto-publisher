@@ -58,6 +58,7 @@ export function chooseAssets(options: {
     const queryTerms = terms(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
     const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
+    const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
     const requested = hookNeedsPersona || slide.assetType === "persona"
       ? finalUse.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === options.personaId)
       : slide.assetType === "stock" || slide.assetType === "text_only"
@@ -69,7 +70,7 @@ export function chooseAssets(options: {
     if (hookNeedsPersona && requested.length === 0) {
       throw new Error(`PERSONA_HOOK_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
-    const usableRequested = slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona
+    const usableRequested = slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona && !requiresPersonaScene
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;
     const candidates = usableRequested.map((asset) => {
