@@ -249,7 +249,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: selectable,
-      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, canonical_source: "08_STOCK_ASSETS" },
+      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
     if (existing && (md5Matches(existing, entry.file) || existing.filename === entry.file.name || existing.drive_file_id === entry.file.id)) {
