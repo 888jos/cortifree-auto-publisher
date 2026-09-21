@@ -26,7 +26,7 @@ const schema = z.object({
   MODELARK_API_KEY: z.string().optional(), MODELARK_MODEL_ID: z.string().optional(),
   IMAGE_GENERATION_ENABLED: boolDefaultFalse, IMAGE_GENERATION_MAX_RETRIES: z.coerce.number().int().min(1).max(3).default(3),
   IMAGE_GENERATION_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(3).default(3), IMAGE_GENERATION_DAILY_CAP_USD: z.coerce.number().nonnegative().default(0),
-  IMAGE_GENERATION_UNIT_COST_USD: z.coerce.number().nonnegative().default(0), MAX_NEW_AI_IMAGES_PER_CAROUSEL: z.coerce.number().int().min(0).max(3).default(2),
+  IMAGE_GENERATION_UNIT_COST_USD: z.coerce.number().nonnegative().default(0), MAX_NEW_AI_IMAGES_PER_CAROUSEL: z.coerce.number().int().min(0).max(3).default(3),
   UPLOAD_POST_API_KEY: z.string().optional(), TELEGRAM_BOT_TOKEN: z.string().optional(), TELEGRAM_CHAT_ID: z.string().optional(),
   DRY_RUN: bool, REQUIRE_APPROVAL: bool, AI_DISCLOSURE_MODE: z.enum(['auto', 'always', 'never']).default('auto'),
   TARGET_READY_BUFFER_DAYS: z.coerce.number().int().positive().default(3),

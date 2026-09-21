@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (input.carousel_id) {
       const countResponse = await dataBackend("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&carousel_id=eq." + encodeURIComponent(input.carousel_id) + "&status=in.(PENDING,RUNNING,DONE)&select=id");
       const count = countResponse.ok ? (await countResponse.json() as unknown[]).length : 0;
-      const limit = Math.min(3, Math.max(0, Number(process.env.MAX_NEW_AI_IMAGES_PER_CAROUSEL ?? 2)));
+      const limit = Math.min(3, Math.max(0, Number(process.env.MAX_NEW_AI_IMAGES_PER_CAROUSEL ?? 3)));
       if (count >= limit) throw new Error("MAX_NEW_AI_IMAGES_PER_CAROUSEL reached");
     }
     const prompt = buildImagePrompt(persona, reference, input);
