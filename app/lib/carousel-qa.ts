@@ -8,7 +8,7 @@ const LOCAL_FONTS = new Set([
 type SpecLike = {
   model_id?: string;
   generated_slides?: Array<{ position: number; role: string; headline: string; body: string; layout?: string }>;
-  rendered_slides?: Array<{ position: number; assetIds?: Array<string | number>; geometry?: { image?: { mode?: string }; text?: { fontFamily?: string; headlineSize?: number; bodySize?: number; x?: number; y?: number; width?: number } } }>;
+  rendered_slides?: Array<{ position: number; assetIds?: Array<string | number>; assetSourceTypes?: Array<string | null>; geometry?: { image?: { mode?: string }; text?: { fontFamily?: string; headlineSize?: number; bodySize?: number; x?: number; y?: number; width?: number } } }>;
 };
 
 export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
@@ -34,10 +34,13 @@ export function scanCarouselVisualQA(spec: SpecLike): ReadinessIssue[] {
     const text = geometry?.text;
     if (text && ((text.x ?? 0) < 40 || (text.y ?? 0) < 40 || (text.x ?? 0) + (text.width ?? 0) > 1040)) issues.push({ code: "TEXT_SAFE_ZONE", message: "Text frame is outside the safe area", severity: "major", slidePosition: slide.position });
     const assetIds = slide.assetIds ?? [];
+    const sourceTypes = slide.assetSourceTypes ?? [];
     if (shouldBeGrid && assetIds.length !== 4) issues.push({ code: "GRID_ASSET_COUNT", message: "Each 2×2 slide must contain four tiles", severity: "major", slidePosition: slide.position });
     if (shouldBeGrid && !(String(assetIds[0]) === String(assetIds[3]) && String(assetIds[1]) === String(assetIds[2]) && String(assetIds[0]) !== String(assetIds[1]))) {
       issues.push({ code: "GRID_DIAGONAL_PATTERN", message: "Each 2×2 slide must repeat exactly two distinct images diagonally", severity: "major", slidePosition: slide.position });
     }
+    if (shouldBeGrid && sourceTypes.length && sourceTypes.some((source) => source !== "persona_generated")) issues.push({ code: "GRID_PERSONA_ASSET", message: "Every 2×2 tile must be a faceswapped persona asset", severity: "major", slidePosition: slide.position });
+    if (shouldBeSingle && sourceTypes.length && sourceTypes[0] !== "persona_generated") issues.push({ code: "HOOK_PERSONA_ASSET", message: "The hook must use a faceswapped persona asset", severity: "major", slidePosition: slide.position });
     for (const id of new Set(assetIds.map(String))) {
       const key = String(id);
       if (usedAssets.has(key)) issues.push({ code: "DUPLICATE_SOURCE_IMAGE", message: "The same source image is reused in more than one slide", severity: "major", slidePosition: slide.position });

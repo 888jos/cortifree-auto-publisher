@@ -244,8 +244,9 @@ export async function renderCarousel(input: {
   const gridMatches = input.layout === "grid-2x2"
     ? input.slides.map((slide, index) => {
       if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
-      const available = assets.filter((asset) => !reservedGridAssets.has(asset.id));
-      const selected = chooseAssets({ assets: available.length >= 2 ? available : assets, carouselType: input.carouselType, personaId: input.personaId, slides: [slide, slide] });
+      const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
+      if (personaAssets.length < 2) throw new Error(`PERSONA_ASSETS_REQUIRED:${input.personaId ?? "unknown"}:need_2:found_${personaAssets.length}:slide_${slide.position}`);
+      const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
       selected.forEach((match) => reservedGridAssets.add(match.asset.id));
       // Editorial 2×2 pattern: two distinct images repeated diagonally.
       return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
@@ -260,10 +261,10 @@ export async function renderCarousel(input: {
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
-    const renderMetadata = { geometry, storage_path: upload.storagePath, asset_score: primaryMatch.score, matched_terms: primaryMatch.matchedTerms, asset_ids: slideMatches.map((match) => match.asset.id) };
+    const renderMetadata = { geometry, storage_path: upload.storagePath, asset_score: primaryMatch.score, matched_terms: primaryMatch.matchedTerms, asset_ids: slideMatches.map((match) => match.asset.id), asset_source_types: slideMatches.map((match) => match.asset.source_type ?? null) };
     return {
       databaseRow: { workspace_id: CORTIFREE_WORKSPACE_ID, carousel_id: input.id, position: slide.position, template_id: input.layout, headline: slide.headline, body: slide.body, asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent }, asset_id: primaryMatch.asset.id, rendered_url: upload.publicUrl, render_metadata: renderMetadata },
-      result: { position: slide.position, url: upload.publicUrl, assetId: primaryMatch.asset.id, assetFilename: primaryMatch.asset.filename, score: primaryMatch.score, matchedTerms: primaryMatch.matchedTerms, geometry, assetIds: slideMatches.map((match) => match.asset.id) },
+      result: { position: slide.position, url: upload.publicUrl, assetId: primaryMatch.asset.id, assetFilename: primaryMatch.asset.filename, score: primaryMatch.score, matchedTerms: primaryMatch.matchedTerms, geometry, assetIds: slideMatches.map((match) => match.asset.id), assetSourceTypes: slideMatches.map((match) => match.asset.source_type ?? null) },
     };
   }));
   const slideResponse = await dataBackend("carousel_slides?on_conflict=carousel_id,position", {

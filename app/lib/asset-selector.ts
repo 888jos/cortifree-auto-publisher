@@ -95,6 +95,7 @@ export function chooseAssets(options: {
   assets: SelectableAsset[];
   carouselType: string;
   personaId?: string;
+  personaOnly?: boolean;
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const preferred = categoryByType[options.carouselType] ?? ["morning", "self_care", "food", "fitness", "outdoors", "work_study", "stress_reset", "night"];
@@ -117,9 +118,12 @@ export function chooseAssets(options: {
     if (hookNeedsPersona && requested.length === 0) {
       throw new Error(`PERSONA_HOOK_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
-    const usableRequested = slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona && !requiresPersonaScene
+    const usableRequested = !options.personaOnly && slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona && !requiresPersonaScene
       ? finalUse.filter((asset) => asset.source_type === "stock")
       : requested;
+    if (options.personaOnly && usableRequested.length < options.slides.length) {
+      throw new Error(`PERSONA_ASSETS_REQUIRED:${options.personaId ?? "unknown"}:need_${options.slides.length}:found_${usableRequested.length}`);
+    }
     const compatible = usableRequested.filter((asset) => compatibleWithScene(asset, constraint));
     const unused = compatible.filter((asset) => !used.has(asset.id) && !usedIdentities.has(assetIdentity(asset)));
     const distinct = unused.length || hookNeedsPersona ? compatible : [];
