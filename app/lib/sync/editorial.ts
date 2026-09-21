@@ -144,6 +144,9 @@ export async function syncEditorialSheetToConvex() {
     finished_at: new Date().toISOString(),
     counts,
   };
-  await dataBackend("system_logs", { method: "POST", body: JSON.stringify(log) });
+  await dataBackend("system_logs", {
+    method: "POST",
+    body: JSON.stringify({ timestamp: log.finished_at, stage: log.event, status: log.status, metadata: log }),
+  });
   return log;
 }
