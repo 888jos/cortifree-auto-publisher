@@ -12,6 +12,7 @@ export type HookDesign = {
   align: "left" | "center" | "right";
   textColor: string;
   accentColor: string;
+  hookColor: string;
 };
 
 const pastelAccents = ["#FFE26E", "#BCE8FF", "#FFB6D5", "#FFFFFF"];
@@ -75,5 +76,6 @@ export async function analyzeHookComposition(imageBytes: Buffer, seed: string): 
     return rgb.reduce((sum, channel, index) => sum + Math.abs(channel - zoneRgb[index]!), 0);
   });
   const accentColor = pastelAccents[distances.indexOf(Math.max(...distances))]!;
-  return { format: format.name, x, y: useCenter || useBottom ? format.y : format.y, width, size: format.size, weight: format.name.includes("bold") ? 800 : 700, maxWordsPerLine: format.maxWords, lineGap: format.gap, align: useCenter ? "center" : "left", textColor, accentColor };
+  const hookColor = zoneLuma > 165 ? textColor : accentColor;
+  return { format: format.name, x, y: useCenter || useBottom ? format.y : format.y, width, size: format.size, weight: format.name.includes("bold") ? 800 : 700, maxWordsPerLine: format.maxWords, lineGap: format.gap, align: useCenter ? "center" : "left", textColor, accentColor, hookColor };
 }

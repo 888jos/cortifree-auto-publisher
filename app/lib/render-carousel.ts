@@ -135,13 +135,13 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     overlays.push({ input: labelImage, left: frame.x, top: (frame.headlineY ?? frame.y) - 72 });
   }
   if (isHook) {
-    const design = hookDesign ?? { format: "fallback", x: 600, y: 300, width: 390, size: 72, weight: 700, maxWordsPerLine: 2, lineGap: 8, align: "left" as const, textColor: "#20243A", accentColor: "#FFE26E" };
+    const design = hookDesign ?? { format: "fallback", x: 600, y: 300, width: 390, size: 72, weight: 700, maxWordsPerLine: 2, lineGap: 8, align: "left" as const, textColor: "#20243A", accentColor: "#FFE26E", hookColor: "#FFE26E" };
     const hookTop = design.y;
     const hookX = design.x;
     const hookWidth = design.width;
     const hookHeadline = wrap(slide.headline, Math.max(6, design.maxWordsPerLine * 5), 8);
     for (const [index, line] of hookHeadline.entries()) {
-      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(design.size * 1.35), size: design.size, weight: design.weight, color: index === 0 ? design.accentColor : design.textColor, align: design.align, spacing: 0 });
+      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(design.size * 1.35), size: design.size, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0 });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (design.size + design.lineGap) });
     }
     return overlays;
