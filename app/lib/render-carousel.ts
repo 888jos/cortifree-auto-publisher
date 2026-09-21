@@ -106,8 +106,15 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
 
 async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number }) {
   const font = `${options.weight >= 700 ? "bold " : ""}${options.size}px CortiFree`;
-  const image = sharp({ text: { text, font, fontfile: FONT_PATH, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } });
-  return image.tint(options.color).png().toBuffer();
+  const input = { text: { text, font, fontfile: FONT_PATH, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } };
+  const textBuffer = await sharp(input).ensureAlpha().png().toBuffer();
+  const metadata = await sharp(textBuffer).metadata();
+  const width = metadata.width ?? options.width;
+  const height = metadata.height ?? options.height;
+  const alpha = await sharp(textBuffer).extractChannel(3).raw().toBuffer();
+  const hex = options.color.replace("#", "");
+  const color = { r: Number.parseInt(hex.slice(0, 2), 16), g: Number.parseInt(hex.slice(2, 4), 16), b: Number.parseInt(hex.slice(4, 6), 16) };
+  return sharp({ create: { width, height, channels: 3, background: color } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
 }
 
 async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
@@ -131,7 +138,8 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry)
     const hookTop = 360;
     const hookX = 600;
     const hookWidth = 390;
-    for (const [index, line] of headline.entries()) {
+    const hookHeadline = wrap(slide.headline, 8, 6);
+    for (const [index, line] of hookHeadline.entries()) {
       const lineImage = await rasterText(line, { width: hookWidth, height: headlineLineHeight + 20, size: Math.min(headlineSize, 72), weight: 700, color: colors[index % colors.length]!, align: "left", spacing: 0 });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (headlineLineHeight + 8) });
     }
