@@ -311,6 +311,15 @@ export async function syncGoogleDriveToConvex(options: { limit?: number; offset?
       skipped += 1;
       return;
     }
+    if (entry.file.md5Checksum) {
+      const sameHash = await backendRows(`visual_references?file_hash=eq.${encodeURIComponent(entry.file.md5Checksum)}&limit=1`);
+      if (sameHash[0]?.id) {
+        await patch("visual_references", String(sameHash[0].id), canonicalMetadata);
+        metadataRepaired += 1;
+        skipped += 1;
+        return;
+      }
+    }
     const storage = await upload(entry.file);
     await upsert("visual_references", {
       id: taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`,
