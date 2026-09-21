@@ -119,13 +119,26 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry)
   const align = frame.align ?? "left";
   const headlineLineHeight = Math.round(headlineSize * 1.1);
   const bodyLineHeight = Math.round(bodySize * 1.32);
-  const label = `${String(slide.position).padStart(2, "0")} · ${slide.role}`;
-  const labelImage = await rasterText(label, { width: frame.width, height: 48, size: 22, weight: 700, color: frame.accentColor ?? "#ffb6c8", align: "left", spacing: 0 });
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  const overlays: OverlayOptions[] = [];
+  if (!isHook) {
+    const label = `${String(slide.position).padStart(2, "0")} · ${slide.role}`;
+    const labelImage = await rasterText(label, { width: frame.width, height: 48, size: 22, weight: 700, color: frame.accentColor ?? "#ffb6c8", align: "left", spacing: 0 });
+    overlays.push({ input: labelImage, left: frame.x, top: (frame.headlineY ?? frame.y) - 72 });
+  }
+  if (isHook) {
+    const colors = ["#FFE26E", "#BCE8FF", "#FFB6D5", "#FFFFFF"];
+    const hookTop = 360;
+    const hookX = 600;
+    const hookWidth = 390;
+    for (const [index, line] of headline.entries()) {
+      const lineImage = await rasterText(line, { width: hookWidth, height: headlineLineHeight + 20, size: Math.min(headlineSize, 72), weight: 700, color: colors[index % colors.length]!, align: "left", spacing: 0 });
+      overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (headlineLineHeight + 8) });
+    }
+    return overlays;
+  }
   const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize) });
-  const overlays: OverlayOptions[] = [
-    { input: labelImage, left: frame.x, top: (frame.headlineY ?? frame.y) - 72 },
-    { input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y },
-  ];
+  overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
     const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize) });
     overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? frame.y + 180 });
