@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import "./image-studio.css";
 import { referenceCarousels } from "./reference-carousels.js";
 import { carouselBlueprints, getCarouselBlueprint } from "./carousel-blueprints.js";
@@ -929,6 +930,7 @@ export default function Home() {
               {menu}
             </button>
           ))}
+          <Link className="templateLabNav" href="/templates">Template Lab ↗</Link>
         </nav>}
 
         <div className="account">
