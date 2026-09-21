@@ -130,5 +130,5 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
 
 export function getImageGenerationStatus() {
   const current = settings();
-  return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, dailyCapUsd: current.dailyCapUsd, monthlyCapUsd: current.monthlyCapUsd, unitCostUsd: current.unitCostUsd };
+  return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, monthlyCapUsd: current.monthlyCapUsd, unitCostUsd: current.unitCostUsd };
 }
