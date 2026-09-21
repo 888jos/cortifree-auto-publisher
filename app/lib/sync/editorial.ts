@@ -33,7 +33,6 @@ function account(row: Row): Row {
     posting_enabled: row.posting_enabled,
     profile_picture_drive_file_id: row.profile_picture_drive_file_id || null,
     profile_picture_filename: row.profile_picture_filename || null,
-    profile_picture_status: row.profile_picture_status || null,
     name: row.display_name_candidate || row.username_candidate || row.account_id,
     platforms: [String(row.platform || "tiktok")],
     secondary_pillar_ids: split(row.secondary_pillar_ids),
