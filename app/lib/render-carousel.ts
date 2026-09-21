@@ -169,7 +169,10 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     // one word per line to run through the person or the focal object.
     const hookSize = hookHeadline.length > 4 ? Math.min(design.size, 38) : design.size;
     const hookTop = hookHeadline.length > 4 ? 150 : design.y;
-    const hookX = design.x;
+    // The composition heuristic can prefer the visually quieter side while
+    // still crossing a centered portrait. Keep long hooks in the opposite
+    // lateral safe zone instead of covering the face or phone.
+    const hookX = design.x >= WIDTH / 2 ? 80 : design.x;
     const hookWidth = Math.max(design.width, 440);
     for (const [index, line] of hookHeadline.entries()) {
       const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.35), size: hookSize, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: "TikTok Sans" });
