@@ -15,11 +15,12 @@ async function run(request: Request) {
   if (!authorized(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const url = new URL(request.url);
   const limit = Number(url.searchParams.get("limit") || process.env.GOOGLE_DRIVE_SYNC_BATCH || 40);
+  const offset = Number(url.searchParams.get("offset") || 0);
   const scope = url.searchParams.get("scope") || "all";
   try {
     const editorial = await syncEditorialSheetToConvex();
     if (scope === "sheet") return Response.json({ ok: true, editorial, synced_at: new Date().toISOString() });
-    const drive = await syncGoogleDriveToConvex({ limit, scope: scope === "visual_refs" || scope === "assets" ? scope : "all" });
+    const drive = await syncGoogleDriveToConvex({ limit, offset, scope: scope === "visual_refs" || scope === "assets" ? scope : "all" });
     return Response.json({ ok: true, editorial, drive, synced_at: new Date().toISOString() });
   } catch (error) {
     return Response.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });

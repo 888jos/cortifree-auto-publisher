@@ -47,13 +47,14 @@ async function upload(file: DriveFile) {
   return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
 }
 
-export async function syncGoogleDriveToConvex(options: { limit?: number; scope?: "all" | "visual_refs" | "assets" } = {}) {
+export async function syncGoogleDriveToConvex(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "assets" } = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
+  const offset = Math.max(0, options.offset ?? 0);
   const scope = options.scope ?? "all";
   const refTaxonomyPromise = readSheetObjects("08_VISUAL_REFS", "A1:X300");
   const refTreePromise = scope === "visual_refs"
     ? refTaxonomyPromise.then(async (rows) => {
-        const entries = await Promise.all(rows.filter((row) => row.drive_file_id).map(async (row) => {
+        const entries = await Promise.all(rows.filter((row) => row.drive_file_id).slice(offset, offset + limit).map(async (row) => {
           try {
             const file = await getDriveFile(String(row.drive_file_id));
             return { file, path: [String(row.carousel_use || row.category || "hero_misc")] };
