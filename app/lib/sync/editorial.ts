@@ -87,7 +87,7 @@ async function upsert(table: string, key: string, rows: Row[]) {
     if (!missingColumn || !payload.some((row) => Object.prototype.hasOwnProperty.call(row, missingColumn[1]))) {
       throw new Error(`Sheet sync failed for ${table}: ${errorText}`);
     }
-    payload = payload.map((row) => { const copy = { ...row }; delete copy[missingColumn[1]]; return copy; });
+    payload = payload.map((row) => { const copy: Row = { ...row }; delete copy[missingColumn[1]]; return copy; });
   }
   throw new Error(`Sheet sync failed for ${table}: too many schema compatibility retries`);
 }
