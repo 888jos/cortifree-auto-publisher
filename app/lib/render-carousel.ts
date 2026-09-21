@@ -199,7 +199,7 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     const hookWidth = 904;
     for (const [index, line] of hookHeadline.entries()) {
       const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
-      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: design.hookColor, align: "left", spacing: 0, fontFamily: hookFontFamily, shadow: true });
+      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: frame.headlineColor ?? "#fffaf8", align: "left", spacing: 0, fontFamily: hookFontFamily, shadow: true });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (hookSize + Math.max(8, design.lineGap)) });
     }
     return overlays;
@@ -219,6 +219,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
   const imageFrame = { ...defaultGeometry.image, ...geometry.image } as Frame;
   const composites: OverlayOptions[] = [];
   let hookDesign: HookDesign | undefined;
+  let averageLuminance = 128;
   if (imageFrame.mode === "grid-2x2") {
     const tileWidth = 500;
     const tileHeight = 635;
@@ -227,6 +228,10 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       const imageResponse = await fetch(match.asset.public_url);
       if (!imageResponse.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
       const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
+      if (index === 0) {
+        const stats = await sharp(imageBytes).stats();
+        averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
+      }
       const fitted = await sharp(imageBytes).rotate().resize({ width: tileWidth, height: tileHeight, fit: "cover", position: "centre" }).png().toBuffer();
       if (index === 0) hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
       const [left, top] = positions[index]!;
@@ -237,11 +242,19 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const imageResponse = await fetch(match.asset.public_url);
     if (!imageResponse.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
     const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
+    const stats = await sharp(imageBytes).stats();
+    averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
   }
-  composites.push(...await makeRasterTextOverlays(slide, geometry, hookDesign));
+  const readablePalette = averageLuminance > 158
+    ? { headlineColor: "#243047", bodyColor: "#6b3157", accentColor: "#8b416f" }
+    : averageLuminance < 96
+      ? { headlineColor: "#fff7f0", bodyColor: "#cfe8ff", accentColor: "#ffd1e1" }
+      : { headlineColor: "#fffaf2", bodyColor: "#ead7ff", accentColor: "#ffd4a8" };
+  const readableGeometry = { ...geometry, text: geometry.text ? { ...geometry.text, ...readablePalette } : geometry.text } as Geometry;
+  composites.push(...await makeRasterTextOverlays(slide, readableGeometry, hookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
 }
 
