@@ -31,12 +31,6 @@ export async function POST(request: Request) {
     const persona = personas.find((item) => item.id === input.persona_id);
     if (!persona) throw new Error("Unknown persona");
     const reference = visualReferenceSchema.parse(await one("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(input.visual_reference_id) + "&enabled=eq.true&select=*"));
-    if (input.carousel_id) {
-      const countResponse = await dataBackend("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&carousel_id=eq." + encodeURIComponent(input.carousel_id) + "&status=in.(PENDING,RUNNING,DONE)&select=id");
-      const count = countResponse.ok ? (await countResponse.json() as unknown[]).length : 0;
-      const limit = Math.min(6, Math.max(0, Number(process.env.MAX_NEW_AI_IMAGES_PER_CAROUSEL ?? 6)));
-      if (count >= limit) throw new Error("MAX_NEW_AI_IMAGES_PER_CAROUSEL reached");
-    }
     const prompt = buildImagePrompt(persona, reference, input);
     const response = await dataBackend("image_generation_jobs", {
       method: "POST", headers: { Prefer: "return=representation" },

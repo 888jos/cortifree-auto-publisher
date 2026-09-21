@@ -38,7 +38,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!slideResponse.ok) throw new Error(await slideResponse.text());
     const slideRows = await slideResponse.json() as Array<{ position: number; rendered_url: string | null; asset_id: string | number | null }>;
     const profile = await resolvePublishingProfile({ accountId: carousel.account_id, platform: body.platform, requestedProfile: body.profile });
-    const rawSpec = { title: carousel.spec.title, topic: carousel.topic, angle: carousel.angle, hook: carousel.spec.hook, language: carousel.language, caption: carousel.caption, ctaType: carousel.cta_type, slides: carousel.spec.generated_slides };
+    const rawSpec = { title: carousel.spec.title, topic: carousel.topic, angle: carousel.angle, hook: carousel.spec.hook, language: carousel.language, caption: carousel.caption, ctaType: carousel.cta_type, slides: carousel.spec.generated_slides, model_id: carousel.spec.model_id, generated_slides: carousel.spec.generated_slides, rendered_slides: carousel.spec.rendered_slides };
     const renderedSlides = slideRows.filter((slide) => slide.rendered_url).map((slide) => ({ position: slide.position, url: slide.rendered_url!, assetId: slide.asset_id ?? undefined }));
     const readiness = await evaluatePublishReadiness({ rawSpec, renderedSlides, platform: body.platform, profile });
     if (!readiness.ready) return Response.json({ error: "Carousel is not publish-ready", issues: readiness.issues }, { status: 422 });

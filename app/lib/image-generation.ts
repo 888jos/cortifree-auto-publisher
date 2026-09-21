@@ -24,6 +24,7 @@ function settings() {
     model: process.env.MODELARK_MODEL_ID,
     maxRetries: Math.min(3, Math.max(1, Number(process.env.IMAGE_GENERATION_MAX_RETRIES ?? 3))),
     dailyCapUsd: Math.max(0, Number(process.env.IMAGE_GENERATION_DAILY_CAP_USD ?? 0)),
+    monthlyCapUsd: Math.max(0, Number(process.env.IMAGE_GENERATION_MONTHLY_CAP_USD ?? 50)),
     unitCostUsd: Math.max(0, Number(process.env.IMAGE_GENERATION_UNIT_COST_USD ?? 0)),
   };
 }
@@ -102,6 +103,12 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
       unitCostUsd: current.unitCostUsd,
       dailyCapUsd: current.dailyCapUsd,
     });
+    const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    const monthResponse = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(monthStart.toISOString()) + "&select=estimated_cost_usd");
+    if (!monthResponse.ok) throw new Error("Cannot verify monthly image generation budget");
+    const monthUsage = await monthResponse.json() as Array<{ estimated_cost_usd: number }>;
+    const spentMonthUsd = monthUsage.reduce((total, row) => total + Number(row.estimated_cost_usd ?? 0), 0);
+    if (current.monthlyCapUsd <= 0 || spentMonthUsd + current.unitCostUsd > current.monthlyCapUsd) throw new Error(`Monthly ModelArk image budget reached (${spentMonthUsd.toFixed(2)} / ${current.monthlyCapUsd.toFixed(2)} USD)`);
   }
   const job = await queryOne<Record<string, unknown>>("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(jobId) + "&select=*");
   if (!["PENDING", "RETRY", "FAILED", "RUNNING"].includes(String(job.status))) throw new Error("Job cannot run from " + job.status);
@@ -134,5 +141,5 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
 
 export function getImageGenerationStatus() {
   const current = settings();
-  return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, dailyCapUsd: current.dailyCapUsd, unitCostUsd: current.unitCostUsd };
+  return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, dailyCapUsd: current.dailyCapUsd, monthlyCapUsd: current.monthlyCapUsd, unitCostUsd: current.unitCostUsd };
 }

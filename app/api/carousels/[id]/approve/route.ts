@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const profile = await resolvePublishingProfile({ accountId: carousel.account_id, platform: body.platform, requestedProfile: body.profile });
     const readiness = await evaluatePublishReadiness({ rawSpec: carousel.spec.generated_slides ? {
       title: carousel.spec.title, topic: carousel.topic, angle: carousel.angle, hook: carousel.spec.hook,
-      language: carousel.language, caption: carousel.caption, ctaType: carousel.cta_type, slides: carousel.spec.generated_slides,
+      language: carousel.language, caption: carousel.caption, ctaType: carousel.cta_type, slides: carousel.spec.generated_slides, model_id: carousel.spec.model_id, generated_slides: carousel.spec.generated_slides, rendered_slides: carousel.spec.rendered_slides,
     } : carousel.spec, renderedSlides: slideRows.filter((slide) => slide.rendered_url).map((slide) => ({ position: slide.position, url: slide.rendered_url!, assetId: slide.asset_id ?? undefined })), platform: body.platform, profile });
     const blockingContentIssues = readiness.issues.filter((issue) => issue.severity === "major" && issue.code !== "UPLOAD_POST_PROFILE");
     const contentApproved = blockingContentIssues.length === 0;

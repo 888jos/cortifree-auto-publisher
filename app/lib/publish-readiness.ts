@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { carouselSpecSchema, type CarouselSpec } from "./ai/schemas";
 import { validateCarouselSpec, type ValidationIssue } from "./ai/validation";
+import { scanCarouselVisualQA } from "./carousel-qa";
 
 export type RenderedSlide = { position: number; url: string; assetId?: string | number };
 export type ReadinessIssue = ValidationIssue | { code: string; message: string; severity: "minor" | "major"; slidePosition?: number };
@@ -41,6 +42,7 @@ export async function evaluatePublishReadiness(input: { rawSpec: unknown; render
   if (!input.profile) issues.push({ code: "UPLOAD_POST_PROFILE", message: "Connect a media profile in Upload-Post before publishing", severity: "major" });
   const urls = input.renderedSlides.map((slide) => slide.url);
   if (new Set(urls).size !== urls.length) issues.push({ code: "DUPLICATE_RENDER", message: "Every slide must use a distinct rendered file", severity: "major" });
+  issues.push(...scanCarouselVisualQA(input.rawSpec as Parameters<typeof scanCarouselVisualQA>[0]));
   issues.push(...await inspectRenderedSlides(input.renderedSlides));
   return { ready: !issues.some((issue) => issue.severity === "major"), issues, spec };
 }

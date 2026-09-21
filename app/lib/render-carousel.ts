@@ -10,7 +10,28 @@ import { analyzeHookComposition, type HookDesign } from "./hook-design";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
-const FONT_PATH = path.join(process.cwd(), "public", "fonts", "CortiFreeSans.ttf");
+const FONT_ROOT = path.join(process.cwd(), "public", "fonts", "curated");
+const FONT_FILES: Record<string, string> = {
+  "TikTok Sans": "tiktok sans",
+  "Instrument Sans": "instrument sans",
+  Manrope: "manrope",
+  "Inter Tight": "inter tight",
+  "DM Sans": "dm sans",
+  "Plus Jakarta Sans": "plus jakarta sans",
+  "Space Grotesk": "space grotesk",
+  "Bricolage Grotesque": "bricolage grotesque",
+  Archivo: "archivo",
+  Urbanist: "urbanist",
+};
+function resolveFontPath(family = "TikTok Sans", weight = 500) {
+  const slug = FONT_FILES[family] ?? FONT_FILES["TikTok Sans"];
+  const exact = path.join(FONT_ROOT, `${slug}-${weight}.ttf`);
+  if (existsSync(exact)) return exact;
+  const nearest = [700, 600, 500, 400].map((item) => path.join(FONT_ROOT, `${slug}-${item}.ttf`)).find(existsSync);
+  if (!nearest) throw new Error(`Downloaded carousel font missing for ${family}`);
+  return nearest;
+}
+const FONT_PATH = resolveFontPath("TikTok Sans", 500);
 const embeddedFont = (() => {
   return existsSync(FONT_PATH) ? readFileSync(FONT_PATH).toString("base64") : "";
 })();
@@ -98,17 +119,16 @@ export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const headlineText = slide.position === 1 || slide.role.toUpperCase() === "HOOK" ? slide.headline : slide.headline.replace(/^\d+[.)]\s*/, "");
   const headline = wrap(headlineText, Math.max(10, Math.floor(frame.width / (headlineSize * 0.56))), frame.maxHeadlineLines ?? 3);
   const body = wrap(slide.body, Math.max(16, Math.floor(frame.width / (bodySize * 0.52))), frame.maxBodyLines ?? 5);
-  // Use a Linux-available generic face in Sharp/librsvg. Missing server fonts
-  // render as tofu boxes, which makes otherwise valid copy unreadable.
-  const fontFamily = frame.fontFamily ?? "CortiFree";
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
   const filter = frame.shadow === "none" ? "none" : "url(#shadow)";
-  const fontFace = embeddedFont ? `<style>@font-face{font-family:'CortiFree';src:url(data:font/ttf;base64,${embeddedFont}) format('truetype');font-weight:100 900;}</style>` : "";
-  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${fontFace}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="CortiFree, sans-serif" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), "CortiFree, sans-serif", filter) : ""}</svg>`);
+  const fontFace = embeddedFont ? `<style>@font-face{font-family:'${fontFamily}';src:url(data:font/ttf;base64,${embeddedFont}) format('truetype');font-weight:100 900;}</style>` : "";
+  return Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="7" flood-opacity="0.44"/></filter></defs>${fontFace}<text x="${frame.x}" y="${(frame.headlineY ?? frame.y) - 44}" fill="${frame.accentColor ?? "#ffb6c8"}" font-family="${fontFamily}" font-size="22" font-weight="700" letter-spacing="3" filter="${filter}">${xml(`${String(slide.position).padStart(2, "0")} · ${slide.role}`)}</text>${textBlock(headline, frame.x, frame.headlineY ?? frame.y, frame.width, headlineSize, frame.headlineWeight ?? 700, frame.headlineColor ?? "#fffaf8", frame.align ?? "left", Math.round(headlineSize * 1.1), fontFamily, filter)}${body.length ? textBlock(body, frame.x, frame.bodyY ?? frame.y + 180, frame.width, bodySize, frame.bodyWeight ?? 500, frame.bodyColor ?? "#fff4b8", frame.align ?? "left", Math.round(bodySize * 1.32), fontFamily, filter) : ""}</svg>`);
 }
 
-async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number }) {
-  const font = `${options.weight >= 700 ? "bold " : ""}${options.size}px CortiFree`;
-  const input = { text: { text, font, fontfile: FONT_PATH, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } };
+async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number; fontFamily?: string }) {
+  const fontPath = resolveFontPath(options.fontFamily, options.weight);
+  const font = `${options.weight >= 700 ? "bold " : ""}${options.size}px ${options.fontFamily ?? "TikTok Sans"}`;
+  const input = { text: { text, font, fontfile: fontPath, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } };
   const textBuffer = await sharp(input).ensureAlpha().png().toBuffer();
   const metadata = await sharp(textBuffer).metadata();
   const width = metadata.width ?? options.width;
@@ -138,15 +158,16 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     const hookWidth = design.width;
     const hookHeadline = wrap(slide.headline.toLowerCase(), Math.max(6, design.maxWordsPerLine * 5), 8);
     for (const [index, line] of hookHeadline.entries()) {
-      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(design.size * 1.35), size: design.size, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0 });
+      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(design.size * 1.35), size: design.size, weight: design.weight, color: design.hookColor, align: design.align, spacing: 0, fontFamily: "TikTok Sans" });
       overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (design.size + design.lineGap) });
     }
     return overlays;
   }
-  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: hookDesign?.hookColor ?? frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize) });
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
+  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: hookDesign?.hookColor ?? frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
   overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
-    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: hookDesign?.textColor ?? frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize) });
+    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: hookDesign?.textColor ?? frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
     const bodyTop = (frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22;
     overlays.push({ input: bodyImage, left: frame.x, top: bodyTop });
   }
@@ -204,7 +225,8 @@ export async function renderCarousel(input: {
   const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, slides: input.slides });
   const reservedGridAssets = new Set<string>();
   const gridMatches = input.layout === "grid-2x2"
-    ? input.slides.map((slide) => {
+    ? input.slides.map((slide, index) => {
+      if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
       const available = assets.filter((asset) => !reservedGridAssets.has(asset.id));
       const selected = chooseAssets({ assets: available.length >= 4 ? available : assets, carouselType: input.carouselType, personaId: input.personaId, slides: [slide, slide, slide, slide] });
       selected.forEach((match) => reservedGridAssets.add(match.asset.id));
@@ -215,7 +237,8 @@ export async function renderCarousel(input: {
     const slideMatches = gridMatches[index]!;
     // The selected model is authoritative. AI copy may return an old layout alias;
     // never let that silently turn a 2x2 request back into a single-photo slide.
-    const geometry = getSlideGeometry({ ...slide, layout: input.layout }, index === 0, index === input.slides.length - 1) as Geometry;
+    const slideLayout = index === 0 || slide.role.toUpperCase() === "HOOK" ? "single-image" : input.layout;
+    const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, index === input.slides.length - 1) as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
