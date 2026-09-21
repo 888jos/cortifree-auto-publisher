@@ -33,7 +33,6 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
       hookSize: typography.hookSize ?? 44,
-      shadow: "0 3px 18px rgba(0,0,0,.42)",
       maxHeadlineLines: 3,
       maxBodyLines: 5,
     },
