@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./fonts.css";
 import "./models.css";
 import type { ReactNode } from "react";
 

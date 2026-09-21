@@ -1,0 +1,8 @@
+{
+  "purpose": "Locally hosted font families for CortiFree TikTok-style hooks, carousels, and UI",
+  "source": "Google Fonts CSS API; TikTok Sans is the official open-source TikTok family",
+  "license": "SIL Open Font License 1.1",
+  "weights": [400, 500, 600, 700],
+  "families": ["TikTok Sans", "Instrument Sans", "Manrope", "Inter Tight", "DM Sans", "Plus Jakarta Sans", "Space Grotesk", "Bricolage Grotesque", "Archivo", "Urbanist"],
+  "references": {"TikTok Sans": "https://github.com/tiktok/TikTokSans", "Google Fonts": "https://fonts.google.com/"}
+}
