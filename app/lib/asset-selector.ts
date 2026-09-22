@@ -337,7 +337,12 @@ export function chooseAssets(options: {
       ].filter(Boolean);
       return { asset, score, matchedTerms: matchedObjects.concat(matchedActions), matchedDimensions, matchedObjects, matchedActions, matchedSettings, matchedCompositions, semanticScore, categoryBonus, descriptionScore: semanticScore, objectScore, actionScore, settingScore, compositionScore, repetitionPenalty };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
-    const threshold = criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
+    // In a persona-only 2x2 slide, identity continuity is already enforced by
+    // the persona asset pool. Sparse legacy scene tags must not block a valid
+    // freshly face-swapped frame; visual QA still runs at the lower threshold.
+    const threshold = options.personaOnly && slide.assetType === "persona"
+      ? EXPLICIT_FALLBACK_THRESHOLD
+      : criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
     const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
     const fallbackCandidate = !selectedCandidate && !criticalSlide(slide)
       ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)
