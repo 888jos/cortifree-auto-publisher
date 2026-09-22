@@ -119,13 +119,19 @@ export async function POST(request: Request) {
       if (!asset.public_url) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_NOT_ARCHIVED" }); continue; }
       const image = await fetch(String(asset.public_url), { signal: AbortSignal.timeout(30_000) });
       if (!image.ok) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status }); continue; }
-      const existingDriveFile = (await listDriveChildren(target.id)).find((item) => item.name === String(asset.filename) && item.mimeType !== FOLDER_MIME);
-      const uploaded = existingDriveFile ?? await uploadDriveFile({ name: String(asset.filename), parentId: target.id, bytes: new Uint8Array(await image.arrayBuffer()), mimeType: image.headers.get("content-type") || "image/jpeg" });
-      // Keep the archive pointer in metadata because older production schemas
-      // may not yet have the additive drive_file_id column. The pointer is
-      // still canonical and makes retries idempotent by filename and ID.
-      await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/"), drive_archived_at: new Date().toISOString(), canonical_source: "MODELARK_TO_DRIVE" } });
-      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ARCHIVED_DRIVE", drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/") });
+      try {
+        const existingDriveFile = (await listDriveChildren(target.id)).find((item) => item.name === String(asset.filename) && item.mimeType !== FOLDER_MIME);
+        const uploaded = existingDriveFile ?? await uploadDriveFile({ name: String(asset.filename), parentId: target.id, bytes: new Uint8Array(await image.arrayBuffer()), mimeType: image.headers.get("content-type") || "image/jpeg" });
+        // Keep the archive pointer in metadata because older production schemas
+        // may not yet have the additive drive_file_id column. The pointer is
+        // still canonical and makes retries idempotent by filename and ID.
+        await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/"), drive_archived_at: new Date().toISOString(), canonical_source: "MODELARK_TO_DRIVE" } });
+        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ARCHIVED_DRIVE", drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/") });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_archive_status: "BLOCKED_SERVICE_ACCOUNT_STORAGE_QUOTA", drive_archive_error: message.slice(0, 500) } });
+        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "DRIVE_UPLOAD_BLOCKED", error: message.slice(0, 500) });
+      }
     }
     return Response.json({ ok: true, execute, drive_root: PERSONAS_ROOT, discovered_persona_folders: personaFolders.size, folder_tree_count: folderTree.length, total: report.length, assigned: report.filter((item) => item.persona_id).length, archived: report.filter((item) => item.status === "ARCHIVED_DRIVE").length, report });
   } catch (error) {
