@@ -79,6 +79,7 @@ const visualSynonyms: Record<string, string> = {
   pilates_mat: "exercise_mat", yoga_mat: "exercise_mat", mat: "exercise_mat",
   sofa: "sofa", couch: "sofa", notebook: "notebook", journal: "notebook", running_shoes: "sneakers", sneakers: "sneakers", trainers: "sneakers", mobile: "phone", mobile_phone: "phone", smartphone: "phone",
   cup: "cup", mug: "cup", earbuds: "headphones", headphones: "headphones", desk: "work_surface", laptop: "laptop", laptop_computer: "laptop", macbook: "laptop", bath: "bathtub", bathtub: "bathtub",
+  bedding: "bed", white_bedding: "bed", duvet: "bed", sheets: "bed", walking: "movement", walk: "movement", jogging: "movement", cooking: "preparing_food", meal_prep: "preparing_food",
   bedroom: "bedroom", home_interior: "indoor_room", indoor_room: "indoor_room",
 };
 function normalizeVisualTerm(value: string) {
