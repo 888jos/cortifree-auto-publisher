@@ -341,7 +341,7 @@ export function chooseAssets(options: {
     // the persona asset pool. Sparse legacy scene tags must not block a valid
     // freshly face-swapped frame; visual QA still runs at the lower threshold.
     const threshold = options.personaOnly && slide.assetType === "persona"
-      ? EXPLICIT_FALLBACK_THRESHOLD
+      ? 40
       : criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
     const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
     const fallbackCandidate = !selectedCandidate && !criticalSlide(slide)
