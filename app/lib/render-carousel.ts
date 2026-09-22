@@ -138,10 +138,14 @@ function textBlock(lines: string[], x: number, y: number, width: number, size: n
 function geometryForVisualMetadata(geometry: Geometry, match: AssetMatch | undefined): Geometry {
   if (!match) return geometry;
   const asset = match.asset;
+  const field = (name: string) => {
+    const direct = (asset as unknown as Record<string, unknown>)[name];
+    return direct !== undefined && direct !== null && direct !== "" ? direct : asset.metadata?.[name];
+  };
   const text = { ...defaultGeometry.text, ...geometry.text } as Frame & NonNullable<Geometry["text"]>;
-  const composition = `${asset.composition ?? ""} ${asset.specific_details ?? ""}`.toLowerCase();
-  const people = String(asset.people_visibility ?? "").toLowerCase();
-  const focalObject = `${asset.visible_objects ?? []} ${asset.body_parts_visible ?? []}`.toLowerCase();
+  const composition = `${field("composition") ?? ""} ${field("specific_details") ?? ""}`.toLowerCase();
+  const people = String(field("people_visibility") ?? "").toLowerCase();
+  const focalObject = `${field("visible_objects") ?? []} ${field("body_parts_visible") ?? []}`.toLowerCase();
   const nextText = { ...text };
   if (/subject[_ ]?on[_ ]?right|person[_ ]?right|right[_ ]?space/.test(composition)) {
     nextText.x = 72; nextText.width = 470; nextText.align = "left";

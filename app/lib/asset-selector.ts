@@ -89,11 +89,15 @@ function visualTerms(value: unknown) {
   const values = Array.isArray(value) ? value : String(value ?? "").split(/[|,]/);
   return [...new Set(values.flatMap((item) => String(item).split(/\s+/).map(normalizeVisualTerm).filter((term) => term.length > 2)))];
 }
+function visualField(asset: SelectableAsset, field: string): unknown {
+  const direct = (asset as unknown as Record<string, unknown>)[field];
+  return direct !== undefined && direct !== null && direct !== "" ? direct : asset.metadata?.[field];
+}
 function assetVisualText(asset: SelectableAsset) {
   return visualTerms([
-    asset.visual_description, asset.visible_objects, asset.visible_actions, asset.setting,
-    asset.specific_details, asset.composition, asset.people_visibility, asset.body_parts_visible,
-    asset.camera_angle, asset.lighting, asset.dominant_colors, asset.text_in_image,
+    visualField(asset, "visual_description"), visualField(asset, "visible_objects"), visualField(asset, "visible_actions"), visualField(asset, "setting"),
+    visualField(asset, "specific_details"), visualField(asset, "composition"), visualField(asset, "people_visibility"), visualField(asset, "body_parts_visible"),
+    visualField(asset, "camera_angle"), visualField(asset, "lighting"), visualField(asset, "dominant_colors"), visualField(asset, "text_in_image"),
   ]).join(" ");
 }
 function assetText(asset: SelectableAsset) {
@@ -271,15 +275,15 @@ export function chooseAssets(options: {
     const distinct = unused.length || hookNeedsPersona ? compatible : [];
     const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
-      const visualDescription = `${asset.visual_description ?? ""} ${asset.specific_details ?? ""}`;
-      const visibleObjects = visualTerms(asset.visible_objects);
-      const visibleActions = visualTerms(asset.visible_actions);
-      const visibleSettings = visualTerms(asset.setting);
-      const visibleComposition = visualTerms(asset.composition);
-      const visiblePeople = normalizeVisualTerm(asset.people_visibility ?? "");
-      const visibleCamera = visualTerms(asset.camera_angle);
-      const visibleLighting = visualTerms(asset.lighting);
-      const visibleText = visualTerms(asset.text_in_image);
+      const visualDescription = `${visualField(asset, "visual_description") ?? ""} ${visualField(asset, "specific_details") ?? ""}`;
+      const visibleObjects = visualTerms(visualField(asset, "visible_objects"));
+      const visibleActions = visualTerms(visualField(asset, "visible_actions"));
+      const visibleSettings = visualTerms(visualField(asset, "setting"));
+      const visibleComposition = visualTerms(visualField(asset, "composition"));
+      const visiblePeople = normalizeVisualTerm(String(visualField(asset, "people_visibility") ?? ""));
+      const visibleCamera = visualTerms(visualField(asset, "camera_angle"));
+      const visibleLighting = visualTerms(visualField(asset, "lighting"));
+      const visibleText = visualTerms(visualField(asset, "text_in_image"));
       const matchedObjects = overlap(intent.desired_objects, [...visibleObjects, ...visualTerms(visualDescription), ...visualTerms(asset.filename)]);
       const matchedActions = overlap(intent.desired_actions, [...visibleActions, ...visualTerms(visualDescription), ...visualTerms(asset.activity)]);
       const matchedSettings = overlap(intent.desired_settings, [...visibleSettings, ...visualTerms(visualDescription), ...visualTerms(asset.setting), ...visualTerms(asset.scene)]);
@@ -292,7 +296,7 @@ export function chooseAssets(options: {
       const peopleScore = intent.people_preference === "any" || !visiblePeople ? 1 : intent.people_preference === "no_person" ? (visiblePeople === "no_person" ? 1 : 0) : visiblePeople !== "no_person" ? 1 : 0;
       const cameraScore = intent.preferred_compositions.some((item) => /equipment|food/.test(item)) && visibleCamera.length ? 1 : 0;
       const lightingScore = intent.desired_settings.some((item) => /morning|evening|night/.test(item)) && visibleLighting.length ? 1 : 0;
-      const specificDetails = visualTerms(asset.specific_details);
+      const specificDetails = visualTerms(visualField(asset, "specific_details"));
       const detailScore = intent.desired_objects.filter((term) => specificDetails.includes(normalizeVisualTerm(term))).length / Math.max(1, intent.desired_objects.length);
       const categoryBonus = categoryByType[options.carouselType]?.includes(asset.category) ? 4 : 0;
       const legacyQueryTerms = terms(`${slide.assetQuery ?? ""} ${slide.visualIntent ?? ""}`);
@@ -338,7 +342,8 @@ export function chooseAssets(options: {
     }
     used.add(selected.asset.id);
     usedIdentities.add(assetIdentity(selected.asset));
-    if (selected.asset.visual_description) usedVisualDescriptions.push(selected.asset.visual_description);
+    const selectedDescription = visualField(selected.asset, "visual_description");
+    if (selectedDescription) usedVisualDescriptions.push(String(selectedDescription));
     return {
       ...selected,
       score: Number(selected.score.toFixed(2)),
