@@ -124,6 +124,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
   let skipped = 0;
   let metadataRepaired = 0;
   let duplicatesSkipped = 0;
+  const resolvedRefIds = new Set<string>();
   let failed = 0;
   const failures: Array<{ id: string; name: string; error: string }> = [];
 
@@ -320,6 +321,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     const reviewStatus = sheetReviewStatus(taxonomy);
     const qaFlag = sheetQaFlag(taxonomy);
     const selectable = sheetSelectable(taxonomy);
+    const refId = String(taxonomy.ref_id ?? "");
     const canonicalMetadata = {
       category: taxonomy.carousel_use || entry.path[0] || "hero_misc",
       source_url: taxonomy.source_url ?? null,
@@ -352,8 +354,9 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || String(existing.lighting ?? "") !== String(canonicalMetadata.lighting ?? "")
         || !sameCanonicalValue(existing.tags, canonicalMetadata.tags)
         || !sameCanonicalValue(existing.good_for, canonicalMetadata.good_for);
-      if (!metadataNeedsRepair && existing.enabled === canonicalMetadata.enabled) { skipped += 1; return; }
+      if (!metadataNeedsRepair && existing.enabled === canonicalMetadata.enabled) { if (refId) resolvedRefIds.add(refId); skipped += 1; return; }
       await patch("visual_references", String(existing.id), { ...canonicalMetadata, drive_file_id: entry.file.id });
+      if (refId) resolvedRefIds.add(refId);
       metadataRepaired += 1;
       skipped += 1;
       return;
@@ -365,11 +368,13 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       if (sameHash[0]?.id) {
         const canonical = sameHash[0];
         if (String(canonical.id) !== String(taxonomy.ref_id ?? "")) {
+          if (refId) resolvedRefIds.add(refId);
           duplicatesSkipped += 1;
           skipped += 1;
           return;
         }
         await patch("visual_references", String(canonical.id), { ...canonicalMetadata, drive_file_id: entry.file.id });
+        if (refId) resolvedRefIds.add(refId);
         metadataRepaired += 1;
         skipped += 1;
         return;
@@ -385,6 +390,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       file_hash: entry.file.md5Checksum ?? null,
       drive_file_id: entry.file.id,
     }, ["workspace_id", "drive_file_id"]);
+    if (refId) resolvedRefIds.add(refId);
     uploaded += 1;
   }
 
@@ -415,7 +421,8 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
   const visualAuditRows = refTaxonomy.map((row) => {
     const existing = row.ref_id ? refById.get(String(row.ref_id)) : undefined;
     const byHash = row.file_hash ? refByHash.get(String(row.file_hash)) : undefined;
-    return { row, existing: existing ?? byHash, status: existing || byHash ? `INDEXED_${backendMode().toUpperCase()}` : "DRIVE_ONLY_NEEDS_SYNC" };
+    const resolved = row.ref_id ? resolvedRefIds.has(String(row.ref_id)) : false;
+    return { row, existing: existing ?? byHash, status: existing || byHash || resolved ? `INDEXED_${backendMode().toUpperCase()}` : "DRIVE_ONLY_NEEDS_SYNC" };
   });
   const statusCounts = (items: Array<{ status: string }>) => items.reduce<Record<string, number>>((counts, item) => {
     counts[item.status] = (counts[item.status] ?? 0) + 1;
@@ -442,7 +449,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         : stockTree.length ? stockTree.filter((entry) => isImage(entry.file)).length : stockTaxonomy.filter((row) => row.drive_file_id).length,
       runtime_count: scope === "visual_refs" || scope === "visual_refs_missing" ? existingRefs.length : existingAssets.filter((row) => row.source_type === "stock").length,
       missing_runtime: scope === "visual_refs" || scope === "visual_refs_missing"
-        ? refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id)) && !refByHash.has(String(row.file_hash ?? "")) && sheetSelectable(row)).length
+        ? refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id)) && !refByHash.has(String(row.file_hash ?? "")) && !resolvedRefIds.has(String(row.ref_id)) && sheetSelectable(row)).length
         : stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase()) && !assetByMd5.has(String(row.drive_md5 ?? row.md5 ?? ""))).length,
       duplicates_skipped: duplicatesSkipped,
       metadata_repaired: metadataRepaired,
