@@ -262,7 +262,7 @@
       },
       {
         "key": "STOCK_ASSET_COUNT",
-        "value": 337,
+        "value": 347,
         "type": "number",
         "description": "Current Drive stock images",
         "source": "drive",
@@ -270,7 +270,7 @@
       },
       {
         "key": "VISUAL_REFERENCE_COUNT",
-        "value": 169,
+        "value": 234,
         "type": "number",
         "description": "Current taxonomized Drive visual refs",
         "source": "drive",
@@ -278,7 +278,7 @@
       },
       {
         "key": "DRIVE_MEDIA_TOTAL_01_09",
-        "value": 506,
+        "value": 581,
         "type": "number",
         "description": "Stock + visual reference images",
         "source": "drive",
