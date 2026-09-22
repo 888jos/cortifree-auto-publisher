@@ -18,8 +18,8 @@ export async function GET(request: Request) {
       const visualMetadataMissing = stock.filter((asset) => !String(asset.scene ?? "").trim() || !Array.isArray(asset.good_for) || asset.good_for.length === 0).length;
       const observableTagged = stock.filter((asset) => {
         const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
-        return String(asset.visual_tagging_schema ?? metadata.visual_tagging_schema ?? "").toLowerCase() === "observable_v1"
-          && String(asset.visual_review_status ?? metadata.visual_review_status ?? "").toUpperCase() === "IMAGE_INSPECTED_V1";
+        return String(asset.visual_tagging_schema || metadata.visual_tagging_schema || "").toLowerCase() === "observable_v1"
+          && String(asset.visual_review_status || metadata.visual_review_status || "").toUpperCase() === "IMAGE_INSPECTED_V1";
       }).length;
       return Response.json({
         assets: grouped,
