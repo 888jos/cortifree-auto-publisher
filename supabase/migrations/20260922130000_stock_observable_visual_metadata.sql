@@ -11,6 +11,9 @@ alter table if exists assets add column if not exists lighting text not null def
 alter table if exists assets add column if not exists dominant_colors jsonb not null default '[]'::jsonb;
 alter table if exists assets add column if not exists text_in_image text not null default '';
 alter table if exists assets add column if not exists specific_details text not null default '';
+alter table if exists assets add column if not exists visual_tagging_schema text not null default '';
+alter table if exists assets add column if not exists visual_review_status text not null default '';
+alter table if exists assets add column if not exists visual_reviewed_at timestamptz;
 
 create index if not exists assets_stock_visual_schema_idx
   on assets(workspace_id, source_type, enabled)

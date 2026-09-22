@@ -222,6 +222,9 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || !sameCanonicalValue(existing.dominant_colors, visualList(row.dominant_colors))
         || String(existing.text_in_image ?? "") !== String(row.text_in_image ?? "")
         || String(existing.specific_details ?? "") !== String(row.specific_details ?? "")
+        || String(existing.visual_tagging_schema ?? "") !== String(row.visual_tagging_schema ?? "")
+        || String(existing.visual_review_status ?? "") !== String(row.visual_review_status ?? "")
+        || String(existing.visual_reviewed_at ?? "") !== String(row.visual_reviewed_at ?? "")
         || !sameCanonicalValue(existing.tags, split(row.tags))
         || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars));
       if (!metadataNeedsRepair) continue;
@@ -249,10 +252,13 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
           dominant_colors: visualList(row.dominant_colors),
           text_in_image: row.text_in_image ?? "",
           specific_details: row.specific_details ?? "",
+          visual_tagging_schema: row.visual_tagging_schema ?? "",
+          visual_review_status: row.visual_review_status ?? "",
+          visual_reviewed_at: row.visual_reviewed_at ?? null,
           tags: split(row.tags),
           good_for: split(row.good_for_pillars),
           enabled: row.enabled !== false,
-          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null },
+          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null, visual_tagging_schema: row.visual_tagging_schema ?? "", visual_review_status: row.visual_review_status ?? "", visual_reviewed_at: row.visual_reviewed_at ?? null },
           indexed_at: new Date().toISOString(),
         });
       }));
@@ -287,10 +293,13 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       dominant_colors: visualList(taxonomy.dominant_colors),
       text_in_image: taxonomy.text_in_image ?? "",
       specific_details: taxonomy.specific_details ?? "",
+      visual_tagging_schema: taxonomy.visual_tagging_schema ?? "",
+      visual_review_status: taxonomy.visual_review_status ?? "",
+      visual_reviewed_at: taxonomy.visual_reviewed_at ?? null,
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: selectable,
-      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, canonical_source: "08_STOCK_ASSETS" },
+      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: taxonomy.visual_tagging_schema ?? "", visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
     if (existing && (md5Matches(existing, entry.file) || existing.filename === entry.file.name || existing.drive_file_id === entry.file.id)) {

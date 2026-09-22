@@ -135,6 +135,26 @@ function textBlock(lines: string[], x: number, y: number, width: number, size: n
   return `<text x="${textX}" y="${y}" fill="${color}" font-family="${fontFamily}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}">${lines.map((line, index) => `<tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${xml(line)}</tspan>`).join("")}</text>`;
 }
 
+function geometryForVisualMetadata(geometry: Geometry, match: AssetMatch | undefined): Geometry {
+  if (!match) return geometry;
+  const asset = match.asset;
+  const text = { ...defaultGeometry.text, ...geometry.text } as Frame & NonNullable<Geometry["text"]>;
+  const composition = `${asset.composition ?? ""} ${asset.specific_details ?? ""}`.toLowerCase();
+  const people = String(asset.people_visibility ?? "").toLowerCase();
+  const focalObject = `${asset.visible_objects ?? []} ${asset.body_parts_visible ?? []}`.toLowerCase();
+  const nextText = { ...text };
+  if (/subject[_ ]?on[_ ]?right|person[_ ]?right|right[_ ]?space/.test(composition)) {
+    nextText.x = 72; nextText.width = 470; nextText.align = "left";
+  } else if (/subject[_ ]?on[_ ]?left|person[_ ]?left|left[_ ]?space/.test(composition)) {
+    nextText.x = 570; nextText.width = 440; nextText.align = "left";
+  } else if (people && !/no_person|none/.test(people) && /face|head|body/.test(focalObject)) {
+    nextText.x = 72; nextText.width = 936; nextText.headlineY = 1010; nextText.bodyY = 1160; nextText.maxHeadlineLines = 2; nextText.maxBodyLines = 3;
+  } else if (/phone|laptop|notebook|journal|food|plate|product/.test(focalObject)) {
+    nextText.headlineY = 930; nextText.bodyY = 1080; nextText.maxHeadlineLines = 2; nextText.maxBodyLines = 3;
+  }
+  return { ...geometry, text: nextText } as Geometry;
+}
+
 export function makeTextOverlay(slide: GeneratedSlide, geometry: Geometry) {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const headlineSize = frame.headlineSize ?? 62;
@@ -244,7 +264,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       ? { headlineColor: "#fff7f0", bodyColor: "#cfe8ff", accentColor: "#ffd1e1" }
       : { headlineColor: "#fffaf2", bodyColor: "#ead7ff", accentColor: "#ffd4a8" };
   const readableGeometry = { ...geometry, text: geometry.text ? { ...geometry.text, ...readablePalette } : geometry.text } as Geometry;
-  composites.push(...await makeRasterTextOverlays(slide, readableGeometry, hookDesign));
+  composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), hookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
 }
 
@@ -307,6 +327,12 @@ export async function renderCarousel(input: {
         matched_dimensions: primaryMatch.matchedDimensions ?? [],
         matched_settings: primaryMatch.matchedSettings ?? [],
         matched_compositions: primaryMatch.matchedCompositions ?? [],
+        description_score: primaryMatch.descriptionScore ?? null,
+        object_score: primaryMatch.objectScore ?? null,
+        action_score: primaryMatch.actionScore ?? null,
+        setting_score: primaryMatch.settingScore ?? null,
+        composition_score: primaryMatch.compositionScore ?? null,
+        repetition_penalty: primaryMatch.repetitionPenalty ?? null,
         top_candidates: primaryMatch.topCandidates ?? [],
         category_bonus: primaryMatch.categoryBonus ?? null,
       },

@@ -8,6 +8,8 @@ export type SelectableAsset = {
   visual_description?: string; visible_objects?: string[]; visible_actions?: string[]; setting?: string;
   people_visibility?: string; body_parts_visible?: string[]; composition?: string; camera_angle?: string;
   lighting?: string; dominant_colors?: string[]; text_in_image?: string; specific_details?: string;
+  visual_tagging_schema?: string; visual_review_status?: string; visual_reviewed_at?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export type JitSelectableAsset = SelectableAsset & { source_type?: string; persona_id?: string | null };
@@ -27,6 +29,12 @@ export type AssetMatch = {
   visualIntent?: VisualIntent;
   matchedSettings?: string[];
   matchedCompositions?: string[];
+  descriptionScore?: number;
+  objectScore?: number;
+  actionScore?: number;
+  settingScore?: number;
+  compositionScore?: number;
+  repetitionPenalty?: number;
   topCandidates?: Array<{ asset_id: string; score: number; matched_objects: string[]; matched_actions: string[]; matched_settings: string[]; matched_compositions: string[]; category_bonus: number }>;
   categoryBonus?: number;
 };
@@ -38,6 +46,7 @@ export type VisualIntent = {
   desired_settings: string[];
   preferred_compositions: string[];
   people_preference: "any" | "person" | "no_person";
+  avoid: string[];
 };
 
 const AUTO_THRESHOLD = 60;
@@ -68,8 +77,8 @@ function terms(value: string) {
 
 const visualSynonyms: Record<string, string> = {
   pilates_mat: "exercise_mat", yoga_mat: "exercise_mat", mat: "exercise_mat",
-  sofa: "couch", notebook: "journal", running_shoes: "sneakers", mobile_phone: "phone",
-  cup: "mug", earbuds: "headphones", desk: "work_surface", laptop: "computer",
+  sofa: "sofa", couch: "sofa", notebook: "notebook", journal: "notebook", running_shoes: "sneakers", sneakers: "sneakers", trainers: "sneakers", mobile: "phone", mobile_phone: "phone", smartphone: "phone",
+  cup: "cup", mug: "cup", earbuds: "headphones", headphones: "headphones", desk: "work_surface", laptop: "laptop", laptop_computer: "laptop", macbook: "laptop", bath: "bathtub", bathtub: "bathtub",
   bedroom: "bedroom", home_interior: "indoor_room", indoor_room: "indoor_room",
 };
 function normalizeVisualTerm(value: string) {
@@ -89,6 +98,21 @@ function assetVisualText(asset: SelectableAsset) {
 }
 function assetText(asset: SelectableAsset) {
   return `${assetVisualText(asset)} ${asset.filename} ${asset.category} ${asset.subcategory} ${asset.scene ?? ""} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+}
+
+function runtimeVisualMetadata(asset: SelectableAsset) {
+  const metadata = asset.metadata ?? {};
+  return {
+    schema: String(asset.visual_tagging_schema ?? metadata.visual_tagging_schema ?? "").trim().toLowerCase(),
+    reviewStatus: String(asset.visual_review_status ?? metadata.visual_review_status ?? "").trim().toUpperCase(),
+    reviewedAt: asset.visual_reviewed_at ?? metadata.visual_reviewed_at ?? null,
+  };
+}
+
+function isCanonicalReviewedStock(asset: SelectableAsset) {
+  if (asset.source_type !== "stock") return true;
+  const metadata = runtimeVisualMetadata(asset);
+  return metadata.schema === "observable_v1" && metadata.reviewStatus === "IMAGE_INSPECTED_V1" && Boolean(metadata.reviewedAt);
 }
 
 function fieldTerms(value: unknown) {
@@ -159,12 +183,12 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (includesAny(text, ["mat", "pilates", "yoga", "foam roller", "stretch", "movement", "workout", "exercise"])) objects.add("exercise_mat");
   if (includesAny(text, ["foam roller", "roller"])) objects.add("foam_roller");
   if (includesAny(text, ["dumbbell", "weight"])) objects.add("dumbbells");
-  if (includesAny(text, ["journal", "brain dump", "notebook", "write", "writing", "planner"])) { objects.add("journal"); objects.add("pen"); }
+  if (includesAny(text, ["journal", "brain dump", "notebook", "write", "writing", "planner"])) { objects.add("notebook"); objects.add("pen"); }
   if (includesAny(text, ["phone", "alarm", "screen", "scroll", "text"])) objects.add("phone");
   if (includesAny(text, ["bed", "bedroom", "sleep", "night", "bedside"])) { objects.add("bed"); settings.add("bedroom"); }
   if (includesAny(text, ["bowl", "plate", "meal", "food", "snack", "breakfast", "lunch", "dinner", "eat"])) { objects.add("food"); compositions.add("food_layout"); }
-  if (includesAny(text, ["laptop", "desk", "study", "work", "coffee shop"])) { objects.add("computer"); settings.add("work_study"); }
-  if (includesAny(text, ["mug", "cup", "tea", "coffee"])) objects.add("mug");
+  if (includesAny(text, ["laptop", "desk", "study", "work", "coffee shop"])) { objects.add("laptop"); settings.add("work_study"); }
+  if (includesAny(text, ["mug", "cup", "tea", "coffee"])) objects.add("cup");
   if (includesAny(text, ["stretch", "pilates", "yoga", "walk", "walking", "movement", "workout", "run"])) actions.add("movement");
   if (includesAny(text, ["write", "writing", "journal", "brain dump", "plan"])) actions.add("writing");
   if (includesAny(text, ["prepare", "make", "cook", "pack", "meal prep"])) actions.add("preparing_food");
@@ -174,12 +198,15 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (includesAny(text, ["outside", "outdoors", "street", "walk", "commute"])) settings.add("outdoors");
   if (objects.has("exercise_mat") || objects.has("foam_roller") || objects.has("dumbbells")) compositions.add("equipment_layout");
   if (actions.size || includesAny(text, ["woman", "person", "girl", "hands", "holding"])) compositions.add("person_activity_scene");
+  if (objects.has("bed") || settings.has("bedroom")) compositions.add("bedroom_scene");
+  if (objects.has("laptop") || objects.has("notebook")) compositions.add("desk_or_bed_scene");
   const people_preference = includesAny(text, ["no person", "without a person", "setup", "flat lay", "equipment layout"]) && !includesAny(text, ["woman", "person", "hands"])
     ? "no_person" : includesAny(text, ["woman", "person", "girl", "hand writing", "holding"]) ? "person" : "any";
   return {
     description: slide.visualIntent || slide.assetQuery || slide.headline,
     desired_objects: [...objects], desired_actions: [...actions], desired_settings: [...settings],
     preferred_compositions: [...compositions], people_preference,
+    avoid: includesAny(text, ["large text", "text overlay", "caption"]) ? ["text_in_image"] : [],
   };
 }
 
@@ -196,7 +223,7 @@ function semanticTokenOverlap(desired: string, actual: string) {
 }
 
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
-  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,metadata&enabled=eq.true&public_url=not.is.null&limit=1000`);
+  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
   return await response.json() as SelectableAsset[];
 }
@@ -210,9 +237,10 @@ export function chooseAssets(options: {
 }): AssetMatch[] {
   const used = new Set<string>();
   const usedIdentities = new Set<string>();
+  const usedVisualDescriptions: string[] = [];
   return options.slides.map((slide) => {
     const intent = deriveVisualIntent(slide);
-    const finalUse = options.assets.filter((asset) => asset.source_type === "stock" || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
+    const finalUse = options.assets.filter((asset) => isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
@@ -250,6 +278,8 @@ export function chooseAssets(options: {
       const visibleComposition = visualTerms(asset.composition);
       const visiblePeople = normalizeVisualTerm(asset.people_visibility ?? "");
       const visibleCamera = visualTerms(asset.camera_angle);
+      const visibleLighting = visualTerms(asset.lighting);
+      const visibleText = visualTerms(asset.text_in_image);
       const matchedObjects = overlap(intent.desired_objects, [...visibleObjects, ...visualTerms(visualDescription), ...visualTerms(asset.filename)]);
       const matchedActions = overlap(intent.desired_actions, [...visibleActions, ...visualTerms(visualDescription), ...visualTerms(asset.activity)]);
       const matchedSettings = overlap(intent.desired_settings, [...visibleSettings, ...visualTerms(visualDescription), ...visualTerms(asset.setting), ...visualTerms(asset.scene)]);
@@ -261,6 +291,9 @@ export function chooseAssets(options: {
       const compositionScore = intent.preferred_compositions.length ? matchedCompositions.length / intent.preferred_compositions.length : 0;
       const peopleScore = intent.people_preference === "any" || !visiblePeople ? 1 : intent.people_preference === "no_person" ? (visiblePeople === "no_person" ? 1 : 0) : visiblePeople !== "no_person" ? 1 : 0;
       const cameraScore = intent.preferred_compositions.some((item) => /equipment|food/.test(item)) && visibleCamera.length ? 1 : 0;
+      const lightingScore = intent.desired_settings.some((item) => /morning|evening|night/.test(item)) && visibleLighting.length ? 1 : 0;
+      const specificDetails = visualTerms(asset.specific_details);
+      const detailScore = intent.desired_objects.filter((term) => specificDetails.includes(normalizeVisualTerm(term))).length / Math.max(1, intent.desired_objects.length);
       const categoryBonus = categoryByType[options.carouselType]?.includes(asset.category) ? 4 : 0;
       const legacyQueryTerms = terms(`${slide.assetQuery ?? ""} ${slide.visualIntent ?? ""}`);
       const legacyQueryMatches = legacyQueryTerms.filter((term) => haystack.includes(term));
@@ -268,14 +301,16 @@ export function chooseAssets(options: {
       // Preserve confidence for persona scenes whose older records predate observable
       // tagging, without letting this legacy path affect stock ranking.
       const personaSceneScore = slide.assetType === "persona" && asset.source_type === "persona_generated" && requiresPersonaScene ? 20 : 0;
-      let score = semanticScore * 32 + objectScore * 24 + actionScore * 14 + settingScore * 10 + compositionScore * 8 + peopleScore * 5 + cameraScore * 3 + categoryBonus + legacyQueryScore + personaSceneScore;
+      const textPenalty = visibleText.length && !intent.desired_objects.includes("laptop") ? 5 : 0;
+      let score = semanticScore * 30 + objectScore * 25 + actionScore * 10 + settingScore * 10 + detailScore * 10 + compositionScore * 5 + peopleScore * 4 + cameraScore * 3 + lightingScore * 2 + categoryBonus + legacyQueryScore + personaSceneScore - textPenalty;
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
       if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 34;
       if (hookNeedsPersona && asset.source_type === "persona_generated") score += 12;
-      score -= Math.min(asset.use_count ?? 0, 12) * 1.8;
-      if (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000) score -= 16;
+      const visualRepetitionPenalty = usedVisualDescriptions.some((previous) => semanticTokenOverlap(previous, visualDescription) >= 0.75) ? 10 : 0;
+      const repetitionPenalty = Math.min(asset.use_count ?? 0, 12) * 1.8 + (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000 ? 16 : 0) + visualRepetitionPenalty;
+      score -= repetitionPenalty;
       if (used.has(asset.id)) score -= 1_000;
       const matchedDimensions = [
         semanticScore ? "visual_description" : "",
@@ -285,9 +320,11 @@ export function chooseAssets(options: {
         matchedCompositions.length ? "composition" : "",
         peopleScore ? "people_visibility" : "",
         cameraScore ? "camera_angle" : "",
+        lightingScore ? "lighting" : "",
+        detailScore ? "specific_details" : "",
         legacyQueryMatches.length ? "legacy_visual_text" : "",
       ].filter(Boolean);
-      return { asset, score, matchedTerms: matchedObjects.concat(matchedActions), matchedDimensions, matchedObjects, matchedActions, matchedSettings, matchedCompositions, semanticScore, categoryBonus };
+      return { asset, score, matchedTerms: matchedObjects.concat(matchedActions), matchedDimensions, matchedObjects, matchedActions, matchedSettings, matchedCompositions, semanticScore, categoryBonus, descriptionScore: semanticScore, objectScore, actionScore, settingScore, compositionScore, repetitionPenalty };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
     const threshold = criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
     const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
@@ -301,6 +338,7 @@ export function chooseAssets(options: {
     }
     used.add(selected.asset.id);
     usedIdentities.add(assetIdentity(selected.asset));
+    if (selected.asset.visual_description) usedVisualDescriptions.push(selected.asset.visual_description);
     return {
       ...selected,
       score: Number(selected.score.toFixed(2)),
@@ -312,6 +350,12 @@ export function chooseAssets(options: {
       matchedDimensions: selected.matchedDimensions,
       matchedSettings: selected.matchedSettings,
       matchedCompositions: selected.matchedCompositions,
+      descriptionScore: selected.descriptionScore,
+      objectScore: selected.objectScore,
+      actionScore: selected.actionScore,
+      settingScore: selected.settingScore,
+      compositionScore: selected.compositionScore,
+      repetitionPenalty: selected.repetitionPenalty,
       categoryBonus: selected.categoryBonus,
       topCandidates: candidates.slice(0, 3).map((candidate) => ({ asset_id: String(candidate.asset.id), score: Number(candidate.score.toFixed(2)), matched_objects: candidate.matchedObjects, matched_actions: candidate.matchedActions, matched_settings: candidate.matchedSettings, matched_compositions: candidate.matchedCompositions, category_bonus: candidate.categoryBonus })),
     };

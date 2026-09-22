@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
-import { chooseAssets, type SelectableAsset } from '../app/lib/asset-selector';
+import { chooseAssets, deriveVisualIntent, type SelectableAsset } from '../app/lib/asset-selector';
 import { isAutomaticVisualReference } from '../src/visual-references';
 
 describe('asset scanner', () => {
@@ -58,7 +58,7 @@ describe('asset scanner', () => {
 
   it('ranks observable visual content above category labels', () => {
     const base = (id: string, category: string, visual_description: string, visible_objects: string[], visible_actions: string[] = []): SelectableAsset => ({
-      id, filename: `${id}.jpg`, category, subcategory: category, orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: `https://example.com/${id}.jpg`, use_count: 0, last_used_at: null, source_type: 'stock', visual_description, visible_objects, visible_actions, setting: 'indoor_room', people_visibility: 'no_person', body_parts_visible: [], composition: 'equipment_layout', camera_angle: 'top_down_or_high_angle', lighting: 'natural', dominant_colors: [], text_in_image: '', specific_details: '',
+      id, filename: `${id}.jpg`, category, subcategory: category, orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: `https://example.com/${id}.jpg`, use_count: 0, last_used_at: null, source_type: 'stock', visual_description, visible_objects, visible_actions, setting: 'indoor_room', people_visibility: 'no_person', body_parts_visible: [], composition: 'equipment_layout', camera_angle: 'top_down_or_high_angle', lighting: 'natural', dominant_colors: [], text_in_image: '', specific_details: '', visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1', visual_reviewed_at: '2026-09-22T00:00:00.000Z',
     });
     const cases = [
       [{ headline: 'Recovery day', body: 'Easy movement without making it a whole production.', assetQuery: 'pilates mat and foam roller', visualIntent: 'pilates mat and foam roller on the floor', }, [base('fitness-mat', 'fitness', 'pink exercise mat on the floor with a foam roller and tablet nearby', ['exercise_mat', 'foam_roller', 'tablet'])], 'fitness-mat'],
@@ -76,5 +76,18 @@ describe('asset scanner', () => {
       assert.ok(selected?.visualIntent?.desired_objects.length);
       assert.equal(selected?.topCandidates?.[0]?.asset_id, expected);
     }
+  });
+
+  it('requires reviewed observable stock and derives physical intent', () => {
+    const reviewed = {
+      id: 'reviewed', filename: 'reviewed.jpg', category: 'fitness', subcategory: 'fitness', orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/reviewed.jpg', use_count: 0, last_used_at: null, source_type: 'stock', visual_description: 'open notebook on a bed with a pen', visible_objects: ['notebook', 'bed', 'pen'], visible_actions: ['writing'], setting: 'bedroom', people_visibility: 'no_person', body_parts_visible: [], composition: 'bedroom_scene', camera_angle: 'high_angle', lighting: 'soft_indoor_natural_light', dominant_colors: [], text_in_image: '', specific_details: 'handwritten_pages', visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1', visual_reviewed_at: '2026-09-22T00:00:00.000Z',
+    } satisfies SelectableAsset;
+    const stale = { ...reviewed, id: 'stale', filename: 'stale.jpg', visual_review_status: '' } satisfies SelectableAsset;
+    const intent = deriveVisualIntent({ headline: 'Brain dump before bed', body: 'Write it down.', assetQuery: 'notebook and pen on bed', visualIntent: 'open notebook on bed with hand writing' });
+    assert.deepEqual(intent.desired_objects, ['notebook', 'pen', 'bed']);
+    assert.ok(intent.desired_actions.includes('writing'));
+    assert.ok(intent.desired_settings.includes('bedroom'));
+    const [selected] = chooseAssets({ carouselType: 'C06_POV_RELATABLE', assets: [stale, reviewed], personaId: 'P01', slides: [{ position: 2, role: 'TIP', assetType: 'stock', headline: 'Brain dump before bed', body: 'Write it down.', assetQuery: 'notebook and pen on bed', visualIntent: 'open notebook on bed with hand writing' }] });
+    assert.equal(selected?.asset.id, 'reviewed');
   });
 });
