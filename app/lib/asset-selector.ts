@@ -311,7 +311,10 @@ export function chooseAssets(options: {
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
       if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 34;
-      if (hookNeedsPersona && asset.source_type === "persona_generated") score += 12;
+      // A generated persona hook is already identity-validated by its MASTER /
+      // visual-reference pipeline; keep visual relevance as a tie-breaker but
+      // do not reject a valid identity asset because legacy scene tags are sparse.
+      if (hookNeedsPersona && asset.source_type === "persona_generated") score += 36;
       const visualRepetitionPenalty = usedVisualDescriptions.some((previous) => semanticTokenOverlap(previous, visualDescription) >= 0.75) ? 10 : 0;
       const repetitionPenalty = Math.min(asset.use_count ?? 0, 12) * 1.8 + (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000 ? 16 : 0) + visualRepetitionPenalty;
       score -= repetitionPenalty;
