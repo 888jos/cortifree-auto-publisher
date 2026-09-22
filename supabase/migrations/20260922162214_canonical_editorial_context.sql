@@ -20,3 +20,4 @@ create table if not exists content_language_bank (
   active boolean not null default true,
   workspace_id text not null default 'cortifree' check (workspace_id = 'cortifree')
 );
+

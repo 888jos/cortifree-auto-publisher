@@ -24,8 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
+      DATA_BACKEND: supabase
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GOOGLE_SERVICE_ACCOUNT_EMAIL: cortifree@cortifree-509021.iam.gserviceaccount.com
       GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
       GOOGLE_SHEETS_CONTENT_DB_ID: ${{ vars.GOOGLE_SHEETS_CONTENT_DB_ID || '1XqgyMRj_jUU3FkKg4HzEORMz3Jl8pHpKuBrXkmfw4Qw' }}
@@ -51,7 +52,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in CONVEX_DEPLOY_KEY CORTIFREE_BACKEND_SECRET GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY; do
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing required secret: $name"
               missing=1
@@ -60,9 +61,5 @@ jobs:
           exit "$missing"
       - name: Typecheck
         run: npm run typecheck
-      - name: Deploy Convex and bootstrap Sheet + Drive
-        run: >
-          npx convex deploy
-          --cmd "npx tsx scripts/p0-bootstrap-data.ts && npx tsx scripts/p0-runtime-check.ts"
-          --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
-          --message "CortiFree P0 bootstrap ${GITHUB_SHA}"
+      - name: Bootstrap Sheet + Drive into Supabase
+        run: npx tsx scripts/p0-bootstrap-data.ts && npx tsx scripts/p0-runtime-check.ts

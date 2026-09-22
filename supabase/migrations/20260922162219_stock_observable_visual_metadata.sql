@@ -18,3 +18,4 @@ alter table if exists assets add column if not exists visual_reviewed_at timesta
 create index if not exists assets_stock_visual_schema_idx
   on assets(workspace_id, source_type, enabled)
   where source_type = 'stock';
+

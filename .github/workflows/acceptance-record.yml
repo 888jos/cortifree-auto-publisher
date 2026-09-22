@@ -27,8 +27,9 @@ jobs:
   record:
     runs-on: ubuntu-latest
     env:
-      NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL || vars.NEXT_PUBLIC_CONVEX_URL }}
-      CORTIFREE_BACKEND_SECRET: ${{ secrets.CORTIFREE_BACKEND_SECRET }}
+      DATA_BACKEND: supabase
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       ACCEPTANCE_REVIEWED: ${{ inputs.reviewed }}
       ACCEPTANCE_USABLE: ${{ inputs.usable }}
       ACCEPTANCE_BATCH_ID: ${{ inputs.batch_id }}
@@ -41,11 +42,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Require Convex runtime credentials
+      - name: Require Supabase runtime credentials
         shell: bash
         run: |
           missing=0
-          for name in NEXT_PUBLIC_CONVEX_URL CORTIFREE_BACKEND_SECRET; do
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing required secret: $name"
               missing=1

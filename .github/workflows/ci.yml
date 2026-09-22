@@ -1,11 +1,13 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
-    branches:
-      - main
-      - feat/autonomy-10x
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

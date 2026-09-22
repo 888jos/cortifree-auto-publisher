@@ -1,1 +1,1 @@
-export { dataBackend, convexConfigured } from "../../app/lib/data-backend";
+export { dataBackend, backendConfigured, convexConfigured } from "../../app/lib/data-backend";

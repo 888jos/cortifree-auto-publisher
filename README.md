@@ -1,13 +1,12 @@
 # CortiFree Auto Publisher
 
-Projet indépendant de publication de carrousels CortiFree. Convex est l'unique backend runtime de l'application pour les données et les fichiers. `DRY_RUN=true` et `REQUIRE_APPROVAL=true` restent les défauts de sécurité.
+Projet indépendant de publication de carrousels CortiFree. Supabase est le backend runtime canonique pour les données et les fichiers. `DRY_RUN=true` et `REQUIRE_APPROVAL=true` restent les défauts de sécurité.
 
 ## Démarrage
 
 ```bash
 npm install
 cp .env.example .env
-npx convex dev
 npm run doctor
 npm run personas:validate
 npm run carousel:create -- --account CF_EN_01 --id CF_TEST_001
@@ -20,20 +19,19 @@ Le renderer est un pipeline SVG déterministe + Sharp : il ne lance pas de navig
 
 ## Conventions de sécurité
 
-Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés et tokens restent dans l’environnement. Le secret backend Convex et la clé OpenAI sont utilisés uniquement côté serveur. Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
+Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés Supabase, OpenAI et ModelArk restent uniquement côté serveur. Le dashboard et les API sont protégés par `CORTIFREE_ADMIN_PASSWORD` (ou, à défaut, `CORTIFREE_ADMIN_TOKEN`). Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
 
-## Convex
+## Supabase
 
-Les routes sous `app/api` lisent et écrivent exclusivement dans Convex. Le backend force systématiquement `workspace_id=cortifree`; une requête ne peut pas être redirigée vers les données Cocorise. Les noms de comptes historiques Supabase restent uniquement dans le script d'export ponctuel `scripts/export-cortifree-supabase.ts`.
+Les routes sous `app/api` lisent et écrivent dans le projet Supabase CortiFree. Les tables multi-workspace sont forcées sur `workspace_id=cortifree`; les tables éditoriales dédiées (`content_*` et `editorial_records`) n’acceptent pas de redirection vers un autre produit. `DATA_BACKEND=convex` reste disponible uniquement comme mode de rollback explicite.
 
 ```bash
-npm run convex:dev
-npm run convex:export-supabase
-npm run convex:migrate-files
-npm run convex:deploy
+npm run typecheck
+npm test
+supabase migration list
 ```
 
-Vercel utilise `npm run vercel-build`, `CONVEX_DEPLOY_KEY`, `NEXT_PUBLIC_CONVEX_URL` et `CORTIFREE_BACKEND_SECRET`. L'ancien Supabase doit être conservé en lecture seule pendant la période de retour arrière, mais il n'est plus requis par l'application déployée.
+Vercel utilise `npm run vercel-build`, `DATA_BACKEND=supabase`, `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`. Les migrations versionnées vivent dans `supabase/migrations/`; elles doivent être vérifiées avant application. Le build Vercel ne déploie jamais le schéma.
 
 ## OpenAI Setup
 
@@ -58,9 +56,9 @@ OPENAI_MAX_MONTHLY_USD=15
 OPENAI_TIMEOUT_MS=45000
 ```
 
-AI cost tracking is stored in the Convex `ai_usage_logs` table. Pricing lives in one module and must be reviewed periodically. The API key is server-only and is never returned by `/api/ai/status` or exposed through a `NEXT_PUBLIC_*` variable. Social publishing remains protected by `DRY_RUN=true`.
+AI cost tracking is stored in the Supabase `ai_usage_logs` table. Pricing lives in one module and must be reviewed periodically. The API key is server-only and is never returned by `/api/ai/status` or exposed through a `NEXT_PUBLIC_*` variable. Social publishing remains protected by `DRY_RUN=true`.
 
-Upload-Post is shared at the provider level, so CortiFree only exposes profiles listed in `CORTIFREE_UPLOAD_POST_PROFILES` and explicitly mapped to a `CF_*` account in Convex. An empty allowlist intentionally means zero CortiFree publishing profiles; Cocorise profiles are never selected as a fallback.
+Upload-Post is shared at the provider level, so CortiFree only exposes profiles listed in `CORTIFREE_UPLOAD_POST_PROFILES` and explicitly mapped to a `CF_*` account in Supabase. An empty allowlist intentionally means zero CortiFree publishing profiles; Cocorise profiles are never selected as a fallback.
 
 ## Persona Images
 
@@ -74,7 +72,7 @@ npm run refs:import-pinterest
 npm run refs:scan
 ```
 
-Run `npm run personas:sync` from a trusted machine with the Convex server credentials. Images are stored in Convex file storage and every database row is forced into `workspace_id=cortifree`.
+Run `npm run personas:sync` from a trusted machine with the Supabase service-role credentials. Images are stored in the `cortifree-assets` bucket and every shared database row is forced into `workspace_id=cortifree`.
 
 Vision tagging is paid and deliberately requires explicit IDs:
 
@@ -93,11 +91,11 @@ The Asset Library exposes Stock, Persona Generated, protected Masters and Visual
 - `src/assets/scanner.ts` : scan idempotent, hash SHA-256, dimensions et index local.
 - `src/visual-references/` : scan, hash dedupe, naming and reference search.
 - `src/image-generation/` : provider boundary, stable identity prompt, retry and budget guards.
-- `scripts/sync-persona-image-assets.ts` : non-destructive Drive to Convex file-storage sync.
+- `scripts/sync-persona-image-assets.ts` : synchronisation non destructive Drive vers le stockage runtime.
 - `src/render/` : tokens de design, registre de templates, SVG + Sharp et QA.
-- `convex/schema.ts` : schéma de données CortiFree isolé.
-- `convex/data.ts` : requêtes, écritures et stockage protégés par secret serveur.
-- `src/runtime/config.ts` : comptes/personas/editorial lus depuis Convex en runtime. Les JSON locaux sont uniquement un fallback d'urgence opt-in.
+- `supabase/migrations/` : historique SQL canonique et versionné.
+- `app/lib/data-backend.ts` : accès serveur Supabase, avec rollback Convex explicite.
+- `src/runtime/config.ts` : comptes/personas/editorial lus depuis le backend configuré. Les JSON locaux sont uniquement un fallback d'urgence opt-in.
 
 
 ## Isolation CortiFree / Cocorise
@@ -105,9 +103,10 @@ The Asset Library exposes Stock, Persona Generated, protected Masters and Visual
 CortiFree est un service autonome et ne dépend d'aucune ressource Cocorise en production.
 
 - Vercel attendu : `cortifree-auto-publisher.vercel.app` ou une valeur explicitement définie dans `CORTIFREE_CANONICAL_HOST`.
-- Convex : déploiement CortiFree dédié, protégé par `CORTIFREE_BACKEND_SECRET`.
+- Projet Vercel attendu : `prj_VAzxY6ziL68xkWugWCdw6ympilER`; `scripts/vercel-ignore.mjs` bloque les builds provenant du projet Cocorise.
+- Supabase : projet CortiFree `adwyqshphctqbdfckvno`, clé service-role strictement serveur.
 - Workspace runtime : `cortifree`.
-- Supabase : **aucune dépendance runtime**. Le projet historique `adwyqshphctqbdfckvno` est uniquement une source legacy d'export/rollback.
+- Convex : mode de rollback optionnel, jamais sélectionné sans `DATA_BACKEND=convex`.
 - Upload-Post : seuls les profils explicitement listés dans `CORTIFREE_UPLOAD_POST_PROFILES` sont éligibles.
 - Aucune variable `NEXT_PUBLIC_COCORISE_URL` n'est autorisée dans ce repo.
 
@@ -116,9 +115,9 @@ Le endpoint `/api/health` renvoie HTTP 503 si le déploiement CortiFree est bran
 
 ### Database deployment boundary
 
-Vercel builds **must not deploy Convex**. The Vercel build command is only `next build`. Deploy Convex separately with `npm run convex:deploy` from an explicitly linked deployment/CI context.
+Vercel builds **must not apply Supabase migrations**. The Vercel build command is only `next build`. Apply reviewed migrations in a separate database workflow or through the Supabase CLI from an explicitly linked context.
 
-This prevents a wrongly linked Vercel project from mutating another product's database. `CONVEX_DEPLOY_KEY` belongs to the Convex deployment workflow, not to the Vercel runtime. Vercel runtime only needs the product-specific public Convex URL and backend secret.
+This prevents a wrongly linked Vercel project from mutating another product's database. Vercel runtime needs only the CortiFree Supabase URL and server-only service-role key.
 
 
 
@@ -128,7 +127,7 @@ This prevents a wrongly linked Vercel project from mutating another product's da
 Même si `AUTONOMY_AUTO_PUBLISH=true`, CortiFree refuse de programmer une publication tant que le gate de production n'est pas vert.
 
 Le gate vérifie notamment :
-- Convex live et banques éditoriales chargées ;
+- Supabase live et banques éditoriales chargées ;
 - 16 personas et 16 comptes ;
 - Google Sheet/Drive synchronisés récemment ;
 - 16 persona masters ;

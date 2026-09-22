@@ -69,12 +69,12 @@ const mappings: Mapping[] = [
 async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
   const supabaseRuntime = backendMode() === "supabase";
-  const legacySupabase = new Set(["accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs"]).has(table);
+  const tableHasNoWorkspaceColumn = new Set(["accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs", "editorial_records"]).has(table);
   let payload = rows.map((row) => {
     const normalized = supabaseRuntime
       ? Object.fromEntries(Object.entries(row).map(([field, value]) => [field, value === "" ? null : value]))
       : row;
-    return { ...normalized, ...(supabaseRuntime && legacySupabase ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
+    return { ...normalized, ...(supabaseRuntime && tableHasNoWorkspaceColumn ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
   });
   const conflictKey = table === "accounts" ? "account_id" : (supabaseRuntime ? key : "id");
   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -92,6 +92,72 @@ async function upsert(table: string, key: string, rows: Row[]) {
   throw new Error(`Sheet sync failed for ${table}: too many schema compatibility retries`);
 }
 
+function isoSheetDate(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const epoch = Date.UTC(1899, 11, 30);
+    return new Date(epoch + Math.floor(value) * 86_400_000).toISOString().slice(0, 10);
+  }
+  const raw = String(value ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : raw;
+}
+
+function isoSheetTime(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const minutes = Math.round((value - Math.floor(value)) * 1_440) % 1_440;
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  }
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${match[1]!.padStart(2, "0")}:${match[2]}` : raw;
+}
+
+async function syncCanonicalCalendar() {
+  if (backendMode() !== "supabase") return 0;
+  const source = await readSheetObjects("15_CONTENT_CALENDAR", "A1:AZ1000");
+  const syncedAt = new Date().toISOString();
+  const calendarRows = source.flatMap((sourceRow, index) => {
+    const slotId = String(sourceRow.slot_id ?? "").trim();
+    const accountId = String(sourceRow.account_id ?? "").trim();
+    const date = isoSheetDate(sourceRow.date);
+    if (!slotId || !accountId.startsWith("CF_") || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+    const data = { ...sourceRow, date, local_time: isoSheetTime(sourceRow.local_time) };
+    return [{
+      kind: "content_calendar",
+      key: slotId,
+      title: String(sourceRow.topic ?? slotId),
+      data,
+      active: true,
+      source: "google_sheet",
+      source_sheet: "15_CONTENT_CALENDAR",
+      source_row: index + 2,
+      source_updated_at: syncedAt,
+      synced_at: syncedAt,
+    }];
+  });
+  if (!calendarRows.length) throw new Error("Refusing to replace canonical calendar with an empty Sheet read");
+
+  for (let offset = 0; offset < calendarRows.length; offset += 150) {
+    await upsert("editorial_records", "kind,key", calendarRows.slice(offset, offset + 150));
+  }
+
+  const existingResponse = await dataBackend("editorial_records?kind=eq.content_calendar&select=key&limit=5000");
+  if (!existingResponse.ok) throw new Error(`Cannot reconcile canonical calendar keys: ${await existingResponse.text()}`);
+  const existing = await existingResponse.json() as Array<{ key?: unknown }>;
+  const currentKeys = new Set(calendarRows.map((row) => row.key));
+  const staleKeys = existing.map((row) => String(row.key ?? "")).filter((key) => key && !currentKeys.has(key));
+  for (let offset = 0; offset < staleKeys.length; offset += 100) {
+    const keys = staleKeys.slice(offset, offset + 100).map(encodeURIComponent).join(",");
+    const response = await dataBackend(`editorial_records?kind=eq.content_calendar&key=in.(${keys})`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: false, synced_at: syncedAt }),
+    });
+    if (!response.ok) throw new Error(`Cannot deactivate stale calendar rows: ${await response.text()}`);
+  }
+  return calendarRows.length;
+}
+
 export async function syncEditorialSheetToConvex() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
@@ -106,6 +172,7 @@ export async function syncEditorialSheetToConvex() {
       .map((row) => mapping.transform ? mapping.transform(row) : row);
     counts[mapping.table] = await upsert(mapping.table, mapping.key, rows);
   }
+  counts.content_calendar = await syncCanonicalCalendar();
 
   const derivedConfig: Row[] = [
     { key: "PERSONA_COUNT", value: counts.personas ?? 0, value_type: "number", description: "Derived from synced persona rows", source: "derived", active: true },

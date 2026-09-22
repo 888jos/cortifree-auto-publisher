@@ -46,3 +46,4 @@ on conflict (id) do update set
   pillar_affinities = excluded.pillar_affinities,
   enabled = excluded.enabled,
   updated_at = now();
+

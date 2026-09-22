@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       requestedSlideCount: body.requestedSlideCount,
       preferredHook: canonical.preferredHook,
       ctaMode: body.ctaMode,
-      bypassMonthlyCap: body.bypassMonthlyCap,
+      bypassMonthlyCap: false,
       accountId, personaId, topicId: canonical.topicId, hookId: canonical.hookId, formatId: canonical.formatId,
       editorialContext: canonical.editorialContext, requireCanonicalContext: true,
     };

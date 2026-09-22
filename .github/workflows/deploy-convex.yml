@@ -1,4 +1,4 @@
-name: Deploy CortiFree Convex
+name: Legacy rollback - deploy CortiFree Convex
 
 on:
   workflow_dispatch:
