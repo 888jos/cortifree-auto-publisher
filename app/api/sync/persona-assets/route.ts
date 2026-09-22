@@ -86,7 +86,15 @@ export async function POST(request: Request) {
       const personaId = String(asset.persona_id ?? "").match(/^P\d{2}$/i)?.[0]?.toUpperCase() ?? personaIdFromMaster((metadata.input_image_1 as Row | undefined)?.filename);
       if (!personaId) { report.push({ id: asset.id, filename: asset.filename, status: "UNASSIGNED_NO_MASTER" }); continue; }
       const personaFolder = personaFolders.get(personaId);
-      if (!personaFolder) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "PERSONA_FOLDER_NOT_FOUND" }); continue; }
+      if (!personaFolder) {
+        if (execute && !asset.persona_id) {
+          await patchAsset(String(asset.id), { persona_id: personaId, metadata: { ...metadata, reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null, reconciled_at: new Date().toISOString(), drive_archive_status: "PENDING_FOLDER_ACCESS" } });
+          report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_PENDING_DRIVE" });
+        } else {
+          report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "PERSONA_FOLDER_NOT_FOUND" });
+        }
+        continue;
+      }
       const targetName = categoryFolder(asset.category);
       const target = folderTree.find((item) => item.path.length === personaFolder.path.length + 1 && item.path.slice(0, personaFolder.path.length).join("/") === personaFolder.path.join("/") && item.path.at(-1) === targetName);
       if (!target) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName }); continue; }
