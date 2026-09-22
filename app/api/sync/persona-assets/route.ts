@@ -9,6 +9,7 @@ export const maxDuration = 300;
 const PERSONAS_ROOT = process.env.GOOGLE_DRIVE_PERSONAS_FOLDER_ID || "1cnDHDfAGgwOxTT_kJsZNpnRHvB5sY6Ps";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const PERSONA_RE = /^(P\d{2})/i;
+const PERSONA_BY_NAME: Record<string, string> = { EMMA: "P01", LILY: "P02", MAYA: "P03", NORA: "P04", GRACE: "P05", AVA: "P06", CHLOE: "P07", ISABELA: "P08", CAMILA: "P09", HANA: "P10", ZOEY: "P11", ELIANA: "P12", JADE: "P13", SOFIA: "P14", MIA: "P15", OLIVIA: "P16" };
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET || process.env.CORTIFREE_ADMIN_SECRET;
@@ -57,8 +58,17 @@ function personaIdFromMaster(value: unknown) {
   const filename = String(value ?? "").toUpperCase();
   const direct = filename.match(/P\d{2}/)?.[0];
   if (direct) return direct;
-  const names: Record<string, string> = { EMMA: "P01", LILY: "P02", MAYA: "P03", NORA: "P04", GRACE: "P05", AVA: "P06", CHLOE: "P07", ISABELA: "P08", CAMILA: "P09", HANA: "P10", ZOEY: "P11", ELIANA: "P12", JADE: "P13", SOFIA: "P14", MIA: "P15", OLIVIA: "P16" };
-  return Object.entries(names).find(([name]) => filename.includes(`${name}_MASTER`))?.[1] ?? null;
+  return Object.entries(PERSONA_BY_NAME).find(([name]) => filename.includes(`${name}_MASTER`))?.[1] ?? null;
+}
+
+function personaIdFromFolderPath(path: string[]) {
+  for (const part of path) {
+    const direct = part.match(PERSONA_RE)?.[1]?.toUpperCase();
+    if (direct) return direct;
+    const normalized = part.toUpperCase().replace(/[^A-Z]/g, "");
+    if (PERSONA_BY_NAME[normalized]) return PERSONA_BY_NAME[normalized];
+  }
+  return null;
 }
 
 function categoryFolder(category: unknown) {
@@ -74,10 +84,10 @@ export async function POST(request: Request) {
       rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled&limit=5000`),
       folders(PERSONAS_ROOT),
     ]);
-    const folderTree = rootedFolders.some((item) => PERSONA_RE.test(item.path.at(-1) ?? "")) ? rootedFolders : await discoverPersonaFolders();
+    const folderTree = rootedFolders.some((item) => Boolean(personaIdFromFolderPath(item.path))) ? rootedFolders : await discoverPersonaFolders();
     const personaFolders = new Map<string, FolderNode>();
     for (const item of folderTree) {
-      const id = item.path.find((part) => PERSONA_RE.test(part))?.match(PERSONA_RE)?.[1]?.toUpperCase();
+      const id = personaIdFromFolderPath(item.path);
       if (id && !personaFolders.has(id)) personaFolders.set(id, item);
     }
     const report: Row[] = [];
