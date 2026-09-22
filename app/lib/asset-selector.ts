@@ -52,6 +52,9 @@ export type VisualIntent = {
 const AUTO_THRESHOLD = 60;
 const CRITICAL_THRESHOLD = 65;
 const EXPLICIT_FALLBACK_THRESHOLD = 50;
+// Known anatomy/reflection defect. Keep the file for auditability, but never
+// allow it into an automatically rendered carousel.
+const VISUAL_QA_EXCLUDED_FILENAMES = new Set(["MAYA_SELFCARE_001.jpg"]);
 
 const categoryByType: Record<string, string[]> = {
   C01_MORNING_ROUTINE: ["morning", "food", "self_care", "fitness"],
@@ -245,7 +248,7 @@ export function chooseAssets(options: {
   const usedVisualDescriptions: string[] = [];
   return options.slides.map((slide) => {
     const intent = deriveVisualIntent(slide);
-    const finalUse = options.assets.filter((asset) => isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)));
+    const finalUse = options.assets.filter((asset) => !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename) && (isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId))));
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());

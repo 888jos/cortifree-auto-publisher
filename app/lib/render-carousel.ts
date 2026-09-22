@@ -205,12 +205,12 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
     // Keep long hooks in a compact, high-contrast block instead of allowing
     // one word per line to run through the person or the focal object.
     const hookSize = frame.hookSize ?? 44;
-    const hookTop = 790;
+    const hookTop = Math.max(96, Math.min(930, design.y ?? 790));
     // The composition heuristic can prefer the visually quieter side while
     // still crossing a centered portrait. Keep long hooks in the opposite
     // lateral safe zone instead of covering the face or phone.
-    const hookX = 88;
-    const hookWidth = 904;
+    const hookX = Math.max(64, Math.min(620, design.x ?? 88));
+    const hookWidth = Math.max(360, Math.min(920, design.width ?? 904));
     for (const [index, line] of hookHeadline.entries()) {
       const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
       const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: frame.headlineColor ?? "#fffaf8", align: "left", spacing: 0, fontFamily: hookFontFamily });
@@ -263,10 +263,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
   }
   const readablePalette = averageLuminance > 158
-    ? { headlineColor: "#243047", bodyColor: "#6b3157", accentColor: "#8b416f" }
-    : averageLuminance < 96
-      ? { headlineColor: "#fff7f0", bodyColor: "#cfe8ff", accentColor: "#ffd1e1" }
-      : { headlineColor: "#fffaf2", bodyColor: "#ead7ff", accentColor: "#ffd4a8" };
+    ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
+    : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
   const readableGeometry = { ...geometry, text: geometry.text ? { ...geometry.text, ...readablePalette } : geometry.text } as Geometry;
   composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), hookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
