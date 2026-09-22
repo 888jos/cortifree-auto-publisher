@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   const execute = url.searchParams.get("execute") === "true";
   try {
     const [assets, folderTree] = await Promise.all([
-      rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,drive_file_id,metadata,enabled&limit=5000`),
+      rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled&limit=5000`),
       folders(PERSONAS_ROOT),
     ]);
     const personaFolders = new Map<string, FolderNode>();
@@ -75,7 +75,8 @@ export async function POST(request: Request) {
       const targetName = categoryFolder(asset.category);
       const target = folderTree.find((item) => item.path.length === personaFolder.path.length + 1 && item.path.slice(0, personaFolder.path.length).join("/") === personaFolder.path.join("/") && item.path.at(-1) === targetName);
       if (!target) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName }); continue; }
-      if (asset.drive_file_id) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ALREADY_IN_DRIVE", drive_file_id: asset.drive_file_id }); continue; }
+      const storedDriveFileId = String(metadata.drive_file_id ?? "").trim();
+      if (storedDriveFileId) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId }); continue; }
       if (!execute) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "READY_TO_ARCHIVE", target: [...target.path].join("/") }); continue; }
       const attribution = { persona_id: personaId, metadata: { ...metadata, reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null, reconciled_at: new Date().toISOString() } };
       // Preserve the identity attribution even when an old test output no longer
@@ -87,7 +88,10 @@ export async function POST(request: Request) {
       if (!image.ok) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status }); continue; }
       const existingDriveFile = (await listDriveChildren(target.id)).find((item) => item.name === String(asset.filename) && item.mimeType !== FOLDER_MIME);
       const uploaded = existingDriveFile ?? await uploadDriveFile({ name: String(asset.filename), parentId: target.id, bytes: new Uint8Array(await image.arrayBuffer()), mimeType: image.headers.get("content-type") || "image/jpeg" });
-      await patchAsset(String(asset.id), { ...attribution, drive_file_id: uploaded.id, metadata: { ...attribution.metadata, drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/"), drive_archived_at: new Date().toISOString(), canonical_source: "MODELARK_TO_DRIVE" } });
+      // Keep the archive pointer in metadata because older production schemas
+      // may not yet have the additive drive_file_id column. The pointer is
+      // still canonical and makes retries idempotent by filename and ID.
+      await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/"), drive_archived_at: new Date().toISOString(), canonical_source: "MODELARK_TO_DRIVE" } });
       report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ARCHIVED_DRIVE", drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/") });
     }
     return Response.json({ ok: true, execute, total: report.length, assigned: report.filter((item) => item.persona_id).length, archived: report.filter((item) => item.status === "ARCHIVED_DRIVE").length, report });
