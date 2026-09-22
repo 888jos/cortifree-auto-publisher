@@ -269,6 +269,30 @@
         "active": true
       },
       {
+        "key": "STOCK_VISUAL_TAGGING_SCHEMA",
+        "value": "observable_v1",
+        "type": "string",
+        "description": "Observable stock visual metadata schema used by the selector",
+        "source": "drive",
+        "active": true
+      },
+      {
+        "key": "STOCK_VISUAL_TAGGED_COUNT",
+        "value": 347,
+        "type": "number",
+        "description": "Stock assets with observable visual metadata",
+        "source": "drive",
+        "active": true
+      },
+      {
+        "key": "STOCK_VISUAL_TAG_POLICY",
+        "value": "VISIBLE_CONTENT_FIRST",
+        "type": "enum",
+        "description": "Selector prioritizes observable visual content over legacy category labels",
+        "source": "drive",
+        "active": true
+      },
+      {
         "key": "VISUAL_REFERENCE_COUNT",
         "value": 234,
         "type": "number",

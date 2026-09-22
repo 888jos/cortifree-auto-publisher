@@ -17,6 +17,10 @@ function isImage(file: DriveFile) {
 function split(value: unknown) {
   return String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
 }
+function visualList(value: unknown) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  return String(value ?? "").split(/[|,]/).map((item) => item.trim()).filter(Boolean);
+}
 async function walk(folderId: string, path: string[] = [], out: WalkedFile[] = []): Promise<WalkedFile[]> {
   const children = await listDriveChildren(folderId);
   const files = children.filter((child) => child.mimeType !== FOLDER_MIME).map((file) => ({ file, path }));
@@ -98,7 +102,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     ? Promise.resolve([])
     : walk(VISUAL_REFS_ROOT);
   const [stockTaxonomy, refTaxonomy, stockTree, personaTree, refTree, existingAssets, existingRefs] = await Promise.all([
-    scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:T500"),
+    scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:AH500"),
     refTaxonomyPromise,
     scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(STOCK_ROOT),
     scope === "visual_refs" || scope === "visual_refs_missing" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(PERSONAS_ROOT),
@@ -206,6 +210,18 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || String(existing.framing ?? "") !== String(row.framing ?? "")
         || String(existing.activity ?? "") !== String(row.activity ?? "")
         || String(existing.mood ?? "") !== String(row.mood ?? "")
+        || String(existing.visual_description ?? "") !== String(row.visual_description ?? "")
+        || !sameCanonicalValue(existing.visible_objects, visualList(row.visible_objects))
+        || !sameCanonicalValue(existing.visible_actions, visualList(row.visible_actions))
+        || String(existing.setting ?? "") !== String(row.setting ?? "")
+        || String(existing.people_visibility ?? "") !== String(row.people_visibility ?? "")
+        || !sameCanonicalValue(existing.body_parts_visible, visualList(row.body_parts_visible))
+        || String(existing.composition ?? "") !== String(row.composition ?? "")
+        || String(existing.camera_angle ?? "") !== String(row.camera_angle ?? "")
+        || String(existing.lighting ?? "") !== String(row.lighting ?? "")
+        || !sameCanonicalValue(existing.dominant_colors, visualList(row.dominant_colors))
+        || String(existing.text_in_image ?? "") !== String(row.text_in_image ?? "")
+        || String(existing.specific_details ?? "") !== String(row.specific_details ?? "")
         || !sameCanonicalValue(existing.tags, split(row.tags))
         || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars));
       if (!metadataNeedsRepair) continue;
@@ -221,6 +237,18 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
           framing: row.framing ?? "",
           activity: row.activity ?? "",
           mood: row.mood ?? "",
+          visual_description: row.visual_description ?? "",
+          visible_objects: visualList(row.visible_objects),
+          visible_actions: visualList(row.visible_actions),
+          setting: row.setting ?? "",
+          people_visibility: row.people_visibility ?? "",
+          body_parts_visible: visualList(row.body_parts_visible),
+          composition: row.composition ?? "",
+          camera_angle: row.camera_angle ?? "",
+          lighting: row.lighting ?? "",
+          dominant_colors: visualList(row.dominant_colors),
+          text_in_image: row.text_in_image ?? "",
+          specific_details: row.specific_details ?? "",
           tags: split(row.tags),
           good_for: split(row.good_for_pillars),
           enabled: row.enabled !== false,
@@ -247,6 +275,18 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       framing: taxonomy.framing ?? null,
       activity: taxonomy.activity ?? null,
       mood: taxonomy.mood ?? null,
+      visual_description: taxonomy.visual_description ?? "",
+      visible_objects: visualList(taxonomy.visible_objects),
+      visible_actions: visualList(taxonomy.visible_actions),
+      setting: taxonomy.setting ?? "",
+      people_visibility: taxonomy.people_visibility ?? "",
+      body_parts_visible: visualList(taxonomy.body_parts_visible),
+      composition: taxonomy.composition ?? "",
+      camera_angle: taxonomy.camera_angle ?? "",
+      lighting: taxonomy.lighting ?? "",
+      dominant_colors: visualList(taxonomy.dominant_colors),
+      text_in_image: taxonomy.text_in_image ?? "",
+      specific_details: taxonomy.specific_details ?? "",
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: selectable,

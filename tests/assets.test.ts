@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
-import { chooseAssets } from '../app/lib/asset-selector';
+import { chooseAssets, type SelectableAsset } from '../app/lib/asset-selector';
 import { isAutomaticVisualReference } from '../src/visual-references';
 
 describe('asset scanner', () => {
@@ -54,5 +54,27 @@ describe('asset scanner', () => {
     assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { review_status: 'REVIEW' } }), false);
     assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { qa_flag: 'MULTI_PERSON_AUTO_DISABLED' } }), false);
     assert.equal(isAutomaticVisualReference({ enabled: true, metadata: { review_status: 'APPROVED' } }), true);
+  });
+
+  it('ranks observable visual content above category labels', () => {
+    const base = (id: string, category: string, visual_description: string, visible_objects: string[], visible_actions: string[] = []): SelectableAsset => ({
+      id, filename: `${id}.jpg`, category, subcategory: category, orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: `https://example.com/${id}.jpg`, use_count: 0, last_used_at: null, source_type: 'stock', visual_description, visible_objects, visible_actions, setting: 'indoor_room', people_visibility: 'no_person', body_parts_visible: [], composition: 'equipment_layout', camera_angle: 'top_down_or_high_angle', lighting: 'natural', dominant_colors: [], text_in_image: '', specific_details: '',
+    });
+    const cases = [
+      [{ headline: 'Recovery day', body: 'Easy movement without making it a whole production.', assetQuery: 'pilates mat and foam roller', visualIntent: 'pilates mat and foam roller on the floor', }, [base('fitness-mat', 'fitness', 'pink exercise mat on the floor with a foam roller and tablet nearby', ['exercise_mat', 'foam_roller', 'tablet'])], 'fitness-mat'],
+      [{ headline: 'Brain dump before bed', body: 'Write down the next thought before turning out the light.', assetQuery: 'notebook and pen on bed', visualIntent: 'open notebook on bed with hand writing', }, [base('morning-journal', 'morning', 'open notebook and pen on a bed with a hand writing', ['journal', 'pen', 'bed'], ['writing'])], 'morning-journal'],
+      [{ headline: 'Stop checking your phone', body: 'Leave it on the bed while you wake up.', assetQuery: 'phone on bed bedside scene', visualIntent: 'phone on bed in morning light', }, [base('morning-phone', 'morning', 'mobile phone resting on a bed beside a pillow', ['phone', 'bed'])], 'morning-phone'],
+      [{ headline: 'Easy food', body: "A simple bowl when I can't be bothered.", assetQuery: 'simple bowl meal', visualIntent: 'simple bowl and plate of food', }, [base('food-bowl', 'food', 'simple bowl of food on a kitchen table', ['bowl', 'food'], ['preparing_food'])], 'food-bowl'],
+      [{ headline: 'Five minutes of movement', body: 'A mat, dumbbells, and a little space is enough.', assetQuery: 'exercise mat dumbbells stretching setup', visualIntent: 'exercise mat and dumbbells on the floor', }, [base('movement-setup', 'fitness', 'exercise mat with dumbbells and a stretching setup', ['exercise_mat', 'dumbbells'])], 'movement-setup'],
+    ];
+    for (const testCase of cases) {
+      const slide = testCase[0] as { headline: string; body: string; assetQuery: string; visualIntent: string };
+      const assets = testCase[1] as SelectableAsset[];
+      const expected = testCase[2] as string;
+      const [selected] = chooseAssets({ carouselType: 'C06_POV_RELATABLE', assets, personaId: 'P01', slides: [{ position: 2, role: 'TIP', assetType: 'stock', ...slide }] });
+      assert.equal(selected?.asset.id, expected);
+      assert.ok(selected?.visualIntent?.desired_objects.length);
+      assert.equal(selected?.topCandidates?.[0]?.asset_id, expected);
+    }
   });
 });
