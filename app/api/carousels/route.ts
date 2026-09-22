@@ -1,11 +1,11 @@
-import { dataBackend } from "../../lib/data-backend";
+import { backendMode, dataBackend } from "../../lib/data-backend";
 import { assertCortiFreeAccountId, assertCortiFreeCarouselId, CORTIFREE_ACCOUNT_ID, CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
 
 export async function GET() {
   try {
     const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=*&order=created_at.desc`);
     if (!response.ok) throw new Error(await response.text());
-    return Response.json({ carousels: await response.json(), source: "convex" });
+    return Response.json({ carousels: await response.json(), source: backendMode() });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error), carousels: [] }, { status: 503 });
   }
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       body: JSON.stringify(row),
     });
     if (!response.ok) throw new Error(await response.text());
-    return Response.json({ carousel: (await response.json())[0] || row, source: "convex" }, { status: 201 });
+    return Response.json({ carousel: (await response.json())[0] || row, source: backendMode() }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 503 });
   }
