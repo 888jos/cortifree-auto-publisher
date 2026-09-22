@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 const requestSchema = z.object({
   carouselId: z.string().optional(), spec: carouselSpecSchema, expectedSlideCount: z.number().int().min(6).max(8),
-  language: z.enum(["en", "fr"]), layout: z.string().min(1), bypassMonthlyCap: z.boolean().default(false),
+  language: z.enum(["en", "fr"]), layout: z.string().min(1),
 });
 
 export async function POST(request: Request) {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const config = getAIConfig();
     if (!config.OPENAI_QA_ENABLED || !config.OPENAI_API_KEY) return Response.json({ error: "OpenAI QA is unavailable" }, { status: 503 });
     const monthly = await getMonthlyUsage();
-    assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, body.bypassMonthlyCap);
+    assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, false);
     const review = await reviewCarouselDraft(body.spec, body);
     return Response.json({ review });
   } catch (error) {

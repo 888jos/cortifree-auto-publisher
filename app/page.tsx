@@ -229,11 +229,12 @@ type HealthStatus = {
   ok?: boolean;
   p0Ready?: boolean;
   dryRun: boolean;
+  backend?: "supabase" | "convex";
   backendConfigured?: boolean;
-  convexLive?: boolean;
-  convexDataReady?: boolean;
-  convexError?: string | null;
-  convexDataError?: string | null;
+  backendLive?: boolean;
+  backendDataReady?: boolean;
+  backendError?: string | null;
+  backendDataError?: string | null;
   editorialReady?: boolean;
   googleSyncConfigured?: boolean;
   productionReady?: boolean;
@@ -265,9 +266,9 @@ type StoredCarousel = {
     publish_review?: { publishReady?: boolean; profile?: string; platform?: string };
   };
 };
-type CalendarEntry = { id: string; account_id: string; account_name: string; persona_id: string; date: string; slot: string; timezone: string; platform: string; status: string; content_type: string; content_type_label: string; topic: string; angle: string; source: string };
+type CalendarEntry = { id: string; account_id: string; account_name: string; persona_id: string; date: string; slot: string; timezone: string; platform: string; status: string; content_type: string; content_type_label: string; topic: string; angle: string; phase: string; source: string };
 type CalendarAccount = { id: string; name: string; persona_id: string; timezone: string; enabled: boolean; posting_enabled: boolean; daily_target: number; slots: string[]; entries: CalendarEntry[] };
-type CalendarData = { accounts: CalendarAccount[]; dailyTotals: Array<{ date: string; total: number; byStatus: Record<string, number> }>; summary: { accountCount: number; postsPerDay: number; totalSlots: number } };
+type CalendarData = { source: string; accounts: CalendarAccount[]; dailyTotals: Array<{ date: string; total: number; byStatus: Record<string, number> }>; summary: { accountCount: number; postsPerDay: number; averagePostsPerDay: number; maxPostsPerDay: number; totalSlots: number; phaseCounts: Record<string, number> } };
 
 function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string, category = "self care") {
   const image = event.currentTarget;
@@ -535,11 +536,11 @@ export default function Home() {
         if (data.productionReady) {
           setNotice("Production gate READY · infrastructure CortiFree opérationnelle.");
         } else if (!data.backendConfigured) {
-          setNotice("BLOCKED · Convex n’est pas configuré sur ce déploiement.");
-        } else if (!data.convexLive) {
-          setNotice("BLOCKED · Convex est configuré mais le ping runtime échoue.");
-        } else if (!data.convexDataReady) {
-          setNotice("BLOCKED · Convex répond, mais les données runtime ne sont pas lisibles.");
+          setNotice("BLOCKED · le backend Supabase n’est pas configuré sur ce déploiement.");
+        } else if (!data.backendLive) {
+          setNotice("BLOCKED · Supabase est configuré mais le ping runtime échoue.");
+        } else if (!data.backendDataReady) {
+          setNotice("BLOCKED · Supabase répond, mais les données runtime ne sont pas lisibles.");
         } else if (!data.googleSyncConfigured) {
           setNotice("BLOCKED · Google Sheet / Drive sync n’est pas configuré en production.");
         } else {
@@ -836,7 +837,7 @@ export default function Home() {
       throw new Error(failure.error || `API ${response.status}`);
     }
     const data = await response.json();
-    if (!data.saved) throw new Error(data.storageWarning || "Brouillon non sauvegardé dans Convex");
+    if (!data.saved) throw new Error(data.storageWarning || "Brouillon non sauvegardé dans Supabase");
 
     const renderResponse = await fetch(`/api/carousels/${encodeURIComponent(data.carousel.id)}/render`, { method: "POST" });
     const renderData = await renderResponse.json().catch(() => ({}));
@@ -963,7 +964,7 @@ export default function Home() {
           <section className="nextVersion">
             <p className="eyebrow">CORTIFREE · NOUVELLE VERSION</p>
             <h1>Un espace neuf, prêt pour ton prochain prompt.</h1>
-            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent isolées dans Convex et l’infrastructure dédiée.</p>
+            <p>Cette version est isolée de l’interface actuelle. Les données CortiFree restent isolées dans Supabase et l’infrastructure dédiée.</p>
             <div className="nextVersionStatus">
               <div><span>Données</span><b>Séparées et conservées</b></div>
               <div><span>Interface</span><b>À définir</b></div>
@@ -1458,7 +1459,7 @@ export default function Home() {
                   ))}
                 </div>
               )}
-              {assetTab !== "Visual References" && !filteredAssetPreviews.length && <div className="libraryEmpty">Aucun asset correspondant dans Convex Storage.</div>}
+              {assetTab !== "Visual References" && !filteredAssetPreviews.length && <div className="libraryEmpty">Aucun asset correspondant dans le stockage Supabase.</div>}
               {assetTab === "Visual References" && (
                 <div className="visualReferenceGrid">
                   {filteredVisualReferences.map((reference) => (
@@ -1475,7 +1476,7 @@ export default function Home() {
           {active === "Calendar" && (
             <section className="panel wide calendarPanel">
               <div className="panelHead">
-                <div><p className="eyebrow">PUBLISHING CALENDAR</p><h2>Vue détaillée par compte</h2><p className="muted">Chaque compte dispose de deux créneaux par jour : environ 16 comptes × 2 = 32 posts planifiés par jour.</p></div>
+                <div><p className="eyebrow">PUBLISHING CALENDAR</p><h2>Vue détaillée par compte</h2><p className="muted">Planning canonique de l’onglet 15_CONTENT_CALENDAR : warm-up, jours de repos, horaires New York et montée en cadence sont respectés.</p></div>
                 <label className="calendarDays">Horizon
                   <select value={calendarDays} onChange={(event) => setCalendarDays(Number(event.target.value))}><option value={3}>3 jours</option><option value={7}>7 jours</option><option value={14}>14 jours</option></select>
                 </label>
@@ -1484,16 +1485,16 @@ export default function Home() {
               {calendarData && <>
                 <div className="calendarSummary">
                   <div><span>Comptes</span><strong>{calendarData.summary.accountCount}</strong></div>
-                  <div><span>Posts / jour</span><strong>{calendarData.summary.postsPerDay}</strong></div>
+                  <div><span>Moy. posts / jour</span><strong>{calendarData.summary.averagePostsPerDay.toFixed(1)}</strong></div>
                   <div><span>Slots affichés</span><strong>{calendarData.summary.totalSlots}</strong></div>
-                  <div><span>Créneaux / compte</span><strong>2</strong></div>
+                  <div><span>Pic journalier</span><strong>{calendarData.summary.maxPostsPerDay}</strong></div>
                 </div>
                 <div className="calendarDaysStrip">{calendarData.dailyTotals.map((day) => <div key={day.date}><b>{new Date(`${day.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</b><strong>{day.total}</strong><small>{Object.entries(day.byStatus).map(([status, count]) => `${status} ${count}`).join(" · ")}</small></div>)}</div>
                 <div className="calendarAccounts">
                   {calendarData.accounts.map((account) => <article className="calendarAccount" key={account.id}>
                     <div className="calendarAccountHead"><div><span className="eyebrow">{account.id} · {account.persona_id}</span><h3>{account.name}</h3></div><div className="calendarAccountState"><b>{account.entries.length / Math.max(1, calendarData.dailyTotals.length)} / jour</b><small>{account.timezone} · {account.enabled ? "enabled" : "disabled"}</small></div></div>
                     <div className="calendarTable"><div className="calendarRow calendarHeader"><span>Date</span><span>Heure</span><span>Type de contenu</span><span>Topic / angle</span><span>Statut</span></div>
-                      {account.entries.map((entry) => <div className="calendarRow" key={entry.id + entry.date + entry.slot}><span>{new Date(`${entry.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</span><span>{entry.slot}</span><span><b>{entry.content_type_label}</b><small>{entry.content_type}</small></span><span><b>{entry.topic}</b><small>{entry.angle}</small></span><span><i className={`calendarStatus status-${entry.status.toLowerCase()}`}>{entry.status}</i><small>{entry.source}</small></span></div>)}
+                      {account.entries.map((entry) => <div className="calendarRow" key={entry.id + entry.date + entry.slot}><span>{new Date(`${entry.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</span><span>{entry.slot}</span><span><b>{entry.content_type_label}</b><small>{entry.content_type} · {entry.phase}</small></span><span><b>{entry.topic}</b><small>{entry.angle}</small></span><span><i className={`calendarStatus status-${entry.status.toLowerCase()}`}>{entry.status}</i><small>{entry.source}</small></span></div>)}
                     </div>
                   </article>)}
                 </div>
@@ -1507,9 +1508,9 @@ export default function Home() {
               <h2>Integrations</h2>
               <div className="settingsList">
                 <span>Vercel frontend ✓</span>
-                <span>{healthStatus?.backendConfigured ? "Convex configuré ✓" : "Convex non configuré ✕"}</span>
-                <span>{healthStatus?.convexLive ? "Convex ping ✓" : `Convex ping ✕${healthStatus?.convexError ? ` · ${healthStatus.convexError}` : ""}`}</span>
-                <span>{healthStatus?.convexDataReady ? "Convex data runtime ✓" : `Convex data runtime ✕${healthStatus?.convexDataError ? ` · ${healthStatus.convexDataError}` : ""}`}</span>
+                <span>{healthStatus?.backendConfigured ? `${healthStatus.backend ?? "Supabase"} configuré ✓` : "Backend non configuré ✕"}</span>
+                <span>{healthStatus?.backendLive ? "Backend ping ✓" : `Backend ping ✕${healthStatus?.backendError ? ` · ${healthStatus.backendError}` : ""}`}</span>
+                <span>{healthStatus?.backendDataReady ? "Données runtime ✓" : `Données runtime ✕${healthStatus?.backendDataError ? ` · ${healthStatus.backendDataError}` : ""}`}</span>
                 <span>{healthStatus?.editorialReady ? "Banques éditoriales ✓" : "Banques éditoriales incomplètes"}</span>
                 <span>{healthStatus?.googleSyncConfigured ? "Google sync configuré ✓" : "Google sync non configuré ✕"}</span>
                 <span>{(healthStatus?.productionChecks?.mappedPublishingAccounts?.length ?? 0) > 0 ? `Upload-Post · ${healthStatus?.productionChecks?.mappedPublishingAccounts?.length} profil(s) ✓` : "Upload-Post non mappé"}</span>

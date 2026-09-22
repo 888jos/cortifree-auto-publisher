@@ -38,7 +38,6 @@ export const carouselGeneratorInputSchema = z.object({
   requestedSlideCount: z.number().int().min(4).max(12).default(7),
   preferredHook: z.string().min(1).max(140).optional(),
   ctaMode: ctaTypeSchema.default("save"),
-  bypassMonthlyCap: z.boolean().default(false),
   accountId: z.string().regex(/^CF_/).optional(),
   personaId: z.string().regex(/^P\d{2}$/).optional(),
   topicId: z.string().min(1).optional(),

@@ -15,7 +15,7 @@ const bool = z.preprocess((v) => v === undefined ? undefined : String(v).toLower
 const boolDefaultFalse = z.preprocess((v) => v === undefined ? undefined : String(v).toLowerCase() === 'true', z.boolean().default(false));
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  DATA_BACKEND: z.enum(['convex', 'supabase']).default('convex'),
+  DATA_BACKEND: z.enum(['convex', 'supabase']).default('supabase'),
   DRIVE_ROOT: z.string().default('./CORTIFREE_CONTENT'),
   NEXT_PUBLIC_CONVEX_URL: z.string().optional(), CORTIFREE_BACKEND_SECRET: z.string().optional(),
   SUPABASE_URL: z.string().optional(), SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),

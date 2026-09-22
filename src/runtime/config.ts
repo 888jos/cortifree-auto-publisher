@@ -1,5 +1,5 @@
 import { accountSchema, personaConfigSchema, type Account, type PersonaConfig } from "../domain";
-import { dataBackend, convexConfigured } from "../lib/data-backend";
+import { backendConfigured, dataBackend } from "../lib/data-backend";
 import { loadAccounts as loadJsonAccounts } from "../config/accounts";
 import { loadEditorialSnapshot } from "../editorial/snapshot";
 import fallbackPersonas from "../../config/personas.json" with { type: "json" };
@@ -9,7 +9,7 @@ type AnyRow = Record<string, unknown>;
 
 export async function loadRuntimeRows(table: string, limit = 5000): Promise<AnyRow[]> {
   const response = await dataBackend(`${table}?limit=${limit}`);
-  if (!response.ok) throw new Error(`Convex runtime read failed for ${table}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`Backend runtime read failed for ${table}: ${await response.text()}`);
   return await response.json() as AnyRow[];
 }
 
@@ -18,7 +18,7 @@ function allowJsonFallback() {
 }
 
 export async function loadRuntimeAccounts(): Promise<Account[]> {
-  if (convexConfigured()) {
+  if (backendConfigured()) {
     const live = await loadRuntimeRows("accounts", 100);
     const parsed = live
       .filter((row) => row.active !== false)
@@ -46,12 +46,12 @@ export async function loadRuntimeAccounts(): Promise<Account[]> {
           created_at: row.created_at,
         };
         const result = accountSchema.safeParse(candidate);
-        if (!result.success) throw new Error(`Invalid Convex account at index ${index}: ${result.error.message}`);
+        if (!result.success) throw new Error(`Invalid runtime account at index ${index}: ${result.error.message}`);
         return result.data;
       });
     if (parsed.length) return parsed;
   }
-  if (!allowJsonFallback()) throw new Error("Convex accounts are empty/unavailable and JSON fallback is disabled");
+  if (!allowJsonFallback()) throw new Error("Runtime accounts are empty/unavailable and JSON fallback is disabled");
   return loadJsonAccounts();
 }
 
@@ -63,7 +63,7 @@ export type RuntimeEditorial = {
 };
 
 export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
-  if (convexConfigured()) {
+  if (backendConfigured()) {
     const [topics, hooks, ctas] = await Promise.all([
       loadRuntimeRows("content_topics"),
       loadRuntimeRows("content_hooks"),
@@ -82,7 +82,7 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
       };
     }
   }
-  if (!allowJsonFallback()) throw new Error("Convex editorial banks are empty/unavailable and JSON fallback is disabled");
+  if (!allowJsonFallback()) throw new Error("Runtime editorial banks are empty/unavailable and JSON fallback is disabled");
   const snapshot = loadEditorialSnapshot();
   return {
     topics: snapshot.tables.content_topics as unknown as EditorialTopic[],
@@ -102,7 +102,7 @@ export function autonomyRuleValue(rules: AnyRow[], key: string, fallback: number
 const splitPipe = (value: unknown) => String(value ?? "").split("|").map((x) => x.trim()).filter(Boolean);
 
 export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
-  if (convexConfigured()) {
+  if (backendConfigured()) {
     const live = await loadRuntimeRows("personas", 100);
     const parsed = live.map((row) => personaConfigSchema.safeParse({
       id: row.persona_id ?? row.id,
@@ -127,6 +127,6 @@ export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
     })).flatMap((result) => result.success ? [result.data] : []);
     if (parsed.length) return parsed;
   }
-  if (!allowJsonFallback()) throw new Error("Convex personas are empty/unavailable and JSON fallback is disabled");
+  if (!allowJsonFallback()) throw new Error("Runtime personas are empty/unavailable and JSON fallback is disabled");
   return (fallbackPersonas as unknown[]).map((value) => personaConfigSchema.parse(value));
 }

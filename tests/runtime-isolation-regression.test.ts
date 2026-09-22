@@ -38,6 +38,9 @@ test("CortiFree production build stays separated from Convex deploy", () => {
   const vercel = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
   assert.equal(vercel.buildCommand, "npm run vercel-build");
   assert.equal(vercel.ignoreCommand, "node scripts/vercel-ignore.mjs");
+  const ignoreScript = fs.readFileSync("scripts/vercel-ignore.mjs", "utf8");
+  assert.match(ignoreScript, /prj_VAzxY6ziL68xkWugWCdw6ympilER/);
+  assert.match(ignoreScript, /VERCEL_PROJECT_ID/);
 });
 
 test("JSON fallback remains opt-in", () => {

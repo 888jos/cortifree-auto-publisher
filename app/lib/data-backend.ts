@@ -10,9 +10,10 @@ const SUPABASE_TABLE_ALIASES: Record<string, string> = {
   content_sources: "content_health_sources",
   template_specs: "content_template_specs",
 };
-const SUPABASE_LEGACY_TABLES = new Set([
+const SUPABASE_TABLES_WITHOUT_WORKSPACE_FILTER = new Set([
   "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas",
   "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs", "system_logs",
+  "editorial_records",
 ]);
 
 export function supabaseTableName(table: string) {
@@ -20,7 +21,7 @@ export function supabaseTableName(table: string) {
 }
 
 export function backendMode(): "convex" | "supabase" {
-  return process.env.DATA_BACKEND?.trim().toLowerCase() === "supabase" ? "supabase" : "convex";
+  return process.env.DATA_BACKEND?.trim().toLowerCase() === "convex" ? "convex" : "supabase";
 }
 
 function supabase() {
@@ -79,7 +80,7 @@ function supabaseQuery(parsed: ReturnType<typeof parseConvexResource>) {
   const query = new URLSearchParams();
   query.set("select", parsed.select.length ? parsed.select.join(",") : "*");
   for (const filter of parsed.filters) {
-    if (filter.field === "workspace_id" && SUPABASE_LEGACY_TABLES.has(table)) continue;
+    if (filter.field === "workspace_id" && SUPABASE_TABLES_WITHOUT_WORKSPACE_FILTER.has(table)) continue;
     if (filter.op === "not_null") query.set(filter.field, "not.is.null");
     else if (filter.op === "in") query.set(filter.field, `in.(${(filter.value as string[]).join(",")})`);
     else query.set(filter.field, `${filter.op}.${String(filter.value)}`);
@@ -90,7 +91,7 @@ function supabaseQuery(parsed: ReturnType<typeof parseConvexResource>) {
 }
 
 // Small PostgREST-shaped boundary retained while route handlers are migrated.
-// Every read and write is executed by Convex and scoped to CortiFree.
+// Supabase is the canonical runtime; Convex remains an explicit rollback mode.
 export async function dataBackend(resource: string, init: RequestInit = {}) {
   try {
     if (backendMode() === "supabase") {
@@ -149,14 +150,17 @@ export async function dataBackend(resource: string, init: RequestInit = {}) {
   }
 }
 
-export function convexConfigured() {
+export function backendConfigured() {
   return backendMode() === "supabase"
     ? Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
     : Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CORTIFREE_BACKEND_SECRET);
 }
 
+/** @deprecated Use backendConfigured. Retained for CLI compatibility. */
+export const convexConfigured = backendConfigured;
 
-export async function getConvexPing() {
+
+export async function getBackendPing() {
   if (backendMode() === "supabase") {
     const response = await dataBackend("personas?select=*&limit=1");
     if (!response.ok) throw new Error(await response.text());
@@ -171,13 +175,13 @@ export async function getConvexPing() {
   };
 }
 
-export async function getConvexCounts() {
+export async function getBackendCounts() {
   if (backendMode() === "supabase") {
     const tables = ["personas", "accounts", "content_topics", "content_hooks", "content_ctas", "assets", "visual_references"];
     const counts = await Promise.all(tables.map(async (table) => {
       const { url, key } = supabase();
       const actualTable = supabaseTableName(table);
-      const workspace = SUPABASE_LEGACY_TABLES.has(actualTable) ? "" : "workspace_id=eq.cortifree&";
+      const workspace = SUPABASE_TABLES_WITHOUT_WORKSPACE_FILTER.has(actualTable) ? "" : "workspace_id=eq.cortifree&";
       const response = await fetch(`${url}/rest/v1/${actualTable}?${workspace}select=*&limit=1`, {
         headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "count=exact" },
       });
@@ -191,3 +195,8 @@ export async function getConvexCounts() {
   const { client: convex, secret } = backend();
   return await convex.query(api.data.counts, { secret }) as Record<string, number>;
 }
+
+/** @deprecated Use getBackendPing/getBackendCounts. */
+export const getConvexPing = getBackendPing;
+/** @deprecated Use getBackendPing/getBackendCounts. */
+export const getConvexCounts = getBackendCounts;

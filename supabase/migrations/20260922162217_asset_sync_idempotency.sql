@@ -23,3 +23,4 @@ create index if not exists assets_workspace_filename_search_idx
 create index if not exists visual_references_workspace_hash_search_idx
   on visual_references(workspace_id, file_hash)
   where file_hash is not null;
+

@@ -1,4 +1,4 @@
-import { backendMode, dataBackend, convexConfigured, getConvexCounts, getConvexPing } from "../../app/lib/data-backend";
+import { backendConfigured, backendMode, dataBackend, getBackendCounts, getBackendPing } from "../../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../../app/lib/google/auth";
 import { loadRuntimeAccounts, loadRuntimeRows } from "../runtime/config";
 
@@ -32,27 +32,28 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   const warnings: string[] = [];
   const checks: Record<string, unknown> = {};
 
-  checks.convexConfigured = convexConfigured();
-  if (!checks.convexConfigured) blockers.push("CONVEX_NOT_CONFIGURED");
+  checks.backendConfigured = backendConfigured();
+  checks.backendMode = backendMode();
+  if (!checks.backendConfigured) blockers.push("BACKEND_NOT_CONFIGURED");
 
   let counts: Record<string, number> = {};
-  if (checks.convexConfigured) {
+  if (checks.backendConfigured) {
     try {
-      checks.convexPing = await getConvexPing();
-      checks.convexLive = true;
+      checks.backendPing = await getBackendPing();
+      checks.backendLive = true;
     } catch (error) {
-      checks.convexLive = false;
-      checks.convexError = error instanceof Error ? error.message : String(error);
-      blockers.push("CONVEX_NOT_LIVE");
+      checks.backendLive = false;
+      checks.backendError = error instanceof Error ? error.message : String(error);
+      blockers.push("BACKEND_NOT_LIVE");
     }
-    if (checks.convexLive) {
+    if (checks.backendLive) {
       try {
-        counts = await getConvexCounts();
-        checks.convexDataReady = true;
+        counts = await getBackendCounts();
+        checks.backendDataReady = true;
       } catch (error) {
-        checks.convexDataReady = false;
-        checks.convexDataError = error instanceof Error ? error.message : String(error);
-        blockers.push("CONVEX_DATA_NOT_READY");
+        checks.backendDataReady = false;
+        checks.backendDataError = error instanceof Error ? error.message : String(error);
+        blockers.push("BACKEND_DATA_NOT_READY");
       }
     }
   }
@@ -79,7 +80,6 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   const latestDriveSync = driveSync[0];
   checks.latestSheetSync = latestSheetSync?.created_at ?? null;
   checks.latestDriveSync = latestDriveSync?.created_at ?? null;
-  checks.backendMode = backendMode();
   checks.sheetSyncStage = sheetStage;
   checks.driveSyncStage = driveStage;
   const sheetSyncOk = String(latestSheetSync?.status ?? "").toUpperCase() === "SUCCESS";

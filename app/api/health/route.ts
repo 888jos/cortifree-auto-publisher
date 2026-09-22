@@ -1,7 +1,8 @@
-import { backendMode, convexConfigured, getConvexCounts, getConvexPing } from "../../lib/data-backend";
+import { backendConfigured as isBackendConfigured, backendMode, getBackendCounts, getBackendPing } from "../../lib/data-backend";
 import { googleServiceAccountConfigured, googleServiceAccountIdentity } from "../../lib/google/auth";
 import { CORTIFREE_SHEET_ID, readSheetRange } from "../../lib/google/sheets";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
+import { isAdminRequest } from "../../lib/admin-auth";
 
 function hostname(value?: string) {
   if (!value) return null;
@@ -12,31 +13,38 @@ function hostname(value?: string) {
   }
 }
 
-export async function GET() {
-  const backendConfigured = convexConfigured();
+export async function GET(request: Request) {
+  if (!isAdminRequest(request)) {
+    return Response.json({
+      ok: true,
+      service: "cortifree-auto-publisher",
+      authentication: "required",
+    }, { headers: { "Cache-Control": "no-store" } });
+  }
+  const backendConfigured = isBackendConfigured();
   const expectedHost = (process.env.CORTIFREE_CANONICAL_HOST || "cortifree-auto-publisher.vercel.app").toLowerCase();
   const deployedHost = hostname(process.env.VERCEL_PROJECT_PRODUCTION_URL) ?? hostname(process.env.NEXT_PUBLIC_APP_URL);
   const local = deployedHost === "localhost" || deployedHost === "127.0.0.1";
   const domainIsolationOk = !deployedHost || local || deployedHost === expectedHost;
   let counts: Record<string, number> | null = null;
-  let convexLive = false;
-  let convexDataReady = false;
-  let convexPing: Record<string, unknown> | null = null;
-  let convexError: string | null = null;
-  let convexDataError: string | null = null;
+  let backendLive = false;
+  let backendDataReady = false;
+  let backendPing: Record<string, unknown> | null = null;
+  let backendError: string | null = null;
+  let backendDataError: string | null = null;
   if (backendConfigured) {
     try {
-      convexPing = await getConvexPing();
-      convexLive = true;
+      backendPing = await getBackendPing();
+      backendLive = true;
     } catch (error) {
-      convexError = error instanceof Error ? error.message : String(error);
+      backendError = error instanceof Error ? error.message : String(error);
     }
-    if (convexLive) {
+    if (backendLive) {
       try {
-        counts = await getConvexCounts();
-        convexDataReady = true;
+        counts = await getBackendCounts();
+        backendDataReady = true;
       } catch (error) {
-        convexDataError = error instanceof Error ? error.message : String(error);
+        backendDataError = error instanceof Error ? error.message : String(error);
       }
     }
   }
@@ -58,13 +66,13 @@ export async function GET() {
       googleReadProbe = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
-  const ok = backendConfigured && convexLive && convexDataReady && domainIsolationOk;
+  const ok = backendConfigured && backendLive && backendDataReady && domainIsolationOk;
   const p0Ready = ok && editorialReady && googleSyncConfigured;
-  const production = backendConfigured && convexLive && convexDataReady
+  const production = backendConfigured && backendLive && backendDataReady
     ? await productionGateStatus().catch((error) => ({ ready: false, blockers: ["PRODUCTION_GATE_ERROR"], warnings: [], checks: { error: error instanceof Error ? error.message : String(error) } }))
     : {
         ready: false,
-        blockers: [!backendConfigured ? "CONVEX_NOT_CONFIGURED" : !convexLive ? "CONVEX_NOT_LIVE" : "CONVEX_DATA_NOT_READY"],
+        blockers: [!backendConfigured ? "BACKEND_NOT_CONFIGURED" : !backendLive ? "BACKEND_NOT_LIVE" : "BACKEND_DATA_NOT_READY"],
         warnings: [],
         checks: {},
       };
@@ -77,11 +85,11 @@ export async function GET() {
       workspace: "cortifree",
       backend: backendMode(),
       backendConfigured,
-      convexLive,
-      convexDataReady,
-      convexPing,
-      convexError,
-      convexDataError,
+      backendLive,
+      backendDataReady,
+      backendPing,
+      backendError,
+      backendDataError,
       counts,
       editorialReady,
       googleSyncConfigured,
@@ -93,7 +101,6 @@ export async function GET() {
       domainIsolationOk,
       expectedHost,
       deployedHost,
-      legacySupabaseRuntimeEnabled: backendMode() === "supabase",
       dryRun: process.env.DRY_RUN !== "false",
       productionReady: production.ready,
       productionBlockers: production.blockers,
