@@ -241,6 +241,7 @@ export function chooseAssets(options: {
   carouselType: string;
   personaId?: string;
   personaOnly?: boolean;
+  excludedAssetIds?: Set<string>;
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
@@ -248,7 +249,7 @@ export function chooseAssets(options: {
   const usedVisualDescriptions: string[] = [];
   return options.slides.map((slide) => {
     const intent = deriveVisualIntent(slide);
-    const finalUse = options.assets.filter((asset) => !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename) && (isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId))));
+    const finalUse = options.assets.filter((asset) => !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename) && !options.excludedAssetIds?.has(String(asset.id)) && (isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId))));
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());

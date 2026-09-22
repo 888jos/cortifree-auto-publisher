@@ -51,12 +51,21 @@ export async function POST(request: Request) {
       .filter((result): result is { success: true; data: z.infer<typeof visualReferenceSchema> } => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
+    const recentByPersona = new Map<string, Set<string>>();
+    for (const personaId of batch.persona_ids) {
+      const recent = await rows<{ visual_reference_id?: string }>(`image_generation_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&persona_id=eq.${encodeURIComponent(personaId)}&status=eq.DONE&select=visual_reference_id&order=created_at.desc&limit=10`);
+      recentByPersona.set(personaId, new Set(recent.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean)));
+    }
     const jobs: Record<string, unknown>[] = [];
     for (const persona of selectedPersonas) {
       const master = masters.find((item) => item.persona_id === persona.id);
       if (!master) throw new Error(`${persona.id} has no indexed MASTER`);
       for (const scene of scenes) {
-        const reference = references.find((item) => scene.recommended_reference_categories.includes(item.category));
+        const recentReferenceIds = recentByPersona.get(persona.id) ?? new Set<string>();
+        const preferred = references.filter((item) => scene.recommended_reference_categories.includes(item.category));
+        const rotated = preferred.filter((item) => !recentReferenceIds.has(item.id));
+        const pool = rotated.length ? rotated : preferred;
+        const reference = pool[0] ?? references.find((item) => !recentReferenceIds.has(item.id)) ?? references[0];
         if (!reference) throw new Error(`${scene.id} has no usable visual reference`);
         for (let variation = 1; variation <= batch.variations; variation += 1) {
           const input = imageGenerationInputSchema.parse({

@@ -40,3 +40,17 @@ export async function downloadDriveFile(fileId: string) {
   const contentType = response.headers.get("content-type") || "application/octet-stream";
   return { bytes: new Uint8Array(await response.arrayBuffer()), contentType };
 }
+
+export async function uploadDriveFile(options: { name: string; parentId: string; bytes: Uint8Array; mimeType: string }) {
+  const boundary = `cortifree_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const metadata = JSON.stringify({ name: options.name, parents: [options.parentId] });
+  const prefix = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${options.mimeType}\r\n\r\n`);
+  const suffix = Buffer.from(`\r\n--${boundary}--`);
+  const body = Buffer.concat([prefix, Buffer.from(options.bytes), suffix]);
+  const response = await googleFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,parents,webViewLink", {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  return await response.json() as DriveFile & { webViewLink?: string };
+}

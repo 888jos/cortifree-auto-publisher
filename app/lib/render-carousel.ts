@@ -288,9 +288,20 @@ export async function renderCarousel(input: {
   assertCortiFreeCarouselId(input.id);
   const assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
+  const personaHookIds = assets
+    .filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId)
+    .map((asset) => String(asset.id));
+  let recentHookAssetIds = new Set<string>();
+  if (input.personaId && personaHookIds.length) {
+    const history = await dataBackend(`asset_usage_history?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&asset_id=in.(${personaHookIds.map(encodeURIComponent).join(',')})&slide_position=eq.1&select=asset_id&order=used_at.desc&limit=10`);
+    if (history.ok) {
+      const recent = await history.json() as Array<{ asset_id?: string | number }>;
+      recentHookAssetIds = new Set(recent.map((row) => String(row.asset_id ?? '')).filter(Boolean));
+    }
+  }
   // A mixed carousel only needs the persona asset for the hook here; the
   // remaining 2×2 tiles are selected from persona-generated assets below.
-  const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides });
+  const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, excludedAssetIds: recentHookAssetIds, slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides });
   const reservedGridAssets = new Set<string>();
   const gridMatches = input.layout === "grid-2x2"
     ? input.slides.map((slide, index) => {

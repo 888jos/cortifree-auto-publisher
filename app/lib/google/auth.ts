@@ -44,7 +44,7 @@ export async function getGoogleAccessToken() {
     iss: email,
     scope: [
       "https://www.googleapis.com/auth/spreadsheets.readonly",
-      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive",
     ].join(" "),
     aud: "https://oauth2.googleapis.com/token",
     iat: now,

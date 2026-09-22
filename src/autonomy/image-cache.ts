@@ -41,6 +41,8 @@ export async function refillPersonaCaches() {
       .filter((result) => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
+    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=eq.DONE&select=visual_reference_id&order=created_at.desc&limit=10`);
+    const recentReferenceIds = new Set(recentJobs.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean));
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
     const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);
@@ -49,7 +51,9 @@ export async function refillPersonaCaches() {
       const scene = sceneRows[index % Math.max(sceneRows.length, 1)];
       if (!scene) break;
       const categories = Array.isArray(scene.recommended_reference_categories) ? scene.recommended_reference_categories.map(String) : [];
-      const reference = refs.find((ref) => categories.includes(ref.category)) ?? refs[index % Math.max(refs.length, 1)];
+      const preferred = refs.filter((ref) => categories.includes(ref.category));
+      const rotated = preferred.filter((ref) => !recentReferenceIds.has(ref.id));
+      const reference = (rotated.length ? rotated : preferred).at(index % Math.max((rotated.length ? rotated : preferred).length, 1)) ?? refs.find((ref) => !recentReferenceIds.has(ref.id)) ?? refs[index % Math.max(refs.length, 1)];
       if (!reference) break;
       const input = imageGenerationInputSchema.parse({
         persona_id: account.persona_id, master_asset_id: master.id, visual_reference_id: reference.id,
