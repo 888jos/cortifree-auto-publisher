@@ -86,7 +86,7 @@ function sheetQaFlag(row: Row) {
 function visualTaggingSchema(row: Row) {
   const explicit = String(row.visual_tagging_schema ?? "").trim();
   if (explicit) return explicit;
-  return sheetReviewStatus(row) === "IMAGE_INSPECTED_V1" ? "observable_v1" : "";
+  return String(row.visual_review_status ?? row.review_status ?? "").trim().toUpperCase() === "IMAGE_INSPECTED_V1" ? "observable_v1" : "";
 }
 function sheetSelectable(row: Row) {
   return row.enabled !== false && !["DUPLICATE", "REVIEW"].includes(sheetReviewStatus(row)) && sheetQaFlag(row) !== "MULTI_PERSON_AUTO_DISABLED";
