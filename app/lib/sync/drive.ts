@@ -72,6 +72,14 @@ function canonicalArray(value: unknown) {
 function sameCanonicalValue(left: unknown, right: unknown) {
   return JSON.stringify(canonicalArray(left)) === JSON.stringify(canonicalArray(right));
 }
+function sameTimestamp(left: unknown, right: unknown) {
+  const leftText = String(left ?? "").trim();
+  const rightText = String(right ?? "").trim();
+  if (!leftText || !rightText) return leftText === rightText;
+  const leftTime = Date.parse(leftText);
+  const rightTime = Date.parse(rightText);
+  return Number.isFinite(leftTime) && Number.isFinite(rightTime) ? leftTime === rightTime : leftText === rightText;
+}
 async function upload(file: DriveFile) {
   const downloaded = await downloadDriveFile(file.id);
   return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
@@ -229,7 +237,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || String(existing.specific_details ?? "") !== String(row.specific_details ?? "")
         || String(existing.visual_tagging_schema || runtimeMetadata(existing).visual_tagging_schema || "") !== visualTaggingSchema(row)
         || String(existing.visual_review_status ?? "") !== String(row.visual_review_status ?? "")
-        || String(existing.visual_reviewed_at ?? "") !== String(row.visual_reviewed_at ?? "")
+        || !sameTimestamp(existing.visual_reviewed_at, row.visual_reviewed_at)
         || !sameCanonicalValue(existing.tags, split(row.tags))
         || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars));
       if (!metadataNeedsRepair) continue;
