@@ -1,6 +1,6 @@
 import { dataBackend } from "../../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
-import { listDriveChildren, uploadDriveFile, type DriveFile } from "../../../lib/google/drive";
+import { listDriveChildren, searchDriveFiles, uploadDriveFile, type DriveFile } from "../../../lib/google/drive";
 import { personaAssetFolder } from "../../../../src/image-generation/core";
 
 export const runtime = "nodejs";
@@ -39,6 +39,20 @@ async function folders(folderId: string, path: string[] = [], out: FolderNode[] 
   return out;
 }
 
+async function discoverPersonaFolders() {
+  const discovered: FolderNode[] = [];
+  for (let index = 1; index <= 16; index += 1) {
+    const id = `P${String(index).padStart(2, "0")}`;
+    const matches = await searchDriveFiles(`name contains '${id}' and mimeType='${FOLDER_MIME}'`);
+    const match = matches.find((item) => PERSONA_RE.test(item.name));
+    if (match) {
+      discovered.push({ id: match.id, path: [match.name] });
+      await folders(match.id, [match.name], discovered);
+    }
+  }
+  return discovered;
+}
+
 function personaIdFromMaster(value: unknown) {
   const filename = String(value ?? "").toUpperCase();
   const direct = filename.match(/P\d{2}/)?.[0];
@@ -56,10 +70,11 @@ export async function POST(request: Request) {
   const url = new URL(request.url);
   const execute = url.searchParams.get("execute") === "true";
   try {
-    const [assets, folderTree] = await Promise.all([
+    const [assets, rootedFolders] = await Promise.all([
       rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled&limit=5000`),
       folders(PERSONAS_ROOT),
     ]);
+    const folderTree = rootedFolders.some((item) => PERSONA_RE.test(item.path.at(-1) ?? "")) ? rootedFolders : await discoverPersonaFolders();
     const personaFolders = new Map<string, FolderNode>();
     for (const item of folderTree) {
       const id = item.path.find((part) => PERSONA_RE.test(part))?.match(PERSONA_RE)?.[1]?.toUpperCase();
@@ -94,7 +109,7 @@ export async function POST(request: Request) {
       await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/"), drive_archived_at: new Date().toISOString(), canonical_source: "MODELARK_TO_DRIVE" } });
       report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ARCHIVED_DRIVE", drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/") });
     }
-    return Response.json({ ok: true, execute, total: report.length, assigned: report.filter((item) => item.persona_id).length, archived: report.filter((item) => item.status === "ARCHIVED_DRIVE").length, report });
+    return Response.json({ ok: true, execute, drive_root: PERSONAS_ROOT, discovered_persona_folders: personaFolders.size, folder_tree_count: folderTree.length, total: report.length, assigned: report.filter((item) => item.persona_id).length, archived: report.filter((item) => item.status === "ARCHIVED_DRIVE").length, report });
   } catch (error) {
     return Response.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
