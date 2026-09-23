@@ -356,8 +356,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     const existing = assetByDrive.get(entry.file.id);
     if (md5Matches(existing, entry.file)) { skipped += 1; return; }
     const storage = await upload(entry.file);
-    await upsert("assets", {
-      id: sourceType === "persona_master" ? `${personaId}_MASTER` : `DRIVE_PERSONA_${entry.file.id}`,
+    const personaPayload: Row = {
       workspace_id: "cortifree",
       drive_file_id: entry.file.id,
       drive_md5: entry.file.md5Checksum ?? null,
@@ -371,19 +370,27 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       convex_storage_id: String(storage.storageId),
       enabled: true,
       indexed_at: new Date().toISOString(),
-      metadata: { drive_path: entry.path, protected_master: sourceType === "persona_master" },
-    });
+      metadata: {
+        drive_path: entry.path,
+        protected_master: sourceType === "persona_master",
+        canonical_asset_id: sourceType === "persona_master" ? `${personaId}_MASTER` : `DRIVE_PERSONA_${entry.file.id}`,
+      },
+    };
+    // Legacy Supabase uses a numeric identity for assets.id. Keep the stable
+    // Drive/canonical key in metadata and let Supabase allocate the row id.
+    if (backendMode() !== "supabase") personaPayload.id = sourceType === "persona_master" ? `${personaId}_MASTER` : `DRIVE_PERSONA_${entry.file.id}`;
+    await upsert("assets", personaPayload, ["workspace_id", "drive_file_id"]);
     uploaded += 1;
   }
 
   async function syncReference(entry: WalkedFile) {
     if (!isImage(entry.file) || uploaded >= limit) return;
     const taxonomy = refsByDrive.get(entry.file.id) ?? {};
-    const existing = refByDrive.get(entry.file.id);
     const reviewStatus = sheetReviewStatus(taxonomy);
     const qaFlag = sheetQaFlag(taxonomy);
     const selectable = sheetSelectable(taxonomy);
     const refId = String(taxonomy.ref_id ?? "");
+    const existing = refByDrive.get(entry.file.id) ?? (refId ? refById.get(refId) : undefined);
     const canonicalMetadata = {
       category: taxonomy.carousel_use || entry.path[0] || "hero_misc",
       source_url: taxonomy.source_url ?? null,
@@ -443,15 +450,17 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       }
     }
     const storage = await upload(entry.file);
-    await upsert("visual_references", {
-      id: taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`,
+    const referencePayload: Row = {
       workspace_id: "cortifree",
       storage_path: storage.publicUrl,
       ...canonicalMetadata,
       thumbnail_url: storage.publicUrl,
       file_hash: entry.file.md5Checksum ?? null,
       drive_file_id: entry.file.id,
-    }, ["workspace_id", "drive_file_id"]);
+    };
+    if (backendMode() !== "supabase") referencePayload.id = taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`;
+    else referencePayload.metadata = { ...runtimeMetadata(referencePayload), canonical_reference_id: taxonomy.ref_id || null };
+    await upsert("visual_references", referencePayload, ["workspace_id", "drive_file_id"]);
     if (refId) resolvedRefIds.add(refId);
     uploaded += 1;
   }
