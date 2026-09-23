@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { loadGoogleRefreshToken } from "./oauth-store";
 
 type CachedToken = { accessToken: string; expiresAt: number };
 let cached: CachedToken | null = null;
@@ -34,7 +35,7 @@ export function googleServiceAccountIdentity() {
 }
 
 export function googleUserOAuthConfigured() {
-  return Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET && process.env.GOOGLE_OAUTH_REFRESH_TOKEN);
+  return Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET);
 }
 
 export function googleOAuthRedirectUri(origin?: string) {
@@ -89,14 +90,16 @@ export async function exchangeGoogleOAuthCode(code: string, origin?: string) {
 
 async function getGoogleUserAccessToken() {
   if (userCached && userCached.expiresAt - Date.now() > 60_000) return userCached.accessToken;
-  if (!googleUserOAuthConfigured()) throw new Error("Google user OAuth is not configured; set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET and GOOGLE_OAUTH_REFRESH_TOKEN");
+  if (!googleUserOAuthConfigured()) throw new Error("Google user OAuth is not configured; set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET");
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN || await loadGoogleRefreshToken();
+  if (!refreshToken) throw new Error("Google user OAuth refresh token is not stored; run /api/google/oauth/start once");
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
       client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
-      refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN!,
+      refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
   });

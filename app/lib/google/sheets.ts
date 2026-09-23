@@ -1,4 +1,4 @@
-import { googleFetch } from "./auth";
+import { googleFetch, googleFetchAsUser, googleUserOAuthConfigured } from "./auth";
 
 export const CORTIFREE_SHEET_ID = process.env.GOOGLE_SHEETS_CONTENT_DB_ID
   || process.env.CORTIFREE_CONTENT_DB_SHEET_ID
@@ -11,7 +11,7 @@ export async function readSheetRange(sheetName: string, range: string): Promise<
   const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${CORTIFREE_SHEET_ID}/values/${encodeURIComponent(a1)}`);
   url.searchParams.set("majorDimension", "ROWS");
   url.searchParams.set("valueRenderOption", "UNFORMATTED_VALUE");
-  const response = await googleFetch(url.toString());
+  const response = await (googleUserOAuthConfigured() ? googleFetchAsUser : googleFetch)(url.toString());
   const body = await response.json() as { values?: unknown[][] };
   return body.values ?? [];
 }

@@ -285,6 +285,12 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     const existing = assetByDrive.get(entry.file.id)
       ?? assetByFilename.get(entry.file.name.trim().toLowerCase())
       ?? (entry.file.md5Checksum ? assetByMd5.get(entry.file.md5Checksum) : undefined);
+    if (existing && entry.file.md5Checksum && assetByMd5.get(entry.file.md5Checksum)
+      && String(existing.drive_file_id ?? "") !== String(entry.file.id)) {
+      duplicatesSkipped += 1;
+      skipped += 1;
+      return;
+    }
     const category = String(taxonomy.category || entry.path[0] || "uncategorized");
     const selectable = sheetSelectable(taxonomy);
     const canonicalMetadata = {
@@ -452,15 +458,27 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     const storage = await upload(entry.file);
     const referencePayload: Row = {
       workspace_id: "cortifree",
+      id: taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`,
       storage_path: storage.publicUrl,
       ...canonicalMetadata,
       thumbnail_url: storage.publicUrl,
       file_hash: entry.file.md5Checksum ?? null,
       drive_file_id: entry.file.id,
     };
-    if (backendMode() !== "supabase") referencePayload.id = taxonomy.ref_id || `VR_DRIVE_${entry.file.id}`;
-    else referencePayload.metadata = { ...runtimeMetadata(referencePayload), canonical_reference_id: taxonomy.ref_id || null };
-    await upsert("visual_references", referencePayload, ["workspace_id", "drive_file_id"]);
+    if (backendMode() === "supabase") referencePayload.metadata = { ...runtimeMetadata(referencePayload), canonical_reference_id: taxonomy.ref_id || null };
+    // The legacy Supabase table has no unique constraint on drive_file_id;
+    // conflict-target upsert would fail with 42P10. Existing rows are handled
+    // above, so a plain insert is the correct operation for a new reference.
+    if (backendMode() === "supabase") {
+      const response = await dataBackend("visual_references", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify(referencePayload),
+      });
+      if (!response.ok) throw new Error(await response.text());
+    } else {
+      await upsert("visual_references", referencePayload, ["workspace_id", "drive_file_id"]);
+    }
     if (refId) resolvedRefIds.add(refId);
     uploaded += 1;
   }
