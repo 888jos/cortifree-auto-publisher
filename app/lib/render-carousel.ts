@@ -7,6 +7,10 @@ import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { uploadConvexFile } from "./convex-storage";
 import { analyzeHookComposition, type HookDesign } from "./hook-design";
+import { processImageGenerationJob } from "./image-generation";
+import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-generation/core";
+import { isAutomaticVisualReference, visualReferenceSchema, type VisualReference } from "../../src/visual-references";
+import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -84,6 +88,73 @@ type Geometry = {
 };
 
 type StoredReference = { id?: string; slides?: Array<{ geometry?: Geometry }> };
+
+function generationCategory(slide: GeneratedSlide) {
+  const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  if (/walk|outdoor|street|park|outside|nature/.test(text)) return "outdoors";
+  if (/gym|workout|exercise|fitness|pilates|yoga|run/.test(text)) return "fitness";
+  if (/food|meal|breakfast|lunch|dinner|eat|drink|coffee|matcha|grocery/.test(text)) return "food";
+  if (/study|work|desk|laptop|exam|task|focus/.test(text)) return "work_study";
+  if (/skin|beauty|glow|face|self.?care|makeup/.test(text)) return "self_care";
+  return "home";
+}
+
+function referenceScore(reference: VisualReference, slide: GeneratedSlide) {
+  const query = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  const text = [reference.id, reference.category, reference.pose, reference.framing, reference.outfit, reference.environment, reference.lighting, ...reference.mood, ...reference.tags, ...reference.good_for, ...Object.values(reference.metadata ?? {})].join(" ").toLowerCase();
+  const category = generationCategory(slide);
+  const categoryMap: Record<string, string[]> = {
+    home: ["morning_home", "bedroom", "kitchen", "coffee_cafe", "night_cozy"],
+    fitness: ["fitness_pilates"], outdoors: ["outdoors_walk"], food: ["food_grocery", "coffee_cafe"],
+    self_care: ["self_care", "mirror_selfie"], work_study: ["work_study"],
+  };
+  let score = (categoryMap[category] ?? []).some((value) => text.includes(value)) ? 70 : 0;
+  for (const term of query.split(/[^a-z0-9]+/).filter((value) => value.length > 3)) if (text.includes(term)) score += 3;
+  if (/face|portrait|woman|person|selfie|full body|girl/.test(text)) score += 20;
+  if (/no_person|none|environment reference|food arrangement|empty room/.test(text)) score -= 60;
+  return score;
+}
+
+async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
+  if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
+  const [personas, mastersResponse, referencesResponse] = await Promise.all([
+    loadRuntimePersonaConfigs(),
+    dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&persona_id=eq.${encodeURIComponent(options.input.personaId)}&source_type=eq.persona_master&enabled=eq.true&public_url=not.is.null&select=id&limit=1`),
+    dataBackend(`visual_references?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*&limit=500`),
+  ]);
+  if (!mastersResponse.ok) throw new Error(`MODELARK_MASTER_LOOKUP_FAILED:${await mastersResponse.text()}`);
+  if (!referencesResponse.ok) throw new Error(`MODELARK_REFERENCE_LOOKUP_FAILED:${await referencesResponse.text()}`);
+  const masters = await mastersResponse.json() as Array<{ id: string | number }>;
+  const master = masters[0];
+  if (!master) throw new Error(`MODELARK_MASTER_MISSING:${options.input.personaId}`);
+  const referenceRows = await referencesResponse.json() as unknown[];
+  const references = referenceRows
+    .map((row) => visualReferenceSchema.safeParse(row))
+    .flatMap((result) => result.success && isAutomaticVisualReference(result.data) ? [result.data] : [])
+    .filter((reference) => !options.usedReferenceIds.has(reference.id));
+  const pool = references;
+  const reference = [...pool].sort((a, b) => referenceScore(b, options.slide) - referenceScore(a, options.slide))[0];
+  if (!reference) throw new Error(`MODELARK_REFERENCE_MISSING:slide_${options.position}`);
+  const persona = personas.find((item) => item.id === options.input.personaId);
+  if (!persona) throw new Error(`MODELARK_PERSONA_MISSING:${options.input.personaId}`);
+  const generationInput = imageGenerationInputSchema.parse({
+    persona_id: options.input.personaId, master_asset_id: master.id, visual_reference_id: reference.id,
+    carousel_id: options.input.id, slide_id: `slide_${options.position}`, scene: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
+    category: generationCategory(options.slide), framing: "portrait",
+    prompt_additions: "Automatic carousel repair. Image 1 is only the identity master and Image 2 is only the Pinterest visual reference. Never place either source image directly in the carousel. Generate a new distinct natural photo and do not repeat any previously generated scene in this carousel.",
+  });
+  const prompt = buildImagePrompt(persona, reference, generationInput);
+  const jobResponse = await dataBackend("image_generation_jobs", {
+    method: "POST", headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, persona_id: options.input.personaId, master_asset_id: master.id, visual_reference_id: reference.id, carousel_id: options.input.id, slide_id: `slide_${options.position}`, category: generationInput.category, scene: generationInput.scene, input: generationInput, prompt, provider: "modelark_seedream", model: process.env.MODELARK_MODEL_ID ?? "", status: "PENDING", attempts: 0, attempt_count: 0, metadata: { automatic_repair: true, source: "carousel_render" } }),
+  });
+  if (!jobResponse.ok) throw new Error(`MODELARK_JOB_CREATE_FAILED:${await jobResponse.text()}`);
+  const jobs = await jobResponse.json() as Array<{ id: string | number }>;
+  if (!jobs[0]) throw new Error("MODELARK_JOB_CREATE_FAILED:no_job_id");
+  const generated = await processImageGenerationJob(String(jobs[0].id));
+  options.usedReferenceIds.add(reference.id);
+  return generated;
+}
 
 const defaultGeometry: Geometry = {
   canvas: { width: WIDTH, height: HEIGHT },
@@ -286,7 +357,7 @@ export async function renderCarousel(input: {
   spec: Record<string, unknown>;
 }) {
   assertCortiFreeCarouselId(input.id);
-  const assets = await loadSelectableAssets();
+  let assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
   const personaHookIds = assets
     .filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId)
@@ -299,21 +370,39 @@ export async function renderCarousel(input: {
       recentHookAssetIds = new Set(recent.map((row) => String(row.asset_id ?? '')).filter(Boolean));
     }
   }
-  // A mixed carousel only needs the persona asset for the hook here; the
-  // remaining 2×2 tiles are selected from persona-generated assets below.
-  const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, excludedAssetIds: recentHookAssetIds, slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides });
-  const reservedGridAssets = new Set<string>();
-  const gridMatches = input.layout === "grid-2x2"
-    ? input.slides.map((slide, index) => {
-      if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
-      const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
-      if (personaAssets.length < 2) throw new Error(`PERSONA_ASSETS_REQUIRED:${input.personaId ?? "unknown"}:need_2:found_${personaAssets.length}:slide_${slide.position}`);
-      const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
-      selected.forEach((match) => reservedGridAssets.add(match.asset.id));
-      // Editorial 2×2 pattern: two distinct images repeated diagonally.
-      return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
-    })
-    : input.slides.map((_, index) => [matches[index]!]);
+  const usedReferenceIds = new Set<string>();
+  const repairedPositions = new Set<number>();
+  let gridMatches: AssetMatch[][] = [];
+  for (let attempt = 0; attempt <= Math.max(2, input.slides.length); attempt += 1) {
+    try {
+      // Masters and raw Pinterest references are never renderable output. They
+      // may only enter through the ModelArk repair path above.
+      const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, excludedAssetIds: recentHookAssetIds, slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides });
+      if (input.layout !== "grid-2x2") {
+        gridMatches = input.slides.map((_, index) => [matches[index]!]);
+        break;
+      }
+      const usedCarouselAssets = new Set<string>([matches[0]!.asset.id]);
+      gridMatches = input.slides.map((slide, index) => {
+        if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
+        const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
+        const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, excludedAssetIds: usedCarouselAssets, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
+        selected.forEach((match) => usedCarouselAssets.add(match.asset.id));
+        // Keep the established 2x2 editorial pattern, but each source image
+        // appears only on its own tile pair and never on a later slide.
+        return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
+      });
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const position = Number(message.match(/slide_(\d+)/)?.[1] ?? 0);
+      if (!position || repairedPositions.has(position)) throw error;
+      repairedPositions.add(position);
+      await generateRepairAsset({ input, slide: input.slides[position - 1]!, position, usedReferenceIds });
+      assets = await loadSelectableAssets();
+    }
+  }
+  if (!gridMatches.length) throw new Error("CAROUSEL_RENDER_SELECTION_FAILED");
   const prepared = await Promise.all(input.slides.map(async (slide, index) => {
     const slideMatches = gridMatches[index]!;
     // The selected model is authoritative. AI copy may return an old layout alias;

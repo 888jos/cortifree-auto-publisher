@@ -5,7 +5,8 @@ import { dataBackend } from "../../../../lib/data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// A repair render may run ModelArk synchronously before the PNGs are saved.
+export const maxDuration = 300;
 
 const storedSpecSchema = z.object({
   carousel_type: z.string(),

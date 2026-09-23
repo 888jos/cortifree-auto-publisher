@@ -245,11 +245,17 @@ export function chooseAssets(options: {
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
-  const usedIdentities = new Set<string>();
   const usedVisualDescriptions: string[] = [];
   return options.slides.map((slide) => {
     const intent = deriveVisualIntent(slide);
-    const finalUse = options.assets.filter((asset) => !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename) && !options.excludedAssetIds?.has(String(asset.id)) && (isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId))));
+    // Masters and raw visual references are inputs to ModelArk only. They are
+    // never valid carousel output assets.
+    const finalUse = options.assets.filter((asset) =>
+      !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename)
+      && !options.excludedAssetIds?.has(String(asset.id))
+      && (asset.source_type === "stock" || asset.source_type === "persona_generated")
+      && (isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)))
+    );
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
@@ -276,8 +282,9 @@ export function chooseAssets(options: {
     const compatible = options.personaOnly
       ? usableRequested
       : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint));
-    const unused = compatible.filter((asset) => !used.has(asset.id) && (options.personaOnly || !usedIdentities.has(assetIdentity(asset))));
-    const distinct = unused.length || hookNeedsPersona ? compatible : [];
+    const unused = compatible.filter((asset) => !used.has(asset.id));
+    const distinct = unused;
+    if (!distinct.length) throw new Error(`ASSET_DIVERSITY_EXHAUSTED:slide_${slide.position}:used_${used.size}`);
     const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
       const visualDescription = `${visualField(asset, "visual_description") ?? ""} ${visualField(asset, "specific_details") ?? ""}`;
@@ -354,7 +361,6 @@ export function chooseAssets(options: {
       throw new Error(`LOW_CONFIDENCE_ASSET:slide_${slide.position}:score_${topScore.toFixed(1)}:required_${threshold}:candidates_${candidates.length}`);
     }
     used.add(selected.asset.id);
-    usedIdentities.add(assetIdentity(selected.asset));
     const selectedDescription = visualField(selected.asset, "visual_description");
     if (selectedDescription) usedVisualDescriptions.push(String(selectedDescription));
     return {
