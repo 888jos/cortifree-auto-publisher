@@ -81,6 +81,7 @@ export class ModelArkSeedreamProvider implements ImageGenerationProvider {
       method: "POST",
       headers: { Authorization: `Bearer ${this.options.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: this.options.model, prompt: input.prompt, image: [input.masterUrl, input.referenceUrl], size: "1K", response_format: "url", watermark: false, stream: false }),
+      signal: AbortSignal.timeout(75_000),
     });
     if (!response.ok) throw new Error(`ModelArk ${response.status}: ${(await response.text()).slice(0, 500)}`);
     const payload = await response.json() as { data?: Array<{ url?: string; b64_json?: string }> };
