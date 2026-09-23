@@ -1,30 +1,57 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { adminAuthConfigured, isAdminRequest, isCronRequest } from "./app/lib/admin-auth";
+import { createServerClient } from "@supabase/ssr";
 
-export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === "/api/health") return NextResponse.next();
-  if (isAdminRequest(request) || isCronRequest(request)) return NextResponse.next();
+const publicPaths = new Set(["/login", "/auth/callback", "/api/health"]);
 
-  const apiRequest = request.nextUrl.pathname.startsWith("/api/");
-  if (!adminAuthConfigured()) {
-    const body = apiRequest
-      ? JSON.stringify({ error: "Admin authentication is not configured" })
-      : "CortiFree admin authentication is not configured.";
-    return new NextResponse(body, {
+async function hasSupabaseSession(request: NextRequest, response: NextResponse) {
+  const url = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return { configured: false, authenticated: false };
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          request.cookies.set(name, value);
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+  const { data: { user } } = await supabase.auth.getUser();
+  return { configured: true, authenticated: Boolean(user) };
+}
+
+export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (publicPaths.has(pathname)) return NextResponse.next();
+
+  // Cron endpoints use their own server-to-server secret, not browser auth.
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  const authorization = request.headers.get("authorization") ?? "";
+  if (cronSecret && authorization === `Bearer ${cronSecret}`) return NextResponse.next();
+
+  const response = NextResponse.next({ request });
+  const session = await hasSupabaseSession(request, response);
+  if (!session.configured) {
+    const apiRequest = pathname.startsWith("/api/");
+    return new NextResponse(apiRequest ? JSON.stringify({ error: "Supabase Auth is not configured" }) : "Supabase Auth is not configured.", {
       status: 503,
       headers: { "Content-Type": apiRequest ? "application/json" : "text/plain; charset=utf-8" },
     });
   }
+  if (session.authenticated) return response;
 
-  const body = apiRequest ? JSON.stringify({ error: "Unauthorized" }) : "Authentication required.";
-  return new NextResponse(body, {
-    status: 401,
-    headers: {
-      "Content-Type": apiRequest ? "application/json" : "text/plain; charset=utf-8",
-      "WWW-Authenticate": 'Basic realm="CortiFree Admin", charset="UTF-8"',
-      "Cache-Control": "no-store",
-    },
-  });
+  if (pathname.startsWith("/api/")) {
+    return new NextResponse(JSON.stringify({ error: "Unauthorized", code: "SUPABASE_AUTH_REQUIRED" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.searchParams.set("next", pathname);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
