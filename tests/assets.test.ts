@@ -141,6 +141,27 @@ describe('asset scanner', () => {
     }
   });
 
+  it('uses pixel-derived asset_name only as a weak tie-breaker', () => {
+    const base: SelectableAsset = {
+      id: 'base', filename: 'legacy_001.jpg', category: 'outdoors', subcategory: 'outdoors', orientation: 'portrait',
+      framing: 'first_person_pov', activity: 'walking', mood: 'casual', colors: [], tags: [], public_url: 'https://example.com/base.jpg',
+      use_count: 0, last_used_at: null, source_type: 'stock', visual_description: 'POV of a person walking outside in daylight.',
+      visible_objects: ['sneakers'], visible_actions: ['walking'], setting: 'outdoor_path', people_visibility: 'legs_only',
+      body_parts_visible: ['legs', 'feet'], composition: 'first_person_activity', camera_angle: 'downward', lighting: 'bright_daylight',
+      dominant_colors: [], text_in_image: 'none', specific_details: 'paved path and long shadow',
+      visual_tagging_schema: 'observable_v2', visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: '2026-09-24T00:00:00.000Z',
+    };
+    const generic = { ...base, id: 'generic', public_url: 'https://example.com/generic.jpg', metadata: { asset_name: 'OUTDOOR_WALK_GENERIC_POV' } };
+    const precise = { ...base, id: 'precise', public_url: 'https://example.com/precise.jpg', metadata: { asset_name: 'OUTDOOR_WALK_SIDEWALK_SHADOW_POV' } };
+    const [selected] = chooseAssets({
+      carouselType: 'C06_POV_RELATABLE',
+      assets: [generic, precise],
+      personaId: 'P01',
+      slides: [{ position: 2, role: 'TIP', assetType: 'stock', headline: 'Morning sidewalk walk', body: 'Ten minutes outside.', assetQuery: 'sidewalk shadow POV', visualIntent: 'walking outside on a sidewalk with a visible shadow' }],
+    });
+    assert.equal(selected?.asset.id, 'precise');
+  });
+
   it('requires reviewed observable stock and derives physical intent', () => {
     const reviewed = {
       id: 'reviewed', filename: 'reviewed.jpg', category: 'fitness', subcategory: 'fitness', orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/reviewed.jpg', use_count: 0, last_used_at: null, source_type: 'stock', visual_description: 'open notebook on a bed with a pen', visible_objects: ['notebook', 'bed', 'pen'], visible_actions: ['writing'], setting: 'bedroom', people_visibility: 'no_person', body_parts_visible: [], composition: 'bedroom_scene', camera_angle: 'high_angle', lighting: 'soft_indoor_natural_light', dominant_colors: [], text_in_image: '', specific_details: 'handwritten_pages', visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1', visual_reviewed_at: '2026-09-22T00:00:00.000Z',
