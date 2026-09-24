@@ -8,6 +8,7 @@ import { logAIUsage } from "../app/lib/ai/usage.js";
 type StockRow = { id: string | number; filename: string; public_url: string; metadata?: Record<string, unknown>; tags?: string[]; visual_description?: string; visual_review_status?: string; visual_tagging_schema?: string };
 type Outcome = { id: string; ok: boolean; error?: string; description?: string; name?: string };
 const concurrency = Math.max(1, Math.min(4, Number(process.env.STOCK_VISION_CONCURRENCY ?? 3)));
+const force = process.argv.includes("--force");
 
 function token(value: string) { return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, ""); }
 function stableName(base: string, id: string, used: Set<string>) {
@@ -51,10 +52,11 @@ async function main() {
   const usedNames = new Set(rows.map((row) => String(row.metadata?.asset_name ?? "")).filter(Boolean));
   const analyzer = new OpenAIStockAssetAnalyzer(config.OPENAI_MODEL_QA, config.OPENAI_TIMEOUT_MS);
   const outcomes: Outcome[] = [];
-  let cursor = 0;
-  async function worker() {
-    while (cursor < rows.length) {
-      const row = rows[cursor++]!;
+  async function processRows(targets: StockRow[], phase: "initial" | "duplicate_retry") {
+    let cursor = 0;
+    async function worker() {
+      while (cursor < targets.length) {
+        const row = targets[cursor++]!;
       try {
         const result = await analyzer.analyze(await imageDataUrl(row.public_url));
         const name = stableName(result.data.asset_name, String(row.id), usedNames);
@@ -62,7 +64,7 @@ async function main() {
         if (!response.ok) throw new Error(`WRITE_FAILED:${await response.text()}`);
         await logAIUsage({ operation: "stock_asset.analyze_v2", model: config.OPENAI_MODEL_QA, usage: result.usage, success: true });
         outcomes.push({ id: String(row.id), ok: true, description: result.data.visual_description, name });
-        process.stdout.write(`OK ${outcomes.filter((item) => item.ok).length}/${rows.length} ${row.id}\n`);
+        process.stdout.write(`OK ${phase} ${outcomes.filter((item) => item.ok).length}/${targets.length} ${row.id}\n`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         outcomes.push({ id: String(row.id), ok: false, error: message });
@@ -70,9 +72,32 @@ async function main() {
         process.stderr.write(`FAIL ${row.id}: ${message}\n`);
       }
     }
+    }
+    await Promise.all(Array.from({ length: concurrency }, worker));
   }
-  await Promise.all(Array.from({ length: concurrency }, worker));
-  const finalRows = await allStocks();
+  // A normal run is resumable: only unreviewed/failed assets consume vision calls.
+  // --force is deliberately explicit for a complete fresh audit.
+  const initialTargets = force
+    ? rows
+    : rows.filter((row) => row.visual_review_status !== "IMAGE_INSPECTED_V2" || row.visual_tagging_schema !== "observable_v2");
+  await processRows(initialTargets, "initial");
+
+  let finalRows = await allStocks();
+  // Exact duplicate/generic descriptions are not accepted as a completed audit.
+  // Re-inspect only the flagged images once, using pixels again, then re-audit below.
+  const byDescription = new Map<string, StockRow[]>();
+  for (const row of finalRows) {
+    const description = String(row.visual_description ?? "").trim().toLowerCase();
+    if (description) byDescription.set(description, [...(byDescription.get(description) ?? []), row]);
+  }
+  const duplicateRetryIds = new Set([
+    ...[...byDescription.values()].filter((group) => group.length > 1).flat().map((row) => String(row.id)),
+    ...finalRows.filter((row) => generic(String(row.visual_description ?? ""))).map((row) => String(row.id)),
+  ]);
+  if (duplicateRetryIds.size) {
+    await processRows(finalRows.filter((row) => duplicateRetryIds.has(String(row.id))), "duplicate_retry");
+    finalRows = await allStocks();
+  }
   const inspected = finalRows.filter((row) => row.visual_review_status === "IMAGE_INSPECTED_V2" && row.visual_tagging_schema === "observable_v2");
   const descriptions = new Map<string, string[]>();
   const names = new Map<string, string[]>();
