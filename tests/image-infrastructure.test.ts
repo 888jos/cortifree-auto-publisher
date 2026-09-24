@@ -174,6 +174,43 @@ describe('persona image infrastructure', () => {
     assert.ok(scoreVisualReferenceForScene(emptyRoom, scene) < 0);
   });
 
+  it('uses only official CortiFree app screens when a slide explicitly requests real UI', () => {
+    const stock: JitSelectableAsset = {
+      id: 'stock-1', filename: 'PHONE_ON_DESK.jpg', category: 'work_study', subcategory: 'desk',
+      orientation: 'portrait', framing: 'medium', activity: 'phone on desk', mood: 'calm',
+      colors: [], tags: ['phone'], public_url: 'https://example.com/stock.jpg', use_count: 0, last_used_at: null,
+      source_type: 'stock', persona_id: null, visual_tagging_schema: 'observable_v2',
+      visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: new Date().toISOString(),
+      visual_description: 'phone on a cream desk', visible_objects: ['phone'], visible_actions: [],
+      setting: 'work_study', metadata: { visual_tagging_schema: 'observable_v2', visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: new Date().toISOString() },
+    };
+    const appScreen: JitSelectableAsset = {
+      id: 'app-1', filename: 'CF_APP_SCREEN_03_LIBRARY_OVERVIEW_01.jpeg', category: 'app_ui', subcategory: 'library_overview',
+      orientation: 'portrait', framing: 'app_screen', activity: 'app_ui', mood: 'calm',
+      colors: [], tags: ['cortifree', 'app', 'screenshot', 'official', 'library_overview'],
+      good_for: ['cortifree', 'app_ui', 'library_overview'],
+      public_url: 'drive://drive-1', drive_file_id: 'drive-1', use_count: 0, last_used_at: null,
+      source_type: 'app_screenshot', persona_id: null,
+      visual_description: 'Official CortiFree app screenshot library overview',
+      visible_objects: ['phone_ui', 'app_screen'], visible_actions: [], setting: 'app_ui',
+      people_visibility: 'no_person', composition: 'app_screen', camera_angle: 'front',
+      text_in_image: 'official_cortifree_ui',
+    };
+    const slide = {
+      position: 4, role: 'BODY', headline: 'save the cue', body: '',
+      assetQuery: 'official real CortiFree app screenshot shown on a smartphone; do not recreate the app UI',
+      visualIntent: 'authentic CortiFree app interface only', assetType: 'stock',
+    };
+    const result = chooseAssets({ assets: [stock, appScreen], carouselType: 'F04_AESTHETIC_EDUCATIONAL', slides: [slide] });
+    assert.equal(result[0]?.asset.source_type, 'app_screenshot');
+    assert.equal(result[0]?.asset.id, 'app-1');
+
+    assert.throws(
+      () => chooseAssets({ assets: [stock], carouselType: 'F04_AESTHETIC_EDUCATIONAL', slides: [slide] }),
+      /CORTIFREE_APP_SCREEN_REQUIRED/,
+    );
+  });
+
   it('stores local assets without overwrite and refuses MASTER writes', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortifree-storage-'));
     const storage = new LocalDriveAssetStorage(root);
