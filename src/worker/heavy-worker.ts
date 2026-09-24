@@ -16,7 +16,7 @@ import { autoScheduleApproved } from "../autonomy/publishing";
 type Row = Record<string, unknown>;
 
 const WORKER_ID = process.env.CORTIFREE_WORKER_ID?.trim() || `${os.hostname()}-${process.pid}`;
-const VERSION = process.env.CORTIFREE_WORKER_VERSION?.trim() || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "dev";
+const VERSION = process.env.CORTIFREE_WORKER_VERSION?.trim() || process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12) || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "dev";
 const POLL_MS = Math.max(500, Number(process.env.WORKER_POLL_MS ?? 2_000));
 const STALE_MS = Math.max(60_000, Number(process.env.WORKER_STALE_MS ?? 15 * 60_000));
 const MAX_GENERIC_PER_TICK = Math.max(1, Math.min(10, Number(process.env.WORKER_GENERIC_BATCH ?? 2)));
