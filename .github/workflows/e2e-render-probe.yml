@@ -1,0 +1,41 @@
+name: Temporary CortiFree render E2E probe
+
+on:
+  push:
+    branches: [test/e2e-render-probe]
+
+permissions:
+  contents: read
+
+jobs:
+  render-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATA_BACKEND: supabase
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MODELARK_API_KEY: ${{ secrets.MODELARK_API_KEY }}
+      MODELARK_MODEL_ID: ${{ secrets.MODELARK_MODEL_ID || vars.MODELARK_MODEL_ID }}
+      IMAGE_GENERATION_ENABLED: "true"
+      ALLOW_RUNTIME_JSON_FALLBACK: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Require render credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY MODELARK_API_KEY MODELARK_MODEL_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Run five real render scenarios
+        run: node --import tsx scripts/e2e-render-probe.ts
