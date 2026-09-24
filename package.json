@@ -45,7 +45,9 @@
     "google:sync:refs-state": "npm run google:sync -- --scope=visual_refs --limit=250",
     "google:sync:persona": "npm run google:sync -- --scope=assets --limit=250",
     "worker:start": "node --import tsx src/worker/heavy-worker.ts",
-    "assets:coverage": "tsx scripts/audit-visual-coverage.ts"
+    "assets:coverage": "tsx scripts/audit-visual-coverage.ts",
+    "maintenance:cleanup-legacy": "tsx scripts/cleanup-legacy-state.ts",
+    "maintenance:cleanup-legacy:execute": "tsx scripts/cleanup-legacy-state.ts --execute"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
