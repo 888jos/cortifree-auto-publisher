@@ -46,7 +46,7 @@ export class OpenAIStockAssetAnalyzer {
           "good_for and avoid_for are editorial retrieval labels grounded in what is visibly depicted; they must not introduce claims not shown in the image.",
           retryHint ?? "",
         ].filter(Boolean).join("\n"),
-        input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl, detail: "low" }] }],
+        input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl, detail: "high" }] }],
         store: false,
         max_output_tokens: 1_400,
         text: { format: zodTextFormat(stockAssetVisionSchema, "stock_asset_observable_v2") },
