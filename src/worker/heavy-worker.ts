@@ -283,8 +283,33 @@ async function processImageBatch() {
   return processed;
 }
 
+function assertWorkerConfiguration() {
+  const missing: string[] = [];
+  if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!process.env.MODELARK_API_KEY) missing.push("MODELARK_API_KEY");
+  if (!process.env.MODELARK_MODEL_ID) missing.push("MODELARK_MODEL_ID");
+
+  const googleServiceAccount = Boolean(
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
+    || process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim()
+  );
+  const googleUserOAuth = Boolean(
+    process.env.GOOGLE_OAUTH_CLIENT_ID?.trim()
+    && process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim()
+  );
+  if (!googleServiceAccount && !googleUserOAuth) {
+    missing.push("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY (or GOOGLE_SERVICE_ACCOUNT_JSON / Google OAuth credentials)");
+  }
+
+  if (missing.length) {
+    throw new Error(`WORKER_CONFIG_INCOMPLETE:${missing.join(",")}`);
+  }
+}
+
 async function main() {
   console.log("[worker] starting", { workerId: WORKER_ID, version: VERSION, pollMs: POLL_MS });
+  assertWorkerConfiguration();
   await heartbeat();
   await recoverStaleJobs();
   let lastHeartbeat = 0;
