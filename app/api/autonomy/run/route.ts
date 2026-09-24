@@ -3,6 +3,7 @@ import { processQueuedIdeas, retryPendingRenders } from '../../../../src/autonom
 import { refillPersonaCaches, processPendingImageJobs } from '../../../../src/autonomy/image-cache';
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from '../../../../src/autonomy/performance';
 import { autoScheduleApproved } from '../../../../src/autonomy/publishing';
+import { enqueueWorkerJob, shouldDelegateHeavyWork } from '../../../lib/worker-queue';
 
 export const runtime='nodejs';
 export const maxDuration=300;
@@ -15,6 +16,11 @@ function authorized(request:Request){
 
 export async function GET(request:Request){
   if(!authorized(request))return Response.json({error:'Unauthorized cron request'},{status:401});
+  if (await shouldDelegateHeavyWork()) {
+    const bucket = new Date().toISOString().slice(0, 13);
+    const queued = await enqueueWorkerJob({ kind: 'AUTONOMY_RUN', idempotencyKey: `autonomy:${bucket}`, payload: { requested_at: new Date().toISOString() }, priority: 5 });
+    return Response.json({ ok: true, queued: true, job: queued.job, reused: queued.reused, execution: 'external_worker' }, { status: 202 });
+  }
   const startedAt=new Date().toISOString();
   const result:Record<string,unknown>={startedAt};
   const errors:Record<string,string>={};
