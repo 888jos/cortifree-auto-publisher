@@ -9,7 +9,7 @@ import { hookCategories, hookLibrary } from "./hook-library.js";
 import { getHookGenerationPlan } from "./lib/hook-selector";
 
 type AssetGroup = { category: string; count: number };
-type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string; source_type?: string; persona_id?: string | null };
+type AssetPreview = { id: string | number; category: string; subcategory: string; filename: string; orientation: string; framing: string; mood: string; public_url: string; source_type?: string; persona_id?: string | null; visual_description?: string; metadata?: { asset_name?: string; [key: string]: unknown } };
 type PersonaSummary = { id: string; name: string; ready: boolean; master: { id: string | number; public_url: string; filename: string } | null };
 type VisualReferenceSummary = {
   id: string; category: string; source_url: string | null; thumbnail_url: string | null; storage_path: string | null;
@@ -509,7 +509,7 @@ export default function Home() {
     const expectedSource = sourceByTab[assetTab];
     return assetPreviews.filter((asset) =>
       (!expectedSource || asset.source_type === expectedSource)
-      && (!query || [asset.filename, asset.category, asset.subcategory, asset.persona_id ?? "", asset.mood].join(" ").toLowerCase().includes(query)),
+      && (!query || [asset.metadata?.asset_name ?? "", asset.visual_description ?? "", asset.filename, asset.category, asset.subcategory, asset.persona_id ?? "", asset.mood].join(" ").toLowerCase().includes(query)),
     );
   }, [assetPreviews, assetQuery, assetTab]);
   const filteredVisualReferences = useMemo(() => {
@@ -1454,7 +1454,11 @@ export default function Home() {
                   {filteredAssetPreviews.map((asset) => (
                     <figure key={asset.id}>
                       <img alt={asset.filename} loading="lazy" src={asset.public_url} />
-                      <figcaption><b>{asset.source_type === "persona_master" ? "MASTER · " : ""}{asset.subcategory.replaceAll("_", " ")}</b><span>{asset.persona_id ? asset.persona_id + " · " : ""}{asset.category.replaceAll("_", " ")} · {asset.orientation} · {asset.framing}</span></figcaption>
+                      <figcaption>
+                        <b>{asset.source_type === "persona_master" ? "MASTER · " : ""}{(asset.metadata?.asset_name || asset.subcategory).replaceAll("_", " ")}</b>
+                        <span>{asset.persona_id ? asset.persona_id + " · " : ""}{asset.category.replaceAll("_", " ")} · {asset.orientation} · {asset.framing}</span>
+                        {asset.visual_description && <small className="assetSemanticDescription">{asset.visual_description}</small>}
+                      </figcaption>
                     </figure>
                   ))}
                 </div>
