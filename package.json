@@ -14,6 +14,7 @@
     "convex:migrate-files": "tsx scripts/migrate-files-to-convex.ts",
     "doctor": "tsx src/cli/index.ts doctor",
     "assets:scan": "tsx src/cli/index.ts assets:scan",
+    "assets:retag-stock": "node --env-file=.env.local --import tsx scripts/retag-stock-assets.ts",
     "personas:validate": "tsx src/cli/index.ts personas:validate",
     "personas:bootstrap": "tsx scripts/bootstrap-persona-config.ts",
     "personas:sync": "tsx scripts/sync-persona-image-assets.ts",

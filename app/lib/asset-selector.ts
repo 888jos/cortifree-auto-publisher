@@ -44,14 +44,25 @@ export type VisualIntent = {
   desired_objects: string[];
   desired_actions: string[];
   desired_settings: string[];
+  required_actions: string[];
+  preferred_actions: string[];
+  required_objects: string[];
+  preferred_objects: string[];
+  required_settings: string[];
+  preferred_settings: string[];
   preferred_compositions: string[];
+  preferred_framing: string[];
+  preferred_camera_angles: string[];
+  preferred_lighting: string[];
   people_preference: "any" | "person" | "no_person";
   avoid: string[];
 };
 
 const AUTO_THRESHOLD = 60;
 const CRITICAL_THRESHOLD = 65;
-const EXPLICIT_FALLBACK_THRESHOLD = 50;
+// Hard constraints have already removed incompatible candidates. This fallback
+// keeps a genuinely matching, sparsely described image usable during migration.
+const EXPLICIT_FALLBACK_THRESHOLD = 40;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
 const VISUAL_QA_EXCLUDED_FILENAMES = new Set(["MAYA_SELFCARE_001.jpg"]);
@@ -105,7 +116,9 @@ function assetVisualText(asset: SelectableAsset) {
   ]).join(" ");
 }
 function assetText(asset: SelectableAsset) {
-  return `${assetVisualText(asset)} ${asset.filename} ${asset.category} ${asset.subcategory} ${asset.scene ?? ""} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+  // Observable metadata is the primary retrieval corpus. Filename is a weak
+  // debugging/tie-breaker signal only; folder/category must never decide a match.
+  return `${assetVisualText(asset)} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
 }
 
 function runtimeVisualMetadata(asset: SelectableAsset) {
@@ -120,7 +133,7 @@ function runtimeVisualMetadata(asset: SelectableAsset) {
 function isCanonicalReviewedStock(asset: SelectableAsset) {
   if (asset.source_type !== "stock") return true;
   const metadata = runtimeVisualMetadata(asset);
-  return metadata.schema === "observable_v1" && metadata.reviewStatus === "IMAGE_INSPECTED_V1" && Boolean(metadata.reviewedAt);
+  return (metadata.schema === "observable_v1" && metadata.reviewStatus === "IMAGE_INSPECTED_V1" || metadata.schema === "observable_v2" && metadata.reviewStatus === "IMAGE_INSPECTED_V2") && Boolean(metadata.reviewedAt);
 }
 
 function fieldTerms(value: unknown) {
@@ -197,7 +210,9 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (includesAny(text, ["bowl", "plate", "meal", "food", "snack", "breakfast", "lunch", "dinner", "eat"])) { objects.add("food"); compositions.add("food_layout"); }
   if (includesAny(text, ["laptop", "desk", "study", "work", "coffee shop"])) { objects.add("laptop"); settings.add("work_study"); }
   if (includesAny(text, ["mug", "cup", "tea", "coffee"])) objects.add("cup");
-  if (includesAny(text, ["stretch", "pilates", "yoga", "walk", "walking", "movement", "workout", "run"])) actions.add("movement");
+  if (includesAny(text, ["stretch", "pilates", "yoga", "movement", "workout", "exercise"])) actions.add("movement");
+  if (includesAny(text, ["walk", "walking", "commute"])) actions.add("walking");
+  if (includesAny(text, ["run", "running", "treadmill"])) actions.add("running_on_treadmill");
   if (includesAny(text, ["write", "writing", "journal", "brain dump", "plan"])) actions.add("writing");
   if (includesAny(text, ["prepare", "make", "cook", "pack", "meal prep"])) actions.add("preparing_food");
   if (includesAny(text, ["phone down", "put down", "stop checking", "unplug", "scroll"])) actions.add("putting_phone_down");
@@ -210,12 +225,34 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (objects.has("laptop") || objects.has("notebook")) compositions.add("desk_or_bed_scene");
   const people_preference = includesAny(text, ["no person", "without a person", "setup", "flat lay", "equipment layout"]) && !includesAny(text, ["woman", "person", "hands"])
     ? "no_person" : includesAny(text, ["woman", "person", "girl", "hand writing", "holding"]) ? "person" : "any";
+  const requiredActions = new Set<string>();
+  const requiredObjects = new Set<string>();
+  const requiredSettings = new Set<string>();
+  const avoid = new Set<string>();
+  if (/walk|walking|outside|outdoors|street|commute/.test(text)) { requiredActions.add("walking"); requiredSettings.add("outdoors"); ["gym", "bedroom", "bathroom"].forEach((value) => avoid.add(value)); }
+  if (/treadmill/.test(text)) { requiredActions.add("running_on_treadmill"); requiredSettings.add("commercial_gym"); }
+  if (/grocery|shopping.*produce|produce.*shopping/.test(text)) { requiredActions.add("grocery_shopping"); requiredSettings.add("grocery_store"); }
+  if (/journal|brain dump|notebook|writing/.test(text)) { requiredActions.add("writing"); requiredObjects.add("notebook"); }
+  if (/pilates mat|yoga mat/.test(text)) { requiredObjects.add("exercise_mat"); }
   return {
     description: slide.visualIntent || slide.assetQuery || slide.headline,
     desired_objects: [...objects], desired_actions: [...actions], desired_settings: [...settings],
+    required_actions: [...requiredActions], preferred_actions: [...actions], required_objects: [...requiredObjects], preferred_objects: [...objects], required_settings: [...requiredSettings], preferred_settings: [...settings],
     preferred_compositions: [...compositions], people_preference,
-    avoid: includesAny(text, ["large text", "text overlay", "caption"]) ? ["text_in_image"] : [],
+    preferred_framing: people_preference === "no_person" ? ["top_down", "detail_shot", "wide_shot"] : [], preferred_camera_angles: [], preferred_lighting: settings.has("morning_home") ? ["soft_window_daylight", "bright_daylight"] : [],
+    avoid: [...avoid, ...(includesAny(text, ["large text", "text overlay", "caption"]) ? ["text_in_image"] : [])],
   };
+}
+
+function passesHardConstraints(asset: SelectableAsset, intent: VisualIntent) {
+  const actions = visualTerms(visualField(asset, "visible_actions"));
+  const objects = visualTerms(visualField(asset, "visible_objects"));
+  const settings = visualTerms(visualField(asset, "setting"));
+  const corpus = assetText(asset);
+  return (!intent.required_actions.length || overlap(intent.required_actions, actions).length === intent.required_actions.length)
+    && (!intent.required_objects.length || overlap(intent.required_objects, objects).length === intent.required_objects.length)
+    && (!intent.required_settings.length || overlap(intent.required_settings, settings).length === intent.required_settings.length)
+    && !intent.avoid.some((term) => corpus.includes(normalizeVisualTerm(term)) || corpus.includes(term));
 }
 
 function overlap(desired: string[], actual: string[]) {
@@ -279,9 +316,10 @@ export function chooseAssets(options: {
     // For faceswapped persona assets, identity continuity is mandatory and
     // the generated scene is already the visual reference. Do not discard a
     // valid face asset only because its indexed keywords are sparse.
-    const compatible = options.personaOnly
+    const compatible = (options.personaOnly
       ? usableRequested
-      : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint));
+      : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint)))
+      .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
     const unused = compatible.filter((asset) => !used.has(asset.id));
     const distinct = unused;
     if (!distinct.length) throw new Error(`ASSET_DIVERSITY_EXHAUSTED:slide_${slide.position}:used_${used.size}`);
@@ -310,7 +348,7 @@ export function chooseAssets(options: {
       const lightingScore = intent.desired_settings.some((item) => /morning|evening|night/.test(item)) && visibleLighting.length ? 1 : 0;
       const specificDetails = visualTerms(visualField(asset, "specific_details"));
       const detailScore = intent.desired_objects.filter((term) => specificDetails.includes(normalizeVisualTerm(term))).length / Math.max(1, intent.desired_objects.length);
-      const categoryBonus = categoryByType[options.carouselType]?.includes(asset.category) ? 4 : 0;
+      const categoryBonus = 0;
       const legacyQueryTerms = terms(`${slide.assetQuery ?? ""} ${slide.visualIntent ?? ""}`);
       const legacyQueryMatches = legacyQueryTerms.filter((term) => haystack.includes(term));
       const legacyQueryScore = Math.min(20, legacyQueryMatches.length * 2.5);
@@ -318,7 +356,7 @@ export function chooseAssets(options: {
       // tagging, without letting this legacy path affect stock ranking.
       const personaSceneScore = slide.assetType === "persona" && asset.source_type === "persona_generated" && requiresPersonaScene ? 20 : 0;
       const textPenalty = visibleText.length && !intent.desired_objects.includes("laptop") ? 5 : 0;
-      let score = semanticScore * 30 + objectScore * 25 + actionScore * 10 + settingScore * 10 + detailScore * 10 + compositionScore * 5 + peopleScore * 4 + cameraScore * 3 + lightingScore * 2 + categoryBonus + legacyQueryScore + personaSceneScore - textPenalty;
+      let score = semanticScore * 35 + actionScore * 20 + objectScore * 15 + settingScore * 12 + compositionScore * 6 + detailScore * 5 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + legacyQueryScore + personaSceneScore - textPenalty;
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
@@ -393,12 +431,14 @@ export function selectAssetOrGeneration(options: {
   visualIntent: string;
   minimumScore?: number;
 }): JitAssetDecision {
-  const minimumScore = options.minimumScore ?? AUTO_THRESHOLD;
+  // JIT is only a reuse-vs-generation hint, not the production carousel QA
+  // gate; observable metadata can be sparse for newly generated persona art.
+  const minimumScore = options.minimumScore ?? 30;
   const score = (asset: JitSelectableAsset) => {
     const queryTerms = terms(`${options.category} ${options.visualIntent}`);
     const haystack = assetText(asset);
     const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
-    let value = matchedTerms.length * 8 + (asset.category === options.category ? 24 : 0);
+    let value = matchedTerms.length * 8;
     value += fieldTerms(asset.scene).some((term) => matchedTerms.includes(term)) ? 12 : 0;
     value += fieldTerms(asset.good_for).some((term) => matchedTerms.includes(term)) ? 12 : 0;
     value += asset.orientation === "portrait" ? 8 : 0;

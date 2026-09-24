@@ -94,7 +94,8 @@ function sheetQaFlag(row: Row) {
 function visualTaggingSchema(row: Row) {
   const explicit = String(row.visual_tagging_schema ?? "").trim();
   if (explicit) return explicit;
-  return String(row.visual_review_status ?? row.review_status ?? "").trim().toUpperCase() === "IMAGE_INSPECTED_V1" ? "observable_v1" : "";
+  const status = String(row.visual_review_status ?? row.review_status ?? "").trim().toUpperCase();
+  return status === "IMAGE_INSPECTED_V2" ? "observable_v2" : status === "IMAGE_INSPECTED_V1" ? "observable_v1" : "";
 }
 function sheetSelectable(row: Row) {
   return row.enabled !== false && !["DUPLICATE", "REVIEW"].includes(sheetReviewStatus(row)) && sheetQaFlag(row) !== "MULTI_PERSON_AUTO_DISABLED";
@@ -217,7 +218,11 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       if (!existing || !row.drive_file_id) continue;
       const expectedCategory = String(row.category || existing.category || "uncategorized");
       const expectedSubcategory = String(row.scene || row.category || existing.subcategory || "uncategorized");
-      const metadataNeedsRepair = String(existing.category ?? "") !== expectedCategory
+      // Vision V2 is a per-image pixel inspection. A legacy Sheet row must
+      // never overwrite it with generic directory-derived metadata.
+      const existingIsVisionV2 = String(existing.visual_tagging_schema || runtimeMetadata(existing).visual_tagging_schema || "").toLowerCase() === "observable_v2"
+        && String(existing.visual_review_status || runtimeMetadata(existing).visual_review_status || "").toUpperCase() === "IMAGE_INSPECTED_V2";
+      const metadataNeedsRepair = !existingIsVisionV2 && (String(existing.category ?? "") !== expectedCategory
         || String(existing.subcategory ?? "") !== expectedSubcategory
         || String(existing.scene ?? "") !== String(row.scene ?? "")
         || String(existing.framing ?? "") !== String(row.framing ?? "")
@@ -239,7 +244,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || String(existing.visual_review_status ?? "") !== String(row.visual_review_status ?? "")
         || !sameTimestamp(existing.visual_reviewed_at, row.visual_reviewed_at)
         || !sameCanonicalValue(existing.tags, split(row.tags))
-        || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars));
+        || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars)));
       if (!metadataNeedsRepair) continue;
       repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory });
     }

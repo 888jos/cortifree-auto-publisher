@@ -18,8 +18,8 @@ export async function GET(request: Request) {
       const visualMetadataMissing = stock.filter((asset) => !String(asset.scene ?? "").trim() || !Array.isArray(asset.good_for) || asset.good_for.length === 0).length;
       const observableTagged = stock.filter((asset) => {
         const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
-        return String(asset.visual_tagging_schema || metadata.visual_tagging_schema || "").toLowerCase() === "observable_v1"
-          && String(asset.visual_review_status || metadata.visual_review_status || "").toUpperCase() === "IMAGE_INSPECTED_V1";
+        return String(asset.visual_tagging_schema || metadata.visual_tagging_schema || "").toLowerCase() === "observable_v2"
+          && String(asset.visual_review_status || metadata.visual_review_status || "").toUpperCase() === "IMAGE_INSPECTED_V2";
       }).length;
       return Response.json({
         assets: grouped,
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
           }, {}))),
           stock_metadata_missing_scene_or_good_for: visualMetadataMissing,
           stock_observable_tagged: observableTagged,
-          stock_observable_tagging_schema: "observable_v1",
+          stock_observable_tagging_schema: "observable_v2",
         },
         audit: rows.map(({ id, category, subcategory, scene, good_for, filename, orientation, framing, activity, mood, colors, use_count, source_type, persona_id, visual_description, visible_objects, visible_actions, setting, people_visibility, body_parts_visible, composition, camera_angle, lighting, dominant_colors, text_in_image, specific_details, visual_tagging_schema, visual_review_status, visual_reviewed_at, metadata }) => ({ id, category, subcategory, scene, good_for, filename, orientation, framing, activity, mood, colors, use_count, source_type, persona_id, visual_description, visible_objects, visible_actions, setting, people_visibility, body_parts_visible, composition, camera_angle, lighting, dominant_colors, text_in_image, specific_details, visual_tagging_schema, visual_review_status, visual_reviewed_at, metadata })),
       });
