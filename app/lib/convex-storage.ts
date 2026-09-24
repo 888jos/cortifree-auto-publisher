@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
-import type { Id } from "../../convex/_generated/dataModel";
-import { api } from "../../convex/_generated/api";
+import { anyApi } from "convex/server";
+
+const api = anyApi;
 import { backendMode } from "./data-backend";
 
 let client: ConvexHttpClient | null = null;
@@ -31,7 +32,7 @@ export async function uploadConvexFile(bytes: Uint8Array, contentType: string) {
   const uploadUrl = await convex.mutation(api.data.generateUploadUrl, { secret });
   const response = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": contentType }, body: new Uint8Array(bytes) });
   if (!response.ok) throw new Error(`Convex file upload failed: ${response.status}`);
-  const { storageId } = await response.json() as { storageId: Id<"_storage"> };
+  const { storageId } = await response.json() as { storageId: string };
   const publicUrl = await convex.query(api.data.storageUrl, { secret, storageId });
   if (!publicUrl) throw new Error("Convex returned no file URL");
   return { storageId, publicUrl };
