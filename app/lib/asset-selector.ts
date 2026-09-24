@@ -91,17 +91,17 @@ function terms(value: string) {
 
 const visualSynonyms: Record<string, string> = {
   pilates_mat: "exercise_mat", yoga_mat: "exercise_mat", mat: "exercise_mat",
-  sofa: "sofa", couch: "sofa", notebook: "notebook", open_notebook: "notebook", journal: "notebook", planner: "notebook",
+  sofa: "sofa", couch: "sofa", notebook: "notebook", open_notebook: "notebook", journal: "notebook", open_journal: "notebook", spiral_notebook: "notebook", planner: "notebook",
   running_shoes: "sneakers", sneakers: "sneakers", trainers: "sneakers", mobile: "phone", mobile_phone: "phone", smartphone: "phone",
   cup: "cup", mug: "cup", earbuds: "headphones", headphones: "headphones", desk: "work_surface", laptop: "laptop", laptop_computer: "laptop", macbook: "laptop", bath: "bathtub", bathtub: "bathtub",
   bedding: "bed", white_bedding: "bed", duvet: "bed", sheets: "bed",
   walking: "movement", walk: "movement", jogging: "movement", walking_or_running: "movement", walking_or_jogging: "movement", standing_or_walking: "movement",
   cooking: "preparing_food", meal_prep: "preparing_food",
-  treadmill: "running_on_treadmill",
+  treadmill: "running_on_treadmill", walking_on_treadmill: "running_on_treadmill", running_on_treadmill: "running_on_treadmill",
   reaching_for_produce: "grocery_shopping", holding_cart: "grocery_shopping",
   bedroom: "bedroom", bedroom_by_window: "bedroom", bedroom_or_soft_surface: "bedroom", bed_or_soft_surface: "bedroom", bedside_area: "bedroom",
   home_interior: "indoor_room", indoor_room: "indoor_room", living_room: "indoor_room", home_living_room: "indoor_room",
-  outdoors: "outdoors", outdoor_path: "outdoors", urban_outdoors: "outdoors", rural_outdoors: "outdoors", park: "outdoors", forest: "outdoors", woodland_path: "outdoors", coastal_path: "outdoors", outdoor_garden_or_field: "outdoors", outdoor_market: "outdoors", outdoor_table: "outdoors", outdoor_or_market_surface: "outdoors", park_or_open_field: "outdoors", autumn_path: "outdoors", autumn_park: "outdoors", winter_park: "outdoors", lakeside_or_riverside_park: "outdoors", paris_city_street: "outdoors", busy_city_street: "outdoors", urban_tree_lined_street: "outdoors",
+  outdoors: "outdoors", outdoor_path: "outdoors", outdoor_sidewalk: "outdoors", urban_outdoors: "outdoors", rural_outdoors: "outdoors", rural_or_suburban_path: "outdoors", rural_tree_lined_path: "outdoors", park: "outdoors", forest: "outdoors", woodland_path: "outdoors", woodland_greenway: "outdoors", woodland_autumn_path: "outdoors", coastal_path: "outdoors", outdoor_garden_or_field: "outdoors", outdoor_grass_and_dirt_path: "outdoors", outdoor_market: "outdoors", outdoor_table: "outdoors", outdoor_garden_table: "outdoors", outdoor_or_market_surface: "outdoors", outdoor_walkway: "outdoors", park_or_open_field: "outdoors", park_or_greenway_path: "outdoors", autumn_path: "outdoors", outdoor_autumn_path: "outdoors", autumn_park: "outdoors", winter_park: "outdoors", lakeside_or_riverside_park: "outdoors", lakeside_park: "outdoors", open_field_near_woods: "outdoors", sunny_outdoor_trail: "outdoors", paris_city_street: "outdoors", paris_intersection: "outdoors", barcelona_city_street: "outdoors", new_york_city_street: "outdoors", london_city_street: "outdoors", busy_city_street: "outdoors", busy_city_shopping_street: "outdoors", urban_tree_lined_street: "outdoors", suburban_street_at_sunset: "outdoors", beach_access_path_at_sunset: "outdoors", snowy_mountain_field: "outdoors",
   commercial_gym: "commercial_gym", gym_cardio_area: "commercial_gym", gym_floor_area: "commercial_gym", gym_strength_area: "commercial_gym", gym_cardio_machine: "commercial_gym", gym_or_locker_area: "commercial_gym", gym_locker_room: "commercial_gym", pilates_studio: "commercial_gym",
   grocery_store: "grocery_store", grocery_store_produce_aisle: "grocery_store",
 };
@@ -110,8 +110,11 @@ function normalizeVisualTerm(value: string) {
   return visualSynonyms[normalized] ?? normalized;
 }
 function visualTerms(value: unknown) {
-  const values = Array.isArray(value) ? value : String(value ?? "").split(/[|,]/);
-  return [...new Set(values.flatMap((item) => String(item).split(/\s+/).map(normalizeVisualTerm).filter((term) => term.length > 2)))];
+  const flatten = (input: unknown): string[] =>
+    Array.isArray(input)
+      ? input.flatMap(flatten)
+      : String(input ?? "").split(/[|,\s]+/).filter(Boolean);
+  return [...new Set(flatten(value).map(normalizeVisualTerm).filter((term) => term.length > 2))];
 }
 function visualField(asset: SelectableAsset, field: string): unknown {
   const direct = (asset as unknown as Record<string, unknown>)[field];
