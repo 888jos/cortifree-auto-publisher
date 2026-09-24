@@ -150,6 +150,30 @@ describe('persona image infrastructure', () => {
     assert.ok(scoreVisualReferenceForScene(kitchen, scene) >= 6);
   });
 
+  it('penalizes scene-incompatible and non-human refs with the canonical scorer', () => {
+    const outdoor = visualReferenceSchema.parse({
+      id: 'VR_OUTDOOR', category: 'outdoors_walk', source_platform: 'manual',
+      pose: 'walking full body', framing: 'full body', outfit: 'casual',
+      environment: 'city sidewalk park', lighting: 'daylight',
+      tags: ['walking', 'outdoor', 'street'], good_for: ['outdoors_walk'], enabled: true,
+      metadata: { review_status: 'OK' },
+    });
+    const emptyRoom = visualReferenceSchema.parse({
+      id: 'VR_EMPTY', category: 'hero_misc', source_platform: 'manual',
+      pose: 'none', framing: 'wide', outfit: '',
+      environment: 'empty room', lighting: 'daylight',
+      tags: ['environment reference', 'no_person'], good_for: ['room'], enabled: true,
+      metadata: { review_status: 'OK' },
+    });
+    const scene = {
+      category: 'outdoors',
+      scene_description: 'young woman walking outside on a city sidewalk in daylight',
+      recommended_reference_categories: ['outdoors_walk'],
+    };
+    assert.ok(scoreVisualReferenceForScene(outdoor, scene) > scoreVisualReferenceForScene(emptyRoom, scene));
+    assert.ok(scoreVisualReferenceForScene(emptyRoom, scene) < 0);
+  });
+
   it('stores local assets without overwrite and refuses MASTER writes', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortifree-storage-'));
     const storage = new LocalDriveAssetStorage(root);
