@@ -141,6 +141,70 @@ describe('asset scanner', () => {
     }
   });
 
+  it('normalizes real V1 setting/action variants before hard constraints', () => {
+    const base = (id: string, description: string, visible_objects: string[], visible_actions: string[], setting: string): SelectableAsset => ({
+      id,
+      filename: `${id}.jpg`,
+      category: 'legacy',
+      subcategory: 'legacy',
+      orientation: 'portrait',
+      framing: 'medium',
+      activity: visible_actions.join(' '),
+      mood: 'natural',
+      colors: [],
+      tags: [],
+      public_url: `https://example.com/${id}.jpg`,
+      use_count: 0,
+      last_used_at: null,
+      source_type: 'stock',
+      visual_description: description,
+      visible_objects,
+      visible_actions,
+      setting,
+      people_visibility: 'partial_body',
+      body_parts_visible: [],
+      composition: 'person_activity_scene',
+      camera_angle: 'first_person',
+      lighting: 'bright_daylight',
+      dominant_colors: [],
+      text_in_image: 'none',
+      specific_details: description,
+      visual_tagging_schema: 'observable_v1',
+      visual_review_status: 'IMAGE_INSPECTED_V1',
+      visual_reviewed_at: '2026-09-22T00:00:00.000Z',
+    });
+
+    const cases: Array<{ slide: { headline: string; body: string; assetQuery: string; visualIntent: string }; asset: SelectableAsset }> = [
+      {
+        slide: { headline: '10 minute walk outside', body: 'A quick morning walk before work.', assetQuery: 'outdoor morning walk', visualIntent: 'first person walking outside on a path in daylight' },
+        asset: base('walk', 'first person walking outside on an outdoor path in bright morning daylight', ['sidewalk', 'grass'], ['walking'], 'outdoor_path'),
+      },
+      {
+        slide: { headline: 'Brain dump in bed', body: 'Journal for five minutes before sleep.', assetQuery: 'notebook writing in bed', visualIntent: 'writing in an open notebook while sitting on bed' },
+        asset: base('journal', 'hand writing in an open notebook on a bed', ['open_notebook', 'pen', 'bed'], ['writing'], 'bed_or_soft_surface'),
+      },
+      {
+        slide: { headline: 'Treadmill session', body: 'Easy cardio at the gym.', assetQuery: 'treadmill POV', visualIntent: 'running on treadmill in gym cardio area' },
+        asset: base('treadmill', 'first person running on a treadmill in a gym cardio area', ['treadmill'], ['using_cardio_machine'], 'gym_cardio_area'),
+      },
+      {
+        slide: { headline: 'Grocery reset', body: 'Pick produce for simple meals.', assetQuery: 'grocery shopping produce aisle', visualIntent: 'woman grocery shopping and reaching for produce' },
+        asset: base('grocery', 'woman grocery shopping in a produce aisle reaching for vegetables', ['produce', 'shopping_cart'], ['reaching_for_produce'], 'grocery_store_produce_aisle'),
+      },
+    ];
+
+    for (const { slide, asset } of cases) {
+      const [selected] = chooseAssets({
+        carouselType: 'C06_POV_RELATABLE',
+        assets: [asset],
+        personaId: 'P01',
+        slides: [{ position: 2, role: 'TIP', assetType: 'stock', ...slide }],
+      });
+      assert.equal(selected?.asset.id, asset.id);
+      assert.equal(selected?.fallbackPath === 'primary' || selected?.fallbackPath === 'explicit_noncritical_fallback', true);
+    }
+  });
+
   it('requires reviewed observable stock and derives physical intent', () => {
     const reviewed = {
       id: 'reviewed', filename: 'reviewed.jpg', category: 'fitness', subcategory: 'fitness', orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/reviewed.jpg', use_count: 0, last_used_at: null, source_type: 'stock', visual_description: 'open notebook on a bed with a pen', visible_objects: ['notebook', 'bed', 'pen'], visible_actions: ['writing'], setting: 'bedroom', people_visibility: 'no_person', body_parts_visible: [], composition: 'bedroom_scene', camera_angle: 'high_angle', lighting: 'soft_indoor_natural_light', dominant_colors: [], text_in_image: '', specific_details: 'handwritten_pages', visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1', visual_reviewed_at: '2026-09-22T00:00:00.000Z',
