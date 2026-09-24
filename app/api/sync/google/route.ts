@@ -17,12 +17,14 @@ async function run(request: Request) {
   const limit = Number(url.searchParams.get("limit") || process.env.GOOGLE_DRIVE_SYNC_BATCH || 40);
   const offset = Number(url.searchParams.get("offset") || 0);
   const scope = url.searchParams.get("scope") || "all";
+  const personaId = url.searchParams.get("persona_id")?.trim().toUpperCase() || undefined;
+  if (personaId && !/^P\d{2}$/.test(personaId)) return Response.json({ ok: false, error: "Invalid persona_id; expected P01..P16" }, { status: 400 });
   try {
     const editorial = scope === "all" || scope === "sheet"
       ? await syncEditorialSheetToConvex()
       : { status: "SKIPPED", reason: "Drive-only scope; canonical editorial mirror unchanged" };
     if (scope === "sheet") return Response.json({ ok: true, editorial, synced_at: new Date().toISOString() });
-    const drive = await syncGoogleDriveToConvex({ limit, offset, scope: scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? scope : "all" });
+    const drive = await syncGoogleDriveToConvex({ limit, offset, personaId, scope: scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? scope : "all" });
     return Response.json({ ok: true, editorial, drive, synced_at: new Date().toISOString() });
   } catch (error) {
     return Response.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });
