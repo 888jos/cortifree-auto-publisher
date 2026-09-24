@@ -247,6 +247,8 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (/treadmill/.test(text)) { requiredActions.add("running_on_treadmill"); requiredSettings.add("commercial_gym"); }
   if (/grocery|shopping.*produce|produce.*shopping/.test(text)) { requiredActions.add("grocery_shopping"); requiredSettings.add("grocery_store"); }
   if (/journal|brain dump|notebook|writing/.test(text)) { requiredActions.add("writing"); requiredObjects.add("notebook"); }
+  if (/(journal|brain dump|notebook|writing)/.test(text) && /\b(bed|bedroom)\b/.test(text)) requiredSettings.add("bedroom");
+  if (/\b(home|at home)\b/.test(text) && /\b(pilates|yoga|workout|exercise)\b/.test(text)) requiredSettings.add("indoor_room");
   if (/pilates mat|yoga mat/.test(text)) { requiredObjects.add("exercise_mat"); }
   return {
     description: slide.visualIntent || slide.assetQuery || slide.headline,
