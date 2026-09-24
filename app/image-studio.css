@@ -3,3 +3,5 @@
 .batchButton{border:1px solid #cfd8cc;background:#eef3ea;color:#45604c;padding:9px 12px;border-radius:6px;font-weight:700;cursor:pointer;white-space:nowrap}
 @media(max-width:900px){.visualReferenceGrid{grid-template-columns:1fr 1fr}.imageStudioBar{align-items:flex-start;flex-direction:column}.assetFilters{grid-template-columns:1fr}}
 @media(max-width:620px){.visualReferenceGrid{grid-template-columns:1fr}.identityEquation{grid-template-columns:1fr}.identityEquation>strong{display:none}.imageGeneratorFields,.batchColumns,.batchControls{grid-template-columns:1fr}.imageGeneratorFields .full{grid-column:auto}.identityEquation figure{grid-template-columns:100px 1fr}.identityEquation img,.identityEquation .referencePlaceholder{width:100px}.batchEstimate{grid-template-columns:1fr 1fr}.batchEstimate div:nth-child(2){border-right:0}}
+
+.assetSemanticDescription{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:#737d75;font-size:10px;line-height:1.35;margin-top:4px}
