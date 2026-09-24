@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "next build",
+    "vercel-build": "next build && node --import tsx scripts/e2e-render-probe.ts",
     "start": "next start",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
