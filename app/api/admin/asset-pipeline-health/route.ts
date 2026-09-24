@@ -36,8 +36,10 @@ export async function GET() {
     const generated = assets.filter((row) => row.source_type === "persona_generated");
 
     const canonicalStock = stockSheet.filter((row) => text(row.source_type).toLowerCase() === "stock");
+    const canonicalActiveStock = canonicalStock.filter((row) => truthy(row.enabled) && text(row.sync_status).toUpperCase() !== "DUPLICATE_SKIPPED");
+    const duplicateStockRows = canonicalStock.filter((row) => !truthy(row.enabled) && text(row.sync_status).toUpperCase() === "DUPLICATE_SKIPPED");
     const canonicalStockByDrive = new Map<string, Row>(
-      canonicalStock
+      canonicalActiveStock
         .map((row) => [text(row.drive_file_id), row] as const)
         .filter(([id]) => Boolean(id)),
     );
@@ -83,7 +85,7 @@ export async function GET() {
 
     const status = missingStock.length || missingRefs.length || missingMasters.length || duplicateMasters.length || brokenUrls.length
       ? "DEGRADED"
-      : stockV2.length < canonicalStock.length
+      : stockV2.length < canonicalActiveStock.length
         ? "NEEDS_VISION_V2"
         : "HEALTHY";
 
@@ -91,7 +93,9 @@ export async function GET() {
       status,
       checked_at: new Date().toISOString(),
       stock: {
-        canonical: canonicalStock.length,
+        canonical_rows: canonicalStock.length,
+        canonical_active_unique: canonicalActiveStock.length,
+        duplicate_rows_skipped: duplicateStockRows.map((row) => ({ filename: row.filename ?? null, drive_file_id: row.drive_file_id ?? null })),
         runtime: stock.length,
         runtime_enabled: stock.filter((row) => truthy(row.enabled)).length,
         observable_v2: stockV2.length,
