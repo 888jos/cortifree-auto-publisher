@@ -108,7 +108,14 @@ function runtimeMetadata(row: Row) {
 
 const syncLocks = new Map<string, Promise<unknown>>();
 
-async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" } = {}) {
+type DriveSyncOptions = {
+  limit?: number;
+  offset?: number;
+  scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing";
+  personaId?: string;
+};
+
+async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
   const offset = Math.max(0, options.offset ?? 0);
   const scope = options.scope ?? "all";
@@ -125,6 +132,15 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     scope === "visual_refs" ? Promise.resolve([]) : backendRows("assets?select=*&limit=5000"),
     backendRows("visual_references?select=*&limit=5000"),
   ]);
+  const requestedPersonaId = options.personaId?.trim().toUpperCase() || "";
+  if (requestedPersonaId && !/^P\d{2}$/.test(requestedPersonaId)) throw new Error(`Invalid personaId: ${options.personaId}`);
+  const selectedPersonaTree = requestedPersonaId
+    ? personaTree.filter((entry) => {
+        try { return personaIdFromFolder(entry.path[0] ?? "") === requestedPersonaId; }
+        catch { return false; }
+      })
+    : personaTree;
+
   const stockByDrive = new Map(stockTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const refsByDrive = new Map(refTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const assetByDrive = new Map(existingAssets.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
@@ -574,15 +590,17 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     uploaded += 1;
   }
 
-  const tasks: Array<() => Promise<void>> = scope === "visual_refs" || scope === "visual_refs_missing"
-    ? visualRefEntries.map((entry) => () => syncReference(entry))
-    : scope === "assets" || scope === "stock" || scope === "stock_missing"
-      ? [...personaTree.map((entry) => () => syncPersona(entry)), ...stockEntries.map((entry) => () => syncStock(entry))]
-      : [
-          ...personaTree.map((entry) => () => syncPersona(entry)),
-          ...stockTree.map((entry) => () => syncStock(entry)),
-          ...refTree.map((entry) => () => syncReference(entry)),
-        ];
+  const tasks: Array<() => Promise<void>> = requestedPersonaId
+    ? selectedPersonaTree.map((entry) => () => syncPersona(entry))
+    : scope === "visual_refs" || scope === "visual_refs_missing"
+      ? visualRefEntries.map((entry) => () => syncReference(entry))
+      : scope === "assets" || scope === "stock" || scope === "stock_missing"
+        ? [...selectedPersonaTree.map((entry) => () => syncPersona(entry)), ...stockEntries.map((entry) => () => syncStock(entry))]
+        : [
+            ...selectedPersonaTree.map((entry) => () => syncPersona(entry)),
+            ...stockTree.map((entry) => () => syncStock(entry)),
+            ...refTree.map((entry) => () => syncReference(entry)),
+          ];
   for (const task of tasks) {
     if (uploaded >= limit) break;
     try { await task(); }
@@ -619,8 +637,9 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
     duplicates_skipped: duplicatesSkipped,
     metadata_repaired: metadataRepaired,
     failed,
-    remaining_hint: Math.max(0, (scope === "visual_refs" ? refTree : [...stockTree, ...personaTree, ...refTree]).filter((x) => isImage(x.file)).length - skipped - uploaded),
+    remaining_hint: Math.max(0, (requestedPersonaId ? selectedPersonaTree : scope === "visual_refs" ? refTree : [...stockTree, ...selectedPersonaTree, ...refTree]).filter((x) => isImage(x.file)).length - skipped - uploaded),
     scope,
+    persona_id: requestedPersonaId || null,
     failures: failures.slice(0, 20),
     audit: {
       sheet_count: scope === "visual_refs" || scope === "visual_refs_missing" ? refTaxonomy.length : stockTaxonomy.length,
@@ -659,8 +678,8 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
 
 /** Serialize syncs per scope in one process; database unique keys protect
  * concurrent Vercel instances and retries across processes. */
-export async function syncGoogleDriveToConvex(options: { limit?: number; offset?: number; scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" } = {}) {
-  const key = `${backendMode()}:${options.scope ?? "all"}`;
+export async function syncGoogleDriveToConvex(options: DriveSyncOptions = {}) {
+  const key = `${backendMode()}:${options.scope ?? "all"}:${options.personaId ?? "*"}`;
   const previous = syncLocks.get(key) ?? Promise.resolve();
   const current = previous.then(() => syncGoogleDriveToBackendUnlocked(options));
   syncLocks.set(key, current);
