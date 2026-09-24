@@ -78,6 +78,69 @@ describe('asset scanner', () => {
     }
   });
 
+  it('normalizes legacy V1 action, object, and setting variants before hard constraints', () => {
+    const asset = (id: string, description: string, objects: string[], actions: string[], setting: string): SelectableAsset => ({
+      id,
+      filename: `${id}.jpg`,
+      category: 'legacy',
+      subcategory: 'legacy',
+      orientation: 'portrait',
+      framing: 'medium',
+      activity: actions.join(' '),
+      mood: 'natural',
+      colors: [],
+      tags: [],
+      public_url: `https://example.com/${id}.jpg`,
+      use_count: 0,
+      last_used_at: null,
+      source_type: 'stock',
+      visual_description: description,
+      visible_objects: objects,
+      visible_actions: actions,
+      setting,
+      people_visibility: 'partial_person',
+      body_parts_visible: ['hands'],
+      composition: 'person_activity_scene',
+      camera_angle: 'eye_level',
+      lighting: 'natural_daylight',
+      dominant_colors: [],
+      text_in_image: 'none',
+      specific_details: description,
+      visual_tagging_schema: 'observable_v1',
+      visual_review_status: 'IMAGE_INSPECTED_V1',
+      visual_reviewed_at: '2026-09-22T00:00:00.000Z',
+    });
+
+    const cases = [
+      {
+        slide: { headline: '10 minute walk outside', body: 'A quick walk before work.', assetQuery: 'walking outdoors on a path', visualIntent: 'woman walking outside on an outdoor path' },
+        candidate: asset('walk', 'woman walking outdoors on a leafy path in daylight', ['sneakers'], ['walking'], 'outdoor_path'),
+      },
+      {
+        slide: { headline: 'Treadmill workout', body: 'A short treadmill run.', assetQuery: 'treadmill POV in gym', visualIntent: 'running on treadmill in commercial gym' },
+        candidate: asset('treadmill', 'first person view using a treadmill in a gym cardio area', ['treadmill'], ['walking_or_running'], 'gym_cardio_area'),
+      },
+      {
+        slide: { headline: 'Grocery shopping', body: 'Grab produce for the week.', assetQuery: 'shopping for produce', visualIntent: 'woman grocery shopping in produce aisle' },
+        candidate: asset('grocery', 'woman reaching for produce while grocery shopping', ['produce', 'shopping_cart'], ['reaching_for_produce'], 'grocery_store_produce_aisle'),
+      },
+      {
+        slide: { headline: 'Journal before bed', body: 'Write one page.', assetQuery: 'open notebook in bed', visualIntent: 'writing in an open notebook in bedroom' },
+        candidate: asset('journal', 'hand writing in an open notebook while sitting in bed', ['open_notebook', 'pen', 'bed'], ['writing'], 'bedroom_by_window'),
+      },
+    ];
+
+    for (const { slide, candidate } of cases) {
+      const [selected] = chooseAssets({
+        carouselType: 'C06_POV_RELATABLE',
+        personaId: 'P01',
+        assets: [candidate],
+        slides: [{ position: 2, role: 'TIP', assetType: 'stock', ...slide }],
+      });
+      assert.equal(selected?.asset.id, candidate.id);
+    }
+  });
+
   it('requires reviewed observable stock and derives physical intent', () => {
     const reviewed = {
       id: 'reviewed', filename: 'reviewed.jpg', category: 'fitness', subcategory: 'fitness', orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/reviewed.jpg', use_count: 0, last_used_at: null, source_type: 'stock', visual_description: 'open notebook on a bed with a pen', visible_objects: ['notebook', 'bed', 'pen'], visible_actions: ['writing'], setting: 'bedroom', people_visibility: 'no_person', body_parts_visible: [], composition: 'bedroom_scene', camera_angle: 'high_angle', lighting: 'soft_indoor_natural_light', dominant_colors: [], text_in_image: '', specific_details: 'handwritten_pages', visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1', visual_reviewed_at: '2026-09-22T00:00:00.000Z',

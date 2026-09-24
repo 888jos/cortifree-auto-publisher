@@ -2,6 +2,7 @@ import { backendMode, dataBackend } from "../data-backend";
 import { uploadConvexFile } from "../convex-storage";
 import { listDriveChildren, getDriveFile, downloadDriveFile, type DriveFile } from "../google/drive";
 import { readSheetObjects } from "../google/sheets";
+import { personaIdFromFolder } from "../../../src/personas/identity";
 
 type Row = Record<string, unknown>;
 type WalkedFile = { file: DriveFile; path: string[] };
@@ -191,7 +192,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         enabled: sheetSelectable(row),
         metadata: { qa_flag: row.qa_flag ?? null, review_status: row.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       };
-      const changed = String(existing.category ?? "") !== String(expected.category)
+      const metadataChanged = String(existing.category ?? "") !== String(expected.category)
         || String(existing.pose ?? "") !== String(expected.pose)
         || String(existing.framing ?? "") !== String(expected.framing)
         || String(existing.outfit ?? "") !== String(expected.outfit)
@@ -200,8 +201,22 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || existing.enabled !== expected.enabled
         || !sameCanonicalValue(existing.tags, expected.tags)
         || !sameCanonicalValue(existing.good_for, expected.good_for);
-      return changed ? { id: String(existing.id), expected } : null;
-    }).filter((repair): repair is { id: string; expected: Row } => Boolean(repair));
+      const syncStateNeedsRepair = String(existing.sync_status ?? "") !== "SYNCED"
+        || !existing.synced_at
+        || String(existing.source_hash ?? "") !== String(existing.file_hash ?? "");
+      return metadataChanged || syncStateNeedsRepair ? {
+        id: String(existing.id),
+        expected: {
+          ...expected,
+          canonical_updated_at: existing.canonical_updated_at ?? existing.updated_at ?? null,
+          synced_at: new Date().toISOString(),
+          source_hash: existing.file_hash ?? existing.source_hash ?? null,
+          sync_status: "SYNCED",
+          sync_error: null,
+          metadata: { ...runtimeMetadata(existing), ...runtimeMetadata(expected), canonical_source: "08_VISUAL_REFS" },
+        },
+      } : null;
+    }).filter(Boolean) as Array<{ id: string; expected: Row }>;
     for (let index = 0; index < refRepairs.length; index += 20) {
       const batch = refRepairs.slice(index, index + 20);
       await Promise.all(batch.map(({ id, expected }) => patch("visual_references", id, { ...expected, updated_at: new Date().toISOString() })));
@@ -210,7 +225,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
   }
 
   if (scope === "assets" || scope === "stock" || scope === "stock_missing") {
-    const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string }> = [];
+    const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string; existingIsVisionV2: boolean }> = [];
     for (const row of stockTaxonomy) {
       const existing = row.drive_file_id
         ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""))
@@ -245,12 +260,15 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || !sameTimestamp(existing.visual_reviewed_at, row.visual_reviewed_at)
         || !sameCanonicalValue(existing.tags, split(row.tags))
         || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars)));
-      if (!metadataNeedsRepair) continue;
-      repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory });
+      const syncStateNeedsRepair = String(existing.sync_status ?? "") !== "SYNCED"
+        || !existing.synced_at
+        || String(existing.source_hash ?? "") !== String(existing.drive_md5 ?? "");
+      if (!metadataNeedsRepair && !syncStateNeedsRepair) continue;
+      repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory, existingIsVisionV2 });
     }
     for (let index = 0; index < repairs.length; index += 20) {
       const batch = repairs.slice(index, index + 20);
-      await Promise.all(batch.map(async ({ id, row, existing, expectedCategory, expectedSubcategory }) => {
+      await Promise.all(batch.map(async ({ id, row, existing, expectedCategory, expectedSubcategory, existingIsVisionV2 }) => {
         await patch("assets", id, {
           category: expectedCategory,
           subcategory: expectedSubcategory,
@@ -276,7 +294,12 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
           tags: split(row.tags),
           good_for: split(row.good_for_pillars),
           enabled: row.enabled !== false,
-          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null, visual_tagging_schema: visualTaggingSchema(row), visual_review_status: row.visual_review_status ?? "", visual_reviewed_at: row.visual_reviewed_at ?? null },
+          canonical_updated_at: existing.drive_modified_time ?? existing.canonical_updated_at ?? null,
+          synced_at: new Date().toISOString(),
+          source_hash: existing.drive_md5 ?? existing.source_hash ?? null,
+          sync_status: "SYNCED",
+          sync_error: null,
+          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null, visual_tagging_schema: existingIsVisionV2 ? "observable_v2" : visualTaggingSchema(row), visual_review_status: existingIsVisionV2 ? "IMAGE_INSPECTED_V2" : row.visual_review_status ?? "", visual_reviewed_at: existingIsVisionV2 ? existing.visual_reviewed_at ?? runtimeMetadata(existing).visual_reviewed_at ?? null : row.visual_reviewed_at ?? null },
           indexed_at: new Date().toISOString(),
         });
       }));
@@ -323,7 +346,12 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: selectable,
-      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
+      canonical_updated_at: entry.file.modifiedTime ?? null,
+      synced_at: new Date().toISOString(),
+      source_hash: entry.file.md5Checksum ?? null,
+      sync_status: "SYNCED",
+      sync_error: null,
+      metadata: { ...(existing ? runtimeMetadata(existing) : {}), drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
     if (existing && (md5Matches(existing, entry.file) || existing.filename === entry.file.name || existing.drive_file_id === entry.file.id)) {
@@ -359,13 +387,39 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
   async function syncPersona(entry: WalkedFile) {
     if (!isImage(entry.file) || uploaded >= limit) return;
     const personaFolder = entry.path[0] ?? "";
-    const match = personaFolder.match(/^(P\d{2})/i);
-    if (!match) return;
-    const personaId = match[1].toUpperCase();
+    const prefixedPersonaId = personaFolder.match(/^(P\d{2})/i)?.[1]?.toUpperCase();
+    let personaId = prefixedPersonaId;
+    if (!personaId) {
+      try { personaId = personaIdFromFolder(personaFolder); }
+      catch { return; }
+    }
     const section = entry.path[1] ?? "";
     const sourceType = section === "00_MASTER" ? "persona_master" : section === "01_REFERENCES" ? "persona_reference" : "persona_generated";
     const existing = assetByDrive.get(entry.file.id);
-    if (md5Matches(existing, entry.file)) { skipped += 1; return; }
+    const syncedAt = new Date().toISOString();
+    const syncState = {
+      canonical_updated_at: entry.file.modifiedTime ?? null,
+      synced_at: syncedAt,
+      source_hash: entry.file.md5Checksum ?? null,
+      sync_status: "SYNCED",
+      sync_error: null,
+    };
+    if (md5Matches(existing, entry.file)) {
+      await patch("assets", String(existing!.id), {
+        ...syncState,
+        drive_modified_time: entry.file.modifiedTime ?? existing!.drive_modified_time ?? null,
+        metadata: {
+          ...runtimeMetadata(existing!),
+          synced_at: syncedAt,
+          canonical_updated_at: entry.file.modifiedTime ?? null,
+          source_hash: entry.file.md5Checksum ?? null,
+          sync_status: "SYNCED",
+          sync_error: null,
+        },
+      });
+      skipped += 1;
+      return;
+    }
     const storage = await upload(entry.file);
     const personaPayload: Row = {
       workspace_id: "cortifree",
@@ -380,11 +434,17 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       storage_bucket: backendMode(),
       convex_storage_id: String(storage.storageId),
       enabled: true,
-      indexed_at: new Date().toISOString(),
+      indexed_at: syncedAt,
+      ...syncState,
       metadata: {
         drive_path: entry.path,
         protected_master: sourceType === "persona_master",
         canonical_asset_id: sourceType === "persona_master" ? `${personaId}_MASTER` : `DRIVE_PERSONA_${entry.file.id}`,
+        synced_at: syncedAt,
+        canonical_updated_at: entry.file.modifiedTime ?? null,
+        source_hash: entry.file.md5Checksum ?? null,
+        sync_status: "SYNCED",
+        sync_error: null,
       },
     };
     // Legacy Supabase uses a numeric identity for assets.id. Keep the stable
@@ -415,8 +475,13 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       orientation: taxonomy.orientation || "portrait",
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
-      metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
+      metadata: { ...(existing ? runtimeMetadata(existing) : {}), drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       enabled: selectable,
+      canonical_updated_at: entry.file.modifiedTime ?? null,
+      synced_at: new Date().toISOString(),
+      source_hash: entry.file.md5Checksum ?? null,
+      sync_status: "SYNCED",
+      sync_error: null,
       updated_at: new Date().toISOString(),
     };
     if (reviewStatus === "DUPLICATE" || qaFlag === "MULTI_PERSON_AUTO_DISABLED") {
