@@ -91,10 +91,19 @@ function terms(value: string) {
 
 const visualSynonyms: Record<string, string> = {
   pilates_mat: "exercise_mat", yoga_mat: "exercise_mat", mat: "exercise_mat",
-  sofa: "sofa", couch: "sofa", notebook: "notebook", journal: "notebook", running_shoes: "sneakers", sneakers: "sneakers", trainers: "sneakers", mobile: "phone", mobile_phone: "phone", smartphone: "phone",
+  sofa: "sofa", couch: "sofa", notebook: "notebook", open_notebook: "notebook", journal: "notebook", planner: "notebook",
+  running_shoes: "sneakers", sneakers: "sneakers", trainers: "sneakers", mobile: "phone", mobile_phone: "phone", smartphone: "phone",
   cup: "cup", mug: "cup", earbuds: "headphones", headphones: "headphones", desk: "work_surface", laptop: "laptop", laptop_computer: "laptop", macbook: "laptop", bath: "bathtub", bathtub: "bathtub",
-  bedding: "bed", white_bedding: "bed", duvet: "bed", sheets: "bed", walking: "movement", walk: "movement", jogging: "movement", cooking: "preparing_food", meal_prep: "preparing_food",
-  bedroom: "bedroom", home_interior: "indoor_room", indoor_room: "indoor_room",
+  bedding: "bed", white_bedding: "bed", duvet: "bed", sheets: "bed",
+  walking: "movement", walk: "movement", jogging: "movement", walking_or_running: "movement", walking_or_jogging: "movement", standing_or_walking: "movement",
+  cooking: "preparing_food", meal_prep: "preparing_food",
+  treadmill: "running_on_treadmill",
+  reaching_for_produce: "grocery_shopping", holding_cart: "grocery_shopping",
+  bedroom: "bedroom", bedroom_by_window: "bedroom", bedroom_or_soft_surface: "bedroom", bed_or_soft_surface: "bedroom", bedside_area: "bedroom",
+  home_interior: "indoor_room", indoor_room: "indoor_room", living_room: "indoor_room", home_living_room: "indoor_room",
+  outdoors: "outdoors", outdoor_path: "outdoors", urban_outdoors: "outdoors", rural_outdoors: "outdoors", park: "outdoors", forest: "outdoors", woodland_path: "outdoors", coastal_path: "outdoors", outdoor_garden_or_field: "outdoors", outdoor_market: "outdoors", outdoor_table: "outdoors", outdoor_or_market_surface: "outdoors", park_or_open_field: "outdoors", autumn_path: "outdoors", autumn_park: "outdoors", winter_park: "outdoors", lakeside_or_riverside_park: "outdoors", paris_city_street: "outdoors", busy_city_street: "outdoors", urban_tree_lined_street: "outdoors",
+  commercial_gym: "commercial_gym", gym_cardio_area: "commercial_gym", gym_floor_area: "commercial_gym", gym_strength_area: "commercial_gym", gym_cardio_machine: "commercial_gym", gym_or_locker_area: "commercial_gym", gym_locker_room: "commercial_gym", pilates_studio: "commercial_gym",
+  grocery_store: "grocery_store", grocery_store_produce_aisle: "grocery_store",
 };
 function normalizeVisualTerm(value: string) {
   const normalized = value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -245,9 +254,14 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
 }
 
 function passesHardConstraints(asset: SelectableAsset, intent: VisualIntent) {
-  const actions = visualTerms(visualField(asset, "visible_actions"));
-  const objects = visualTerms(visualField(asset, "visible_objects"));
-  const settings = visualTerms(visualField(asset, "setting"));
+  // V1 metadata often uses specific variants such as `outdoor_path`,
+  // `open_notebook` or `gym_cardio_area`. Canonicalise them before
+  // hard filtering and allow precise observable descriptions to reinforce a
+  // structured field rather than discarding a genuinely compatible image.
+  const descriptionTerms = visualTerms(visualField(asset, "visual_description"));
+  const actions = [...new Set([...visualTerms(visualField(asset, "visible_actions")), ...descriptionTerms])];
+  const objects = [...new Set([...visualTerms(visualField(asset, "visible_objects")), ...descriptionTerms])];
+  const settings = [...new Set([...visualTerms(visualField(asset, "setting")), ...descriptionTerms])];
   const corpus = assetText(asset);
   return (!intent.required_actions.length || overlap(intent.required_actions, actions).length === intent.required_actions.length)
     && (!intent.required_objects.length || overlap(intent.required_objects, objects).length === intent.required_objects.length)
