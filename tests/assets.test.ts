@@ -38,6 +38,28 @@ describe('asset scanner', () => {
     assert.equal(second.updated, 2);
   });
 
+  it('treats explicit bedroom journaling as a required bedroom scene', () => {
+    const intent = deriveVisualIntent({
+      headline: 'Journal in bed before sleep',
+      body: 'Write a quick brain dump from bed.',
+      assetQuery: 'journaling in bed',
+      visualIntent: 'woman writing in a notebook in her bedroom bed',
+    });
+    assert.ok(intent.required_actions.includes('writing'));
+    assert.ok(intent.required_objects.includes('notebook'));
+    assert.ok(intent.required_settings.includes('bedroom'));
+  });
+
+  it('treats explicit home Pilates as an indoor-home scene instead of a studio synonym', () => {
+    const intent = deriveVisualIntent({
+      headline: '10 min home Pilates',
+      body: 'A simple Pilates workout at home.',
+      assetQuery: 'home Pilates workout',
+      visualIntent: 'woman doing Pilates at home in a living room',
+    });
+    assert.ok(intent.required_settings.includes('indoor_room'));
+  });
+
   it('rejects a sauna for an outfit-preparation slide instead of selecting the highest text score', () => {
     const assets = [
       { id: 'sauna', filename: 'sauna_room_warm_floor_lights.jpeg', category: 'self_care', subcategory: 'self_care', orientation: 'portrait', framing: 'wide', activity: 'steam room', mood: 'warm', colors: [], tags: ['sauna', 'steam room'], public_url: 'https://example.com/sauna.jpg', use_count: 0, last_used_at: null, source_type: 'stock' },
