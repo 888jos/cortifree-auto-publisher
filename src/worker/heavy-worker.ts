@@ -4,6 +4,7 @@ import { processImageGenerationJob } from "../../app/lib/image-generation";
 import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToConvex } from "../../app/lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../../app/lib/sync/drive";
+import { syncPersonaGeneratedAssetsToDrive } from "../../app/lib/sync/persona-assets";
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { runScheduler } from "../autonomy/scheduler";
@@ -15,7 +16,7 @@ import { autoScheduleApproved } from "../autonomy/publishing";
 type Row = Record<string, unknown>;
 
 const WORKER_ID = process.env.CORTIFREE_WORKER_ID?.trim() || `${os.hostname()}-${process.pid}`;
-const VERSION = process.env.CORTIFREE_WORKER_VERSION?.trim() || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "dev";
+const VERSION = process.env.CORTIFREE_WORKER_VERSION?.trim() || process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12) || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "dev";
 const POLL_MS = Math.max(500, Number(process.env.WORKER_POLL_MS ?? 2_000));
 const STALE_MS = Math.max(60_000, Number(process.env.WORKER_STALE_MS ?? 15 * 60_000));
 const MAX_GENERIC_PER_TICK = Math.max(1, Math.min(10, Number(process.env.WORKER_GENERIC_BATCH ?? 2)));
@@ -49,7 +50,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["RENDER_CAROUSEL", "GOOGLE_SYNC", "AUTONOMY_RUN", "MODELARK"],
+      capabilities: ["RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: { hostname: os.hostname(), pid: process.pid },
     }),
@@ -203,6 +204,7 @@ async function runRender(resourceId: string | null | undefined) {
 async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "RENDER_CAROUSEL") return runRender(job.resource_id);
   if (job.kind === "GOOGLE_SYNC") return runGoogleSync(job.payload ?? {});
+  if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }
@@ -281,8 +283,33 @@ async function processImageBatch() {
   return processed;
 }
 
+function assertWorkerConfiguration() {
+  const missing: string[] = [];
+  if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!process.env.MODELARK_API_KEY) missing.push("MODELARK_API_KEY");
+  if (!process.env.MODELARK_MODEL_ID) missing.push("MODELARK_MODEL_ID");
+
+  const googleServiceAccount = Boolean(
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
+    || process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim()
+  );
+  const googleUserOAuth = Boolean(
+    process.env.GOOGLE_OAUTH_CLIENT_ID?.trim()
+    && process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim()
+  );
+  if (!googleServiceAccount && !googleUserOAuth) {
+    missing.push("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY (or GOOGLE_SERVICE_ACCOUNT_JSON / Google OAuth credentials)");
+  }
+
+  if (missing.length) {
+    throw new Error(`WORKER_CONFIG_INCOMPLETE:${missing.join(",")}`);
+  }
+}
+
 async function main() {
   console.log("[worker] starting", { workerId: WORKER_ID, version: VERSION, pollMs: POLL_MS });
+  assertWorkerConfiguration();
   await heartbeat();
   await recoverStaleJobs();
   let lastHeartbeat = 0;

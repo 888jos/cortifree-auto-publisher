@@ -1,140 +1,49 @@
-import { dataBackend } from "../../../lib/data-backend";
-import { CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
-import { listDriveChildren, searchDriveFiles, uploadDriveFile, type DriveFile } from "../../../lib/google/drive";
-import { personaAssetFolder } from "../../../../src/image-generation/core";
+import { syncPersonaGeneratedAssetsToDrive } from "../../../lib/sync/persona-assets";
+import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const PERSONAS_ROOT = process.env.GOOGLE_DRIVE_PERSONAS_FOLDER_ID || "1cnDHDfAGgwOxTT_kJsZNpnRHvB5sY6Ps";
-const FOLDER_MIME = "application/vnd.google-apps.folder";
-const PERSONA_RE = /^(P\d{2})/i;
-const PERSONA_BY_NAME: Record<string, string> = { EMMA: "P01", LILY: "P02", MAYA: "P03", NORA: "P04", GRACE: "P05", AVA: "P06", CHLOE: "P07", ISABELA: "P08", CAMILA: "P09", HANA: "P10", ZOEY: "P11", ELIANA: "P12", JADE: "P13", SOFIA: "P14", MIA: "P15", OLIVIA: "P16" };
-
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET || process.env.CORTIFREE_ADMIN_SECRET;
-  return Boolean(secret && (request.headers.get("authorization") === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret || request.headers.get("x-admin-token") === secret || request.headers.get("x-admin-password") === process.env.CORTIFREE_ADMIN_PASSWORD));
-}
-
-type Row = Record<string, unknown>;
-type FolderNode = { id: string; path: string[] };
-
-async function rows(resource: string) {
-  const response = await dataBackend(resource);
-  if (!response.ok) throw new Error(await response.text());
-  return await response.json() as Row[];
-}
-
-async function patchAsset(id: string, row: Row) {
-  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(row) });
-  if (!response.ok) throw new Error(await response.text());
-}
-
-async function folders(folderId: string, path: string[] = [], out: FolderNode[] = []) {
-  const children = await listDriveChildren(folderId);
-  for (const child of children.filter((item) => item.mimeType === FOLDER_MIME)) {
-    const next = { id: child.id, path: [...path, child.name] };
-    out.push(next);
-    await folders(child.id, next.path, out);
-  }
-  return out;
-}
-
-async function discoverPersonaFolders() {
-  const discovered: FolderNode[] = [];
-  for (let index = 1; index <= 16; index += 1) {
-    const id = `P${String(index).padStart(2, "0")}`;
-    const matches = await searchDriveFiles(`name contains '${id}' and mimeType='${FOLDER_MIME}'`);
-    const match = matches.find((item) => PERSONA_RE.test(item.name));
-    if (match) {
-      discovered.push({ id: match.id, path: [match.name] });
-      await folders(match.id, [match.name], discovered);
-    }
-  }
-  return discovered;
-}
-
-function personaIdFromMaster(value: unknown) {
-  const filename = String(value ?? "").toUpperCase();
-  const direct = filename.match(/P\d{2}/)?.[0];
-  if (direct) return direct;
-  return Object.entries(PERSONA_BY_NAME).find(([name]) => filename.includes(`${name}_MASTER`))?.[1] ?? null;
-}
-
-function personaIdFromFolderPath(path: string[]) {
-  for (const part of path) {
-    const direct = part.match(PERSONA_RE)?.[1]?.toUpperCase();
-    if (direct) return direct;
-    const normalized = part.toUpperCase().replace(/[^A-Z]/g, "");
-    if (PERSONA_BY_NAME[normalized]) return PERSONA_BY_NAME[normalized];
-  }
-  return null;
-}
-
-function categoryFolder(category: unknown) {
-  return personaAssetFolder(String(category ?? "other"));
+  return Boolean(secret && (
+    request.headers.get("authorization") === `Bearer ${secret}`
+    || request.headers.get("x-cron-secret") === secret
+    || request.headers.get("x-admin-token") === secret
+    || request.headers.get("x-admin-password") === process.env.CORTIFREE_ADMIN_PASSWORD
+  ));
 }
 
 export async function POST(request: Request) {
   if (!authorized(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const url = new URL(request.url);
   const execute = url.searchParams.get("execute") === "true";
+
   try {
-    const [assets, rootedFolders] = await Promise.all([
-      rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled&limit=5000`),
-      folders(PERSONAS_ROOT),
-    ]);
-    const folderTree = rootedFolders.some((item) => Boolean(personaIdFromFolderPath(item.path))) ? rootedFolders : await discoverPersonaFolders();
-    const personaFolders = new Map<string, FolderNode>();
-    for (const item of folderTree) {
-      const id = personaIdFromFolderPath(item.path);
-      if (id && !personaFolders.has(id)) personaFolders.set(id, item);
+    if (await shouldDelegateHeavyWork()) {
+      const bucket = new Date().toISOString().slice(0, 13);
+      const queued = await enqueueWorkerJob({
+        kind: "PERSONA_ASSET_ARCHIVE",
+        resourceId: execute ? "execute" : "audit",
+        idempotencyKey: `persona-assets:${execute ? "execute" : "audit"}:${bucket}`,
+        payload: { execute },
+        priority: 10,
+      });
+      return Response.json({
+        ok: true,
+        queued: true,
+        job: queued.job,
+        reused: queued.reused,
+        execution: "external_worker",
+      }, { status: 202 });
     }
-    const report: Row[] = [];
-    for (const asset of assets) {
-      const metadata = asset.metadata && typeof asset.metadata === "object" && !Array.isArray(asset.metadata) ? asset.metadata as Row : {};
-      const personaId = String(asset.persona_id ?? "").match(/^P\d{2}$/i)?.[0]?.toUpperCase() ?? personaIdFromMaster((metadata.input_image_1 as Row | undefined)?.filename);
-      if (!personaId) { report.push({ id: asset.id, filename: asset.filename, status: "UNASSIGNED_NO_MASTER" }); continue; }
-      const personaFolder = personaFolders.get(personaId);
-      if (!personaFolder) {
-        if (execute && !asset.persona_id) {
-          await patchAsset(String(asset.id), { persona_id: personaId, metadata: { ...metadata, reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null, reconciled_at: new Date().toISOString(), drive_archive_status: "PENDING_FOLDER_ACCESS" } });
-          report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_PENDING_DRIVE" });
-        } else {
-          report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "PERSONA_FOLDER_NOT_FOUND" });
-        }
-        continue;
-      }
-      const targetName = categoryFolder(asset.category);
-      const target = folderTree.find((item) => item.path.length === personaFolder.path.length + 1 && item.path.slice(0, personaFolder.path.length).join("/") === personaFolder.path.join("/") && item.path.at(-1) === targetName);
-      if (!target) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName }); continue; }
-      const storedDriveFileId = String(metadata.drive_file_id ?? "").trim();
-      if (storedDriveFileId) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId }); continue; }
-      if (!execute) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "READY_TO_ARCHIVE", target: [...target.path].join("/") }); continue; }
-      const attribution = { persona_id: personaId, metadata: { ...metadata, reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null, reconciled_at: new Date().toISOString() } };
-      // Preserve the identity attribution even when an old test output no longer
-      // has a downloadable Supabase URL. This makes the audit truthful without
-      // pretending that the missing bytes were archived.
-      await patchAsset(String(asset.id), attribution);
-      if (!asset.public_url) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_NOT_ARCHIVED" }); continue; }
-      const image = await fetch(String(asset.public_url), { signal: AbortSignal.timeout(30_000) });
-      if (!image.ok) { report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status }); continue; }
-      try {
-        const existingDriveFile = (await listDriveChildren(target.id)).find((item) => item.name === String(asset.filename) && item.mimeType !== FOLDER_MIME);
-        const uploaded = existingDriveFile ?? await uploadDriveFile({ name: String(asset.filename), parentId: target.id, bytes: new Uint8Array(await image.arrayBuffer()), mimeType: image.headers.get("content-type") || "image/jpeg" });
-        // Keep the archive pointer in metadata because older production schemas
-        // may not yet have the additive drive_file_id column. The pointer is
-        // still canonical and makes retries idempotent by filename and ID.
-        await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/"), drive_archived_at: new Date().toISOString(), canonical_source: "MODELARK_TO_DRIVE" } });
-        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ARCHIVED_DRIVE", drive_file_id: uploaded.id, drive_path: [...target.path, String(asset.filename)].join("/") });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await patchAsset(String(asset.id), { ...attribution, metadata: { ...attribution.metadata, drive_archive_status: "BLOCKED_SERVICE_ACCOUNT_STORAGE_QUOTA", drive_archive_error: message.slice(0, 500) } });
-        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "DRIVE_UPLOAD_BLOCKED", error: message.slice(0, 500) });
-      }
-    }
-    return Response.json({ ok: true, execute, drive_root: PERSONAS_ROOT, discovered_persona_folders: personaFolders.size, folder_tree_count: folderTree.length, total: report.length, assigned: report.filter((item) => item.persona_id).length, archived: report.filter((item) => item.status === "ARCHIVED_DRIVE").length, report });
+
+    const result = await syncPersonaGeneratedAssetsToDrive({ execute });
+    return Response.json({ ...result, execution: "inline_fallback" });
   } catch (error) {
-    return Response.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return Response.json({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }, { status: 500 });
   }
 }
