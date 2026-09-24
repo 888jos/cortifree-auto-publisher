@@ -17,6 +17,8 @@ export type WorkerJob = {
   next_attempt_at: string;
   worker_id?: string | null;
   locked_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
   created_at: string;
   updated_at: string;
 };
