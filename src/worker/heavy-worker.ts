@@ -4,6 +4,7 @@ import { processImageGenerationJob } from "../../app/lib/image-generation";
 import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToConvex } from "../../app/lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../../app/lib/sync/drive";
+import { syncPersonaGeneratedAssetsToDrive } from "../../app/lib/sync/persona-assets";
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { runScheduler } from "../autonomy/scheduler";
@@ -49,7 +50,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["RENDER_CAROUSEL", "GOOGLE_SYNC", "AUTONOMY_RUN", "MODELARK"],
+      capabilities: ["RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: { hostname: os.hostname(), pid: process.pid },
     }),
@@ -203,6 +204,7 @@ async function runRender(resourceId: string | null | undefined) {
 async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "RENDER_CAROUSEL") return runRender(job.resource_id);
   if (job.kind === "GOOGLE_SYNC") return runGoogleSync(job.payload ?? {});
+  if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }
