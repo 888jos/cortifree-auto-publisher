@@ -31,6 +31,17 @@ async function walk(folderId: string, path: string[] = [], out: WalkedFile[] = [
   for (const entries of nested) out.push(...entries);
   return out;
 }
+async function walkPersonaTree(personaId?: string): Promise<WalkedFile[]> {
+  if (!personaId) return walk(PERSONAS_ROOT);
+  const children = await listDriveChildren(PERSONAS_ROOT);
+  const folder = children.find((child) => {
+    if (child.mimeType !== FOLDER_MIME) return false;
+    try { return personaIdFromFolder(child.name) === personaId; }
+    catch { return false; }
+  });
+  if (!folder) return [];
+  return walk(folder.id, [folder.name]);
+}
 async function backendRows(resource: string) {
   const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
@@ -119,6 +130,8 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
   const offset = Math.max(0, options.offset ?? 0);
   const scope = options.scope ?? "all";
+  const requestedPersonaId = options.personaId?.trim().toUpperCase() || "";
+  if (requestedPersonaId && !/^P\d{2}$/.test(requestedPersonaId)) throw new Error(`Invalid personaId: ${options.personaId}`);
   const refTaxonomyPromise = readSheetObjects("08_VISUAL_REFS", "A1:X300");
   const refTreePromise = scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing"
     ? Promise.resolve([])
@@ -127,19 +140,12 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
     scope === "visual_refs" ? Promise.resolve([]) : readSheetObjects("08_STOCK_ASSETS", "A1:AH500"),
     refTaxonomyPromise,
     scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(STOCK_ROOT),
-    scope === "visual_refs" || scope === "visual_refs_missing" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walk(PERSONAS_ROOT),
+    scope === "visual_refs" || scope === "visual_refs_missing" || scope === "stock" || scope === "stock_missing" ? Promise.resolve([]) : walkPersonaTree(requestedPersonaId || undefined),
     refTreePromise,
     scope === "visual_refs" ? Promise.resolve([]) : backendRows("assets?select=*&limit=5000"),
     backendRows("visual_references?select=*&limit=5000"),
   ]);
-  const requestedPersonaId = options.personaId?.trim().toUpperCase() || "";
-  if (requestedPersonaId && !/^P\d{2}$/.test(requestedPersonaId)) throw new Error(`Invalid personaId: ${options.personaId}`);
-  const selectedPersonaTree = requestedPersonaId
-    ? personaTree.filter((entry) => {
-        try { return personaIdFromFolder(entry.path[0] ?? "") === requestedPersonaId; }
-        catch { return false; }
-      })
-    : personaTree;
+  const selectedPersonaTree = personaTree;
 
   const stockByDrive = new Map(stockTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
   const refsByDrive = new Map(refTaxonomy.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
