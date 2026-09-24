@@ -43,7 +43,8 @@
     "google:sync:stock-missing": "npm run google:sync -- --scope=stock_missing --limit=50",
     "google:sync:stock-state": "npm run google:sync -- --scope=stock --limit=250",
     "google:sync:refs-state": "npm run google:sync -- --scope=visual_refs --limit=250",
-    "google:sync:persona": "npm run google:sync -- --scope=assets --limit=250"
+    "google:sync:persona": "npm run google:sync -- --scope=assets --limit=250",
+    "worker:start": "node --import tsx src/worker/heavy-worker.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

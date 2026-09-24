@@ -1,5 +1,6 @@
 import { syncEditorialSheetToConvex } from "../../../lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../../../lib/sync/drive";
+import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -20,6 +21,17 @@ async function run(request: Request) {
   const personaId = url.searchParams.get("persona_id")?.trim().toUpperCase() || undefined;
   if (personaId && !/^P\d{2}$/.test(personaId)) return Response.json({ ok: false, error: "Invalid persona_id; expected P01..P16" }, { status: 400 });
   try {
+    if (await shouldDelegateHeavyWork()) {
+      const bucket = new Date().toISOString().slice(0, 13);
+      const queued = await enqueueWorkerJob({
+        kind: "GOOGLE_SYNC",
+        resourceId: personaId ?? scope,
+        idempotencyKey: `google-sync:${scope}:${personaId ?? "all"}:${offset}:${limit}:${bucket}`,
+        payload: { scope, limit, offset, persona_id: personaId ?? null },
+        priority: 10,
+      });
+      return Response.json({ ok: true, queued: true, job: queued.job, reused: queued.reused, execution: "external_worker" }, { status: 202 });
+    }
     const editorial = scope === "all" || scope === "sheet"
       ? await syncEditorialSheetToConvex()
       : { status: "SKIPPED", reason: "Drive-only scope; canonical editorial mirror unchanged" };
