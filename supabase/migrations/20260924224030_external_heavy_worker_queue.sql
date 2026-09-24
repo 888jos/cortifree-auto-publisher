@@ -51,6 +51,7 @@ alter table public.worker_heartbeats enable row level security;
 alter table public.image_generation_jobs
   add column if not exists worker_id text,
   add column if not exists locked_at timestamptz,
+  add column if not exists worker_attempts integer not null default 0,
   add column if not exists next_attempt_at timestamptz not null default now(),
   add column if not exists max_attempts integer not null default 3,
   add column if not exists priority integer not null default 0;
