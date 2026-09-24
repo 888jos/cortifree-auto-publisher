@@ -34,7 +34,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       });
       await dataBackend(`carousels?id=eq.${encodeURIComponent(id)}`, {
         method: "PATCH",
-        body: JSON.stringify({ status: "RENDER_QUEUED", updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ status: "RENDER_QUEUED" }),
       });
       return Response.json({ id, queued: true, job: queued.job, reused: queued.reused, execution: "external_worker" }, { status: 202 });
     }
