@@ -11,6 +11,7 @@ import { processImageGenerationJob } from "./image-generation";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-generation/core";
 import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../src/visual-references";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
+import { downloadDriveFile } from "./google/drive";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -86,6 +87,21 @@ type Geometry = {
   };
   overlay?: { color?: string; opacity?: number };
 };
+
+async function selectedAssetBytes(match: AssetMatch) {
+  if (match.asset.source_type === "app_screenshot") {
+    const driveId = match.asset.drive_file_id
+      ?? (match.asset.metadata && typeof match.asset.metadata.drive_file_id === "string"
+        ? match.asset.metadata.drive_file_id
+        : null);
+    if (!driveId) throw new Error(`APP_SCREEN_DRIVE_ID_MISSING:${match.asset.id}`);
+    const downloaded = await downloadDriveFile(driveId);
+    return Buffer.from(downloaded.bytes);
+  }
+  const response = await fetch(match.asset.public_url);
+  if (!response.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
+  return Buffer.from(await response.arrayBuffer());
+}
 
 type StoredReference = { id?: string; slides?: Array<{ geometry?: Geometry }> };
 
@@ -323,9 +339,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const tileHeight = 635;
     const positions = [[32, 32], [548, 32], [32, 683], [548, 683]];
     for (const [index, match] of matches.slice(0, 4).entries()) {
-      const imageResponse = await fetch(match.asset.public_url);
-      if (!imageResponse.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
-      const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
+      const imageBytes = await selectedAssetBytes(match);
       if (index === 0) {
         const stats = await sharp(imageBytes).stats();
         averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
@@ -337,9 +351,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     }
   } else {
     const match = matches[0]!;
-    const imageResponse = await fetch(match.asset.public_url);
-    if (!imageResponse.ok) throw new Error(`Cannot download selected asset ${match.asset.filename}`);
-    const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
+    const imageBytes = await selectedAssetBytes(match);
     const stats = await sharp(imageBytes).stats();
     averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
