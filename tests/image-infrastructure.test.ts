@@ -19,7 +19,7 @@ import {
   scoreVisualReferenceForScene,
   visualReferenceSchema,
 } from '../src/visual-references/index.js';
-import { selectAssetOrGeneration, type JitSelectableAsset } from '../app/lib/asset-selector.js';
+import { chooseAssets, selectAssetOrGeneration, type JitSelectableAsset } from '../app/lib/asset-selector.js';
 import { LocalDriveAssetStorage } from '../src/storage/asset-storage.js';
 import type { PersonaConfig } from '../src/domain.js';
 
