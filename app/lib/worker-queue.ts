@@ -62,11 +62,23 @@ export async function enqueueWorkerJob(input: {
 }) {
   if (input.idempotencyKey) {
     const existing = await dataBackend(
-      `worker_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&idempotency_key=eq.${encodeURIComponent(input.idempotencyKey)}&status=in.(PENDING,RUNNING,RETRY,DONE)&select=*&order=created_at.desc&limit=1`,
+      `worker_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&idempotency_key=eq.${encodeURIComponent(input.idempotencyKey)}&status=in.(PENDING,RUNNING,RETRY,DONE,FAILED)&select=*&order=created_at.desc&limit=1`,
     );
     if (existing.ok) {
       const rows = await existing.json() as WorkerJob[];
-      if (rows[0]) return { job: rows[0], reused: true };
+      if (rows[0]) {
+        if (rows[0].status === "FAILED") {
+          const retry = await dataBackend(`worker_jobs?id=eq.${encodeURIComponent(rows[0].id)}&status=eq.FAILED`, {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify({ status: "RETRY", worker_id: null, locked_at: null, finished_at: null, last_error: null, next_attempt_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+          });
+          if (!retry.ok) throw new Error(`Cannot retry ${input.kind}: ${await retry.text()}`);
+          const retried = await retry.json() as WorkerJob[];
+          if (retried[0]) return { job: retried[0], reused: true };
+        }
+        return { job: rows[0], reused: true };
+      }
     }
   }
 
