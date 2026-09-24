@@ -16,6 +16,7 @@ import {
   deterministicReferenceName,
   scanVisualReferences,
   searchVisualReferences,
+  scoreVisualReferenceForScene,
   visualReferenceSchema,
 } from '../src/visual-references/index.js';
 import { selectAssetOrGeneration, type JitSelectableAsset } from '../app/lib/asset-selector.js';
@@ -105,6 +106,48 @@ describe('persona image infrastructure', () => {
     assert.equal(records[0]?.width, 300);
     assert.equal(records[0]?.orientation, 'portrait');
     assert.deepEqual(searchVisualReferences(records, 'sunrise bedroom').map((item) => item.id), ['MORNING_HOME_001']);
+  });
+
+  it('accepts canonical runtime visual-reference IDs and evolved categories', () => {
+    const parsed = visualReferenceSchema.parse({
+      id: 'VR134',
+      category: 'food_energy',
+      source_platform: 'manual',
+      pose: 'cooking / baking / kitchen prep',
+      framing: 'lifestyle_scene',
+      outfit: 'casual_neutral',
+      environment: 'kitchen',
+      tags: ['cooking', 'food_energy', 'kitchen'],
+      good_for: ['PILLAR_FOOD'],
+      enabled: true,
+      metadata: { review_status: 'OK' },
+    });
+    assert.equal(parsed.id, 'VR134');
+    assert.equal(parsed.category, 'food_energy');
+  });
+
+  it('ranks scene-compatible evolved refs above unrelated categories', () => {
+    const kitchen = visualReferenceSchema.parse({
+      id: 'VR134', category: 'food_energy', source_platform: 'manual',
+      pose: 'cooking / baking / kitchen prep', framing: 'lifestyle_scene',
+      outfit: 'casual_neutral', environment: 'kitchen', tags: ['cooking', 'food_energy', 'kitchen'],
+      good_for: ['PILLAR_FOOD'], enabled: true, metadata: { review_status: 'OK' },
+    });
+    const car = visualReferenceSchema.parse({
+      id: 'VR059', category: 'on_the_go_lifestyle', source_platform: 'manual',
+      pose: 'front camera portrait', framing: 'closeup_selfie',
+      outfit: 'casual_neutral', environment: 'car', tags: ['car', 'selfie', 'on_the_go_lifestyle'],
+      good_for: ['PILLAR_OUTDOORS'], enabled: true, metadata: { review_status: 'OK' },
+    });
+    const scene = {
+      category: 'food',
+      scene_description: 'preparing breakfast in a kitchen',
+      recommended_reference_categories: ['food_grocery', 'kitchen'],
+      recommended_framing: 'lifestyle_scene',
+      recommended_outfit: 'casual_neutral',
+    };
+    assert.ok(scoreVisualReferenceForScene(kitchen, scene) > scoreVisualReferenceForScene(car, scene));
+    assert.ok(scoreVisualReferenceForScene(kitchen, scene) >= 6);
   });
 
   it('stores local assets without overwrite and refuses MASTER writes', async () => {
