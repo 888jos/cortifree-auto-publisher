@@ -141,6 +141,34 @@ describe('asset scanner', () => {
     }
   });
 
+  it('normalizes V2 outdoor settings and nested observable arrays before hard constraints', () => {
+    const settings = [
+      'outdoor_sidewalk', 'rural_or_suburban_path', 'outdoor_autumn_path', 'rural_tree_lined_path',
+      'barcelona_city_street', 'new_york_city_street', 'paris_intersection', 'open_field_near_woods',
+      'woodland_autumn_path', 'park_or_greenway_path', 'outdoor_grass_and_dirt_path', 'sunny_outdoor_trail',
+      'woodland_greenway',
+    ];
+    for (const [index, setting] of settings.entries()) {
+      const candidate: SelectableAsset = {
+        id: `walk-v2-${index}`, filename: `walk-v2-${index}.jpg`, category: 'outdoors', subcategory: 'outdoors',
+        orientation: 'portrait', framing: 'first_person_pov', activity: 'walking', mood: 'casual', colors: [],
+        tags: ['walking', 'outdoors'], public_url: `https://example.com/walk-v2-${index}.jpg`, use_count: 0, last_used_at: null,
+        source_type: 'stock', visual_description: 'person walking outside on a path in daylight',
+        visible_objects: ['white_sneakers', 'paved_path'], visible_actions: ['walking'], setting,
+        people_visibility: 'partial_body', body_parts_visible: ['legs', 'feet'], composition: 'first_person_activity',
+        camera_angle: 'first_person_downward', lighting: 'bright_daylight', dominant_colors: [], text_in_image: 'none',
+        specific_details: 'sunny path with visible footsteps', visual_tagging_schema: 'observable_v2',
+        visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: '2026-09-24T00:00:00.000Z',
+        metadata: { asset_name: `OUTDOOR_WALK_V2_${index}` },
+      };
+      const [selected] = chooseAssets({
+        carouselType: 'C06_POV_RELATABLE', assets: [candidate], personaId: 'P01',
+        slides: [{ position: 2, role: 'TIP', assetType: 'stock', headline: '10 minute walk outside', body: 'A quick walk before work.', assetQuery: 'walking outdoors on a path', visualIntent: 'person walking outside on an outdoor path' }],
+      });
+      assert.equal(selected?.asset.id, candidate.id);
+    }
+  });
+
   it('uses pixel-derived asset_name only as a weak tie-breaker', () => {
     const base: SelectableAsset = {
       id: 'base', filename: 'legacy_001.jpg', category: 'outdoors', subcategory: 'outdoors', orientation: 'portrait',
