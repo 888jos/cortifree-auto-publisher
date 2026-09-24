@@ -12,8 +12,11 @@ export const visualReferenceCategories = [
 ] as const;
 
 export const visualReferenceSchema = z.object({
-  id: z.string().regex(/^[A-Z][A-Z0-9_]+_\d{3}$/),
-  category: z.enum(visualReferenceCategories),
+  // Runtime references now use stable canonical IDs such as VR134 as well as
+  // older names such as MORNING_HOME_001. Do not reject valid runtime rows
+  // just because their naming taxonomy evolved.
+  id: z.string().trim().min(2),
+  category: z.string().trim().min(1),
   source_url: z.string().url().nullable().default(null),
   source_platform: z.enum(["pinterest", "tiktok", "manual", "local"]).default("local"),
   storage_path: z.string().nullable().default(null),
@@ -48,7 +51,7 @@ const prefixes: Record<(typeof visualReferenceCategories)[number], string> = {
   work_study: "WORK", food_grocery: "GROCERY", night_cozy: "NIGHT", fall: "FALL", hero_misc: "HERO",
 };
 
-export function deterministicReferenceName(category: VisualReference["category"], existing: string[], extension = ".jpg") {
+export function deterministicReferenceName(category: (typeof visualReferenceCategories)[number], existing: string[], extension = ".jpg") {
   const prefix = prefixes[category];
   const used = new Set(existing.map((name) => name.toUpperCase()));
   for (let index = 1; index < 10_000; index += 1) {
@@ -107,6 +110,80 @@ export async function scanVisualReferences(driveRoot: string) {
     }
   }
   return [...records.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export type VisualReferenceSceneIntent = {
+  category?: string;
+  scene_description: string;
+  recommended_reference_categories?: string[];
+  recommended_framing?: string | null;
+  recommended_outfit?: string | null;
+};
+
+const referenceStopWords = new Set(["the", "and", "with", "for", "from", "into", "this", "that", "scene", "woman", "girl", "person", "photo", "image"]);
+
+function referenceTerms(value: unknown) {
+  const raw = Array.isArray(value) ? value.join(" ") : String(value ?? "");
+  return [...new Set(raw.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((term) => term.length > 2 && !referenceStopWords.has(term)))];
+}
+
+function referenceAliasTerms(value: string) {
+  const aliases: Record<string, string[]> = {
+    bedroom: ["bedroom", "bed", "home", "cozy"],
+    morning_home: ["morning", "home", "bedroom", "kitchen", "window"],
+    kitchen: ["kitchen", "cooking", "food", "meal"],
+    coffee_cafe: ["coffee", "cafe", "drink", "cup"],
+    outdoors_walk: ["outdoor", "outside", "walk", "street", "park", "commute"],
+    fitness_pilates: ["fitness", "gym", "pilates", "workout", "movement", "exercise"],
+    self_care: ["selfcare", "skincare", "bathroom", "beauty", "reset"],
+    work_study: ["work", "study", "desk", "laptop", "journal", "meeting"],
+    food_grocery: ["food", "grocery", "kitchen", "meal", "produce", "cooking"],
+    night_cozy: ["night", "cozy", "bed", "bedroom", "sleep", "sofa"],
+    fall: ["fall", "autumn", "outdoor", "walk"],
+    home_reset: ["home", "reset", "room", "clean", "tidy", "sofa"],
+    getting_ready: ["getting", "ready", "mirror", "outfit", "bathroom", "selfcare"],
+    mirror_selfie: ["mirror", "selfie", "portrait"],
+    bathroom: ["bathroom", "shower", "skincare", "selfcare"],
+    hero_misc: ["portrait", "selfie", "lifestyle"],
+  };
+  return aliases[value] ?? referenceTerms(value);
+}
+
+export function scoreVisualReferenceForScene(reference: VisualReference, scene: VisualReferenceSceneIntent) {
+  const wanted = new Set([
+    ...referenceTerms(scene.scene_description),
+    ...referenceTerms(scene.category),
+    ...(scene.recommended_reference_categories ?? []).flatMap(referenceAliasTerms),
+    ...referenceTerms(scene.recommended_framing),
+    ...referenceTerms(scene.recommended_outfit),
+  ]);
+  const fieldScore = (value: unknown, weight: number) => {
+    const actual = new Set(referenceTerms(value));
+    let matches = 0;
+    for (const term of wanted) if (actual.has(term)) matches += 1;
+    return matches * weight;
+  };
+
+  let score = 0;
+  score += fieldScore(reference.environment, 10);
+  score += fieldScore(reference.pose, 9);
+  score += fieldScore(reference.good_for, 7);
+  score += fieldScore(reference.tags, 6);
+  score += fieldScore(reference.framing, 4);
+  score += fieldScore(reference.outfit, 4);
+  score += fieldScore(reference.lighting, 2);
+  score += fieldScore(reference.mood, 2);
+  // Broad category is useful only as a weak supporting signal.
+  score += fieldScore(reference.category, 2);
+
+  const corpus = [reference.category, reference.pose, reference.framing, reference.outfit, reference.environment, reference.lighting, ...reference.mood, ...reference.tags, ...reference.good_for].join(" ").toLowerCase();
+  const sceneText = scene.scene_description.toLowerCase();
+  if (/walk|outside|outdoor|street|commute/.test(sceneText) && !/walk|outside|outdoor|street|park|commute/.test(corpus)) score -= 40;
+  if (/kitchen|cook|meal|breakfast|food|grocery/.test(sceneText) && !/kitchen|cook|food|meal|grocery|produce/.test(corpus)) score -= 35;
+  if (/bed|bedroom|sleep|night|cozy/.test(sceneText) && !/bed|bedroom|night|cozy|home/.test(corpus)) score -= 30;
+  if (/gym|pilates|workout|run|fitness|exercise/.test(sceneText) && !/gym|pilates|fitness|workout|exercise|movement|run/.test(corpus)) score -= 35;
+
+  return score;
 }
 
 export function searchVisualReferences(records: VisualReference[], query: string) {
