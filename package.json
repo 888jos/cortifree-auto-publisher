@@ -32,13 +32,17 @@
     "typecheck": "tsc --noEmit",
     "editorial:bootstrap": "tsx scripts/bootstrap-editorial-config.ts",
     "autonomy:check": "tsx src/cli/index.ts scheduler:run",
-    "google:sync": "tsx scripts/sync-google-to-convex.ts",
+    "google:sync": "node --env-file=.env.local --import tsx scripts/sync-google-to-convex.ts",
     "p0:bootstrap-data": "tsx scripts/p0-bootstrap-data.ts",
     "p0:check": "tsx scripts/p0-runtime-check.ts",
     "acceptance:20": "tsx scripts/acceptance-20.ts",
     "acceptance:record": "tsx scripts/acceptance-record.ts",
     "production:check": "tsx scripts/production-gate-check.ts",
-    "secrets:generate": "tsx scripts/generate-cortifree-secrets.ts"
+    "secrets:generate": "tsx scripts/generate-cortifree-secrets.ts",
+    "google:sync:personas": "npm run google:sync -- --scope=assets --limit=250",
+    "google:sync:stock-missing": "npm run google:sync -- --scope=stock_missing --limit=50",
+    "google:sync:stock-state": "npm run google:sync -- --scope=stock --limit=250",
+    "google:sync:refs-state": "npm run google:sync -- --scope=visual_refs --limit=250"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
