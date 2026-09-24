@@ -2,6 +2,7 @@ import { backendMode, dataBackend } from "../data-backend";
 import { uploadConvexFile } from "../convex-storage";
 import { listDriveChildren, getDriveFile, downloadDriveFile, type DriveFile } from "../google/drive";
 import { readSheetObjects } from "../google/sheets";
+import { personaIdFromFolder } from "../../../src/personas/identity";
 
 type Row = Record<string, unknown>;
 type WalkedFile = { file: DriveFile; path: string[] };
@@ -323,6 +324,11 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.good_for_pillars),
       enabled: selectable,
+      canonical_updated_at: entry.file.modifiedTime ?? null,
+      synced_at: new Date().toISOString(),
+      source_hash: entry.file.md5Checksum ?? null,
+      sync_status: "SYNCED",
+      sync_error: null,
       metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
@@ -359,13 +365,39 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
   async function syncPersona(entry: WalkedFile) {
     if (!isImage(entry.file) || uploaded >= limit) return;
     const personaFolder = entry.path[0] ?? "";
-    const match = personaFolder.match(/^(P\d{2})/i);
-    if (!match) return;
-    const personaId = match[1].toUpperCase();
+    const prefixedPersonaId = personaFolder.match(/^(P\d{2})/i)?.[1]?.toUpperCase();
+    let personaId = prefixedPersonaId;
+    if (!personaId) {
+      try { personaId = personaIdFromFolder(personaFolder); }
+      catch { return; }
+    }
     const section = entry.path[1] ?? "";
     const sourceType = section === "00_MASTER" ? "persona_master" : section === "01_REFERENCES" ? "persona_reference" : "persona_generated";
     const existing = assetByDrive.get(entry.file.id);
-    if (md5Matches(existing, entry.file)) { skipped += 1; return; }
+    const syncedAt = new Date().toISOString();
+    const syncState = {
+      canonical_updated_at: entry.file.modifiedTime ?? null,
+      synced_at: syncedAt,
+      source_hash: entry.file.md5Checksum ?? null,
+      sync_status: "SYNCED",
+      sync_error: null,
+    };
+    if (md5Matches(existing, entry.file)) {
+      await patch("assets", String(existing!.id), {
+        ...syncState,
+        drive_modified_time: entry.file.modifiedTime ?? existing!.drive_modified_time ?? null,
+        metadata: {
+          ...runtimeMetadata(existing!),
+          synced_at: syncedAt,
+          canonical_updated_at: entry.file.modifiedTime ?? null,
+          source_hash: entry.file.md5Checksum ?? null,
+          sync_status: "SYNCED",
+          sync_error: null,
+        },
+      });
+      skipped += 1;
+      return;
+    }
     const storage = await upload(entry.file);
     const personaPayload: Row = {
       workspace_id: "cortifree",
@@ -380,11 +412,17 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       storage_bucket: backendMode(),
       convex_storage_id: String(storage.storageId),
       enabled: true,
-      indexed_at: new Date().toISOString(),
+      indexed_at: syncedAt,
+      ...syncState,
       metadata: {
         drive_path: entry.path,
         protected_master: sourceType === "persona_master",
         canonical_asset_id: sourceType === "persona_master" ? `${personaId}_MASTER` : `DRIVE_PERSONA_${entry.file.id}`,
+        synced_at: syncedAt,
+        canonical_updated_at: entry.file.modifiedTime ?? null,
+        source_hash: entry.file.md5Checksum ?? null,
+        sync_status: "SYNCED",
+        sync_error: null,
       },
     };
     // Legacy Supabase uses a numeric identity for assets.id. Keep the stable
@@ -417,6 +455,11 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       good_for: split(taxonomy.preferred_pillars),
       metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       enabled: selectable,
+      canonical_updated_at: entry.file.modifiedTime ?? null,
+      synced_at: new Date().toISOString(),
+      source_hash: entry.file.md5Checksum ?? null,
+      sync_status: "SYNCED",
+      sync_error: null,
       updated_at: new Date().toISOString(),
     };
     if (reviewStatus === "DUPLICATE" || qaFlag === "MULTI_PERSON_AUTO_DISABLED") {
