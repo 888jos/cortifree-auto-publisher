@@ -103,7 +103,7 @@ async function claimWorkerJob() {
         worker_id: WORKER_ID,
         locked_at: new Date().toISOString(),
         started_at: candidate.started_at ?? new Date().toISOString(),
-        attempts: Number(candidate.attempts ?? 0) + 1,
+        attempt_count: Number(candidate.attempt_count ?? 0) + 1,
         last_error: null,
       },
     );
