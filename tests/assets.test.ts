@@ -153,4 +153,51 @@ describe('asset scanner', () => {
     const [selected] = chooseAssets({ carouselType: 'C06_POV_RELATABLE', assets: [stale, reviewed], personaId: 'P01', slides: [{ position: 2, role: 'TIP', assetType: 'stock', headline: 'Brain dump before bed', body: 'Write it down.', assetQuery: 'notebook and pen on bed', visualIntent: 'open notebook on bed with hand writing' }] });
     assert.equal(selected?.asset.id, 'reviewed');
   });
+  it('normalizes specific observable tags before hard constraints', () => {
+    const base = (id: string, description: string, visible_objects: string[], visible_actions: string[], setting: string): SelectableAsset => ({
+      id, filename: `${id}.jpg`, category: 'legacy', subcategory: 'legacy', orientation: 'portrait', framing: 'medium',
+      activity: visible_actions.join(' '), mood: 'natural', colors: [], tags: [], public_url: `https://example.com/${id}.jpg`,
+      use_count: 0, last_used_at: null, source_type: 'stock', visual_description: description,
+      visible_objects, visible_actions, setting, people_visibility: 'person', body_parts_visible: [],
+      composition: 'person_activity_scene', camera_angle: 'eye_level', lighting: 'natural_daylight',
+      dominant_colors: [], text_in_image: '', specific_details: description,
+      visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1',
+      visual_reviewed_at: '2026-09-22T00:00:00.000Z',
+    });
+
+    const cases = [
+      {
+        id: 'walk',
+        slide: { headline: 'Outdoor morning walk', body: 'Walk outside for ten minutes.', assetQuery: 'woman walking outdoors', visualIntent: 'woman walking on an outdoor path in morning light' },
+        asset: base('walk', 'woman walking on a leafy outdoor path in morning light', ['sneakers'], ['walking'], 'outdoor_path'),
+      },
+      {
+        id: 'journal',
+        slide: { headline: 'Journal in bed', body: 'Write a quick brain dump.', assetQuery: 'open notebook on bed', visualIntent: 'hand writing in an open notebook on bed' },
+        asset: base('journal', 'hand writing in an open notebook while sitting on a bed', ['open_notebook', 'pen', 'bed'], ['writing'], 'bed_or_soft_surface'),
+      },
+      {
+        id: 'treadmill',
+        slide: { headline: 'Treadmill POV', body: 'Easy cardio session.', assetQuery: 'running on treadmill at gym', visualIntent: 'person running on a treadmill in a commercial gym' },
+        asset: base('treadmill', 'person running on treadmill in a gym cardio area', ['treadmill'], ['walking_or_running'], 'gym_cardio_area'),
+      },
+      {
+        id: 'grocery',
+        slide: { headline: 'Grocery reset', body: 'Shop for simple produce.', assetQuery: 'grocery shopping produce aisle', visualIntent: 'woman grocery shopping and reaching for produce' },
+        asset: base('grocery', 'woman grocery shopping and reaching for produce in a produce aisle', ['produce', 'shopping_cart'], ['reaching_for_produce'], 'grocery_store_produce_aisle'),
+      },
+    ];
+
+    for (const testCase of cases) {
+      const [selected] = chooseAssets({
+        carouselType: 'C06_POV_RELATABLE',
+        assets: [testCase.asset],
+        personaId: 'P01',
+        slides: [{ position: 2, role: 'TIP', assetType: 'stock', ...testCase.slide }],
+      });
+      assert.equal(selected.asset.id, testCase.id);
+      assert.equal(selected.fallbackPath === 'primary' || selected.fallbackPath === 'explicit_noncritical_fallback', true);
+    }
+  });
+
 });
