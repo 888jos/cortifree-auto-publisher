@@ -1,7 +1,7 @@
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 
-export type HeavyJobKind = "RENDER_CAROUSEL" | "GOOGLE_SYNC" | "AUTONOMY_RUN";
+export type HeavyJobKind = "RENDER_CAROUSEL" | "GOOGLE_SYNC" | "PERSONA_ASSET_ARCHIVE" | "AUTONOMY_RUN";
 export type HeavyExecutionMode = "auto" | "inline" | "external";
 
 export type WorkerJob = {
