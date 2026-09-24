@@ -125,9 +125,11 @@ function assetVisualText(asset: SelectableAsset) {
   ]).join(" ");
 }
 function assetText(asset: SelectableAsset) {
-  // Observable metadata is the primary retrieval corpus. Filename is a weak
-  // debugging/tie-breaker signal only; folder/category must never decide a match.
-  return `${assetVisualText(asset)} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+  // Observable metadata is the primary retrieval corpus. The V2 pixel-derived
+  // asset_name is only a weak semantic/debugging signal; folder/category and
+  // the legacy physical filename must never decide a match.
+  const observedAssetName = String(visualField(asset, "asset_name") ?? "");
+  return `${assetVisualText(asset)} ${observedAssetName} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
 }
 
 function runtimeVisualMetadata(asset: SelectableAsset) {
