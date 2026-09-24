@@ -2,7 +2,7 @@ import sharp, { type OverlayOptions } from "sharp";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { chooseAssets, loadSelectableAssets, type AssetMatch } from "./asset-selector";
-import { getSlideGeometry } from "./layout-geometry.js";
+import { getSlideGeometry } from "./layout-geometry";
 import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { uploadConvexFile } from "./convex-storage";
