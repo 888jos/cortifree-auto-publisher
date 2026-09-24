@@ -9,7 +9,7 @@ import { uploadConvexFile } from "./convex-storage";
 import { analyzeHookComposition, type HookDesign } from "./hook-design";
 import { processImageGenerationJob } from "./image-generation";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-generation/core";
-import { isAutomaticVisualReference, visualReferenceSchema, type VisualReference } from "../../src/visual-references";
+import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../src/visual-references";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 
 const WIDTH = 1080;
@@ -99,56 +99,21 @@ function generationCategory(slide: GeneratedSlide) {
   return "home";
 }
 
-function referenceTokens(value: unknown) {
-  const raw = Array.isArray(value) ? value.join(" ") : String(value ?? "");
-  return [...new Set(raw.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((term) => term.length > 2 && !["the", "and", "with", "this", "that", "for", "from", "into", "girl", "woman", "photo", "image", "lifestyle"].includes(term)))];
-}
-
-function referenceScore(reference: VisualReference, slide: GeneratedSlide) {
-  const query = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
-  const metadataValues = Object.values(reference.metadata ?? {}).filter((value) => typeof value === "string" || Array.isArray(value));
-  const corpus = [
-    reference.pose, reference.framing, reference.outfit, reference.environment, reference.lighting,
-    ...reference.mood, ...reference.tags, ...reference.good_for, ...metadataValues,
-  ].join(" ").toLowerCase();
-  const wanted = referenceTokens(query);
-  const available = new Set(referenceTokens(corpus));
-  const overlap = wanted.filter((term) => available.has(term));
-  let score = overlap.length * 5;
-
-  const fieldBonus = (value: unknown, weight: number) => {
-    const field = new Set(referenceTokens(value));
-    if (!field.size || !wanted.length) return 0;
-    return wanted.filter((term) => field.has(term)).length * weight;
+function referenceSceneIntent(slide: GeneratedSlide) {
+  const scene = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.trim();
+  const category = generationCategory(slide);
+  const recommended_reference_categories =
+    category === "outdoors" ? ["outdoors_walk"] :
+    category === "fitness" ? ["fitness_pilates"] :
+    category === "food" ? ["food_grocery", "kitchen"] :
+    category === "work_study" ? ["work_study"] :
+    category === "self_care" ? ["self_care", "bathroom"] :
+    ["morning_home", "bedroom"];
+  return {
+    category,
+    scene_description: scene,
+    recommended_reference_categories,
   };
-  score += fieldBonus(reference.environment, 10);
-  score += fieldBonus(reference.pose, 9);
-  score += fieldBonus(reference.good_for, 7);
-  score += fieldBonus(reference.tags, 5);
-  score += fieldBonus(reference.framing, 4);
-  score += fieldBonus(reference.outfit, 3);
-  score += fieldBonus(reference.lighting, 3);
-  score += fieldBonus(reference.mood, 2);
-
-  // Category is an admin taxonomy only. Keep it as a tiny tie-breaker, never
-  // the primary reason a reference wins.
-  score += fieldBonus(reference.category, 1);
-
-  const requiresOutdoor = /walk|walking|outside|outdoor|street|sidewalk|park|nature/.test(query);
-  const requiresGym = /gym|workout|strength|pilates|yoga|treadmill|exercise/.test(query);
-  const requiresBedroom = /bed|bedroom|sleep|night routine|wake|waking/.test(query);
-  const requiresFood = /food|meal|breakfast|lunch|dinner|grocery|cook|cooking/.test(query);
-
-  if (requiresOutdoor && !/outdoor|walk|street|sidewalk|park|nature/.test(corpus)) score -= 80;
-  if (requiresGym && !/gym|fitness|pilates|yoga|treadmill|workout|exercise/.test(corpus)) score -= 55;
-  if (requiresBedroom && !/bed|bedroom|night|morning_home/.test(corpus)) score -= 45;
-  if (requiresFood && !/food|grocery|kitchen|meal|coffee|cafe/.test(corpus)) score -= 45;
-  if (/no_person|none|environment reference|empty room|food arrangement/.test(corpus)) score -= 100;
-
-  // Persona generation needs a usable human reference, but this is only a
-  // modest bonus because pose/setting relevance matters more than taxonomy.
-  if (/face|portrait|selfie|full body|partial body|person|mirror/.test(corpus)) score += 12;
-  return score;
 }
 
 async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
@@ -169,7 +134,7 @@ async function generateRepairAsset(options: { input: { id: string; personaId?: s
     .flatMap((result) => result.success && isAutomaticVisualReference(result.data) ? [result.data] : [])
     .filter((reference) => !options.usedReferenceIds.has(reference.id));
   const rankedReferences = references
-    .map((reference) => ({ reference, score: referenceScore(reference, options.slide) }))
+    .map((reference) => ({ reference, score: scoreVisualReferenceForScene(reference, referenceSceneIntent(options.slide)) }))
     .sort((a, b) => b.score - a.score);
   const bestReference = rankedReferences[0];
   if (!bestReference) throw new Error(`MODELARK_REFERENCE_MISSING:slide_${options.position}`);
