@@ -192,7 +192,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         enabled: sheetSelectable(row),
         metadata: { qa_flag: row.qa_flag ?? null, review_status: row.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       };
-      const changed = String(existing.category ?? "") !== String(expected.category)
+      const metadataChanged = String(existing.category ?? "") !== String(expected.category)
         || String(existing.pose ?? "") !== String(expected.pose)
         || String(existing.framing ?? "") !== String(expected.framing)
         || String(existing.outfit ?? "") !== String(expected.outfit)
@@ -201,7 +201,21 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || existing.enabled !== expected.enabled
         || !sameCanonicalValue(existing.tags, expected.tags)
         || !sameCanonicalValue(existing.good_for, expected.good_for);
-      return changed ? { id: String(existing.id), expected } : null;
+      const syncStateNeedsRepair = String(existing.sync_status ?? "") !== "SYNCED"
+        || !existing.synced_at
+        || String(existing.source_hash ?? "") !== String(existing.file_hash ?? "");
+      return metadataChanged || syncStateNeedsRepair ? {
+        id: String(existing.id),
+        expected: {
+          ...expected,
+          canonical_updated_at: existing.canonical_updated_at ?? existing.updated_at ?? null,
+          synced_at: new Date().toISOString(),
+          source_hash: existing.file_hash ?? existing.source_hash ?? null,
+          sync_status: "SYNCED",
+          sync_error: null,
+          metadata: { ...runtimeMetadata(existing), ...runtimeMetadata(expected), canonical_source: "08_VISUAL_REFS" },
+        },
+      } : null;
     }).filter((repair): repair is { id: string; expected: Row } => Boolean(repair));
     for (let index = 0; index < refRepairs.length; index += 20) {
       const batch = refRepairs.slice(index, index + 20);
@@ -246,7 +260,10 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || !sameTimestamp(existing.visual_reviewed_at, row.visual_reviewed_at)
         || !sameCanonicalValue(existing.tags, split(row.tags))
         || !sameCanonicalValue(existing.good_for, split(row.good_for_pillars)));
-      if (!metadataNeedsRepair) continue;
+      const syncStateNeedsRepair = String(existing.sync_status ?? "") !== "SYNCED"
+        || !existing.synced_at
+        || String(existing.source_hash ?? "") !== String(existing.drive_md5 ?? "");
+      if (!metadataNeedsRepair && !syncStateNeedsRepair) continue;
       repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory });
     }
     for (let index = 0; index < repairs.length; index += 20) {
@@ -277,7 +294,12 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
           tags: split(row.tags),
           good_for: split(row.good_for_pillars),
           enabled: row.enabled !== false,
-          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null, visual_tagging_schema: visualTaggingSchema(row), visual_review_status: row.visual_review_status ?? "", visual_reviewed_at: row.visual_reviewed_at ?? null },
+          canonical_updated_at: existing.drive_modified_time ?? existing.canonical_updated_at ?? null,
+          synced_at: new Date().toISOString(),
+          source_hash: existing.drive_md5 ?? existing.source_hash ?? null,
+          sync_status: "SYNCED",
+          sync_error: null,
+          metadata: { ...runtimeMetadata(existing), canonical_source: "08_STOCK_ASSETS", sheet_sync_status: row.sync_status ?? null, visual_tagging_schema: existingIsVisionV2 ? "observable_v2" : visualTaggingSchema(row), visual_review_status: existingIsVisionV2 ? "IMAGE_INSPECTED_V2" : row.visual_review_status ?? "", visual_reviewed_at: existingIsVisionV2 ? existing.visual_reviewed_at ?? runtimeMetadata(existing).visual_reviewed_at ?? null : row.visual_reviewed_at ?? null },
           indexed_at: new Date().toISOString(),
         });
       }));
@@ -329,7 +351,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       source_hash: entry.file.md5Checksum ?? null,
       sync_status: "SYNCED",
       sync_error: null,
-      metadata: { drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
+      metadata: { ...runtimeMetadata(existing), drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
     if (existing && (md5Matches(existing, entry.file) || existing.filename === entry.file.name || existing.drive_file_id === entry.file.id)) {
@@ -453,7 +475,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       orientation: taxonomy.orientation || "portrait",
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
-      metadata: { drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
+      metadata: { ...runtimeMetadata(existing), drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       enabled: selectable,
       canonical_updated_at: entry.file.modifiedTime ?? null,
       synced_at: new Date().toISOString(),
