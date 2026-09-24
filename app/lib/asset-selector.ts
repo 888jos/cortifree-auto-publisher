@@ -301,15 +301,13 @@ export function chooseAssets(options: {
       : slide.assetType === "stock" || slide.assetType === "text_only"
         ? finalUse.filter((asset) => asset.source_type === "stock")
         : finalUse;
-    // Keep drafts renderable while persona-generated assets are still syncing.
-    // A stock lifestyle image is preferable to a completely invisible carousel;
-    // the generated copy still remains associated with the requested persona.
-    if (hookNeedsPersona && requested.length === 0) {
-      throw new Error(`PERSONA_HOOK_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
+    // Persona-required slides must preserve identity. Never silently
+    // downgrade them to stock just to make a draft renderable. Throwing here
+    // intentionally hands control back to render-carousel's ModelArk repair path.
+    if ((hookNeedsPersona || slide.assetType === "persona") && requested.length === 0) {
+      throw new Error(`PERSONA_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
-    const usableRequested = !options.personaOnly && slide.assetType === "persona" && requested.length < 4 && !hookNeedsPersona && !requiresPersonaScene
-      ? finalUse.filter((asset) => asset.source_type === "stock")
-      : requested;
+    const usableRequested = requested;
     if (options.personaOnly && usableRequested.length < options.slides.length) {
       throw new Error(`PERSONA_ASSETS_REQUIRED:${options.personaId ?? "unknown"}:need_${options.slides.length}:found_${usableRequested.length}`);
     }
@@ -334,7 +332,7 @@ export function chooseAssets(options: {
       const visibleCamera = visualTerms(visualField(asset, "camera_angle"));
       const visibleLighting = visualTerms(visualField(asset, "lighting"));
       const visibleText = visualTerms(visualField(asset, "text_in_image"));
-      const matchedObjects = overlap(intent.desired_objects, [...visibleObjects, ...visualTerms(visualDescription), ...visualTerms(asset.filename)]);
+      const matchedObjects = overlap(intent.desired_objects, [...visibleObjects, ...visualTerms(visualDescription)]);
       const matchedActions = overlap(intent.desired_actions, [...visibleActions, ...visualTerms(visualDescription), ...visualTerms(asset.activity)]);
       const matchedSettings = overlap(intent.desired_settings, [...visibleSettings, ...visualTerms(visualDescription), ...visualTerms(asset.setting), ...visualTerms(asset.scene)]);
       const matchedCompositions = overlap(intent.preferred_compositions, visibleComposition);

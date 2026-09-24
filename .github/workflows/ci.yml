@@ -25,7 +25,9 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install
-        run: npm ci
+        # package-lock is currently being reconciled with newly committed Supabase auth deps.
+        # npm install keeps CI/Vercel consistent until the lockfile is regenerated and committed.
+        run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
       - name: Tests

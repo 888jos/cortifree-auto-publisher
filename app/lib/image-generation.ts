@@ -68,6 +68,30 @@ async function uploadGeneratedAsset(options: {
   const folder = personaAssetFolder(options.category);
   const storagePath = "personas/" + options.personaId + "/" + folder + "/" + filename;
   const { publicUrl, storageId } = await uploadConvexFile(new Uint8Array(jpeg), "image/jpeg");
+  const referenceMetadata = options.reference.metadata ?? {};
+  const metadataList = (key: string) => {
+    const value = referenceMetadata[key];
+    if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    if (typeof value === "string" && value.trim()) return value.split(/[|,]/).map((item) => item.trim()).filter(Boolean);
+    return [];
+  };
+  const metadataText = (key: string) => typeof referenceMetadata[key] === "string" ? String(referenceMetadata[key]).trim() : "";
+  const setting = metadataText("setting") || options.reference.environment || options.category;
+  const composition = metadataText("composition") || options.reference.framing || "person_activity_scene";
+  const specificDetails = [
+    options.reference.pose,
+    options.reference.outfit,
+    options.reference.environment,
+    ...metadataList("specific_details"),
+  ].filter(Boolean);
+  const visualDescription = [
+    options.scene,
+    options.reference.pose ? `pose: ${options.reference.pose}` : "",
+    options.reference.outfit ? `outfit: ${options.reference.outfit}` : "",
+    options.reference.environment ? `setting: ${options.reference.environment}` : "",
+    options.reference.lighting ? `lighting: ${options.reference.lighting}` : "",
+  ].filter(Boolean).join(". ");
+
   const row = {
     workspace_id: CORTIFREE_WORKSPACE_ID, path: `${backendMode()}://${storagePath}`, relative_path: storagePath, filename,
     category: options.category, subcategory: options.scene.toLowerCase().replace(/[^a-z0-9]+/g, "_"), persona_id: options.personaId,
@@ -75,10 +99,32 @@ async function uploadGeneratedAsset(options: {
     hash: options.jobId + ":" + jpeg.length, storage_bucket: BUCKET, storage_path: storagePath, public_url: publicUrl,
     orientation: metadata.width === metadata.height ? "square" : metadata.height > metadata.width ? "portrait" : "landscape",
     framing: options.reference.framing || "medium", activity: options.scene, mood: options.reference.mood.join(" ") || "natural",
-    colors: [], tags: [...new Set([options.category, options.scene, ...options.reference.tags])],
-    metadata: { generation_job_id: options.jobId, visual_reference_id: options.reference.id, storage_id: storageId, storage_backend: backendMode() },
+    colors: [], tags: [...new Set([options.category, options.scene, ...options.reference.tags, ...options.reference.good_for])],
+    visual_description: visualDescription,
+    visible_actions: metadataList("visible_actions"),
+    visible_objects: metadataList("visible_objects"),
+    setting,
+    people_visibility: metadataText("people_visibility") || "full_person",
+    body_parts_visible: metadataList("body_parts_visible"),
+    composition,
+    camera_angle: metadataText("camera_angle"),
+    lighting: options.reference.lighting || metadataText("lighting"),
+    dominant_colors: metadataList("dominant_colors"),
+    text_in_image: metadataText("text_in_image") || "none",
+    specific_details: specificDetails.join(" | "),
+    visual_tagging_schema: "generated_from_reference_v1",
+    visual_review_status: "GENERATED_PERSONA",
+    visual_reviewed_at: new Date().toISOString(),
+    metadata: {
+      generation_job_id: options.jobId,
+      visual_reference_id: options.reference.id,
+      storage_id: storageId,
+      storage_backend: backendMode(),
+      generated_visual_metadata: true,
+      specific_details: specificDetails,
+    },
     scene: options.scene, pose: options.reference.pose, outfit: options.reference.outfit, environment: options.reference.environment,
-    lighting: options.reference.lighting, good_for: options.reference.good_for, enabled: true,
+    good_for: options.reference.good_for, enabled: true,
   };
   const insert = await dataBackend("assets", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
   if (!insert.ok) throw new Error("Asset index failed: " + (await insert.text()).slice(0, 500));

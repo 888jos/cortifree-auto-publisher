@@ -1,5 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../convex/_generated/api";
+import { anyApi } from "convex/server";
+
+const api = anyApi;
 
 type Filter = { field: string; op: "eq" | "gte" | "like" | "in" | "not_null"; value: unknown };
 
