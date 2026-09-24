@@ -216,7 +216,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
           metadata: { ...runtimeMetadata(existing), ...runtimeMetadata(expected), canonical_source: "08_VISUAL_REFS" },
         },
       } : null;
-    }).filter((repair): repair is { id: string; expected: Row } => Boolean(repair));
+    }).filter(Boolean) as Array<{ id: string; expected: Row }>;
     for (let index = 0; index < refRepairs.length; index += 20) {
       const batch = refRepairs.slice(index, index + 20);
       await Promise.all(batch.map(({ id, expected }) => patch("visual_references", id, { ...expected, updated_at: new Date().toISOString() })));
@@ -225,7 +225,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
   }
 
   if (scope === "assets" || scope === "stock" || scope === "stock_missing") {
-    const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string }> = [];
+    const repairs: Array<{ id: string; row: Row; existing: Row; expectedCategory: string; expectedSubcategory: string; existingIsVisionV2: boolean }> = [];
     for (const row of stockTaxonomy) {
       const existing = row.drive_file_id
         ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""))
@@ -264,11 +264,11 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
         || !existing.synced_at
         || String(existing.source_hash ?? "") !== String(existing.drive_md5 ?? "");
       if (!metadataNeedsRepair && !syncStateNeedsRepair) continue;
-      repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory });
+      repairs.push({ id: String(existing.id), row, existing, expectedCategory, expectedSubcategory, existingIsVisionV2 });
     }
     for (let index = 0; index < repairs.length; index += 20) {
       const batch = repairs.slice(index, index + 20);
-      await Promise.all(batch.map(async ({ id, row, existing, expectedCategory, expectedSubcategory }) => {
+      await Promise.all(batch.map(async ({ id, row, existing, expectedCategory, expectedSubcategory, existingIsVisionV2 }) => {
         await patch("assets", id, {
           category: expectedCategory,
           subcategory: expectedSubcategory,
@@ -351,7 +351,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       source_hash: entry.file.md5Checksum ?? null,
       sync_status: "SYNCED",
       sync_error: null,
-      metadata: { ...runtimeMetadata(existing), drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
+      metadata: { ...(existing ? runtimeMetadata(existing) : {}), drive_path: entry.path, stock_key: taxonomy.stock_key ?? null, sheet_sync_status: taxonomy.sync_status ?? null, review_status: taxonomy.review_status ?? null, qa_flag: taxonomy.qa_flag ?? null, visual_tagging_schema: visualTaggingSchema(taxonomy), visual_review_status: taxonomy.visual_review_status ?? "", visual_reviewed_at: taxonomy.visual_reviewed_at ?? null, canonical_source: "08_STOCK_ASSETS" },
       indexed_at: new Date().toISOString(),
     };
     if (existing && (md5Matches(existing, entry.file) || existing.filename === entry.file.name || existing.drive_file_id === entry.file.id)) {
@@ -475,7 +475,7 @@ async function syncGoogleDriveToBackendUnlocked(options: { limit?: number; offse
       orientation: taxonomy.orientation || "portrait",
       tags: split(taxonomy.tags),
       good_for: split(taxonomy.preferred_pillars),
-      metadata: { ...runtimeMetadata(existing), drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
+      metadata: { ...(existing ? runtimeMetadata(existing) : {}), drive_file_id: entry.file.id, drive_path: entry.path, qa_flag: taxonomy.qa_flag ?? null, review_status: taxonomy.review_status ?? null, canonical_source: "08_VISUAL_REFS" },
       enabled: selectable,
       canonical_updated_at: entry.file.modifiedTime ?? null,
       synced_at: new Date().toISOString(),
