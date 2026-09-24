@@ -125,7 +125,7 @@ async function claimImageJob() {
         worker_id: WORKER_ID,
         locked_at: new Date().toISOString(),
         started_at: candidate.started_at ?? new Date().toISOString(),
-        attempts: Number(candidate.attempts ?? 0) + 1,
+        worker_attempts: Number(candidate.worker_attempts ?? 0) + 1,
         last_error: null,
       },
     );
@@ -256,8 +256,25 @@ async function processImageBatch() {
     if (!job) break;
     try {
       await processImageGenerationJob(String(job.id));
+      await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
+        worker_id: WORKER_ID,
+        locked_at: null,
+      });
       console.log("[worker] IMAGE DONE", job.id);
     } catch (error) {
+      const message = (error instanceof Error ? error.message : String(error)).slice(0, 2_000);
+      const attempts = Number(job.worker_attempts ?? 1);
+      const maxAttempts = Number(job.max_attempts ?? 3);
+      const retry = attempts < maxAttempts;
+      const delaySeconds = Math.min(900, 15 * 2 ** Math.max(0, attempts - 1));
+      await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
+        status: retry ? "RETRY" : "FAILED",
+        worker_id: retry ? null : WORKER_ID,
+        locked_at: null,
+        next_attempt_at: retry ? new Date(Date.now() + delaySeconds * 1000).toISOString() : new Date().toISOString(),
+        last_error: message,
+        finished_at: retry ? null : new Date().toISOString(),
+      });
       console.error("[worker] IMAGE FAILED", job.id, error);
     }
   }
