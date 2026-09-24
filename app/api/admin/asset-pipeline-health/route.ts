@@ -36,8 +36,16 @@ export async function GET() {
     const generated = assets.filter((row) => row.source_type === "persona_generated");
 
     const canonicalStock = stockSheet.filter((row) => text(row.source_type).toLowerCase() === "stock");
-    const canonicalStockByDrive = new Map(canonicalStock.map((row) => [text(row.drive_file_id), row]).filter(([id]) => Boolean(id)));
-    const runtimeStockByDrive = new Map(stock.map((row) => [text(row.drive_file_id), row]).filter(([id]) => Boolean(id)));
+    const canonicalStockByDrive = new Map<string, Row>(
+      canonicalStock
+        .map((row) => [text(row.drive_file_id), row] as const)
+        .filter(([id]) => Boolean(id)),
+    );
+    const runtimeStockByDrive = new Map<string, Row>(
+      stock
+        .map((row) => [text(row.drive_file_id), row] as const)
+        .filter(([id]) => Boolean(id)),
+    );
     const missingStock = [...canonicalStockByDrive.entries()]
       .filter(([id]) => !runtimeStockByDrive.has(id))
       .map(([drive_file_id, row]) => ({ drive_file_id, stock_key: row.stock_key ?? null, filename: row.filename ?? null }));
