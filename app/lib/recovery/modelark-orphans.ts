@@ -320,7 +320,7 @@ async function processOne(row: RecoveryRow) {
 export async function recoverModelArkOrphans(options: { limit?: number } = {}) {
   const limit = Math.max(1, Math.min(8, Math.trunc(options.limit ?? 3)));
   const pending = await rows(
-    `image_recovery_manifest?workspace_id=eq.${WORKSPACE_ID}&status=eq.PENDING_SCENE&order=usage_at.asc&limit=${limit}`,
+    `image_recovery_manifest?workspace_id=eq.${WORKSPACE_ID}&status=eq.PENDING_SCENE&persona_id=neq.P13&order=usage_at.asc&limit=${limit}`,
   ) as RecoveryRow[];
 
   const report: Row[] = [];
@@ -338,7 +338,7 @@ export async function recoverModelArkOrphans(options: { limit?: number } = {}) {
   }
 
   const [remainingRows, failedRows, recoveredRows] = await Promise.all([
-    rows(`image_recovery_manifest?workspace_id=eq.${WORKSPACE_ID}&status=eq.PENDING_SCENE&select=usage_id&limit=5000`),
+    rows(`image_recovery_manifest?workspace_id=eq.${WORKSPACE_ID}&status=eq.PENDING_SCENE&persona_id=neq.P13&select=usage_id&limit=5000`),
     rows(`image_recovery_manifest?workspace_id=eq.${WORKSPACE_ID}&status=eq.RECOVERY_FAILED&select=usage_id&limit=5000`),
     rows(`image_recovery_manifest?workspace_id=eq.${WORKSPACE_ID}&status=eq.RECOVERED&select=usage_id&limit=5000`),
   ]);
