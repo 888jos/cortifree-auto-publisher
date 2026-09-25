@@ -48,8 +48,7 @@
     "assets:coverage": "tsx scripts/audit-visual-coverage.ts",
     "maintenance:cleanup-legacy": "tsx scripts/cleanup-legacy-state.ts",
     "maintenance:cleanup-legacy:execute": "tsx scripts/cleanup-legacy-state.ts --execute",
-    "assets:sync-app-screens": "npm run google:sync -- --scope=app_screens --limit=100",
-    "prebuild": "node -e \"const fs=require('fs');const s=fs.readFileSync('package-lock.json').toString('base64');const n=Math.ceil(s.length/6000);for(let i=0;i<n;i++)console.log('LOCKCHUNK:'+String(i).padStart(3,'0')+':'+s.slice(i*6000,(i+1)*6000));console.log('LOCKCOUNT:'+n)\""
+    "assets:sync-app-screens": "npm run google:sync -- --scope=app_screens --limit=100"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
