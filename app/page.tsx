@@ -1074,7 +1074,7 @@ export default function Home() {
                       <div><span className={`statusTag status-${carousel.status.toLowerCase()}`}>{carousel.status}</span><time>{new Date(carousel.created_at).toLocaleDateString("fr-FR")}</time></div>
                       <h2>{carousel.spec?.hook ?? carousel.topic}</h2>
                       <p>{carousel.topic}</p>
-                      <button onClick={() => setOpenedCarousel(carousel)} type="button">Voir les slides</button>
+                      <div className="carouselActions"><button onClick={() => setOpenedCarousel(carousel)} type="button">Voir les slides</button><Link href={`/editor/${carousel.id}`}>Edit</Link></div>
                     </div>
                   </article>;
                 })}
