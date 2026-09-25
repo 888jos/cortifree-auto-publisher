@@ -2,7 +2,6 @@ import { carouselGeneratorInputSchema } from '../../app/lib/ai/schemas';
 import { generateCarousel } from '../../app/lib/ai/carousel-generator';
 import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carousel-store';
 import { renderCarousel } from '../../app/lib/render-carousel';
-import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
 
@@ -108,16 +107,8 @@ export async function processQueuedIdeas(
           slides: result.spec.slides, references: input.references, spec: saved.spec,
         });
         renderStatus = 'READY_FOR_REVIEW';
-        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: renderStatus, updated_at: new Date().toISOString() });
+        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: renderStatus, review_status: 'AWAITING_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
 
-        if (process.env.AUTONOMY_AUTO_APPROVE === 'true') {
-          const readiness = await evaluatePublishReadiness({ rawSpec: result.spec, renderedSlides: rendered.map((slide) => ({ position: slide.position, url: slide.url, assetId: slide.assetId })), platform: 'tiktok', profile: undefined });
-          const contentBlockers = readiness.issues.filter((issue) => issue.severity === 'major' && issue.code !== 'UPLOAD_POST_PROFILE');
-          if (contentBlockers.length === 0) {
-            renderStatus = 'APPROVED';
-            await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: 'APPROVED', updated_at: new Date().toISOString(), spec: { ...saved.spec, autonomous_approval: { at: new Date().toISOString(), issues: readiness.issues } } });
-          }
-        }
       } catch (error) {
         renderError = error instanceof Error ? error.message : String(error);
       }
@@ -148,7 +139,7 @@ export async function retryPendingRenders(limit = 20) {
         id, carouselType: String(carousel.content_type), layout: String(spec?.model_id ?? spec?.layout ?? 'single-image'),
         personaId: String(carousel.persona_id ?? ''), slides, references: Array.isArray(spec?.references) ? spec!.references as any[] : [], spec: spec ?? {},
       });
-      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', updated_at: new Date().toISOString() });
+      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', review_status: 'AWAITING_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
       report.push({ id, status: 'READY_FOR_REVIEW', rendered: rendered.length });
     } catch (error) {
       report.push({ id, status: 'DRAFT', error: error instanceof Error ? error.message : String(error) });
