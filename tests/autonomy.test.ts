@@ -10,7 +10,7 @@ const topic = {
   angle: 'a realistic morning light routine',
   target_problem: 'chaotic mornings',
   target_emotion: 'calm',
-  eligible_formats: 'C01_MORNING_ROUTINE | C02_CHECKLIST',
+  eligible_formats: 'F03_ROUTINE_TIMELINE | F05_INTERACTIVE_CHECKLIST',
   eligible_personas: 'P01 | P06',
   weight: 1,
   cooldown_days: 14,
@@ -20,7 +20,7 @@ const hook = {
   hook_id: 'HOOK_0001',
   hook_family: 'routine',
   formula: 'My {time_period} reset for {goal}: {routine}',
-  compatible_formats: 'C01_MORNING_ROUTINE | C08_MY_REALISTIC',
+  compatible_formats: 'F03_ROUTINE_TIMELINE | F01_LIFESTYLE_GUIDE',
   compatible_pillars: 'PILLAR_MORNING',
   persona_fit: 'ALL',
   weight: 1,
@@ -48,7 +48,7 @@ describe('autonomy selection', () => {
       accountId: 'CF_EN_01',
       personaId: 'P06',
       pillarIds: ['PILLAR_MORNING'],
-      formatIds: ['C01_MORNING_ROUTINE'],
+      formatIds: ['F03_ROUTINE_TIMELINE'],
       topics: [topic],
       hooks: [hook],
       ctas: [cta],
@@ -56,7 +56,7 @@ describe('autonomy selection', () => {
     });
     assert.equal(selected.topic.topic_id, 'TOPIC_0001');
     assert.equal(selected.hook.hook_id, 'HOOK_0001');
-    assert.equal(selected.formatId, 'C01_MORNING_ROUTINE');
+    assert.equal(selected.formatId, 'F03_ROUTINE_TIMELINE');
     assert.equal(selected.cta.cta_id, 'CTA_001');
   });
 
@@ -66,7 +66,7 @@ describe('autonomy selection', () => {
       accountId: 'CF_EN_01',
       personaId: 'P06',
       pillarIds: ['PILLAR_MORNING'],
-      formatIds: ['C01_MORNING_ROUTINE'],
+      formatIds: ['F03_ROUTINE_TIMELINE'],
       topics: [topic],
       hooks: [hook],
       ctas: [cta],
@@ -80,7 +80,7 @@ describe('autonomy selection', () => {
       accountId: 'CF_EN_02',
       personaId: 'P01',
       pillarIds: ['PILLAR_MORNING'],
-      formatIds: ['C01_MORNING_ROUTINE'],
+      formatIds: ['F03_ROUTINE_TIMELINE'],
       topics: [topic],
       hooks: [hook],
       ctas: [cta],
