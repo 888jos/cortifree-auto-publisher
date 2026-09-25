@@ -70,6 +70,7 @@ type Geometry = {
   canvas?: { width: number; height: number };
   safeZone?: Frame;
   image?: Frame;
+  imageSlots?: Frame[];
   text?: Frame & {
     align?: "left" | "center" | "right";
     headlineY?: number;
@@ -887,6 +888,15 @@ async function fitEditorImage(bytes: Buffer, frame: Frame) {
   }).png().toBuffer();
 }
 
+function editorSlot(geometry: Geometry, index: number, fallback: { left: number; top: number; width: number; height: number }) {
+  const custom = geometry.imageSlots?.[index];
+  return custom ? {
+    left: Math.round(custom.x ?? fallback.left), top: Math.round(custom.y ?? fallback.top),
+    width: Math.round(custom.width ?? fallback.width), height: Math.round(custom.height ?? fallback.height),
+    cropX: custom.cropX, cropY: custom.cropY, zoom: custom.zoom, fit: custom.fit ?? "cover",
+  } : { ...fallback, cropX: 50, cropY: 50, zoom: 1, fit: "cover" as const };
+}
+
 async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometry: Geometry) {
   const imageFrame = { ...defaultGeometry.image, ...geometry.image } as Frame;
   const composites: OverlayOptions[] = [];
@@ -922,8 +932,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
         ];
     for (const [index, match] of matches.slice(0, isHook ? 2 : 3).entries()) {
       const imageBytes = await selectedAssetBytes(match);
-      const place = placements[index]!;
-      const fitted = await roundedPhoto(imageBytes, place.width, place.height, 22);
+      const place = editorSlot(geometry, index, placements[index]!);
+      const fitted = geometry.imageSlots?.[index] ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place }) : await roundedPhoto(imageBytes, place.width, place.height, 22);
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
     averageLuminance = 245;
@@ -935,8 +945,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     ];
     for (const [index, match] of matches.slice(0, 3).entries()) {
       const imageBytes = await selectedAssetBytes(match);
-      const place = placements[index]!;
-      const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+      const place = editorSlot(geometry, index, placements[index]!);
+      const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
     averageLuminance = 235;
@@ -947,8 +957,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       : [{ left: 50, top: 70, width: 500, height: 700 }, { left: 560, top: 150, width: 470, height: 620 }];
     for (const [index, match] of pair.entries()) {
       const imageBytes = await selectedAssetBytes(match);
-      const place = placements[index]!;
-      const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+      const place = editorSlot(geometry, index, placements[index]!);
+      const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
     averageLuminance = 220;
@@ -967,8 +977,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       ];
       for (const [index, match] of matches.slice(0, 3).entries()) {
         const imageBytes = await selectedAssetBytes(match);
-        const place = placements[index]!;
-        const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+        const place = editorSlot(geometry, index, placements[index]!);
+        const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
       averageLuminance = 100;
@@ -1175,12 +1185,18 @@ export async function renderCarousel(input: {
     }
   }
   if (!gridMatches.length) throw new Error("CAROUSEL_RENDER_SELECTION_FAILED");
-  const editorOverrides = ((input.spec.editor_overrides ?? {}) as Record<string, { headline?: string; body?: string; assetId?: string | number; text?: Record<string, unknown>; image?: Record<string, unknown> }>);
+  const editorOverrides = ((input.spec.editor_overrides ?? {}) as Record<string, { headline?: string; body?: string; assetId?: string | number; assetIds?: Array<string | number>; text?: Record<string, unknown>; image?: Record<string, unknown>; imageSlots?: Frame[] }>);
   const prepared = await Promise.all(input.slides.map(async (sourceSlide, index) => {
     const override = editorOverrides[String(sourceSlide.position)] ?? {};
     const slide = { ...sourceSlide, headline: override.headline ?? sourceSlide.headline, body: override.body ?? sourceSlide.body };
     let slideMatches = gridMatches[index]!;
-    if (override.assetId != null) {
+    if (override.assetIds?.length) {
+      slideMatches = slideMatches.map((match, slot) => {
+        const requested = override.assetIds?.[slot];
+        const forced = requested == null ? null : assets.find((asset) => String(asset.id) === String(requested));
+        return forced ? { asset: forced, score: 999, matchedTerms: ["editor_override"], fallbackPath: "editor_override" } : match;
+      });
+    } else if (override.assetId != null) {
       const forced = assets.find((asset) => String(asset.id) === String(override.assetId));
       if (forced) slideMatches = [{ asset: forced, score: 999, matchedTerms: ["editor_override"], fallbackPath: "editor_override" }, ...slideMatches.slice(1)];
     }
@@ -1199,6 +1215,7 @@ export async function renderCarousel(input: {
     const geometry = {
       ...baseGeometry,
       image: { ...(baseGeometry.image ?? {}), ...(override.image ?? {}) },
+      imageSlots: override.imageSlots,
       text: { ...(baseGeometry.text ?? {}), ...(override.text ?? {}) },
     } as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
