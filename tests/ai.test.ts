@@ -177,6 +177,23 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME" || issue.code === "LAYOUT"), false);
   });
 
+  it("produces a canonical F07 ranking fallback with explicit scores", () => {
+    const rankingInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F07_RANKING",
+      layout: "ranking",
+      requestedSlideCount: 6,
+      preferredHook: "wellness habits I would actually keep",
+    };
+    const ranking = createFallbackCarousel(rankingInput);
+    assert.equal(ranking.slides.length, 6);
+    assert.ok(ranking.slides.every((slide) => slide.layout === "ranking"));
+    assert.ok(ranking.slides.slice(1, -1).every((slide) => /\d+(?:\.\d+)?\/10|^[SABCDF][+-]?\s*[·•|—–:\-]/i.test(slide.headline)));
+    assert.ok(ranking.slides.slice(1, -1).every((slide) => slide.body.length <= 180));
+    const issues = validateCarouselSpec(ranking, { slideCount: 6, language: "en", layout: "ranking" });
+    assert.equal(issues.some((issue) => issue.code === "RANKING_SCORE" || issue.code === "RANKING_BODY_LENGTH"), false);
+  });
+
   it("produces a canonical F02 asymmetric editorial fallback", () => {
     const editorialInput: CarouselGeneratorInput = {
       ...baseInput,
