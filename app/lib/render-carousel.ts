@@ -508,102 +508,56 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
 function checklistChoices(slide: GeneratedSlide) {
   return String(slide.body ?? "")
     .split(/\s*(?:\||\n|;)\s*/)
-    .map((item) => item.replace(/^[□☐✓✔•\-–—]\s*/, "").trim())
+    .map((item) => item.replace(/^[□☐○◯✓✔•\-–—]\s*/, "").trim())
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 12);
 }
 
 async function checklistPanel(width: number, height: number) {
   return Buffer.from(
-    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${width}" height="${height}" rx="34" ry="34" fill="#fffaf4" fill-opacity="0.96"/></svg>`,
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${width}" height="${height}" rx="30" ry="30" fill="#ffffff" fill-opacity="0.98"/></svg>`,
   );
 }
 
 async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
-  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
-  const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
   const overlays: OverlayOptions[] = [];
 
-  const kicker = await rasterText(isHook ? "QUICK SELF-CHECK" : isFinal ? "YOUR TAKEAWAY" : `CHECK ${String(slide.position - 1).padStart(2, "0")}`, {
-    width: frame.checklistKickerWidth ?? 300,
-    height: 32,
-    size: frame.checklistKickerSize ?? 18,
-    weight: 700,
-    color: frame.accentColor ?? "#9a6674",
-    align: "left",
-    spacing: 1,
-    fontFamily,
-  });
-  overlays.push({
-    input: kicker,
-    left: frame.checklistKickerX ?? 138,
-    top: frame.checklistKickerY ?? 295,
-  });
-
-  const headline = wrap(
-    slide.headline.replace(/^\d+[.)]\s*/, ""),
-    isHook ? 28 : 30,
-    frame.maxHeadlineLines ?? 3,
-  ).join("\n");
-  const headlineImage = await rasterText(headline, {
-    width: frame.width,
-    height: isHook ? 215 : 190,
-    size: frame.headlineSize ?? 46,
-    weight: 700,
-    color: frame.headlineColor ?? "#241f1f",
-    align: "left",
-    spacing: 0,
-    fontFamily: hookFontFamily,
-  });
-  overlays.push({
-    input: headlineImage,
-    left: frame.x,
-    top: frame.headlineY ?? frame.y,
-  });
-
-  if (isHook || isFinal) {
-    if (slide.body.trim()) {
-      const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 4).join("\n");
-      const bodyImage = await rasterText(body, {
-        width: frame.width,
-        height: 170,
-        size: frame.bodySize ?? 28,
-        weight: 500,
-        color: frame.bodyColor ?? "#4f4542",
-        align: "left",
-        spacing: 2,
-        fontFamily,
-      });
-      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 635 });
-    }
+  if (isHook) {
+    const hook = wrap(slide.headline, 32, frame.maxHeadlineLines ?? 4).join("\n");
+    const shadow = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 54, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
+    const foreground = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 54, weight: 700, color: "#ffffff", align: "center", spacing: 1, fontFamily });
+    overlays.push({ input: shadow, left: frame.x + 3, top: (frame.headlineY ?? frame.y) + 3 });
+    overlays.push({ input: foreground, left: frame.x, top: frame.headlineY ?? frame.y });
     return overlays;
   }
 
+  const category = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 26, 1).join("\n");
+  const categoryImage = await rasterText(category, {
+    width: frame.width, height: 58, size: frame.headlineSize ?? 34, weight: 700,
+    color: "#282828", align: "left", spacing: 0, fontFamily,
+  });
+  overlays.push({ input: categoryImage, left: frame.x, top: frame.headlineY ?? frame.y });
+
   const choices = checklistChoices(slide);
-  const startX = frame.checklistChoicesX ?? 138;
-  const startY = frame.checklistChoicesY ?? 610;
-  const choiceWidth = frame.checklistChoicesWidth ?? 804;
-  const gap = frame.checklistChoiceGap ?? 96;
+  const startX = frame.checklistChoicesX ?? 165;
+  const startY = frame.checklistChoicesY ?? 405;
+  const choiceWidth = frame.checklistChoicesWidth ?? 750;
+  const gap = choices.length >= 11 ? 63 : choices.length >= 9 ? 69 : 76;
+  const fontSize = choices.length >= 11 ? 25 : choices.length >= 9 ? 27 : 29;
   for (const [index, choice] of choices.entries()) {
-    const box = Buffer.from(
-      `<svg width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="38" height="38" rx="9" ry="9" fill="none" stroke="#9a6674" stroke-width="3"/></svg>`,
+    const circle = Buffer.from(
+      `<svg width="38" height="38" xmlns="http://www.w3.org/2000/svg"><circle cx="19" cy="19" r="14.5" fill="none" stroke="#c5c5c5" stroke-width="2.5"/></svg>`,
     );
-    overlays.push({ input: box, left: startX, top: startY + index * gap });
-    const label = wrap(choice, 38, 2).join("\n");
+    overlays.push({ input: circle, left: startX, top: startY + index * gap });
+    const label = wrap(choice, 38, 1).join("\n");
     const labelImage = await rasterText(label, {
-      width: choiceWidth - 70,
-      height: 72,
-      size: frame.bodySize ?? 28,
-      weight: 500,
-      color: frame.bodyColor ?? "#4f4542",
-      align: "left",
-      spacing: 1,
-      fontFamily,
+      width: choiceWidth - 58, height: 48, size: fontSize, weight: 450,
+      color: "#3b3b3b", align: "left", spacing: 0, fontFamily,
     });
-    overlays.push({ input: labelImage, left: startX + 66, top: startY + index * gap + 2 });
+    overlays.push({ input: labelImage, left: startX + 56, top: startY + index * gap + 1 });
   }
   return overlays;
 }
@@ -1030,15 +984,11 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
-    if (imageFrame.mode === "interactive-checklist") {
+    if (imageFrame.mode === "interactive-checklist" && !isHook) {
       const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
-      const panelWidth = frame.checklistPanelWidth ?? 900;
+      const panelWidth = frame.checklistPanelWidth ?? 850;
       const panelHeight = frame.checklistPanelHeight ?? 930;
-      composites.push({
-        input: await checklistPanel(panelWidth, panelHeight),
-        left: frame.checklistPanelX ?? 90,
-        top: frame.checklistPanelY ?? 245,
-      });
+      composites.push({ input: await checklistPanel(panelWidth, panelHeight), left: frame.checklistPanelX ?? 115, top: frame.checklistPanelY ?? 235 });
     }
   }
 
