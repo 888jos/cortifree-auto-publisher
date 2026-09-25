@@ -29,18 +29,37 @@ const frSteps = [
   ["Garde ce qui t’aide vraiment", "Ta routine n’a pas besoin d’être parfaite pour te soutenir."],
 ];
 
+const enRoutineSteps = [
+  ["6:30 AM · sunlight before scrolling", "Curtains open first, phone later."],
+  ["7:00 AM · protein breakfast", "Something simple I can actually repeat."],
+  ["8:10 AM · walk before sitting down", "Ten quiet minutes outside."],
+  ["12:30 PM · real lunch break", "I eat away from my laptop."],
+  ["8:45 PM · lights lower", "I make the room feel like the day is ending."],
+  ["9:30 PM · shower + phone away", "Nothing elaborate, just a clear stop signal."],
+];
+const frRoutineSteps = [
+  ["6h30 · lumière avant le téléphone", "J’ouvre les rideaux avant de scroller."],
+  ["7h00 · petit-déj protéiné", "Simple, rassasiant et facile à refaire."],
+  ["8h10 · marche avant de m’asseoir", "Dix minutes dehors, sans objectif."],
+  ["12h30 · vraie pause déjeuner", "Je mange loin de mon écran."],
+  ["20h45 · lumières plus basses", "Je fais sentir à la pièce que la journée ralentit."],
+  ["21h30 · douche + téléphone posé", "Rien de compliqué, juste une vraie coupure."],
+];
+
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
   const language = input.language;
   const topic = topics[input.carouselType][language];
-  const steps = language === "fr" ? frSteps : enSteps;
+  const steps = input.carouselType === "F03_ROUTINE_TIMELINE"
+    ? (language === "fr" ? frRoutineSteps : enRoutineSteps)
+    : (language === "fr" ? frSteps : enSteps);
   const hook = input.preferredHook ?? (language === "fr" ? `${topic} — sans routine parfaite` : `${topic} — no perfect routine required`);
   const middleCount = input.requestedSlideCount - 2;
   const roles: SlideRole[] = input.carouselType === "F05_INTERACTIVE_CHECKLIST" ? ["CHECKLIST"] : input.carouselType === "F03_ROUTINE_TIMELINE" ? ["STEP"] : ["TIP", "STEP", "TAKEAWAY"];
   const slides = [
-    { position: 1, role: "HOOK" as const, layout: input.layout, headline: hook, body: language === "fr" ? "Swipe pour une version simple et tenable." : "Swipe for a simple version you can actually keep.", visualIntent: "Clean lifestyle hero image with generous negative space for a short hook", assetType: "stock" as const, assetQuery: "calm clean girl morning soft natural light portrait" },
+    { position: 1, role: "HOOK" as const, layout: input.layout, headline: hook, body: input.carouselType === "F03_ROUTINE_TIMELINE" ? (language === "fr" ? "6h30 → 21h30 · une journée réaliste" : "6:30 AM → 9:30 PM · a realistic day") : (language === "fr" ? "Swipe pour une version simple et tenable." : "Swipe for a simple version you can actually keep."), visualIntent: input.carouselType === "F03_ROUTINE_TIMELINE" ? "Natural full-screen morning lifestyle scene matching the routine context, candid phone-camera realism, clear negative space upper-left" : "Clean lifestyle hero image with generous negative space for a short hook", assetType: "stock" as const, assetQuery: input.carouselType === "F03_ROUTINE_TIMELINE" ? "realistic morning routine bedroom window natural light candid lifestyle" : "calm clean girl morning soft natural light portrait" },
     ...Array.from({ length: middleCount }, (_, index) => {
       const copy = steps[index % steps.length]!;
-      return { position: index + 2, role: roles[index % roles.length]!, layout: input.layout, headline: copy[0], body: copy[1], visualIntent: "One clear everyday lifestyle action, candid and attainable", assetType: "stock" as const, assetQuery: `${copy[0]} wellness lifestyle natural light` };
+      return { position: index + 2, role: roles[index % roles.length]!, layout: input.layout, headline: copy[0], body: copy[1], visualIntent: input.carouselType === "F03_ROUTINE_TIMELINE" ? `One exact routine action matching: ${copy[0]}. Candid phone-camera lifestyle photo, natural and attainable, no text in image.` : "One clear everyday lifestyle action, candid and attainable", assetType: "stock" as const, assetQuery: input.carouselType === "F03_ROUTINE_TIMELINE" ? `${copy[0]} candid lifestyle exact action natural light` : `${copy[0]} wellness lifestyle natural light` };
     }),
     { position: input.requestedSlideCount, role: "CTA" as const, layout: input.layout, headline: language === "fr" ? "Sauvegarde pour ton prochain reset" : "Save this for your next reset", body: language === "fr" ? "Choisis une seule idée et commence par là." : "Pick one idea and start there.", visualIntent: "Minimal closing frame with calm background and strong save prompt", assetType: "text_only" as const, assetQuery: "minimal warm neutral paper texture" },
   ];

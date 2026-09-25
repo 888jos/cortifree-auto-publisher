@@ -17,6 +17,7 @@ async function patch(resource: string, body: Record<string, unknown>) {
 }
 function layoutFor(contentType: string) {
   if (contentType === 'F02_EDITORIAL_COLLAGE') return 'editorial-collage';
+  if (contentType === 'F03_ROUTINE_TIMELINE') return 'routine-timeline';
   if (contentType === 'F05_INTERACTIVE_CHECKLIST') return 'interactive-checklist';
   if (contentType === 'F07_RANKING') return 'ranking';
   if (contentType === 'F08_2X2') return 'grid-2x2';

@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "generated_at": "2026-09-25T14:47:06.849Z",
+  "generated_at": "2026-09-25T19:55:28.825Z",
   "workspace_id": "cortifree",
   "tables": {
     "content_config": [
@@ -846,11 +846,11 @@
         "objective": "Show a chronological routine people can copy",
         "min_slides": 6,
         "max_slides": 8,
-        "slide_structure": "routine + time range hook > one timed action per slide > takeaway",
+        "slide_structure": "full-screen cover with routine + time range > one timestamped action per full-screen slide > centered takeaway/CTA",
         "hook_family": "routine",
         "cta_type": "save",
-        "image_strategy": "action-specific lifestyle scenes",
-        "preferred_template_family": "single-image",
+        "image_strategy": "one exact action-specific full-screen lifestyle image per slide",
+        "preferred_template_family": "routine-timeline",
         "eligible_pillars": "all",
         "cooldown_days": 4,
         "weight": 0.125,
