@@ -2,7 +2,7 @@ import type { CarouselSpec } from "./schemas";
 import type { CarouselGeneratorInput, SlideRole } from "./types";
 
 const topics: Record<CarouselGeneratorInput["carouselType"], { en: string; fr: string }> = {
-  F01_LIFESTYLE_GUIDE: { en: "things that actually changed my everyday routine", fr: "ce qui a vraiment changé ma routine au quotidien" },
+  F01_LIFESTYLE_GUIDE: { en: "small wellness habits that fit real life", fr: "petites habitudes wellness qui rentrent dans la vraie vie" },
   F02_EDITORIAL_COLLAGE: { en: "a realistic glow-up edit worth saving", fr: "un glow-up réaliste à sauvegarder" },
   F03_ROUTINE_TIMELINE: { en: "my realistic routine from start to finish", fr: "ma routine réaliste du début à la fin" },
   F04_AESTHETIC_EDUCATIONAL: { en: "a simple wellness explainer without miracle claims", fr: "une explication wellness simple sans promesse miracle" },
@@ -10,7 +10,6 @@ const topics: Record<CarouselGeneratorInput["carouselType"], { en: string; fr: s
   F06_PERSONA_EXPLAINER: { en: "what I noticed when I changed my routine", fr: "ce que j’ai remarqué en changeant ma routine" },
   F07_RANKING: { en: "ranking the habits I would actually keep", fr: "je classe les habitudes que je garderais vraiment" },
   F08_2X2: { en: "what I stopped vs what I do now", fr: "ce que j’ai arrêté vs ce que je fais maintenant" },
-  F09_LIFESTYLE_3STACK: { en: "small wellness habits that fit real life", fr: "petites habitudes wellness qui rentrent dans la vraie vie" },
 };
 
 const enSteps = [
@@ -117,7 +116,7 @@ const frRankingSteps = [
   ["SS+ · SUIVRE CE QUI SE RÉPÈTE", "Le plus utile, c’est de voir le pattern au lieu de deviner. CortiFree me sert à garder les habitudes que je répète vraiment."],
 ];
 
-function createF09Fallback(input: CarouselGeneratorInput): CarouselSpec {
+function createF01LifestyleFallback(input: CarouselGeneratorInput): CarouselSpec {
   const fr = input.language === "fr";
   const habits = fr ? [
     ["bois plus simplement", "Garde l’eau comme boisson par défaut. Si tu veux du goût, ajoute citron, fruits ou glaçons."],
@@ -156,7 +155,7 @@ function createF09Fallback(input: CarouselGeneratorInput): CarouselSpec {
   });
   return {
     title: fr ? "habitudes wellness lifestyle" : "lifestyle wellness habits",
-    topic: topics.F09_LIFESTYLE_3STACK[input.language],
+    topic: topics.F01_LIFESTYLE_GUIDE[input.language],
     angle: fr ? "Des habitudes concrètes montrées comme un vrai photo dump lifestyle." : "Concrete habits shown like an organic lifestyle photo dump.",
     hook: cover, language: input.language,
     caption: fr ? "Les trucs simples que je garde vraiment. Sauvegarde pour ton prochain reset ♡" : "The simple things I actually keep. Save for your next reset ♡",
@@ -218,7 +217,7 @@ function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
 }
 
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
-  if (String(input.carouselType) === "F09_LIFESTYLE_3STACK") return createF09Fallback(input);
+  if (String(input.carouselType) === "F01_LIFESTYLE_GUIDE") return createF01LifestyleFallback(input);
   if (String(input.carouselType) === "F04_AESTHETIC_EDUCATIONAL") return createF04Fallback(input);
   const language = input.language;
   const topic = topics[input.carouselType][language];
