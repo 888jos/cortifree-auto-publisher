@@ -57,6 +57,10 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (!hasTimePrefix) issues.push({ code: "ROUTINE_TIME", message: "Routine body slide headline must start with a time label", slidePosition: slide.position, severity: "minor" });
       if (slide.body.length > 100) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support line is too long", slidePosition: slide.position, severity: "minor" });
     }
+    if (expected.layout === "three-rect-educational") {
+      if (slide.headline.length > 64) issues.push({ code: "EDU_HEADLINE_LENGTH", message: "Educational headline is too long for the fixed top-left zone", slidePosition: slide.position, severity: "minor" });
+      if (slide.body.length > 150) issues.push({ code: "EDU_BODY_LENGTH", message: "Educational explanation is too long for the fixed centered zone", slidePosition: slide.position, severity: "minor" });
+    }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
