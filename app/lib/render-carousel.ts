@@ -349,42 +349,75 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
   const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
   const overlays: OverlayOptions[] = [];
-  const headline = wrap(
-    slide.headline.replace(/^\d+[.)]\s*/, ""),
-    slide.position === 1 ? 24 : 30,
-    frame.maxHeadlineLines ?? 3,
-  ).join("\n");
-  const headlineImage = await rasterText(headline, {
-    width: frame.width,
-    height: slide.position === 1 ? 220 : 150,
-    size: frame.headlineSize ?? 42,
-    weight: frame.headlineWeight ?? 700,
-    color: frame.headlineColor ?? "#2b2725",
-    align: "left",
-    spacing: 0,
-    fontFamily: slide.position === 1 ? hookFontFamily : fontFamily,
-  });
-  overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
+  const isCover = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
 
-  if (slide.body.trim()) {
-    const body = wrap(slide.body.trim(), 44, frame.maxBodyLines ?? 4).join("\n");
-    const bodyWidth = frame.eduBodyWidth ?? 770;
-    const bodyImage = await rasterText(body, {
-      width: bodyWidth,
-      height: 180,
-      size: frame.bodySize ?? 30,
-      weight: frame.bodyWeight ?? 500,
-      color: frame.bodyColor ?? "#2b2725",
+  if (isCover) {
+    const title = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 22, 3).join("\n");
+    const titleImage = await rasterText(title, {
+      width: frame.width,
+      height: 270,
+      size: frame.headlineSize ?? 72,
+      weight: frame.headlineWeight ?? 800,
+      color: frame.headlineColor ?? "#2b2725",
       align: "center",
       spacing: 2,
+      fontFamily: hookFontFamily,
+    });
+    overlays.push({ input: titleImage, left: frame.x, top: frame.headlineY ?? frame.y });
+    const accentImage = await rasterText(slide.body.trim() || "✦ · ✧", {
+      width: frame.eduBodyWidth ?? 300,
+      height: 48,
+      size: frame.bodySize ?? 22,
+      weight: 600,
+      color: frame.accentColor ?? "#8a6659",
+      align: "center",
+      spacing: 1,
       fontFamily,
     });
-    overlays.push({
-      input: bodyImage,
-      left: frame.eduBodyX ?? 155,
-      top: frame.eduBodyY ?? frame.bodyY ?? 960,
-    });
+    overlays.push({ input: accentImage, left: frame.eduBodyX ?? 390, top: frame.eduBodyY ?? 735 });
+    return overlays;
   }
+
+  const subject = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 18, 2).join("\n");
+  const subjectImage = await rasterText(subject, {
+    width: frame.width,
+    height: 150,
+    size: frame.headlineSize ?? 58,
+    weight: frame.headlineWeight ?? 800,
+    color: frame.headlineColor ?? "#2b2725",
+    align: "center",
+    spacing: 0,
+    fontFamily: hookFontFamily,
+  });
+  overlays.push({ input: subjectImage, left: frame.x, top: frame.headlineY ?? frame.y });
+
+  const parts = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
+  const label = (parts.shift() ?? "BENEFITS").toUpperCase();
+  const bullets = parts.slice(0, 5);
+  const labelImage = await rasterText(label, {
+    width: frame.eduBodyWidth ?? 390,
+    height: 46,
+    size: 20,
+    weight: 800,
+    color: frame.accentColor ?? "#8a6659",
+    align: "left",
+    spacing: 1,
+    fontFamily,
+  });
+  overlays.push({ input: labelImage, left: frame.eduBodyX ?? 610, top: frame.eduBodyY ?? 170 });
+
+  const bulletText = bullets.map((bullet) => `• ${bullet}`).join("\n");
+  const bulletImage = await rasterText(bulletText, {
+    width: frame.eduBodyWidth ?? 390,
+    height: 270,
+    size: frame.bodySize ?? 25,
+    weight: frame.bodyWeight ?? 500,
+    color: frame.bodyColor ?? "#2b2725",
+    align: "left",
+    spacing: 10,
+    fontFamily,
+  });
+  overlays.push({ input: bulletImage, left: frame.eduBodyX ?? 610, top: (frame.eduBodyY ?? 170) + 55 });
   return overlays;
 }
 
@@ -928,18 +961,23 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       composites.push({ input: fitted, left, top });
     }
   } else if (imageFrame.mode === "three-rect-educational") {
-    const placements = [
-      { left: 74, top: 355, width: 280, height: 500 },
-      { left: 400, top: 300, width: 280, height: 590 },
-      { left: 726, top: 355, width: 280, height: 500 },
-    ];
-    for (const [index, match] of matches.slice(0, 3).entries()) {
+    const placements = isHook
+      ? [
+          { left: 690, top: 90, width: 300, height: 390 },
+          { left: 90, top: 830, width: 300, height: 390 },
+        ]
+      : [
+          { left: 80, top: 110, width: 450, height: 430 },
+          { left: 90, top: 820, width: 390, height: 390 },
+          { left: 600, top: 820, width: 390, height: 390 },
+        ];
+    for (const [index, match] of matches.slice(0, isHook ? 2 : 3).entries()) {
       const imageBytes = await selectedAssetBytes(match);
       const place = placements[index]!;
-      const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
+      const fitted = await roundedPhoto(imageBytes, place.width, place.height, 22);
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
-    averageLuminance = 235;
+    averageLuminance = 245;
   } else if (imageFrame.mode === "editorial-asym-hero") {
     const placements = [
       { left: 60, top: 190, width: 590, height: 770 },
@@ -1098,8 +1136,10 @@ export async function renderCarousel(input: {
       if (multiImageLayout) {
         gridMatches = input.slides.map((slide, index) => {
           const primary = matches[index]!;
-          const desiredCount = input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero"
-            ? 3
+          const desiredCount = input.layout === "three-rect-educational"
+            ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 3)
+            : input.layout === "editorial-asym-hero"
+              ? 3
             : input.layout === "editorial-collage"
               ? 2
               : (index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 1;
@@ -1326,7 +1366,8 @@ export async function renderCarouselRevision(input: {
           } else if (input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero") {
             const used = new Set<string>();
             slideMatches = [];
-            while (slideMatches.length < 3) {
+            const desiredCount = input.layout === "three-rect-educational" && isHook ? 2 : 3;
+            while (slideMatches.length < desiredCount) {
               const next = chooseAssets({
                 assets,
                 carouselType: input.carouselType,
