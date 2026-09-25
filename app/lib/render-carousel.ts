@@ -441,7 +441,6 @@ export async function renderCarousel(input: {
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
-    const persistedAssetId = assetMap.has(String(primaryMatch.asset.id)) ? primaryMatch.asset.id : null;
     const renderMetadata = {
       geometry,
       storage_path: upload.storagePath,
@@ -630,6 +629,7 @@ export async function renderCarouselRevision(input: {
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
+    const persistedAssetId = assetMap.has(String(primaryMatch.asset.id)) ? primaryMatch.asset.id : null;
     const renderMetadata = {
       geometry,
       storage_path: upload.storagePath,
