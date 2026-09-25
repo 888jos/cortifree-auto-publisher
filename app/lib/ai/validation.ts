@@ -52,10 +52,15 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     }
     if (slide.headline.length > 72) issues.push({ code: "HEADLINE_LENGTH", message: "Headline is too long for mobile", slidePosition: slide.position, severity: "minor" });
     if (slide.body.length > 220) issues.push({ code: "BODY_LENGTH", message: "Body is too long for mobile", slidePosition: slide.position, severity: "minor" });
-    if (expected.layout === "routine-timeline" && index > 0 && index < spec.slides.length - 1) {
-      const hasTimePrefix = /^((?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:AM|PM)?|(?:[01]?\d|2[0-3])h(?:[0-5]\d)?)\s*(?:[·•|—–-]|:)/i.test(slide.headline.trim());
-      if (!hasTimePrefix) issues.push({ code: "ROUTINE_TIME", message: "Routine body slide headline must start with a time label", slidePosition: slide.position, severity: "minor" });
-      if (slide.body.length > 100) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support line is too long", slidePosition: slide.position, severity: "minor" });
+    if (expected.layout === "routine-timeline") {
+      const role = slide.role.toUpperCase();
+      const isRoutineStep = index > 0 && role !== "CTA" && role !== "TAKEAWAY";
+      const time = "(?:[01]?\\d|2[0-3])(?::[0-5]\\d)?\\s*(?:AM|PM)?|(?:[01]?\\d|2[0-3])h(?:[0-5]\\d)?";
+      const hasRangePrefix = new RegExp(`^(?:${time})\\s*(?:-|–|—|→)\\s*(?:${time})\\s*(?:[·•|:]|\\s)`, "i").test(slide.headline.trim());
+      if (isRoutineStep && !hasRangePrefix) issues.push({ code: "ROUTINE_TIME_RANGE", message: "Routine step must start with a start-end time range", slidePosition: slide.position, severity: "minor" });
+      if (isRoutineStep && slide.headline.length > 72) issues.push({ code: "ROUTINE_ACTION_LENGTH", message: "Routine time + action is too long for the compact photo overlay", slidePosition: slide.position, severity: "minor" });
+      if (isRoutineStep && slide.body.length > 90) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support copy must stay to a few short factual lines", slidePosition: slide.position, severity: "minor" });
+      if (index === 0 && slide.body.length > 32) issues.push({ code: "ROUTINE_COVER_RANGE", message: "Routine cover body should contain only the overall time range", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "three-rect-educational") {
       if (slide.headline.length > 64) issues.push({ code: "EDU_HEADLINE_LENGTH", message: "Educational headline is too long for the fixed top-left zone", slidePosition: slide.position, severity: "minor" });

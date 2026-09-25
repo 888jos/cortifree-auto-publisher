@@ -161,7 +161,7 @@ describe("CortiFree AI schemas and generation", () => {
     assert.doesNotMatch(fr.caption, /Save this/i);
   });
 
-  it("produces a canonical timestamped F03 routine fallback", () => {
+  it("produces an F03 fallback matching the real TikTok routine reference", () => {
     const routineInput: CarouselGeneratorInput = {
       ...baseInput,
       carouselType: "F03_ROUTINE_TIMELINE",
@@ -171,10 +171,13 @@ describe("CortiFree AI schemas and generation", () => {
     };
     const routine = createFallbackCarousel(routineInput);
     assert.equal(routine.slides[0]?.layout, "routine-timeline");
-    assert.match(routine.slides[1]?.headline ?? "", /^6:30 AM\s*·/);
-    assert.equal(routine.slides.at(-1)?.role, "CTA");
+    assert.match(routine.slides[0]?.body ?? "", /^6:00\s*-\s*7:15$/);
+    assert.match(routine.slides[1]?.headline ?? "", /^6:00\s*-\s*6:05\s*·/);
+    assert.equal(routine.slides.at(-1)?.role, "STEP");
+    assert.match(routine.slides.at(-1)?.headline ?? "", /^7:10\s*-\s*7:15\s*·/);
+    assert.ok(routine.slides.slice(1).every((slide) => slide.body.length <= 90));
     const issues = validateCarouselSpec(routine, { slideCount: 7, language: "en", layout: "routine-timeline" });
-    assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME" || issue.code === "LAYOUT"), false);
+    assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME_RANGE" || issue.code === "ROUTINE_BODY_LENGTH" || issue.code === "LAYOUT"), false);
   });
 
   it("produces a canonical F05 interactive checklist fallback", () => {

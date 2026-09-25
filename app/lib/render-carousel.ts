@@ -715,17 +715,31 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
 
 function routineKicker(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body}`.toLowerCase();
-  if (/night|bedtime|evening/.test(text)) return "NIGHT ROUTINE";
-  if (/morning|a\.m\.|\bam\b/.test(text)) return "MORNING ROUTINE";
-  if (/day in (my|the) life|day in the life|day-in-the-life/.test(text)) return "DAY IN MY LIFE";
-  return "MY ROUTINE";
+  if (/college|school|class/.test(text)) return "COLLEGE GIRL";
+  if (/sunday/.test(text)) return "SUNDAY";
+  if (/realistic/.test(text)) return "MY REALISTIC";
+  return "THAT GIRL";
+}
+
+function routineCoverTitle(slide: GeneratedSlide) {
+  const text = String(slide.headline ?? "").trim();
+  if (/night|bedtime|evening/i.test(text)) return "NIGHT ROUTINE";
+  if (/day in (?:my|the) life|day-in-the-life/i.test(text)) return "DAY IN MY LIFE";
+  if (/morning|a\.m\.|\bam\b/i.test(text)) return "MORNING ROUTINE";
+  if (/reset/i.test(text)) return "RESET ROUTINE";
+  return text.replace(/^(?:my|that girl|realistic)\s+/i, "").toUpperCase().slice(0, 42) || "DAILY ROUTINE";
 }
 
 function routineCopyParts(slide: GeneratedSlide) {
   const source = String(slide.headline ?? "").trim();
-  const match = source.match(/^((?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:AM|PM)?|(?:[01]?\d|2[0-3])h(?:[0-5]\d)?)\s*(?:[·•|—–-]|:)\s*(.+)$/i);
-  if (!match) return { time: "", headline: source };
-  return { time: match[1]!.trim().toUpperCase(), headline: match[2]!.trim() };
+  const time = "(?:[01]?\\d|2[0-3])(?::[0-5]\\d)?\\s*(?:AM|PM)?|(?:[01]?\\d|2[0-3])h(?:[0-5]\\d)?";
+  const range = new RegExp(`^((?:${time})\\s*(?:-|–|—|→)\\s*(?:${time}))\\s*(?:[·•|:]|\\s{2,})?\\s*(.*)$`, "i");
+  const rangeMatch = source.match(range);
+  if (rangeMatch) return { time: rangeMatch[1]!.trim().toUpperCase(), headline: rangeMatch[2]!.trim() };
+  const single = new RegExp(`^(${time})\\s*(?:[·•|—–-]|:)\\s*(.+)$`, "i");
+  const singleMatch = source.match(single);
+  if (!singleMatch) return { time: "", headline: source };
+  return { time: singleMatch[1]!.trim().toUpperCase(), headline: singleMatch[2]!.trim() };
 }
 
 async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
@@ -751,11 +765,11 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       height: 38,
       size: frame.routineKickerSize ?? 20,
       weight: 700,
-      align: "left",
+      align: "center",
       fontFamily,
-      spacing: 1,
+      spacing: 3,
     });
-    const lines = wrapHook(slide.headline.toLowerCase(), 4, 3).join("\n");
+    const lines = wrapHook(routineCoverTitle(slide), 2, 2).join("\n");
     await pushShadowed(lines, {
       left: frame.x,
       top: frame.headlineY ?? frame.y,
@@ -763,7 +777,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       height: 240,
       size: frame.hookSize ?? 64,
       weight: 700,
-      align: "left",
+      align: "center",
       fontFamily: hookFontFamily,
     });
     if (slide.body.trim()) {
@@ -828,10 +842,10 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     top: frame.headlineY ?? frame.y,
     width: frame.width,
     height: 170,
-    size: frame.headlineSize ?? 54,
+    size: frame.headlineSize ?? 36,
     weight: 700,
     align: "center",
-    fontFamily: hookFontFamily,
+    fontFamily,
   });
   if (slide.body.trim()) {
     const support = wrap(slide.body, 46, frame.maxBodyLines ?? 2).join("\n");
@@ -1141,7 +1155,12 @@ export async function renderCarousel(input: {
       ? "single-image"
       : input.layout;
     const typography = typographyForCarousel(input.id);
-    const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, index === input.slides.length - 1, typography) as Geometry;
+    const isRoutineCtaFinal = input.layout === "routine-timeline"
+      && index === input.slides.length - 1
+      && new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
+    const isVisualFinal = index === input.slides.length - 1
+      && (input.layout !== "routine-timeline" || isRoutineCtaFinal);
+    const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, isVisualFinal, typography) as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
