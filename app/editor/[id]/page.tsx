@@ -1,4 +1,5 @@
 "use client";
+// Carousel Studio v2: canonical layer editor for production carousels.
 import { useEffect,useMemo,useRef,useState } from "react";
 import "./editor.css";
 type Frame={x:number;y:number;width:number;height:number;cropX?:number;cropY?:number;zoom?:number;fit?:string};
