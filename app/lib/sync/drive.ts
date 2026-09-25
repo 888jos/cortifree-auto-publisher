@@ -10,6 +10,7 @@ type WalkedFile = { file: DriveFile; path: string[] };
 const STOCK_ROOT = process.env.GOOGLE_DRIVE_STOCK_FOLDER_ID || "12Jd3vxCe-B82Op_fTCVgEjHdzxJMxSCb";
 const PERSONAS_ROOT = process.env.GOOGLE_DRIVE_PERSONAS_FOLDER_ID || "1cnDHDfAGgwOxTT_kJsZNpnRHvB5sY6Ps";
 const VISUAL_REFS_ROOT = process.env.GOOGLE_DRIVE_VISUAL_REFS_FOLDER_ID || "1kIdIzUptjOa6wIzCamp5cisDjLJqHxHL";
+const APP_SCREENS_ROOT = process.env.GOOGLE_DRIVE_APP_SCREENS_FOLDER_ID || "1kcASLh8flvGVIeaqCKg6Onvua8Qks2uU";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 function isImage(file: DriveFile) {
@@ -122,9 +123,134 @@ const syncLocks = new Map<string, Promise<unknown>>();
 type DriveSyncOptions = {
   limit?: number;
   offset?: number;
-  scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing";
+  scope?: "all" | "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" | "app_screens";
   personaId?: string;
 };
+
+function appScreenDescriptor(filename: string) {
+  const normalized = filename
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/^CF_APP_SCREEN_\d+_/i, "")
+    .replace(/_\d+$/i, "")
+    .toLowerCase();
+  const tags = [...new Set([
+    "cortifree", "app", "screenshot", "official",
+    ...normalized.split(/[^a-z0-9]+/).filter(Boolean),
+  ])];
+  return {
+    subcategory: normalized || "app_screen",
+    tags,
+    description: `Official CortiFree app screenshot: ${normalized.replace(/_/g, " ")}`,
+  };
+}
+
+async function syncAppScreensOnly(limit: number, offset: number) {
+  const allEntries = (await walk(APP_SCREENS_ROOT)).filter((entry) => isImage(entry.file));
+  const entries = allEntries.slice(offset, offset + limit);
+  const existing = await backendRows("assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&select=*&limit=500");
+  const byDrive = new Map(existing.filter((row) => row.drive_file_id).map((row) => [String(row.drive_file_id), row]));
+  let uploaded = 0;
+  let skipped = 0;
+  let failed = 0;
+  const failures: Array<{ id: string; name: string; error: string }> = [];
+
+  for (const entry of entries) {
+    try {
+      const descriptor = appScreenDescriptor(entry.file.name);
+      const current = byDrive.get(entry.file.id);
+      const syncedAt = new Date().toISOString();
+      const metadata = {
+        ...(current ? runtimeMetadata(current) : {}),
+        drive_file_id: entry.file.id,
+        drive_path: ["12_CORTIFREE_APP_SCREENS", ...entry.path, entry.file.name],
+        canonical_source: "12_CORTIFREE_APP_SCREENS",
+        official_app_screen: true,
+      };
+      const common: Row = {
+        workspace_id: "cortifree",
+        drive_file_id: entry.file.id,
+        drive_md5: entry.file.md5Checksum ?? null,
+        drive_modified_time: entry.file.modifiedTime ?? null,
+        filename: entry.file.name,
+        category: "app_ui",
+        subcategory: descriptor.subcategory,
+        source_type: "app_screenshot",
+        enabled: true,
+        orientation: "portrait",
+        framing: "app_screen",
+        activity: "app_ui",
+        mood: "calm",
+        scene: descriptor.subcategory,
+        tags: descriptor.tags,
+        good_for: descriptor.tags,
+        visual_description: descriptor.description,
+        visible_objects: ["phone_ui", "app_screen"],
+        visible_actions: [],
+        setting: "app_ui",
+        people_visibility: "no_person",
+        composition: "app_screen",
+        camera_angle: "front",
+        text_in_image: "official_cortifree_ui",
+        specific_details: descriptor.description,
+        visual_tagging_schema: "official_app_ui_v1",
+        visual_review_status: "OFFICIAL_APP_SCREEN",
+        visual_reviewed_at: syncedAt,
+        canonical_updated_at: entry.file.modifiedTime ?? null,
+        synced_at: syncedAt,
+        source_hash: entry.file.md5Checksum ?? null,
+        sync_status: "SYNCED",
+        sync_error: null,
+        metadata,
+        indexed_at: syncedAt,
+      };
+
+      if (current && md5Matches(current, entry.file)) {
+        await patch("assets", String(current.id), common);
+        skipped += 1;
+        continue;
+      }
+
+      const storage = await upload(entry.file);
+      await upsert("assets", {
+        ...common,
+        public_url: storage.publicUrl,
+        storage_bucket: backendMode(),
+        storage_path: String(storage.storageId),
+        path: `app_screens/${entry.file.id}`,
+      }, ["workspace_id", "drive_file_id"]);
+      uploaded += 1;
+    } catch (error) {
+      failed += 1;
+      failures.push({
+        id: entry.file.id,
+        name: entry.file.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const result = {
+    id: `SYNC_APP_SCREENS_${Date.now()}`,
+    workspace_id: "cortifree",
+    event: "DRIVE_APP_SCREENS_SYNC",
+    status: failed ? "PARTIAL" : "SUCCESS",
+    scope: "app_screens",
+    drive_root: APP_SCREENS_ROOT,
+    drive_images: allEntries.length,
+    uploaded,
+    skipped,
+    failed,
+    remaining_hint: Math.max(0, allEntries.length - offset - entries.length),
+    failures: failures.slice(0, 20),
+    finished_at: new Date().toISOString(),
+  };
+  const logResponse = await dataBackend("system_logs", {
+    method: "POST",
+    body: JSON.stringify({ created_at: result.finished_at, stage: result.event, status: result.status, metadata: result }),
+  });
+  if (!logResponse.ok) throw new Error(`App screen sync log write failed: ${await logResponse.text()}`);
+  return result;
+}
 
 async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) {
   const limit = Math.max(1, Math.min(250, options.limit ?? Number(process.env.GOOGLE_DRIVE_SYNC_BATCH ?? 40)));
@@ -132,6 +258,7 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
   const scope = options.scope ?? "all";
   const requestedPersonaId = options.personaId?.trim().toUpperCase() || "";
   if (requestedPersonaId && !/^P\d{2}$/.test(requestedPersonaId)) throw new Error(`Invalid personaId: ${options.personaId}`);
+  if (scope === "app_screens") return syncAppScreensOnly(limit, offset);
   const refTaxonomyPromise = readSheetObjects("08_VISUAL_REFS", "A1:X300");
   const refTreePromise = scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing"
     ? Promise.resolve([])

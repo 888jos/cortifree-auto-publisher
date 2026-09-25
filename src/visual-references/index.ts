@@ -120,7 +120,7 @@ export type VisualReferenceSceneIntent = {
   recommended_outfit?: string | null;
 };
 
-const referenceStopWords = new Set(["the", "and", "with", "for", "from", "into", "this", "that", "scene", "woman", "girl", "person", "photo", "image"]);
+const referenceStopWords = new Set(["the", "and", "with", "for", "from", "into", "this", "that", "scene", "woman", "girl", "person", "photo", "image", "lifestyle"]);
 
 function referenceTerms(value: unknown) {
   const raw = Array.isArray(value) ? value.join(" ") : String(value ?? "");
@@ -150,13 +150,27 @@ function referenceAliasTerms(value: string) {
 }
 
 export function scoreVisualReferenceForScene(reference: VisualReference, scene: VisualReferenceSceneIntent) {
-  const wanted = new Set([
+  const wantedTerms = [
     ...referenceTerms(scene.scene_description),
     ...referenceTerms(scene.category),
     ...(scene.recommended_reference_categories ?? []).flatMap(referenceAliasTerms),
     ...referenceTerms(scene.recommended_framing),
     ...referenceTerms(scene.recommended_outfit),
-  ]);
+  ];
+  const wanted = new Set(wantedTerms);
+  const metadataValues = Object.values(reference.metadata ?? {})
+    .filter((value) => typeof value === "string" || Array.isArray(value));
+  const corpus = [
+    reference.category, reference.pose, reference.framing, reference.outfit,
+    reference.environment, reference.lighting, ...reference.mood,
+    ...reference.tags, ...reference.good_for, ...metadataValues,
+  ].join(" ").toLowerCase();
+  const available = new Set(referenceTerms(corpus));
+
+  let baseMatches = 0;
+  for (const term of wanted) if (available.has(term)) baseMatches += 1;
+  let score = baseMatches * 5;
+
   const fieldScore = (value: unknown, weight: number) => {
     const actual = new Set(referenceTerms(value));
     let matches = 0;
@@ -164,25 +178,24 @@ export function scoreVisualReferenceForScene(reference: VisualReference, scene: 
     return matches * weight;
   };
 
-  let score = 0;
   score += fieldScore(reference.environment, 10);
   score += fieldScore(reference.pose, 9);
   score += fieldScore(reference.good_for, 7);
-  score += fieldScore(reference.tags, 6);
+  score += fieldScore(reference.tags, 5);
   score += fieldScore(reference.framing, 4);
-  score += fieldScore(reference.outfit, 4);
-  score += fieldScore(reference.lighting, 2);
+  score += fieldScore(reference.outfit, 3);
+  score += fieldScore(reference.lighting, 3);
   score += fieldScore(reference.mood, 2);
-  // Broad category is useful only as a weak supporting signal.
-  score += fieldScore(reference.category, 2);
+  score += fieldScore(reference.category, 1);
 
-  const corpus = [reference.category, reference.pose, reference.framing, reference.outfit, reference.environment, reference.lighting, ...reference.mood, ...reference.tags, ...reference.good_for].join(" ").toLowerCase();
   const sceneText = scene.scene_description.toLowerCase();
-  if (/walk|outside|outdoor|street|commute/.test(sceneText) && !/walk|outside|outdoor|street|park|commute/.test(corpus)) score -= 40;
-  if (/kitchen|cook|meal|breakfast|food|grocery/.test(sceneText) && !/kitchen|cook|food|meal|grocery|produce/.test(corpus)) score -= 35;
-  if (/bed|bedroom|sleep|night|cozy/.test(sceneText) && !/bed|bedroom|night|cozy|home/.test(corpus)) score -= 30;
-  if (/gym|pilates|workout|run|fitness|exercise/.test(sceneText) && !/gym|pilates|fitness|workout|exercise|movement|run/.test(corpus)) score -= 35;
+  if (/walk|walking|outside|outdoor|street|sidewalk|park|nature|commute/.test(sceneText) && !/outdoor|outside|walk|street|sidewalk|park|nature|commute/.test(corpus)) score -= 80;
+  if (/gym|workout|strength|pilates|yoga|treadmill|exercise|fitness|run/.test(sceneText) && !/gym|fitness|pilates|yoga|treadmill|workout|exercise|movement|run/.test(corpus)) score -= 55;
+  if (/bed|bedroom|sleep|night routine|wake|waking|cozy/.test(sceneText) && !/bed|bedroom|night|morning_home|cozy|home/.test(corpus)) score -= 45;
+  if (/food|meal|breakfast|lunch|dinner|grocery|cook|cooking|kitchen/.test(sceneText) && !/food|grocery|kitchen|meal|coffee|cafe|produce|cook/.test(corpus)) score -= 45;
+  if (/no_person|none|environment reference|empty room|food arrangement/.test(corpus)) score -= 100;
 
+  if (/face|portrait|selfie|full body|partial body|person|mirror/.test(corpus)) score += 12;
   return score;
 }
 

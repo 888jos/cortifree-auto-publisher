@@ -4,7 +4,7 @@ import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
   activity: string; mood: string; scene?: string; good_for?: string[]; colors: string[]; tags: string[]; public_url: string; use_count: number; last_used_at: string | null;
-  source_type?: string; persona_id?: string | null;
+  source_type?: string; persona_id?: string | null; drive_file_id?: string | null;
   visual_description?: string; visible_objects?: string[]; visible_actions?: string[]; setting?: string;
   people_visibility?: string; body_parts_visible?: string[]; composition?: string; camera_angle?: string;
   lighting?: string; dominant_colors?: string[]; text_in_image?: string; specific_details?: string;
@@ -66,23 +66,6 @@ const EXPLICIT_FALLBACK_THRESHOLD = 40;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
 const VISUAL_QA_EXCLUDED_FILENAMES = new Set(["MAYA_SELFCARE_001.jpg"]);
-
-const categoryByType: Record<string, string[]> = {
-  C01_MORNING_ROUTINE: ["morning", "food", "self_care", "fitness"],
-  C02_CHECKLIST: ["morning", "stress_reset", "self_care", "work_study"],
-  C03_THINGS_I_STOPPED: ["stress_reset", "morning", "work_study", "night"],
-  C04_THINGS_I_STARTED: ["morning", "fitness", "food", "self_care"],
-  C05_GLOW_UP: ["self_care", "fitness", "food", "morning"],
-  C06_POV_RELATABLE: ["stress_reset", "work_study", "morning", "night"],
-  C07_MISTAKES: ["stress_reset", "work_study", "morning", "food"],
-  C08_MY_REALISTIC: ["morning", "self_care", "food", "work_study"],
-  C09_LIST: ["morning", "self_care", "food", "fitness", "outdoors"],
-  C10_BEFORE_AFTER: ["stress_reset", "morning", "self_care", "fitness"],
-  C11_HORMONE_EDUCATION: ["food", "fitness", "morning", "self_care"],
-  C12_NIGHT_ROUTINE: ["night", "self_care", "stress_reset"],
-  C13_EDUCATIONAL_EXPLAINER: ["stress_reset", "work_study", "morning", "food", "self_care"],
-  C14_STORY_TRANSFORMATION: ["self_care", "morning", "outdoors", "fitness", "work_study"],
-};
 
 const stopWords = new Set(["the", "and", "with", "this", "that", "your", "for", "from", "into", "one", "clear", "everyday", "lifestyle", "image", "photo", "slide", "natural"]);
 function terms(value: string) {
@@ -152,6 +135,12 @@ function isCanonicalReviewedStock(asset: SelectableAsset) {
 
 function fieldTerms(value: unknown) {
   return terms(Array.isArray(value) ? value.join(" ") : String(value ?? ""));
+}
+
+export function requiresOfficialAppScreenshot(slide: { assetQuery?: string; visualIntent?: string }) {
+  const text = `${slide.assetQuery ?? ""} ${slide.visualIntent ?? ""}`.toLowerCase();
+  return /(?:cortifree.{0,80}(?:screenshot|app ui|app interface|authentic ui)|(?:screenshot|app ui|app interface).{0,80}cortifree)/.test(text)
+    && /(?:real|official|authentic|supplied|approved|do not (?:generate|recreate|fabricate|alter|invent))/.test(text);
 }
 
 function criticalSlide(slide: { position: number; role?: string; assetType?: string }) {
@@ -289,7 +278,7 @@ function semanticTokenOverlap(desired: string, actual: string) {
 }
 
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
-  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata&enabled=eq.true&public_url=not.is.null&limit=1000`);
+  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,drive_file_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
   return await response.json() as SelectableAsset[];
 }
@@ -308,23 +297,33 @@ export function chooseAssets(options: {
     const intent = deriveVisualIntent(slide);
     // Masters and raw visual references are inputs to ModelArk only. They are
     // never valid carousel output assets.
+    const officialAppScreenshot = requiresOfficialAppScreenshot(slide);
     const finalUse = options.assets.filter((asset) =>
       !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename)
       && !options.excludedAssetIds?.has(String(asset.id))
-      && (asset.source_type === "stock" || asset.source_type === "persona_generated")
-      && (isCanonicalReviewedStock(asset) || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId)))
+      && (asset.source_type === "stock" || asset.source_type === "persona_generated" || asset.source_type === "app_screenshot")
+      && (
+        asset.source_type === "app_screenshot"
+        || isCanonicalReviewedStock(asset)
+        || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId))
+      )
     );
     const constraint = sceneConstraint(slide);
-    const hookNeedsPersona = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
+    const hookNeedsPersona = !officialAppScreenshot && (slide.position === 1 || slide.role?.toUpperCase() === "HOOK");
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
-    const requested = hookNeedsPersona || slide.assetType === "persona"
-      ? finalUse.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === options.personaId)
-      : slide.assetType === "stock" || slide.assetType === "text_only"
-        ? finalUse.filter((asset) => asset.source_type === "stock")
-        : finalUse;
+    const requested = officialAppScreenshot
+      ? finalUse.filter((asset) => asset.source_type === "app_screenshot")
+      : hookNeedsPersona || slide.assetType === "persona"
+        ? finalUse.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === options.personaId)
+        : slide.assetType === "stock" || slide.assetType === "text_only"
+          ? finalUse.filter((asset) => asset.source_type === "stock")
+          : finalUse;
     // Persona-required slides must preserve identity. Never silently
     // downgrade them to stock just to make a draft renderable. Throwing here
     // intentionally hands control back to render-carousel's ModelArk repair path.
+    if (officialAppScreenshot && requested.length === 0) {
+      throw new Error(`CORTIFREE_APP_SCREEN_REQUIRED:slide_${slide.position}`);
+    }
     if ((hookNeedsPersona || slide.assetType === "persona") && requested.length === 0) {
       throw new Error(`PERSONA_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
@@ -335,10 +334,12 @@ export function chooseAssets(options: {
     // For faceswapped persona assets, identity continuity is mandatory and
     // the generated scene is already the visual reference. Do not discard a
     // valid face asset only because its indexed keywords are sparse.
-    const compatible = (options.personaOnly
+    const compatible = officialAppScreenshot
       ? usableRequested
-      : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint)))
-      .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
+      : (options.personaOnly
+        ? usableRequested
+        : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint)))
+        .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
     const unused = compatible.filter((asset) => !used.has(asset.id));
     const distinct = unused;
     if (!distinct.length) throw new Error(`ASSET_DIVERSITY_EXHAUSTED:slide_${slide.position}:used_${used.size}`);
@@ -376,6 +377,7 @@ export function chooseAssets(options: {
       const personaSceneScore = slide.assetType === "persona" && asset.source_type === "persona_generated" && requiresPersonaScene ? 20 : 0;
       const textPenalty = visibleText.length && !intent.desired_objects.includes("laptop") ? 5 : 0;
       let score = semanticScore * 35 + actionScore * 20 + objectScore * 15 + settingScore * 12 + compositionScore * 6 + detailScore * 5 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + legacyQueryScore + personaSceneScore - textPenalty;
+      if (officialAppScreenshot && asset.source_type === "app_screenshot") score += 100;
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
@@ -405,9 +407,11 @@ export function chooseAssets(options: {
     // In a persona-only 2x2 slide, identity continuity is already enforced by
     // the persona asset pool. Sparse legacy scene tags must not block a valid
     // freshly face-swapped frame; visual QA still runs at the lower threshold.
-    const threshold = options.personaOnly && slide.assetType === "persona"
-      ? 40
-      : criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
+    const threshold = officialAppScreenshot
+      ? 0
+      : options.personaOnly && slide.assetType === "persona"
+        ? 40
+        : criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
     const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
     const fallbackCandidate = !selectedCandidate && !criticalSlide(slide)
       ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)

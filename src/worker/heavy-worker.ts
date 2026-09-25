@@ -171,8 +171,8 @@ async function runGoogleSync(payload: Row) {
     ? await syncEditorialSheetToConvex()
     : { status: "SKIPPED", reason: "Drive-only scope" };
   if (scope === "sheet") return { editorial, drive: { status: "SKIPPED" } };
-  const driveScope = ["visual_refs", "visual_refs_missing", "assets", "stock", "stock_missing"].includes(scope)
-    ? scope as "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing"
+  const driveScope = ["visual_refs", "visual_refs_missing", "assets", "stock", "stock_missing", "app_screens"].includes(scope)
+    ? scope as "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" | "app_screens"
     : "all";
   const drive = await syncGoogleDriveToConvex({ limit, offset, personaId, scope: driveScope });
   return { editorial, drive };
