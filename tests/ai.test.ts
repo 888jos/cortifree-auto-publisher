@@ -200,21 +200,22 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS" || issue.code === "CHECKLIST_OPTION_LENGTH" || issue.code === "LAYOUT"), false);
   });
 
-  it("produces a canonical F07 ranking fallback with explicit scores", () => {
+  it("produces a canonical F07 girly tier-list fallback", () => {
     const rankingInput: CarouselGeneratorInput = {
       ...baseInput,
       carouselType: "F07_RANKING",
       layout: "ranking",
-      requestedSlideCount: 6,
-      preferredHook: "wellness habits I would actually keep",
+      requestedSlideCount: 9,
     };
     const ranking = createFallbackCarousel(rankingInput);
-    assert.equal(ranking.slides.length, 6);
+    assert.equal(ranking.slides.length, 9);
     assert.ok(ranking.slides.every((slide) => slide.layout === "ranking"));
-    assert.ok(ranking.slides.slice(1, -1).every((slide) => /\d+(?:\.\d+)?\/10|^[SABCDF][+-]?\s*[·•|—–:\-]/i.test(slide.headline)));
-    assert.ok(ranking.slides.slice(1, -1).every((slide) => slide.body.length <= 180));
-    const issues = validateCarouselSpec(ranking, { slideCount: 6, language: "en", layout: "ranking" });
-    assert.equal(issues.some((issue) => issue.code === "RANKING_SCORE" || issue.code === "RANKING_BODY_LENGTH"), false);
+    assert.match(ranking.slides[0]?.headline ?? "", /TIER LIST/i);
+    assert.ok(ranking.slides.slice(1, -1).every((slide) => /^(SS\+|[FDCBAS])\s*[·•|—–:\-]/i.test(slide.headline)));
+    assert.ok(ranking.slides.slice(1, -1).every((slide) => !/\d+(?:\.\d+)?\/10/.test(slide.headline)));
+    assert.match(ranking.slides.at(-1)?.headline ?? "", /reset/i);
+    const issues = validateCarouselSpec(ranking, { slideCount: 9, language: "en", layout: "ranking" });
+    assert.equal(issues.some((issue) => issue.code.startsWith("RANKING_") || issue.code === "LAYOUT"), false);
   });
 
   it("produces a canonical F02 asymmetric editorial fallback", () => {
