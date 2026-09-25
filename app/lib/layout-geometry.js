@@ -122,6 +122,42 @@ function editorialAsymTextFrame(isCover, isFinal, typography) {
   };
 }
 
+function rankingTextFrame(isCover, isFinal, typography) {
+  if (isCover) {
+    return {
+      x: 74, y: 105, width: 700, align: "left",
+      headlineY: 105, bodyY: 285,
+      headlineSize: 60, bodySize: 26, hookSize: 60,
+      headlineWeight: 700, bodyWeight: 500,
+      maxHeadlineLines: 3, maxBodyLines: 2,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  if (isFinal) {
+    return {
+      x: 600, y: 340, width: 390, align: "left",
+      headlineY: 340, bodyY: 505,
+      headlineSize: 48, bodySize: 28, hookSize: 48,
+      headlineWeight: 700, bodyWeight: 500,
+      maxHeadlineLines: 3, maxBodyLines: 4,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  return {
+    x: 620, y: 395, width: 350, align: "left",
+    headlineY: 395, bodyY: 530,
+    headlineSize: 42, bodySize: 28, hookSize: 42,
+    headlineWeight: 700, bodyWeight: 500,
+    maxHeadlineLines: 3, maxBodyLines: 5,
+    rankingScoreX: 620, rankingScoreY: 170, rankingScoreWidth: 350, rankingScoreSize: 96,
+    rankingKickerX: 620, rankingKickerY: 132, rankingKickerWidth: 260, rankingKickerSize: 18,
+    fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+    hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+  };
+}
+
 export function getSlideGeometry(slide, isCover = false, isFinal = false, typography = {}) {
   const requested = String(slide.layout ?? "single-image");
   const layout = imageFrames[requested] ? requested : "single-image";
@@ -190,6 +226,28 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         editorial: true,
         asymmetric: true,
         ranking: false,
+        final: Boolean(isFinal),
+        cover: Boolean(isCover),
+      },
+    };
+  }
+
+  if (layout === "ranking") {
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        ...rankingTextFrame(isCover, isFinal, typography),
+        headlineColor: "#261f22",
+        bodyColor: "#4c3f43",
+        accentColor: "#7d4e62",
+      },
+      overlay: { color: "#f7f1e8", opacity: 0 },
+      chrome: {
+        panel: false,
+        editorial: true,
+        ranking: true,
         final: Boolean(isFinal),
         cover: Boolean(isCover),
       },
