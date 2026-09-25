@@ -176,4 +176,21 @@ describe("CortiFree AI schemas and generation", () => {
     const issues = validateCarouselSpec(routine, { slideCount: 7, language: "en", layout: "routine-timeline" });
     assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME" || issue.code === "LAYOUT"), false);
   });
+
+  it("produces a concise canonical F04 three-rectangle fallback", () => {
+    const educationalInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F04_AESTHETIC_EDUCATIONAL",
+      layout: "three-rect-educational",
+      requestedSlideCount: 6,
+      preferredHook: "5 habits that make my days feel less chaotic",
+    };
+    const educational = createFallbackCarousel(educationalInput);
+    assert.equal(educational.slides.length, 6);
+    assert.ok(educational.slides.every((slide) => slide.layout === "three-rect-educational"));
+    assert.ok(educational.slides.every((slide) => slide.body.length <= 150));
+    assert.equal(educational.slides.at(-1)?.assetType, "stock");
+    const issues = validateCarouselSpec(educational, { slideCount: 6, language: "en", layout: "three-rect-educational" });
+    assert.equal(issues.some((issue) => issue.code === "LAYOUT" || issue.code === "EDU_BODY_LENGTH"), false);
+  });
 });
