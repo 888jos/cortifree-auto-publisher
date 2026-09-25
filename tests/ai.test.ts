@@ -180,24 +180,26 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME_RANGE" || issue.code === "ROUTINE_BODY_LENGTH" || issue.code === "LAYOUT"), false);
   });
 
-  it("produces a canonical F05 interactive checklist fallback", () => {
+  it("produces a canonical F05 Notes-style master-list fallback", () => {
     const checklistInput: CarouselGeneratorInput = {
       ...baseInput,
       carouselType: "F05_INTERACTIVE_CHECKLIST",
       layout: "interactive-checklist",
-      requestedSlideCount: 6,
-      preferredHook: "is your routine helping or just exhausting you?",
+      requestedSlideCount: 8,
+      preferredHook: "I want to eat better but I don’t know where to start",
     };
     const checklist = createFallbackCarousel(checklistInput);
-    assert.equal(checklist.slides.length, 6);
+    assert.equal(checklist.slides.length, 8);
     assert.ok(checklist.slides.every((slide) => slide.layout === "interactive-checklist"));
-    assert.ok(checklist.slides.slice(1, -1).every((slide) => {
+    assert.equal(checklist.slides[0]?.body, "");
+    assert.ok(checklist.slides.slice(1).every((slide) => {
       const choices = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
-      return choices.length >= 2 && choices.length <= 4;
+      return choices.length >= 5 && choices.length <= 12;
     }));
-    assert.equal(checklist.slides.at(-1)?.assetType, "stock");
-    const issues = validateCarouselSpec(checklist, { slideCount: 6, language: "en", layout: "interactive-checklist" });
-    assert.equal(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS" || issue.code === "CHECKLIST_OPTION_LENGTH" || issue.code === "LAYOUT"), false);
+    assert.ok(checklist.slides.slice(1).every((slide) => slide.role === "CHECKLIST"));
+    assert.ok(checklist.slides.slice(1).every((slide) => slide.headline.trim().split(/\s+/).length <= 3));
+    const issues = validateCarouselSpec(checklist, { slideCount: 8, language: "en", layout: "interactive-checklist" });
+    assert.equal(issues.some((issue) => issue.code.startsWith("CHECKLIST_") || issue.code === "LAYOUT"), false);
   });
 
   it("produces a canonical F01 lifestyle three-stack fallback", () => {
