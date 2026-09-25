@@ -78,3 +78,13 @@ export async function uploadDriveFile(options: { name: string; parentId: string;
   });
   return await response.json() as DriveFile & { webViewLink?: string };
 }
+
+
+export async function deleteDriveFile(fileId: string) {
+  const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
+    method: "DELETE",
+  });
+  if (response.status === 404) return { deleted: false, missing: true };
+  if (!response.ok) throw new Error(`Google Drive delete failed ${response.status}: ${await response.text()}`);
+  return { deleted: true, missing: false };
+}
