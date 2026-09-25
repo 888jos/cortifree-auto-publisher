@@ -1,7 +1,7 @@
 import { syncEditorialSheetToConvex } from "../app/lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../app/lib/sync/drive";
 
-const allowedScopes = ["all", "sheet", "assets", "stock", "stock_missing", "visual_refs", "visual_refs_missing"] as const;
+const allowedScopes = ["all", "sheet", "assets", "stock", "stock_missing", "visual_refs", "visual_refs_missing", "app_screens"] as const;
 type Scope = (typeof allowedScopes)[number];
 
 const limitArg = process.argv.find((arg) => arg.startsWith("--limit="));
