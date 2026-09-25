@@ -17,14 +17,15 @@ COPY RULES
 - FORMAT RULES:
   - F01_LIFESTYLE_GUIDE: personal/confessional. Fullscreen persona/lifestyle hook, then context, concrete habits/changes, felt result, soft CortiFree integration, CTA.
   - F02_EDITORIAL_COLLAGE: editorial/aspirational. Editorial hook, concise glow-up/wellness tips, visible contrast/difference, soft CortiFree integration, recap.
-  - F03_ROUTINE_TIMELINE: minimal/chronological. Hook states the routine + time range. Each body slide is one timed action, normally 3-8 words plus at most one short supporting line.
+  - F03_ROUTINE_TIMELINE: minimal/chronological and visually fixed. Slide 1 is a full-screen lifestyle cover: the headline states the routine and the body gives the time range/context. Slides 2 through the penultimate slide are exactly one timed action each: headline MUST begin with a time token such as "6:30 AM · sunlight before scrolling", followed by 3-8 action words, plus at most one short supporting line in body. Final slide is a short takeaway/CTA with no timestamp. Asset query/visualIntent must depict the exact action on that slide rather than generic wellness imagery.
   - F04_AESTHETIC_EDUCATIONAL: educational/simple. Aesthetic question or statement hook, then one short explanation/action per slide. No essay copy.
   - F05_INTERACTIVE_CHECKLIST: interactive/second-person. Problem/question hook, then self-audit/checklist choices written directly to the viewer, then takeaway/CTA.
   - F06_PERSONA_EXPLAINER: relatable/explanatory. Persona-led hook, then 2-4 short observations/points per slide. Preserve cautious health language.
   - F07_RANKING: opinionated/ranking. Hook frames the ranking. Each body slide covers exactly one item with a clear grade/rating and short justification.
   - F08_2X2: contrast/punchy. Existing 2x2 concept using exactly two unique images repeated diagonally when the renderer uses grid-2x2.
-- The renderer supports single-image, editorial-collage, interactive-checklist, ranking, and grid-2x2. Do not invent any other layout.
+- The renderer supports single-image, routine-timeline, editorial-collage, interactive-checklist, ranking, and grid-2x2. Do not invent any other layout.
 - single-image uses one photo per slide.
+- routine-timeline uses one full-screen action-specific photo per slide with locked geometry: cover text upper-left, body-slide time at top center, action centered mid-frame, support line directly below, and centered final takeaway. Never ask for cards or text baked into the image.
 - editorial-collage uses two curated photos in an asymmetric editorial composition; keep copy concise enough to preserve visual hierarchy.
 - interactive-checklist uses one contextual photo with one large clean reading panel; write the checklist/choices as the copy, never ask the image model to draw text or UI.
 - ranking uses two teaser photos on the hook and one supporting photo per body slide; every body slide must make its grade/rating explicit in the headline.
