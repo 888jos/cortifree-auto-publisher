@@ -210,8 +210,10 @@ async function insertRecoveredAsset(options: {
     dominant_colors: options.classification.dominant_colors,
     text_in_image: options.classification.text_in_image,
     specific_details: options.classification.visual_description,
-    visual_tagging_schema: "RECOVERY_V1",
-    visual_review_status: "AI_RECOVERY_CLASSIFIED_V1",
+    visual_tagging_schema: options.classification.scene === "recovery_staging" ? "RECOVERY_STAGING_V1" : "RECOVERY_V1",
+    visual_review_status: options.classification.scene === "recovery_staging"
+      ? "RECOVERY_STAGING_NEEDS_RECLASSIFICATION"
+      : "AI_RECOVERY_CLASSIFIED_V1",
     visual_reviewed_at: now,
     drive_file_id: options.driveFileId,
     drive_md5: options.row.md5 ?? null,
@@ -256,8 +258,28 @@ async function processOne(row: RecoveryRow) {
   const source = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
   if (!source.ok) throw new Error(`Storage download failed ${source.status}`);
   const bytes = Buffer.from(await source.arrayBuffer());
+  const classificationPromise = process.env.OPENAI_API_KEY
+    ? classifyImage(imageUrl)
+    : Promise.resolve<Classification>({
+        category: "other",
+        scene: "recovery_staging",
+        visual_description: "Recovered ModelArk image staged for manual visual classification.",
+        activity: "lifestyle",
+        setting: "",
+        framing: "medium",
+        mood: "natural",
+        visible_objects: [],
+        visible_actions: [],
+        people_visibility: "person_visible",
+        body_parts_visible: [],
+        composition: "",
+        camera_angle: "",
+        lighting: "",
+        dominant_colors: [],
+        text_in_image: "none",
+      });
   const [classification, metadata] = await Promise.all([
-    classifyImage(imageUrl),
+    classificationPromise,
     sharp(bytes).metadata(),
   ]);
 
