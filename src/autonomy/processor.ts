@@ -16,7 +16,7 @@ async function patch(resource: string, body: Record<string, unknown>) {
   if (!response.ok) throw new Error(await response.text());
 }
 function layoutFor(contentType: string) {
-  if (contentType === 'F02_EDITORIAL_COLLAGE') return 'editorial-collage';
+  if (contentType === 'F02_EDITORIAL_COLLAGE') return 'editorial-asym-hero';
   if (contentType === 'F03_ROUTINE_TIMELINE') return 'routine-timeline';
   if (contentType === 'F04_AESTHETIC_EDUCATIONAL') return 'three-rect-educational';
   if (contentType === 'F05_INTERACTIVE_CHECKLIST') return 'interactive-checklist';
