@@ -105,6 +105,16 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       continue;
     }
 
+    if (personaId === "P13") {
+      report.push({
+        id: asset.id,
+        filename: asset.filename,
+        persona_id: personaId,
+        status: "SKIPPED_NO_VALID_MASTER",
+      });
+      continue;
+    }
+
     const personaFolder = personaFolders.get(personaId);
     if (!personaFolder) {
       if (execute && !asset.persona_id) {
