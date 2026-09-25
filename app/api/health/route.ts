@@ -2,7 +2,6 @@ import { backendConfigured as isBackendConfigured, backendMode, getBackendCounts
 import { googleServiceAccountConfigured, googleServiceAccountIdentity } from "../../lib/google/auth";
 import { CORTIFREE_SHEET_ID, readSheetRange } from "../../lib/google/sheets";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
-import { isAdminRequest } from "../../lib/admin-auth";
 
 function hostname(value?: string) {
   if (!value) return null;
@@ -14,13 +13,6 @@ function hostname(value?: string) {
 }
 
 export async function GET(request: Request) {
-  if (!isAdminRequest(request)) {
-    return Response.json({
-      ok: true,
-      service: "cortifree-auto-publisher",
-      authentication: "required",
-    }, { headers: { "Cache-Control": "no-store" } });
-  }
   const backendConfigured = isBackendConfigured();
   const expectedHost = (process.env.CORTIFREE_CANONICAL_HOST || "cortifree-auto-publisher.vercel.app").toLowerCase();
   const deployedHost = hostname(process.env.VERCEL_PROJECT_PRODUCTION_URL) ?? hostname(process.env.NEXT_PUBLIC_APP_URL);
