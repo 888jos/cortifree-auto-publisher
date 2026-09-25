@@ -63,8 +63,22 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (index === 0 && slide.body.length > 32) issues.push({ code: "ROUTINE_COVER_RANGE", message: "Routine cover body should contain only the overall time range", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "three-rect-educational") {
-      if (slide.headline.length > 64) issues.push({ code: "EDU_HEADLINE_LENGTH", message: "Educational headline is too long for the fixed top-left zone", slidePosition: slide.position, severity: "minor" });
-      if (slide.body.length > 150) issues.push({ code: "EDU_BODY_LENGTH", message: "Educational explanation is too long for the fixed centered zone", slidePosition: slide.position, severity: "minor" });
+      const isCover = index === 0;
+      const parts = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
+      const allowedLabels = new Set(["BENEFITS", "HOW TO", "WHY IT HELPS", "WHAT TO USE", "MISTAKES"]);
+      if (isCover) {
+        if (slide.headline.length > 72) issues.push({ code: "EDU_COVER_TITLE_LENGTH", message: "F04 cover title is too long for the centered title card", slidePosition: slide.position, severity: "minor" });
+        if (slide.body.length > 24 || parts.length > 1) issues.push({ code: "EDU_COVER_COPY", message: "F04 cover must contain only a tiny decorative accent, never a bullet block", slidePosition: slide.position, severity: "minor" });
+      } else {
+        const label = parts[0] ?? "";
+        const bullets = parts.slice(1);
+        if (slide.headline.length > 28) issues.push({ code: "EDU_SUBJECT_LENGTH", message: "F04 subject title must stay short", slidePosition: slide.position, severity: "minor" });
+        if (!allowedLabels.has(label.toUpperCase())) issues.push({ code: "EDU_SECTION_LABEL", message: "F04 body must start with one allowed educational section label", slidePosition: slide.position, severity: "minor" });
+        if (bullets.length < 3 || bullets.length > 5) issues.push({ code: "EDU_BULLET_COUNT", message: "F04 body must contain 3-5 short bullets", slidePosition: slide.position, severity: "minor" });
+        if (bullets.some((bullet) => bullet.length > 52)) issues.push({ code: "EDU_BULLET_LENGTH", message: "F04 bullets must stay short and saveable", slidePosition: slide.position, severity: "minor" });
+        if (slide.body.length > 190 || /[.!?].+[.!?].+/s.test(bullets.join(" "))) issues.push({ code: "EDU_PARAGRAPH", message: "F04 educational block must be checklist copy, not paragraph prose", slidePosition: slide.position, severity: "minor" });
+        if (!/proof|result|example/i.test(slide.visualIntent) || !/tool|product|ingredient|support/i.test(slide.visualIntent) || !/diagram|result|support/i.test(slide.visualIntent)) issues.push({ code: "EDU_VISUAL_SLOTS", message: "F04 body must specify proof/example plus two differentiated support visual roles", slidePosition: slide.position, severity: "minor" });
+      }
     }
     if (expected.layout === "editorial-asym-hero") {
       if (index > 0 && slide.headline.length > 56) issues.push({ code: "EDITORIAL_HEADLINE_LENGTH", message: "Editorial body headline is too long for the fixed lower-left zone", slidePosition: slide.position, severity: "minor" });
