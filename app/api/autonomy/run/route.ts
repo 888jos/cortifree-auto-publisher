@@ -14,8 +14,13 @@ function authorized(request:Request){
   return request.headers.get('authorization')===`Bearer ${secret}`;
 }
 
+function parisHour(date = new Date()) {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', hourCycle: 'h23' }).format(date));
+}
+
 export async function GET(request:Request){
   if(!authorized(request))return Response.json({error:'Unauthorized cron request'},{status:401});
+  if (parisHour() !== 10) return Response.json({ ok: true, skipped: true, reason: 'Daily generation runs at 10:00 Europe/Paris' });
   if (await shouldDelegateHeavyWork()) {
     const bucket = new Date().toISOString().slice(0, 13);
     const queued = await enqueueWorkerJob({ kind: 'AUTONOMY_RUN', idempotencyKey: `autonomy:${bucket}`, payload: { requested_at: new Date().toISOString() }, priority: 5 });
