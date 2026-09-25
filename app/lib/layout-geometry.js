@@ -10,6 +10,7 @@ const imageFrames = {
   "editorial-asym-hero": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "editorial-asym-hero" },
   "interactive-checklist": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "interactive-checklist" },
   "ranking": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "ranking" },
+  "lifestyle-3stack": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "lifestyle-3stack" },
 };
 
 const textFrames = {
@@ -21,6 +22,7 @@ const textFrames = {
   "editorial-asym-hero": { x: 78, y: 960, width: 620, align: "left" },
   "interactive-checklist": { x: 124, y: 360, width: 832, align: "left" },
   "ranking": { x: 110, y: 930, width: 860, align: "left" },
+  "lifestyle-3stack": { x: 70, y: 650, width: 700, align: "left" },
 };
 
 function routineTextFrame(isCover, isFinal, typography) {
@@ -151,6 +153,29 @@ function checklistTextFrame(isCover, isFinal, typography) {
   };
 }
 
+function lifestyleThreeStackTextFrame(isCover, isFinal, typography) {
+  if (isCover) {
+    return {
+      x: 90, y: 690, width: 760, align: "left",
+      headlineY: 690, bodyY: 865,
+      headlineSize: 58, bodySize: 27, hookSize: 58,
+      headlineWeight: 700, bodyWeight: 550,
+      maxHeadlineLines: 3, maxBodyLines: 2,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  return {
+    x: 70, y: 655, width: 690, align: "left",
+    headlineY: 655, bodyY: 735,
+    headlineSize: 43, bodySize: 27, hookSize: 43,
+    headlineWeight: 700, bodyWeight: 550,
+    maxHeadlineLines: 2, maxBodyLines: 4,
+    fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+    hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+  };
+}
+
 function rankingTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
@@ -254,6 +279,29 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         panel: false,
         editorial: true,
         asymmetric: true,
+        ranking: false,
+        final: Boolean(isFinal),
+        cover: Boolean(isCover),
+      },
+    };
+  }
+
+  if (layout === "lifestyle-3stack") {
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        ...lifestyleThreeStackTextFrame(isCover, isFinal, typography),
+        headlineColor: "#fff3a8",
+        bodyColor: "#fff3a8",
+        accentColor: "#fff3a8",
+      },
+      overlay: { color: "#111111", opacity: 0 },
+      chrome: {
+        panel: false,
+        editorial: false,
+        lifestyleStack: true,
         ranking: false,
         final: Boolean(isFinal),
         cover: Boolean(isCover),
