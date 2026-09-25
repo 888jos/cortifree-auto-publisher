@@ -160,4 +160,20 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(fr.slides.length, 7);
     assert.doesNotMatch(fr.caption, /Save this/i);
   });
+
+  it("produces a canonical timestamped F03 routine fallback", () => {
+    const routineInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F03_ROUTINE_TIMELINE",
+      layout: "routine-timeline",
+      requestedSlideCount: 7,
+      preferredHook: "my realistic low-stress morning routine",
+    };
+    const routine = createFallbackCarousel(routineInput);
+    assert.equal(routine.slides[0]?.layout, "routine-timeline");
+    assert.match(routine.slides[1]?.headline ?? "", /^6:30 AM\s*·/);
+    assert.equal(routine.slides.at(-1)?.role, "CTA");
+    const issues = validateCarouselSpec(routine, { slideCount: 7, language: "en", layout: "routine-timeline" });
+    assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME" || issue.code === "LAYOUT"), false);
+  });
 });
