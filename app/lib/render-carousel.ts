@@ -558,14 +558,30 @@ export async function renderCarouselRevision(input: {
             ? [String(existing.asset_id)]
             : previous?.assetId != null ? [String(previous.assetId)] : [];
       if (!assetIds.length) throw new Error(`REVISION_EXISTING_ASSET_MISSING:slide_${slide.position}`);
-      slideMatches = assetIds.map((id) => {
-        const asset = assetMap.get(id);
-        if (!asset) throw new Error(`REVISION_ASSET_NOT_SELECTABLE:${id}:slide_${slide.position}`);
+      slideMatches = assetIds.map((id, index) => {
+        const asset = assetMap.get(id) ?? {
+          id,
+          filename: String(previous?.assetFilename ?? `preserved-${id}.jpg`),
+          category: "preserved",
+          subcategory: "review",
+          orientation: "portrait",
+          framing: "existing",
+          activity: "",
+          mood: "",
+          colors: [],
+          tags: [],
+          public_url: existingUrl,
+          use_count: 0,
+          last_used_at: null,
+          source_type: Array.isArray(previous?.assetSourceTypes) ? previous.assetSourceTypes[index] ?? "preserved" : "preserved",
+        };
         return {
           asset,
-          score: Number(existing.render_metadata?.asset_score ?? 100),
-          matchedTerms: Array.isArray(existing.render_metadata?.matched_terms) ? existing.render_metadata!.matched_terms : [],
-          fallbackPath: "review_preserved_visual",
+          score: Number(existing?.render_metadata?.asset_score ?? previous?.score ?? 100),
+          matchedTerms: Array.isArray(existing?.render_metadata?.matched_terms)
+            ? existing!.render_metadata!.matched_terms
+            : Array.isArray(previous?.matchedTerms) ? previous.matchedTerms : [],
+          fallbackPath: assetMap.has(id) ? "review_preserved_visual" : "review_preserved_render_url",
           thresholdBypassed: true,
         } satisfies AssetMatch;
       });
