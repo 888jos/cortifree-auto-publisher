@@ -1,7 +1,7 @@
 import { z } from 'zod';
 export const languageSchema = z.enum(['en', 'fr']);
 export const platformSchema = z.enum(['tiktok', 'instagram']);
-export const contentTypeSchema = z.enum(['C01_MORNING_ROUTINE', 'C02_CHECKLIST', 'C03_THINGS_I_STOPPED', 'C04_THINGS_I_STARTED', 'C05_GLOW_UP', 'C06_POV_RELATABLE', 'C07_MISTAKES', 'C08_MY_REALISTIC', 'C09_LIST', 'C10_BEFORE_AFTER', 'C11_HORMONE_EDUCATION', 'C12_NIGHT_ROUTINE', 'C13_EDUCATIONAL_EXPLAINER', 'C14_STORY_TRANSFORMATION']);
+export const contentTypeSchema = z.enum(['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2']);
 export const ctaTypeSchema = z.enum(['none', 'soft', 'save', 'comment', 'follow']);
 export const personaConfigSchema = z.object({
   id: z.string().regex(/^P\d{2}$/), name: z.string().min(1), age: z.number().int().min(18).max(80), background: z.string().min(1),
