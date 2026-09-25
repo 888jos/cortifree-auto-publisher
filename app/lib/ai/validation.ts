@@ -109,12 +109,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       }
     }
     if (expected.layout === "interactive-checklist") {
-      const isChecklistBody = index > 0 && index < spec.slides.length - 1;
+      const isNotesBody = index > 0;
       const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
-      if (isChecklistBody && (choices.length < 2 || choices.length > 4)) issues.push({ code: "CHECKLIST_OPTIONS", message: "Checklist body slide must contain 2-4 pipe-separated choices", slidePosition: slide.position, severity: "minor" });
-      if (isChecklistBody && choices.some((choice) => choice.length > 58)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "Checklist choice is too long for the fixed checkbox rows", slidePosition: slide.position, severity: "minor" });
-      if (slide.headline.length > 72) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "Checklist question is too long for the fixed panel", slidePosition: slide.position, severity: "minor" });
-      if (slide.body.length > 220) issues.push({ code: "CHECKLIST_BODY_LENGTH", message: "Checklist copy is too long for the fixed panel", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && (choices.length < 5 || choices.length > 12)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body must contain 5-12 list items", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && choices.some((choice) => choice.length > 34)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes list items must stay very short", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && (slide.headline.trim().split(/\s+/).length > 3 || slide.headline.length > 28)) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "F05 Notes category must be a short 1-3 word label", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && /\?|because|parce que|pourquoi/i.test(slide.body)) issues.push({ code: "CHECKLIST_EXPLAINER_COPY", message: "F05 Notes body should be a plain master list, not questions or explanations", slidePosition: slide.position, severity: "minor" });
+      if (index === 0 && slide.body.length > 48) issues.push({ code: "CHECKLIST_COVER_BODY", message: "F05 cover should remain photo-first with almost no secondary copy", slidePosition: slide.position, severity: "minor" });
     }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
