@@ -50,7 +50,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: { hostname: os.hostname(), pid: process.pid },
     }),
@@ -202,6 +202,7 @@ async function runRender(resourceId: string | null | undefined) {
 }
 
 async function executeWorkerJob(job: WorkerJob) {
+  if (job.kind === "HEALTHCHECK") return { ok: true, workerId: WORKER_ID, version: VERSION, checkedAt: new Date().toISOString() };
   if (job.kind === "RENDER_CAROUSEL") return runRender(job.resource_id);
   if (job.kind === "GOOGLE_SYNC") return runGoogleSync(job.payload ?? {});
   if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
