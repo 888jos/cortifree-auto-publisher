@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { isAdminRequest } from "../../../lib/admin-auth";
 import { enqueueWorkerJob } from "../../../lib/worker-queue";
 import { dataBackend } from "../../../lib/data-backend";
-import { recordReviewEvent } from "../../../lib/human-review";
+import { planReviewRevision, recordReviewEvent } from "../../../lib/human-review";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,8 +22,10 @@ export async function POST(request: Request) {
     const current = (await currentResponse.json() as Array<{ current_version?: number }>)[0];
     if (!current) return NextResponse.json({ error: "Carousel not found" }, { status: 404 });
 
+    const revision = await planReviewRevision(carouselId, feedback);
     await recordReviewEvent({
       carouselId, eventType: "REVISION_QUEUED", actor, feedback,
+      patchPlan: revision,
       beforeVersion: Number(current.current_version ?? 1),
     });
 
@@ -28,7 +33,7 @@ export async function POST(request: Request) {
       kind: "APPLY_REVIEW_PATCH",
       resourceId: carouselId,
       idempotencyKey: `review:${carouselId}:${Date.now()}`,
-      payload: { feedback, actor },
+      payload: { feedback, actor, revision },
       priority: 200,
       maxAttempts: 2,
     });
