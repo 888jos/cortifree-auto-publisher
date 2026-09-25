@@ -25,6 +25,24 @@ alter table public.carousel_slides
   add column if not exists selected_visual_reference_id text,
   add column if not exists status text not null default 'CURRENT';
 
+
+alter table public.publish_jobs
+  add column if not exists account_id text,
+  add column if not exists platform text,
+  add column if not exists scheduled_at timestamptz,
+  add column if not exists external_id text,
+  add column if not exists idempotency_key text,
+  add column if not exists attempts integer not null default 0,
+  add column if not exists provider_request_id text,
+  add column if not exists provider_job_id text,
+  add column if not exists last_error text,
+  add column if not exists post_url text,
+  add column if not exists updated_at timestamptz not null default now();
+
+create unique index if not exists publish_jobs_idempotency_key_idx
+  on public.publish_jobs (idempotency_key)
+  where idempotency_key is not null;
+
 create table if not exists public.carousel_review_events (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null default 'cortifree' check (workspace_id = 'cortifree'),
