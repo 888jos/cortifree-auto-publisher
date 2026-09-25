@@ -611,13 +611,13 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
 function rankingCopyParts(slide: GeneratedSlide) {
   const source = String(slide.headline ?? "").trim();
   const rating = source.match(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/i);
-  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*([SABCDF][+-]?)\b/i);
-  const prefixTier = source.match(/^([SABCDF][+-]?)\s*[·•|—–:\-]/i);
+  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*(SS\+|[SABCDF][+-]?)\b/i);
+  const prefixTier = source.match(/^(SS\+|[SABCDF][+-]?)\s*[·•|—–:\-]/i);
   const score = rating ? `${rating[1]}/10` : (explicitTier?.[1] ?? prefixTier?.[1] ?? "").toUpperCase();
   const item = source
     .replace(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/gi, "")
-    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*[SABCDF][+-]?\b/gi, "")
-    .replace(/^[SABCDF][+-]?\s*[·•|—–:\-]\s*/i, "")
+    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*(?:SS\+|[SABCDF][+-]?)\b/gi, "")
+    .replace(/^(?:SS\+|[SABCDF][+-]?)\s*[·•|—–:\-]\s*/i, "")
     .replace(/^[\s·•|—–:\-]+|[\s·•|—–:\-]+$/g, "")
     .trim();
   return { score, item: item || source };
@@ -632,116 +632,64 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   const overlays: OverlayOptions[] = [];
 
   if (isHook) {
-    const hook = wrapHook(slide.headline.toLowerCase(), 4, 3).join("\n");
+    const hook = wrapHook(slide.headline.toLowerCase(), 5, 3).join("\n");
     const hookImage = await rasterText(hook, {
-      width: frame.width,
-      height: 220,
-      size: frame.hookSize ?? 60,
-      weight: 700,
-      color: frame.headlineColor ?? "#261f22",
-      align: "left",
-      spacing: 0,
-      fontFamily: hookFontFamily,
+      width: frame.width, height: 235, size: frame.hookSize ?? 68, weight: 800,
+      color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
-    overlays.push({ input: hookImage, left: frame.x, top: frame.headlineY ?? 105 });
+    overlays.push({ input: hookImage, left: frame.x, top: frame.headlineY ?? 120 });
     if (slide.body.trim()) {
-      const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 2).join("\n");
+      const body = wrap(slide.body.trim(), 52, frame.maxBodyLines ?? 2).join("\n");
       const bodyImage = await rasterText(body, {
-        width: frame.width,
-        height: 110,
-        size: frame.bodySize ?? 26,
-        weight: 500,
-        color: frame.bodyColor ?? "#4c3f43",
-        align: "left",
-        spacing: 2,
-        fontFamily,
+        width: frame.width, height: 105, size: frame.bodySize ?? 29, weight: 500,
+        color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 2, fontFamily,
       });
-      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 285 });
+      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 305 });
     }
     return overlays;
   }
 
   if (isFinal) {
-    const headline = wrap(slide.headline, 24, frame.maxHeadlineLines ?? 3).join("\n");
+    const headline = wrap(slide.headline, 30, frame.maxHeadlineLines ?? 3).join("\n");
     const headlineImage = await rasterText(headline, {
-      width: frame.width,
-      height: 190,
-      size: frame.headlineSize ?? 48,
-      weight: 700,
-      color: frame.headlineColor ?? "#261f22",
-      align: "left",
-      spacing: 0,
-      fontFamily: hookFontFamily,
+      width: frame.width, height: 220, size: frame.headlineSize ?? 58, weight: 800,
+      color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
-    overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? 340 });
+    overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? 390 });
     if (slide.body.trim()) {
-      const body = wrap(slide.body.trim(), 34, frame.maxBodyLines ?? 4).join("\n");
+      const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 5).join("\n");
       const bodyImage = await rasterText(body, {
-        width: frame.width,
-        height: 190,
-        size: frame.bodySize ?? 28,
-        weight: 500,
-        color: frame.bodyColor ?? "#4c3f43",
-        align: "left",
-        spacing: 2,
-        fontFamily,
+        width: frame.width, height: 220, size: frame.bodySize ?? 31, weight: 500,
+        color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
       });
-      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 505 });
+      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 600 });
     }
     return overlays;
   }
 
   const { score, item } = rankingCopyParts(slide);
-  const kicker = await rasterText(score.includes("/10") ? "MY SCORE" : "MY TIER", {
-    width: frame.rankingKickerWidth ?? 260,
-    height: 32,
-    size: frame.rankingKickerSize ?? 18,
-    weight: 700,
-    color: frame.accentColor ?? "#7d4e62",
-    align: "left",
-    spacing: 1,
-    fontFamily,
+  const tierLabel = score ? `${score} TIER` : "TIER";
+  const tierImage = await rasterText(tierLabel, {
+    width: frame.rankingScoreWidth ?? 880, height: 125, size: frame.rankingScoreSize ?? 94, weight: 800,
+    color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
   });
-  overlays.push({ input: kicker, left: frame.rankingKickerX ?? 620, top: frame.rankingKickerY ?? 132 });
+  overlays.push({ input: tierImage, left: frame.rankingScoreX ?? 100, top: frame.rankingScoreY ?? 105 });
 
-  const scoreImage = await rasterText(score || "—", {
-    width: frame.rankingScoreWidth ?? 350,
-    height: 125,
-    size: frame.rankingScoreSize ?? 96,
-    weight: 700,
-    color: frame.headlineColor ?? "#261f22",
-    align: "left",
-    spacing: 0,
-    fontFamily: hookFontFamily,
-  });
-  overlays.push({ input: scoreImage, left: frame.rankingScoreX ?? 620, top: frame.rankingScoreY ?? 170 });
-
-  const itemText = wrap(item, 20, frame.maxHeadlineLines ?? 3).join("\n");
+  const itemText = wrap(item.toUpperCase(), 34, frame.maxHeadlineLines ?? 2).join("\n");
   const itemImage = await rasterText(itemText, {
-    width: frame.width,
-    height: 170,
-    size: frame.headlineSize ?? 42,
-    weight: 700,
-    color: frame.headlineColor ?? "#261f22",
-    align: "left",
-    spacing: 0,
-    fontFamily: hookFontFamily,
+    width: frame.width, height: 140, size: frame.headlineSize ?? 42, weight: 800,
+    color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily,
   });
-  overlays.push({ input: itemImage, left: frame.x, top: frame.headlineY ?? 395 });
+  overlays.push({ input: itemImage, left: frame.x, top: frame.headlineY ?? 335 });
 
   if (slide.body.trim()) {
-    const reason = wrap(slide.body.trim(), 30, frame.maxBodyLines ?? 5).join("\n");
+    const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
+    const reason = paragraphs.map((p) => wrap(p, 58, 3).join("\n")).join("\n\n");
     const reasonImage = await rasterText(reason, {
-      width: frame.width,
-      height: 220,
-      size: frame.bodySize ?? 28,
-      weight: 500,
-      color: frame.bodyColor ?? "#4c3f43",
-      align: "left",
-      spacing: 2,
-      fontFamily,
+      width: frame.width, height: 285, size: frame.bodySize ?? 27, weight: 500,
+      color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });
-    overlays.push({ input: reasonImage, left: frame.x, top: frame.bodyY ?? 530 });
+    overlays.push({ input: reasonImage, left: frame.x, top: frame.bodyY ?? 505 });
   }
   return overlays;
 }
@@ -1005,10 +953,17 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     averageLuminance = 220;
   } else if (imageFrame.mode === "ranking") {
     const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
+    const tier = rankingCopyParts(slide).score.toUpperCase();
+    const tierWash: Record<string, string> = {
+      F: "#fff1f3", D: "#fff3ec", C: "#fff8df", B: "#eef8ef",
+      A: "#eef3ff", S: "#f5efff", "SS+": "#fff8e9",
+    };
+    const wash = isHook || isFinal ? "#fffdf9" : (tierWash[tier] ?? "#fffdf9");
+    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><rect width="1080" height="1350" fill="${wash}"/></svg>`), left: 0, top: 0 });
     if (isHook && matches.length >= 2) {
       const placements = [
-        { left: 70, top: 420, width: 440, height: 650 },
-        { left: 570, top: 500, width: 440, height: 570 },
+        { left: 70, top: 650, width: 450, height: 420 },
+        { left: 560, top: 650, width: 450, height: 420 },
       ];
       for (const [index, match] of matches.slice(0, 2).entries()) {
         const imageBytes = await selectedAssetBytes(match);
@@ -1019,8 +974,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     } else {
       const imageBytes = await selectedAssetBytes(matches[0]!);
       const place = isFinal
-        ? { left: 70, top: 180, width: 470, height: 800 }
-        : { left: 70, top: 135, width: 500, height: 830 };
+        ? { left: 330, top: 900, width: 420, height: 300 }
+        : { left: 330, top: 900, width: 420, height: 300 };
       const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
