@@ -2,7 +2,7 @@ import { z } from "zod";
 import { dataBackend } from "./data-backend";
 import { requestStructured } from "./ai/openai-client";
 import { getAIConfig } from "./ai/config";
-import { renderCarousel } from "./render-carousel";
+import { renderCarouselRevision } from "./render-carousel";
 
 type Row = Record<string, unknown>;
 
@@ -222,14 +222,18 @@ export async function applyReviewRevision(
     status: "REVISION_GENERATING",
   });
 
-  const rendered = await renderCarousel({
+  const visualChangePositions = revision.operations
+    .filter((operation) => operation.changeVisual)
+    .map((operation) => operation.slidePosition);
+  const rendered = await renderCarouselRevision({
     id: carouselId,
     carouselType: String(carousel.content_type ?? spec.carousel_type ?? ""),
     layout: String(spec.model_id ?? spec.layout ?? "single-image"),
     personaId: carousel.persona_id ? String(carousel.persona_id) : undefined,
     slides: nextSlides,
-    references: Array.isArray(spec.references) ? spec.references : [],
     spec: nextSpec,
+    changedPositions,
+    visualChangePositions,
   });
 
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
