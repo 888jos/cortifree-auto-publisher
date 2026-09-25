@@ -33,6 +33,12 @@ export async function POST(req: Request) {
     angle: body.angle || `Draft generated with ${spec.model_id || "selected model"}`,
     caption: body.caption || "Save this for later.",
     status: "DRAFT",
+    review_status: "AWAITING_REVIEW",
+    requires_human_approval: true,
+    auto_post_without_approval: false,
+    source_timezone: "Europe/Paris",
+    publish_timezone: "America/New_York",
+    generation_batch_date: new Date().toISOString().slice(0, 10),
     spec,
   };
   try {
