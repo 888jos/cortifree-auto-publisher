@@ -10,10 +10,53 @@ export type UploadPostProfile = {
 
 export type UploadPostResult = Record<string, unknown> & { platform?: string };
 
+export type NormalizedPostAnalytics = {
+  platform: string;
+  platformPostId: string | null;
+  postUrl: string | null;
+  profileUsername: string | null;
+  mediaType: string | null;
+  uploadTimestamp: string | null;
+  views: number;
+  reach: number;
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  favorites: number;
+  profileViews: number;
+  newFollowers: number;
+  watchTimeMinutes: number | null;
+  averageViewDurationSeconds: number | null;
+  averageViewPercentage: number | null;
+  fullVideoWatchedRate: number | null;
+  totalTimeWatched: number | null;
+  retention: unknown;
+  impressionSources: unknown;
+  audienceTypes: unknown;
+  raw: Record<string, unknown>;
+};
+
 function apiKey() {
   const key = process.env.UPLOAD_POST_API_KEY;
   if (!key) throw new Error("UPLOAD_POST_API_KEY is not configured");
   return key;
+}
+
+function n(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function optionalN(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 export function parseUploadPostProfiles(payload: unknown): UploadPostProfile[] {
@@ -71,6 +114,41 @@ export function normalizeUploadPostResults(payload: unknown): UploadPostResult[]
     : []);
 }
 
+export function normalizeUploadPostAnalytics(payload: Record<string, unknown>, requestedPlatform?: string): NormalizedPostAnalytics {
+  const post = objectValue(payload.post);
+  const platforms = objectValue(payload.platforms);
+  const platform = requestedPlatform || String(post.platform ?? Object.keys(platforms)[0] ?? "unknown");
+  const entry = objectValue(platforms[platform] ?? Object.values(platforms)[0]);
+  const metrics = objectValue(entry.post_metrics ?? entry.metrics ?? payload.metrics);
+  return {
+    platform,
+    platformPostId: typeof entry.platform_post_id === "string" ? entry.platform_post_id : typeof post.platform_post_id === "string" ? post.platform_post_id : null,
+    postUrl: typeof entry.post_url === "string" ? entry.post_url : typeof post.post_url === "string" ? post.post_url : null,
+    profileUsername: typeof post.profile_username === "string" ? post.profile_username : typeof payload.profile_username === "string" ? payload.profile_username : null,
+    mediaType: typeof post.media_type === "string" ? post.media_type : typeof entry.media_type === "string" ? entry.media_type : null,
+    uploadTimestamp: typeof post.upload_timestamp === "string" ? post.upload_timestamp : typeof entry.upload_timestamp === "string" ? entry.upload_timestamp : null,
+    views: n(metrics.views ?? metrics.impressions ?? metrics.reach),
+    reach: n(metrics.reach),
+    impressions: n(metrics.impressions),
+    likes: n(metrics.likes),
+    comments: n(metrics.comments),
+    shares: n(metrics.shares),
+    saves: n(metrics.saves),
+    favorites: n(metrics.favorites ?? metrics.saves),
+    profileViews: n(metrics.profile_views ?? metrics.profileViews),
+    newFollowers: n(metrics.new_followers ?? metrics.newFollowers),
+    watchTimeMinutes: optionalN(metrics.watch_time_minutes),
+    averageViewDurationSeconds: optionalN(metrics.average_view_duration_seconds ?? metrics.average_time_watched),
+    averageViewPercentage: optionalN(metrics.average_view_percentage),
+    fullVideoWatchedRate: optionalN(metrics.full_video_watched_rate ?? metrics.completion_rate),
+    totalTimeWatched: optionalN(metrics.total_time_watched),
+    retention: metrics.retention ?? [],
+    impressionSources: metrics.impression_sources ?? {},
+    audienceTypes: metrics.audience_types ?? {},
+    raw: payload,
+  };
+}
+
 export async function listUploadPostProfiles(): Promise<UploadPostProfile[]> {
   const response = await fetch(`${API_ROOT}/uploadposts/users`, { headers: { Authorization: `Apikey ${apiKey()}` }, cache: "no-store" });
   if (!response.ok) throw new Error(`Upload-Post profile check failed: HTTP ${response.status}`);
@@ -90,7 +168,7 @@ export async function getUploadPostStatus(input: { requestId?: string | null; jo
   return payload as Record<string, unknown>;
 }
 
-export async function getUploadPostPostAnalytics(requestId: string, platform?: "tiktok" | "instagram") {
+export async function getUploadPostPostAnalytics(requestId: string, platform?: "tiktok" | "instagram" | "youtube" | "facebook" | "linkedin" | "x" | "threads" | "pinterest" | "reddit") {
   const query = platform ? `?platform=${encodeURIComponent(platform)}` : "";
   const response = await fetch(`${API_ROOT}/uploadposts/post-analytics/${encodeURIComponent(requestId)}${query}`, {
     headers: { Authorization: `Apikey ${apiKey()}` },
@@ -99,6 +177,49 @@ export async function getUploadPostPostAnalytics(requestId: string, platform?: "
   });
   const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
   if (!response.ok) throw new Error(payload.error ?? payload.message ?? `Upload-Post analytics failed: HTTP ${response.status}`);
+  return payload as Record<string, unknown>;
+}
+
+export async function getUploadPostAnalyticsByPlatformPost(input: {
+  platformPostId: string;
+  platform: "tiktok" | "instagram" | "youtube" | "facebook" | "linkedin" | "x" | "threads" | "pinterest" | "reddit";
+  user: string;
+}) {
+  const params = new URLSearchParams({
+    platform_post_id: input.platformPostId,
+    platform: input.platform,
+    user: input.user,
+  });
+  const response = await fetch(`${API_ROOT}/uploadposts/post-analytics?${params}`, {
+    headers: { Authorization: `Apikey ${apiKey()}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `Upload-Post platform post analytics failed: HTTP ${response.status}`);
+  return payload as Record<string, unknown>;
+}
+
+export async function getUploadPostCachedAnalytics(input: {
+  user: string;
+  platform?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+  cursor?: string;
+}) {
+  const params = new URLSearchParams({ user: input.user, limit: String(Math.min(Math.max(input.limit ?? 50, 1), 200)) });
+  if (input.platform) params.set("platform", input.platform);
+  if (input.since) params.set("since", input.since);
+  if (input.until) params.set("until", input.until);
+  if (input.cursor) params.set("cursor", input.cursor);
+  const response = await fetch(`${API_ROOT}/uploadposts/post-analytics/cached?${params}`, {
+    headers: { Authorization: `Apikey ${apiKey()}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `Upload-Post cached analytics failed: HTTP ${response.status}`);
   return payload as Record<string, unknown>;
 }
 

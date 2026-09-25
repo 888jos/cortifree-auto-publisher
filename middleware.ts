@@ -4,8 +4,10 @@ import { createServerClient } from "@supabase/ssr";
 const publicPaths = new Set([
   "/login",
   "/auth/callback",
-  // This admin route performs its own short-lived nonce verification.
+  // These server-to-server routes perform their own secret verification.
   "/api/admin/recover-modelark-orphans",
+  "/api/telegram/webhook",
+  "/api/telegram/setup",
 ]);
 
 async function hasSupabaseSession(request: NextRequest, response: NextResponse) {
@@ -31,7 +33,6 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (publicPaths.has(pathname)) return NextResponse.next();
 
-  // Cron endpoints use their own server-to-server secret, not browser auth.
   const cronSecret = process.env.CRON_SECRET?.trim();
   const authorization = request.headers.get("authorization") ?? "";
   if (cronSecret && authorization === `Bearer ${cronSecret}`) return NextResponse.next();
