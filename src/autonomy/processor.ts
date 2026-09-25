@@ -16,7 +16,11 @@ async function patch(resource: string, body: Record<string, unknown>) {
   if (!response.ok) throw new Error(await response.text());
 }
 function layoutFor(contentType: string) {
-  return contentType === 'F08_2X2' ? 'grid-2x2' : 'single-image';
+  if (contentType === 'F02_EDITORIAL_COLLAGE') return 'editorial-collage';
+  if (contentType === 'F05_INTERACTIVE_CHECKLIST') return 'interactive-checklist';
+  if (contentType === 'F07_RANKING') return 'ranking';
+  if (contentType === 'F08_2X2') return 'grid-2x2';
+  return 'single-image';
 }
 function slideCountFor(contentType: string, formats: Row[]) {
   const row = formats.find((item) => String(item.format_id) === contentType);
