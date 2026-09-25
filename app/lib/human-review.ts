@@ -133,19 +133,12 @@ export async function rejectCarousel(carouselId: string, reason: string, actor =
   return { carouselId, status: "REJECTED" };
 }
 
-export async function planAndApplyReviewRevision(carouselId: string, feedback: string, actor = "admin") {
+export async function planReviewRevision(carouselId: string, feedback: string) {
   const carousel = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=*&limit=1`))[0];
   if (!carousel) throw new Error(`Carousel not found: ${carouselId}`);
   const spec = (carousel.spec ?? {}) as Record<string, any>;
   const slides = Array.isArray(spec.generated_slides) ? spec.generated_slides : [];
   if (!slides.length) throw new Error(`Carousel has no generated slides: ${carouselId}`);
-  const beforeVersion = Number(carousel.current_version ?? 1);
-
-  await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
-    review_status: "REVISION_GENERATING", status: "REVISION_GENERATING",
-    review_notes: feedback, last_review_action: "REVISION_REQUESTED",
-  });
-  await recordReviewEvent({ carouselId, eventType: "REVISION_REQUESTED", actor, feedback, beforeVersion });
 
   const config = getAIConfig();
   const result = await requestStructured({
@@ -153,7 +146,7 @@ export async function planAndApplyReviewRevision(carouselId: string, feedback: s
     schema: revisionSchema,
     schemaName: "cortifree_review_revision",
     maxOutputTokens: 2600,
-    instructions: `You are the revision engine for CortiFree carousel drafts.
+    instructions: `You are the revision planner for CortiFree carousel drafts.
 Interpret the human editor's feedback and make the smallest possible patch.
 Never rewrite an unchanged slide. Preserve exact existing copy and visual intent unless the feedback requires changing it.
 If the user asks to change only copy, keep visualIntent and assetQuery exact.
@@ -175,14 +168,37 @@ Keep copy concise, Gen Z feminine/conversational, not clinical, and avoid unsupp
   if (result.data.fullRegenerate) {
     throw new Error("FULL_REGENERATE_EXPLICIT_REQUIRED: use the normal generation flow for a deliberate full rebuild");
   }
+  if (!result.data.revisedSlides.length) throw new Error("Revision planner produced no targeted changes");
+  return result.data;
+}
 
-  const revisedByPosition = new Map(result.data.revisedSlides.map((slide) => [slide.position, slide]));
+export async function applyReviewRevision(
+  carouselId: string,
+  feedback: string,
+  revisionInput: ReviewRevision,
+  actor = "admin",
+) {
+  const revision = revisionSchema.parse(revisionInput);
+  if (revision.fullRegenerate) throw new Error("FULL_REGENERATE_EXPLICIT_REQUIRED");
+  const carousel = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=*&limit=1`))[0];
+  if (!carousel) throw new Error(`Carousel not found: ${carouselId}`);
+  const spec = (carousel.spec ?? {}) as Record<string, any>;
+  const slides = Array.isArray(spec.generated_slides) ? spec.generated_slides : [];
+  if (!slides.length) throw new Error(`Carousel has no generated slides: ${carouselId}`);
+  const beforeVersion = Number(carousel.current_version ?? 1);
+
+  await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
+    review_status: "REVISION_GENERATING", status: "REVISION_GENERATING",
+    review_notes: feedback, last_review_action: "REVISION_REQUESTED",
+  });
+
+  const revisedByPosition = new Map(revision.revisedSlides.map((slide) => [slide.position, slide]));
   const nextSlides = slides.map((slide: any) => {
     const revised = revisedByPosition.get(Number(slide.position));
     return revised ? { ...slide, ...revised } : slide;
   });
   const changedPositions = [...revisedByPosition.keys()];
-  if (!changedPositions.length) throw new Error("Revision planner produced no targeted changes");
+  if (!changedPositions.length) throw new Error("Revision plan has no targeted changes");
 
   const nextVersion = beforeVersion + 1;
   const nextSpec = {
@@ -191,8 +207,8 @@ Keep copy concise, Gen Z feminine/conversational, not clinical, and avoid unsupp
     review_revision: {
       version: nextVersion,
       feedback,
-      summary: result.data.summary,
-      operations: result.data.operations,
+      summary: revision.summary,
+      operations: revision.operations,
       changed_positions: changedPositions,
       applied_at: new Date().toISOString(),
     },
@@ -223,7 +239,7 @@ Keep copy concise, Gen Z feminine/conversational, not clinical, and avoid unsupp
   });
   await recordReviewEvent({
     carouselId, eventType: "PATCH_APPLIED", actor, feedback,
-    patchPlan: result.data, beforeVersion, afterVersion: nextVersion,
+    patchPlan: revision, beforeVersion, afterVersion: nextVersion,
   });
 
   return {
@@ -232,7 +248,7 @@ Keep copy concise, Gen Z feminine/conversational, not clinical, and avoid unsupp
     beforeVersion,
     afterVersion: nextVersion,
     changedPositions,
-    summary: result.data.summary,
+    summary: revision.summary,
     rendered: rendered.map((slide) => ({ position: slide.position, url: slide.url })),
   };
 }
