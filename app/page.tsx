@@ -84,6 +84,18 @@ const modelData = rawModels.map((model, index) => ({
   spec: layoutSpecs[model.layout],
 }));
 
+const canonicalFormats = [
+  { id:"F01_LIFESTYLE_GUIDE", short:"F01", name:"Lifestyle 3-Stack", mode:"3 photos stacked", concepts:"Glow-up · habits · routines", status:"READY" },
+  { id:"F02_EDITORIAL_COLLAGE", short:"F02", name:"Editorial Collage", mode:"Asymmetric editorial", concepts:"Glow-up · wellness", status:"READY" },
+  { id:"F03_ROUTINE_TIMELINE", short:"F03", name:"Routine Timeline", mode:"Full photo + timed step", concepts:"Morning · night · day in life", status:"READY" },
+  { id:"F04_AESTHETIC_EDUCATIONAL", short:"F04", name:"Aesthetic Educational", mode:"3-image education board", concepts:"How-to · glow-up", status:"READY" },
+  { id:"F05_INTERACTIVE_CHECKLIST", short:"F05", name:"Notes Master List", mode:"Notes card + shared photo", concepts:"Lists · wellness · glow-up", status:"READY" },
+  { id:"F06_PERSONA_EXPLAINER", short:"F06", name:"Persona Explainer", mode:"Persona-led explainer", concepts:"Signs · before/after · how-to", status:"LEGACY" },
+  { id:"F07_RANKING", short:"F07", name:"Girly Tier List", mode:"Tier ranking", concepts:"Ranking · habits", status:"READY" },
+  { id:"F08_2X2", short:"F08", name:"2×2 Contrast", mode:"Diagonal 2-image grid", concepts:"Before/after · contrasts", status:"READY" },
+] as const;
+const canonicalFormatById = new Map(canonicalFormats.map(format => [format.id, format]));
+
 const carouselTypes = [
   {
     id: "C01_MORNING_ROUTINE",
@@ -443,6 +455,7 @@ export default function Home() {
   const [carouselsLoading, setCarouselsLoading] = useState(false);
   const [carouselQuery, setCarouselQuery] = useState("");
   const [carouselStatus, setCarouselStatus] = useState("ALL");
+  const [carouselFormat, setCarouselFormat] = useState("ALL");
   const [openedCarousel, setOpenedCarousel] = useState<StoredCarousel | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -505,9 +518,10 @@ export default function Home() {
     const query = carouselQuery.trim().toLowerCase();
     return storedCarousels.filter((carousel) =>
       (carouselStatus === "ALL" || carousel.status === carouselStatus)
+      && (carouselFormat === "ALL" || carousel.content_type === carouselFormat || carousel.spec?.model_id === carouselFormat)
       && (!query || `${carousel.id} ${carousel.topic} ${carousel.angle} ${carousel.spec?.hook ?? ""}`.toLowerCase().includes(query)),
     );
-  }, [carouselQuery, carouselStatus, storedCarousels]);
+  }, [carouselQuery, carouselStatus, carouselFormat, storedCarousels]);
   const filteredAssetPreviews = useMemo(() => {
     const query = assetQuery.trim().toLowerCase();
     const sourceByTab: Partial<Record<AssetTab, string>> = {
@@ -1056,8 +1070,15 @@ export default function Home() {
               <div><span>Prêts à publier</span><b>{storedCarousels.filter((item) => item.spec?.publish_review?.publishReady).length}</b></div>
               <div><span>Avec PNG</span><b>{storedCarousels.filter((item) => item.spec?.rendered_slides?.length).length}</b></div>
             </div>
+            <div className="canonicalFormatStrip">
+              {canonicalFormats.map(format => <button className={carouselFormat===format.id?"selected":""} key={format.id} onClick={()=>setCarouselFormat(current=>current===format.id?"ALL":format.id)} type="button">
+                <div><b>{format.short}</b><span className={format.status==="READY"?"ready":"legacy"}>{format.status}</span></div>
+                <strong>{format.name}</strong><small>{format.mode}</small><em>{format.concepts}</em>
+              </button>)}
+            </div>
             <div className="carouselToolbar">
               <label><span>Rechercher</span><input onChange={(event) => setCarouselQuery(event.target.value)} placeholder="Titre, hook ou identifiant" type="search" value={carouselQuery} /></label>
+              <label><span>Format</span><select onChange={(event)=>setCarouselFormat(event.target.value)} value={carouselFormat}><option value="ALL">F01–F08 · Tous</option>{canonicalFormats.map(format=><option key={format.id} value={format.id}>{format.short} · {format.name}</option>)}</select></label>
               <label><span>Statut</span><select onChange={(event) => setCarouselStatus(event.target.value)} value={carouselStatus}><option value="ALL">Tous</option><option value="APPROVED">Validés</option><option value="DRAFT">Brouillons</option><option value="READY_FOR_REVIEW">À revoir</option><option value="SCHEDULED">Planifiés</option><option value="PUBLISHED">Publiés</option><option value="FAILED">Échecs</option></select></label>
             </div>
             {carouselsLoading ? <div className="libraryEmpty">Chargement des carrousels…</div> : filteredCarousels.length === 0 ? <div className="libraryEmpty">Aucun carrousel ne correspond à ce filtre.</div> : (
@@ -1074,7 +1095,8 @@ export default function Home() {
                       <div><span className={`statusTag status-${carousel.status.toLowerCase()}`}>{carousel.status}</span><time>{new Date(carousel.created_at).toLocaleDateString("fr-FR")}</time></div>
                       <h2>{carousel.spec?.hook ?? carousel.topic}</h2>
                       <p>{carousel.topic}</p>
-                      <div className="carouselActions"><button onClick={() => setOpenedCarousel(carousel)} type="button">Voir les slides</button><Link href={`/editor/${carousel.id}`}>Edit</Link></div>
+                      {(()=>{const format=canonicalFormatById.get(carousel.content_type as typeof canonicalFormats[number]["id"]) ?? canonicalFormatById.get(carousel.spec?.model_id as typeof canonicalFormats[number]["id"]);return format?<div className="formatIdentity"><b>{format.short}</b><span>{format.name}</span><small>{format.mode}</small></div>:<div className="formatIdentity legacy"><b>OLD</b><span>{carousel.content_type}</span></div>})()}
+                      <div className="carouselActions"><button onClick={() => setOpenedCarousel(carousel)} type="button">Voir les slides</button><Link className="editCarousel" href={`/editor/${carousel.id}`}>✦ Edit in Studio</Link></div>
                     </div>
                   </article>;
                 })}
