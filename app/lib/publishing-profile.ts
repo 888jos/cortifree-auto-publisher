@@ -2,13 +2,6 @@ import { filterUploadPostProfiles, listUploadPostProfiles, pickAssignedUploadPos
 import { dataBackend } from "./data-backend";
 import { assertCortiFreeAccountId } from "./workspace";
 
-function configuredCortiFreeProfiles() {
-  return (process.env.CORTIFREE_UPLOAD_POST_PROFILES ?? "")
-    .split(",")
-    .map((username) => username.trim())
-    .filter(Boolean);
-}
-
 type StoredAccount = {
   account_id: string;
   upload_post_profile?: string | null;
@@ -35,7 +28,7 @@ export async function resolvePublishingProfile(input: {
   if (input.requestedProfile && input.requestedProfile !== storedProfile) {
     throw new Error("Requested Upload-Post profile is not assigned to this CortiFree account");
   }
-  if (!storedProfile || !configuredCortiFreeProfiles().includes(storedProfile)) return undefined;
+  if (!storedProfile) return undefined;
 
   let profile: string | undefined = storedProfile;
   try {
@@ -52,10 +45,9 @@ export async function listCortiFreePublishingProfiles() {
   );
   if (!response.ok) throw new Error(`Cannot read CortiFree account mappings: HTTP ${response.status}`);
   const accounts = (await response.json()) as StoredAccount[];
-  const configuredProfiles = configuredCortiFreeProfiles();
   const assignedUsernames = accounts.flatMap((account) =>
     account.active && account.enabled && account.posting_enabled && account.warmup_status === "ACTIVE"
-      && account.upload_post_profile && configuredProfiles.includes(account.upload_post_profile)
+      && account.upload_post_profile
       ? [account.upload_post_profile]
       : [],
   );
