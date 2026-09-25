@@ -16,6 +16,7 @@ async function patch(resource: string, body: Record<string, unknown>) {
   if (!response.ok) throw new Error(await response.text());
 }
 function layoutFor(contentType: string) {
+  if (contentType === 'F01_LIFESTYLE_GUIDE') return 'lifestyle-3stack';
   if (contentType === 'F02_EDITORIAL_COLLAGE') return 'editorial-asym-hero';
   if (contentType === 'F03_ROUTINE_TIMELINE') return 'routine-timeline';
   if (contentType === 'F04_AESTHETIC_EDUCATIONAL') return 'three-rect-educational';
