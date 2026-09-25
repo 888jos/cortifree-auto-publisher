@@ -23,8 +23,13 @@ COPY RULES
   - F06_PERSONA_EXPLAINER: relatable/explanatory. Persona-led hook, then 2-4 short observations/points per slide. Preserve cautious health language.
   - F07_RANKING: opinionated/ranking. Hook frames the ranking. Each body slide covers exactly one item with a clear grade/rating and short justification.
   - F08_2X2: contrast/punchy. Existing 2x2 concept using exactly two unique images repeated diagonally when the renderer uses grid-2x2.
-- The only supported visual layouts are single-image and grid-2x2. For single-image, use exactly one photo per slide. For grid-2x2, use exactly two different photos repeated diagonally: top-left = bottom-right and top-right = bottom-left.
-- A slide may contain only photos and text. Never request or describe cards, panels, boxes, pills, badges, stickers, geometric shapes, borders, dividers, arrows, icons, charts, gradients, or decorative UI elements.
+- The renderer supports single-image, editorial-collage, interactive-checklist, ranking, and grid-2x2. Do not invent any other layout.
+- single-image uses one photo per slide.
+- editorial-collage uses two curated photos in an asymmetric editorial composition; keep copy concise enough to preserve visual hierarchy.
+- interactive-checklist uses one contextual photo with one large clean reading panel; write the checklist/choices as the copy, never ask the image model to draw text or UI.
+- ranking uses two teaser photos on the hook and one supporting photo per body slide; every body slide must make its grade/rating explicit in the headline.
+- grid-2x2 uses exactly two different photos repeated diagonally: top-left = bottom-right and top-right = bottom-left.
+- All panels, collage geometry, typography, ratings and text are rendered programmatically. Never ask an image model to generate text, UI, badges, arrows, charts, stickers or decorative graphics.
 - Keep the creative direction feminine and editorial: soft rose/pink, warm butter yellow, cream, plum, and dark brown accents; use elegant serif or friendly rounded typography. The renderer applies the final palette and typography.
 - Avoid repeating recent hooks, topics, or angles.
 - If preferredHook is supplied, use that hook verbatim on slide 1 and adapt the rest of the carousel around it.
