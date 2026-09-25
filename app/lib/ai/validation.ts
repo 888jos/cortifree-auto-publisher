@@ -94,6 +94,20 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (isBodyRankingSlide && (wordCount < 18 || wordCount > 58)) issues.push({ code: "RANKING_BODY_LENGTH", message: "Tier-list explanation should stay around 18-58 words", slidePosition: slide.position, severity: "minor" });
       if (isBodyRankingSlide && /\d+(?:\.\d+)?\s*\/\s*10/.test(slide.headline)) issues.push({ code: "RANKING_NUMERIC_SCORE", message: "F07 uses tier labels, not X/10 scores", slidePosition: slide.position, severity: "minor" });
     }
+    if (expected.layout === "lifestyle-3stack") {
+      const isCover = index === 0;
+      if (isCover) {
+        if (slide.headline.trim().split(/\s+/).length > 9) issues.push({ code: "LIFESTYLE_COVER_LENGTH", message: "F09 cover hook must stay short and native-looking", slidePosition: slide.position, severity: "minor" });
+        if (slide.body.length > 42) issues.push({ code: "LIFESTYLE_COVER_BODY", message: "F09 cover context must stay tiny", slidePosition: slide.position, severity: "minor" });
+      } else {
+        const words = slide.body.trim().split(/\s+/).filter(Boolean).length;
+        if (slide.headline.trim().split(/\s+/).length > 6) issues.push({ code: "LIFESTYLE_HEADLINE_LENGTH", message: "F09 habit headline should be 2-5 casual words", slidePosition: slide.position, severity: "minor" });
+        if (words > 32 || slide.body.length > 180) issues.push({ code: "LIFESTYLE_BODY_LENGTH", message: "F09 body must stay to 1-3 short creator-style lines", slidePosition: slide.position, severity: "minor" });
+        if (!/three|3/i.test(slide.visualIntent) || !/same behavior|same habit/i.test(slide.visualIntent) || !/top/i.test(slide.visualIntent) || !/middle/i.test(slide.visualIntent) || !/bottom/i.test(slide.visualIntent)) {
+          issues.push({ code: "LIFESTYLE_VISUAL_STACK", message: "F09 body must request exactly three coherent views of the same behavior with top/middle/bottom roles", slidePosition: slide.position, severity: "minor" });
+        }
+      }
+    }
     if (expected.layout === "interactive-checklist") {
       const isChecklistBody = index > 0 && index < spec.slides.length - 1;
       const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
