@@ -47,7 +47,8 @@
     "worker:start": "node --import tsx src/worker/heavy-worker.ts",
     "assets:coverage": "tsx scripts/audit-visual-coverage.ts",
     "maintenance:cleanup-legacy": "tsx scripts/cleanup-legacy-state.ts",
-    "maintenance:cleanup-legacy:execute": "tsx scripts/cleanup-legacy-state.ts --execute"
+    "maintenance:cleanup-legacy:execute": "tsx scripts/cleanup-legacy-state.ts --execute",
+    "assets:sync-app-screens": "npm run google:sync -- --scope=app_screens --limit=100"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
