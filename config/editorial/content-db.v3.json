@@ -846,7 +846,7 @@
         "objective": "Show a chronological routine people can copy",
         "min_slides": 6,
         "max_slides": 8,
-        "slide_structure": "full-screen cover with routine + time range > one timestamped action per full-screen slide > centered takeaway/CTA",
+        "slide_structure": "centered full-screen routine hero + overall time range > one compact start-end time + action block per full-screen photo > final timed routine step by default; optional soft CTA",
         "hook_family": "routine",
         "cta_type": "save",
         "image_strategy": "one exact action-specific full-screen lifestyle image per slide",
