@@ -64,7 +64,7 @@ type GeneratedSlide = {
 
 type Frame = {
   x: number; y: number; width: number; height?: number; fit?: "cover" | "contain";
-  mode?: "single" | "routine-timeline" | "grid-2x2" | "editorial-collage" | "interactive-checklist" | "ranking";
+  mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "interactive-checklist" | "ranking";
 };
 type Geometry = {
   canvas?: { width: number; height: number };
@@ -96,6 +96,9 @@ type Geometry = {
     routineTimeY?: number;
     routineTimeWidth?: number;
     routineTimeSize?: number;
+    eduBodyX?: number;
+    eduBodyY?: number;
+    eduBodyWidth?: number;
   };
   overlay?: { color?: string; opacity?: number };
 };
@@ -303,6 +306,64 @@ async function rasterText(text: string, options: { width: number; height: number
 }
 
 
+
+async function roundedPhoto(bytes: Buffer, width: number, height: number, radius = 24) {
+  const resized = await sharp(bytes)
+    .rotate()
+    .resize({ width, height, fit: "cover", position: "centre" })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const mask = Buffer.from(
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`,
+  );
+  return sharp(resized).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+}
+
+async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
+  const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
+  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+  const overlays: OverlayOptions[] = [];
+  const headline = wrap(
+    slide.headline.replace(/^\d+[.)]\s*/, ""),
+    slide.position === 1 ? 24 : 30,
+    frame.maxHeadlineLines ?? 3,
+  ).join("\n");
+  const headlineImage = await rasterText(headline, {
+    width: frame.width,
+    height: slide.position === 1 ? 220 : 150,
+    size: frame.headlineSize ?? 42,
+    weight: frame.headlineWeight ?? 700,
+    color: frame.headlineColor ?? "#2b2725",
+    align: "left",
+    spacing: 0,
+    fontFamily: slide.position === 1 ? hookFontFamily : fontFamily,
+  });
+  overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
+
+  if (slide.body.trim()) {
+    const body = wrap(slide.body.trim(), 44, frame.maxBodyLines ?? 4).join("\n");
+    const bodyWidth = frame.eduBodyWidth ?? 770;
+    const bodyImage = await rasterText(body, {
+      width: bodyWidth,
+      height: 180,
+      size: frame.bodySize ?? 30,
+      weight: frame.bodyWeight ?? 500,
+      color: frame.bodyColor ?? "#2b2725",
+      align: "center",
+      spacing: 2,
+      fontFamily,
+    });
+    overlays.push({
+      input: bodyImage,
+      left: frame.eduBodyX ?? 155,
+      top: frame.eduBodyY ?? frame.bodyY ?? 960,
+    });
+  }
+  return overlays;
+}
+
 function routineKicker(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body}`.toLowerCase();
   if (/night|bedtime|evening/.test(text)) return "NIGHT ROUTINE";
@@ -503,6 +564,19 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       const [left, top] = positions[index]!;
       composites.push({ input: fitted, left, top });
     }
+  } else if (imageFrame.mode === "three-rect-educational") {
+    const placements = [
+      { left: 74, top: 355, width: 280, height: 500 },
+      { left: 400, top: 300, width: 280, height: 590 },
+      { left: 726, top: 355, width: 280, height: 500 },
+    ];
+    for (const [index, match] of matches.slice(0, 3).entries()) {
+      const imageBytes = await selectedAssetBytes(match);
+      const place = placements[index]!;
+      const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
+      composites.push({ input: fitted, left: place.left, top: place.top });
+    }
+    averageLuminance = 235;
   } else if (imageFrame.mode === "editorial-collage") {
     const pair = matches.slice(0, 2);
     const placements = isHook
@@ -544,7 +618,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     }
   }
 
-  const forceDark = imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";
+  const forceDark = imageFrame.mode === "three-rect-educational" || imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";
   const readablePalette = forceDark || averageLuminance > 158
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
@@ -568,6 +642,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     : hookDesign;
   if (imageFrame.mode === "routine-timeline") {
     composites.push(...await routineTextOverlays(slide, readableGeometry));
+  } else if (imageFrame.mode === "three-rect-educational") {
+    composites.push(...await threeRectEducationalTextOverlays(slide, readableGeometry));
   } else {
     composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   }
@@ -610,7 +686,7 @@ export async function renderCarousel(input: {
     try {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
-      const multiImageLayout = input.layout === "editorial-collage" || input.layout === "ranking";
+      const multiImageLayout = input.layout === "three-rect-educational" || input.layout === "editorial-collage" || input.layout === "ranking";
       const matches = chooseAssets({
         assets,
         carouselType: input.carouselType,
@@ -627,17 +703,30 @@ export async function renderCarousel(input: {
       if (multiImageLayout) {
         gridMatches = input.slides.map((slide, index) => {
           const primary = matches[index]!;
-          const needsSecond = input.layout === "editorial-collage" || (input.layout === "ranking" && (index === 0 || slide.role.toUpperCase() === "HOOK"));
-          if (!needsSecond) return [primary];
-          const secondary = chooseAssets({
-            assets,
-            carouselType: input.carouselType,
-            personaId: input.personaId,
-            excludedAssetIds: usedCarouselAssets,
-            slides: [{ ...slide, assetType: slide.assetType ?? "stock" }],
-          })[0]!;
-          usedCarouselAssets.add(String(secondary.asset.id));
-          return [primary, secondary];
+          const desiredCount = input.layout === "three-rect-educational"
+            ? 3
+            : input.layout === "editorial-collage"
+              ? 2
+              : (index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 1;
+          if (desiredCount === 1) return [primary];
+          const selected: AssetMatch[] = [primary];
+          while (selected.length < desiredCount) {
+            try {
+              const next = chooseAssets({
+                assets,
+                carouselType: input.carouselType,
+                personaId: input.personaId,
+                excludedAssetIds: usedCarouselAssets,
+                slides: [{ ...slide, assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
+              })[0]!;
+              selected.push(next);
+              usedCarouselAssets.add(String(next.asset.id));
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              throw new Error(`${message}:slide_${slide.position}`);
+            }
+          }
+          return selected;
         });
         break;
       }
@@ -834,6 +923,20 @@ export async function renderCarouselRevision(input: {
               slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }],
             });
             slideMatches = [matches[0]!, matches[1]!, matches[1]!, matches[0]!];
+          } else if (input.layout === "three-rect-educational") {
+            const used = new Set<string>();
+            slideMatches = [];
+            while (slideMatches.length < 3) {
+              const next = chooseAssets({
+                assets,
+                carouselType: input.carouselType,
+                personaId: input.personaId,
+                excludedAssetIds: used,
+                slides: [{ ...slide, assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
+              })[0]!;
+              slideMatches.push(next);
+              used.add(String(next.asset.id));
+            }
           } else {
             slideMatches = chooseAssets({
               assets,
