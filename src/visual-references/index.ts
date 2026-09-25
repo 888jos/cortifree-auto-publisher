@@ -118,6 +118,7 @@ export type VisualReferenceSceneIntent = {
   recommended_reference_categories?: string[];
   recommended_framing?: string | null;
   recommended_outfit?: string | null;
+  broad_match_only?: boolean;
 };
 
 const referenceStopWords = new Set(["the", "and", "with", "for", "from", "into", "this", "that", "scene", "woman", "girl", "person", "photo", "image", "lifestyle"]);
@@ -150,13 +151,18 @@ function referenceAliasTerms(value: string) {
 }
 
 export function scoreVisualReferenceForScene(reference: VisualReference, scene: VisualReferenceSceneIntent) {
-  const wantedTerms = [
-    ...referenceTerms(scene.scene_description),
-    ...referenceTerms(scene.category),
-    ...(scene.recommended_reference_categories ?? []).flatMap(referenceAliasTerms),
-    ...referenceTerms(scene.recommended_framing),
-    ...referenceTerms(scene.recommended_outfit),
-  ];
+  const wantedTerms = scene.broad_match_only
+    ? [
+        ...referenceTerms(scene.category),
+        ...(scene.recommended_reference_categories ?? []).flatMap(referenceAliasTerms),
+      ]
+    : [
+        ...referenceTerms(scene.scene_description),
+        ...referenceTerms(scene.category),
+        ...(scene.recommended_reference_categories ?? []).flatMap(referenceAliasTerms),
+        ...referenceTerms(scene.recommended_framing),
+        ...referenceTerms(scene.recommended_outfit),
+      ];
   const wanted = new Set(wantedTerms);
   const metadataValues = Object.values(reference.metadata ?? {})
     .filter((value) => typeof value === "string" || Array.isArray(value));
@@ -189,10 +195,22 @@ export function scoreVisualReferenceForScene(reference: VisualReference, scene: 
   score += fieldScore(reference.category, 1);
 
   const sceneText = scene.scene_description.toLowerCase();
-  if (/walk|walking|outside|outdoor|street|sidewalk|park|nature|commute/.test(sceneText) && !/outdoor|outside|walk|street|sidewalk|park|nature|commute/.test(corpus)) score -= 80;
-  if (/gym|workout|strength|pilates|yoga|treadmill|exercise|fitness|run/.test(sceneText) && !/gym|fitness|pilates|yoga|treadmill|workout|exercise|movement|run/.test(corpus)) score -= 55;
-  if (/bed|bedroom|sleep|night routine|wake|waking|cozy/.test(sceneText) && !/bed|bedroom|night|morning_home|cozy|home/.test(corpus)) score -= 45;
-  if (/food|meal|breakfast|lunch|dinner|grocery|cook|cooking|kitchen/.test(sceneText) && !/food|grocery|kitchen|meal|coffee|cafe|produce|cook/.test(corpus)) score -= 45;
+  if (scene.broad_match_only) {
+    // Hook references only need the right broad content universe. Gym, Pilates,
+    // running and workout are interchangeable enough for a fitness hook; the
+    // same principle applies to the other broad buckets.
+    if (scene.category === "fitness" && !/gym|fitness|pilates|yoga|treadmill|workout|exercise|movement|run|sport/.test(corpus)) score -= 45;
+    if (scene.category === "outdoors" && !/outdoor|outside|walk|street|sidewalk|park|nature|commute|trail/.test(corpus)) score -= 45;
+    if (scene.category === "food" && !/food|grocery|kitchen|meal|coffee|cafe|produce|cook|breakfast/.test(corpus)) score -= 45;
+    if (scene.category === "work_study" && !/work|study|desk|laptop|office|journal|library/.test(corpus)) score -= 45;
+    if (scene.category === "self_care" && !/selfcare|skincare|bathroom|beauty|reset|mirror|wellness/.test(corpus)) score -= 45;
+    if (scene.category === "home" && !/home|bedroom|bed|cozy|morning|night|kitchen|sofa|room/.test(corpus)) score -= 45;
+  } else {
+    if (/walk|walking|outside|outdoor|street|sidewalk|park|nature|commute/.test(sceneText) && !/outdoor|outside|walk|street|sidewalk|park|nature|commute/.test(corpus)) score -= 80;
+    if (/gym|workout|strength|pilates|yoga|treadmill|exercise|fitness|run/.test(sceneText) && !/gym|fitness|pilates|yoga|treadmill|workout|exercise|movement|run/.test(corpus)) score -= 55;
+    if (/bed|bedroom|sleep|night routine|wake|waking|cozy/.test(sceneText) && !/bed|bedroom|night|morning_home|cozy|home/.test(corpus)) score -= 45;
+    if (/food|meal|breakfast|lunch|dinner|grocery|cook|cooking|kitchen/.test(sceneText) && !/food|grocery|kitchen|meal|coffee|cafe|produce|cook/.test(corpus)) score -= 45;
+  }
   if (/no_person|none|environment reference|empty room|food arrangement/.test(corpus)) score -= 100;
 
   if (/face|portrait|selfie|full body|partial body|person|mirror/.test(corpus)) score += 12;

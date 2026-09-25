@@ -129,6 +129,7 @@ function referenceSceneIntent(slide: GeneratedSlide) {
     category,
     scene_description: scene,
     recommended_reference_categories,
+    broad_match_only: slide.position === 1 || slide.role.toUpperCase() === "HOOK",
   };
 }
 
@@ -149,13 +150,15 @@ async function generateRepairAsset(options: { input: { id: string; personaId?: s
     .map((row) => visualReferenceSchema.safeParse(row))
     .flatMap((result) => result.success && isAutomaticVisualReference(result.data) ? [result.data] : [])
     .filter((reference) => !options.usedReferenceIds.has(reference.id));
+  const referenceIntent = referenceSceneIntent(options.slide);
   const rankedReferences = references
-    .map((reference) => ({ reference, score: scoreVisualReferenceForScene(reference, referenceSceneIntent(options.slide)) }))
+    .map((reference) => ({ reference, score: scoreVisualReferenceForScene(reference, referenceIntent) }))
     .sort((a, b) => b.score - a.score);
   const bestReference = rankedReferences[0];
   if (!bestReference) throw new Error(`MODELARK_REFERENCE_MISSING:slide_${options.position}`);
-  if (bestReference.score < 20) {
-    throw new Error(`MODELARK_REFERENCE_LOW_CONFIDENCE:slide_${options.position}:score_${bestReference.score}:candidates_${rankedReferences.length}`);
+  const referenceFloor = referenceIntent.broad_match_only ? 8 : 20;
+  if (bestReference.score < referenceFloor) {
+    throw new Error(`MODELARK_REFERENCE_LOW_CONFIDENCE:slide_${options.position}:score_${bestReference.score}:required_${referenceFloor}:candidates_${rankedReferences.length}`);
   }
   const reference = bestReference.reference;
   const persona = personas.find((item) => item.id === options.input.personaId);

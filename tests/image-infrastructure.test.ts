@@ -211,6 +211,62 @@ describe('persona image infrastructure', () => {
     );
   });
 
+  it('accepts broad-domain persona hook imagery without requiring an exact fitness micro-scene', () => {
+    const fitnessPersona: JitSelectableAsset = {
+      id: 'p06-fitness', filename: 'P06_PILATES_01.jpg', category: 'fitness', subcategory: 'pilates',
+      orientation: 'portrait', framing: 'full_body', activity: 'pilates', mood: 'focused',
+      colors: [], tags: ['fitness', 'pilates', 'sportswear', 'indoor'], good_for: ['fitness_pilates', 'workout'],
+      public_url: 'https://example.com/p06-fit.jpg', use_count: 0, last_used_at: null,
+      source_type: 'persona_generated', persona_id: 'P06',
+      visual_description: 'young woman in sportswear doing Pilates in a bright fitness studio',
+      visible_objects: ['exercise_mat'], visible_actions: ['movement'], setting: 'pilates_studio',
+      people_visibility: 'full_body', composition: 'person_activity_scene', camera_angle: 'eye_level',
+      lighting: 'bright_daylight', metadata: {},
+    };
+    const beautyPersona: JitSelectableAsset = {
+      ...fitnessPersona,
+      id: 'p06-beauty', filename: 'P06_BEAUTY_01.jpg', category: 'self_care', subcategory: 'skincare',
+      tags: ['skincare', 'bathroom', 'beauty'], good_for: ['self_care'],
+      visual_description: 'young woman applying moisturizer in a bathroom mirror',
+      visible_objects: ['moisturizer', 'mirror'], visible_actions: ['skincare'], setting: 'bathroom',
+    };
+    const hook = {
+      position: 1, role: 'HOOK', headline: 'my after-work fitness reset', body: '',
+      assetQuery: 'P06 young woman on a treadmill in a commercial gym',
+      visualIntent: 'same P06 identity, fitness vibe, active sportswear scene',
+      assetType: 'persona',
+    };
+    const result = chooseAssets({ assets: [beautyPersona, fitnessPersona], carouselType: 'F01', personaId: 'P06', slides: [hook] });
+    assert.equal(result[0]?.asset.id, 'p06-fitness');
+    assert.equal(result[0]?.threshold, 42);
+    assert.ok((result[0]?.score ?? 0) >= 42);
+  });
+
+  it('scores broad fitness visual references above unrelated hook references', () => {
+    const fitness = visualReferenceSchema.parse({
+      id: 'FITNESS_HOOK', category: 'fitness_pilates', source_platform: 'manual',
+      pose: 'standing after workout', framing: 'full body', outfit: 'sportswear',
+      environment: 'pilates studio', lighting: 'daylight',
+      tags: ['fitness', 'pilates', 'workout'], good_for: ['fitness_pilates'], enabled: true,
+      metadata: { review_status: 'OK' },
+    });
+    const beauty = visualReferenceSchema.parse({
+      id: 'BEAUTY_HOOK', category: 'self_care', source_platform: 'manual',
+      pose: 'mirror skincare', framing: 'waist up', outfit: 'robe',
+      environment: 'bathroom', lighting: 'soft indoor',
+      tags: ['skincare', 'beauty', 'bathroom'], good_for: ['self_care'], enabled: true,
+      metadata: { review_status: 'OK' },
+    });
+    const scene = {
+      category: 'fitness',
+      scene_description: 'woman on treadmill in a commercial gym',
+      recommended_reference_categories: ['fitness_pilates'],
+      broad_match_only: true,
+    };
+    assert.ok(scoreVisualReferenceForScene(fitness, scene) > scoreVisualReferenceForScene(beauty, scene));
+    assert.ok(scoreVisualReferenceForScene(fitness, scene) >= 8);
+  });
+
   it('stores local assets without overwrite and refuses MASTER writes', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortifree-storage-'));
     const storage = new LocalDriveAssetStorage(root);

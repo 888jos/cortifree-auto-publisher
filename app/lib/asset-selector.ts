@@ -60,6 +60,9 @@ export type VisualIntent = {
 
 const AUTO_THRESHOLD = 60;
 const CRITICAL_THRESHOLD = 65;
+const PERSONA_HOOK_THRESHOLD = 42;
+const PERSONA_THRESHOLD = 45;
+const STOCK_HOOK_THRESHOLD = 52;
 // Hard constraints have already removed incompatible candidates. This fallback
 // keeps a genuinely matching, sparsely described image usable during migration.
 const EXPLICIT_FALLBACK_THRESHOLD = 40;
@@ -141,6 +144,31 @@ export function requiresOfficialAppScreenshot(slide: { assetQuery?: string; visu
   const text = `${slide.assetQuery ?? ""} ${slide.visualIntent ?? ""}`.toLowerCase();
   return /(?:cortifree.{0,80}(?:screenshot|app ui|app interface|authentic ui)|(?:screenshot|app ui|app interface).{0,80}cortifree)/.test(text)
     && /(?:real|official|authentic|supplied|approved|do not (?:generate|recreate|fabricate|alter|invent))/.test(text);
+}
+
+type BroadVisualDomain = "fitness" | "home_selfcare" | "outdoors" | "food" | "work_study" | "beauty";
+
+function broadVisualDomains(value: string) {
+  const text = value.toLowerCase();
+  const domains = new Set<BroadVisualDomain>();
+  if (/fitness|gym|treadmill|pilates|yoga|workout|exercise|running|run|jog|stretch|dumbbell|sportswear|athletic/.test(text)) domains.add("fitness");
+  if (/home|bedroom|bed|cozy|night|journal|journaling|tea|relax|self.?care|wellness|morning_home/.test(text)) domains.add("home_selfcare");
+  if (/outdoor|outside|street|sidewalk|park|nature|forest|trail|walking|walk|commute/.test(text)) domains.add("outdoors");
+  if (/food|meal|breakfast|lunch|dinner|grocery|produce|kitchen|cook|cooking|market/.test(text)) domains.add("food");
+  if (/study|work|desk|laptop|office|focus|meeting|library/.test(text)) domains.add("work_study");
+  if (/skincare|makeup|beauty|bathroom|mirror|moisturizer|lip.?balm|glow/.test(text)) domains.add("beauty");
+  return domains;
+}
+
+function broadHookPersonaDomainMatch(slide: { headline: string; body: string; assetQuery: string; visualIntent: string }, asset: SelectableAsset) {
+  const requested = broadVisualDomains(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`);
+  if (!requested.size) return { compatible: true, matched: false };
+  const assetDomains = broadVisualDomains(`${assetText(asset)} ${asset.category} ${asset.subcategory} ${asset.scene ?? ""}`);
+  if (!assetDomains.size) return { compatible: true, matched: false };
+  const matched = [...requested].some((domain) => assetDomains.has(domain));
+  // Hooks are deliberately broad. Only reject a clearly different universe,
+  // not a nearby scene within the same content domain.
+  return { compatible: matched, matched };
 }
 
 function criticalSlide(slide: { position: number; role?: string; assetType?: string }) {
@@ -338,7 +366,11 @@ export function chooseAssets(options: {
       ? usableRequested
       : (options.personaOnly
         ? usableRequested
-        : usableRequested.filter((asset) => asset.source_type === "persona_generated" || compatibleWithScene(asset, constraint)))
+        : usableRequested.filter((asset) => {
+            if (asset.source_type !== "persona_generated") return compatibleWithScene(asset, constraint);
+            if (hookNeedsPersona) return broadHookPersonaDomainMatch(slide, asset).compatible;
+            return true;
+          }))
         .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
     const unused = compatible.filter((asset) => !used.has(asset.id));
     const distinct = unused;
@@ -376,16 +408,19 @@ export function chooseAssets(options: {
       // tagging, without letting this legacy path affect stock ranking.
       const personaSceneScore = slide.assetType === "persona" && asset.source_type === "persona_generated" && requiresPersonaScene ? 20 : 0;
       const textPenalty = visibleText.length && !intent.desired_objects.includes("laptop") ? 5 : 0;
-      let score = semanticScore * 35 + actionScore * 20 + objectScore * 15 + settingScore * 12 + compositionScore * 6 + detailScore * 5 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + legacyQueryScore + personaSceneScore - textPenalty;
+      const personaHook = hookNeedsPersona && asset.source_type === "persona_generated";
+      const broadDomain = personaHook ? broadHookPersonaDomainMatch(slide, asset) : { compatible: true, matched: false };
+      let score = personaHook
+        ? semanticScore * 12 + actionScore * 8 + objectScore * 6 + settingScore * 4 + compositionScore * 4 + detailScore * 2 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + Math.min(8, legacyQueryScore) + (broadDomain.matched ? 24 : 0) - textPenalty
+        : semanticScore * 35 + actionScore * 20 + objectScore * 15 + settingScore * 12 + compositionScore * 6 + detailScore * 5 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + legacyQueryScore + personaSceneScore - textPenalty;
       if (officialAppScreenshot && asset.source_type === "app_screenshot") score += 100;
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
       if (slide.assetType === "persona" && asset.source_type === "persona_generated") score += 34;
-      // A generated persona hook is already identity-validated by its MASTER /
-      // visual-reference pipeline; keep visual relevance as a tie-breaker but
-      // do not reject a valid identity asset because legacy scene tags are sparse.
-      if (hookNeedsPersona && asset.source_type === "persona_generated") score += 36;
+      // Hooks care about identity + broad content universe first. Exact micro-scene
+      // similarity remains a tie-breaker, not a production gate.
+      if (hookNeedsPersona && asset.source_type === "persona_generated") score += 12;
       const visualRepetitionPenalty = usedVisualDescriptions.some((previous) => semanticTokenOverlap(previous, visualDescription) >= 0.75) ? 10 : 0;
       const repetitionPenalty = Math.min(asset.use_count ?? 0, 12) * 1.8 + (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000 ? 16 : 0) + visualRepetitionPenalty;
       score -= repetitionPenalty;
@@ -407,11 +442,20 @@ export function chooseAssets(options: {
     // In a persona-only 2x2 slide, identity continuity is already enforced by
     // the persona asset pool. Sparse legacy scene tags must not block a valid
     // freshly face-swapped frame; visual QA still runs at the lower threshold.
+    const isHook = slide.position === 1 || slide.role?.toUpperCase() === "HOOK";
     const threshold = officialAppScreenshot
       ? 0
       : options.personaOnly && slide.assetType === "persona"
         ? 40
-        : criticalSlide(slide) ? CRITICAL_THRESHOLD : AUTO_THRESHOLD;
+        : isHook && slide.assetType === "persona"
+          ? PERSONA_HOOK_THRESHOLD
+          : slide.assetType === "persona"
+            ? PERSONA_THRESHOLD
+            : isHook
+              ? STOCK_HOOK_THRESHOLD
+              : criticalSlide(slide)
+                ? CRITICAL_THRESHOLD
+                : AUTO_THRESHOLD;
     const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
     const fallbackCandidate = !selectedCandidate && !criticalSlide(slide)
       ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)
