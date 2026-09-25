@@ -64,7 +64,7 @@ type GeneratedSlide = {
 
 type Frame = {
   x: number; y: number; width: number; height?: number; fit?: "cover" | "contain";
-  mode?: "single" | "grid-2x2" | "editorial-collage" | "interactive-checklist" | "ranking";
+  mode?: "single" | "routine-timeline" | "grid-2x2" | "editorial-collage" | "interactive-checklist" | "ranking";
 };
 type Geometry = {
   canvas?: { width: number; height: number };
@@ -87,6 +87,15 @@ type Geometry = {
     hookFontFamily?: string;
     hookSize?: number;
     shadow?: string;
+    routineKickerX?: number;
+    routineKickerY?: number;
+    routineKickerWidth?: number;
+    routineKickerSize?: number;
+    routineContextY?: number;
+    routineTimeX?: number;
+    routineTimeY?: number;
+    routineTimeWidth?: number;
+    routineTimeSize?: number;
   };
   overlay?: { color?: string; opacity?: number };
 };
@@ -293,6 +302,143 @@ async function rasterText(text: string, options: { width: number; height: number
   return textLayer;
 }
 
+
+function routineKicker(slide: GeneratedSlide) {
+  const text = `${slide.headline} ${slide.body}`.toLowerCase();
+  if (/night|bedtime|evening/.test(text)) return "NIGHT ROUTINE";
+  if (/morning|a\.m\.|\bam\b/.test(text)) return "MORNING ROUTINE";
+  if (/day in (my|the) life|day in the life|day-in-the-life/.test(text)) return "DAY IN MY LIFE";
+  return "MY ROUTINE";
+}
+
+function routineCopyParts(slide: GeneratedSlide) {
+  const source = String(slide.headline ?? "").trim();
+  const match = source.match(/^((?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:AM|PM)?|(?:[01]?\d|2[0-3])h(?:[0-5]\d)?)\s*(?:[·•|—–-]|:)\s*(.+)$/i);
+  if (!match) return { time: "", headline: source };
+  return { time: match[1]!.trim().toUpperCase(), headline: match[2]!.trim() };
+}
+
+async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
+  const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
+  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  const isFinal = slide.role.toUpperCase() === "CTA" || slide.role.toUpperCase() === "TAKEAWAY";
+  const overlays: OverlayOptions[] = [];
+  const pushShadowed = async (text: string, opts: { left: number; top: number; width: number; height: number; size: number; weight: number; align: "left" | "center" | "right"; fontFamily: string; color?: string; spacing?: number }) => {
+    const shadow = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: "#171717", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily });
+    const foreground = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: opts.color ?? "#fffaf8", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily });
+    overlays.push({ input: shadow, left: opts.left + 3, top: opts.top + 3 });
+    overlays.push({ input: foreground, left: opts.left, top: opts.top });
+  };
+
+  if (isHook) {
+    const kicker = routineKicker(slide);
+    await pushShadowed(kicker, {
+      left: frame.routineKickerX ?? 78,
+      top: frame.routineKickerY ?? 96,
+      width: frame.routineKickerWidth ?? 430,
+      height: 38,
+      size: frame.routineKickerSize ?? 20,
+      weight: 700,
+      align: "left",
+      fontFamily,
+      spacing: 1,
+    });
+    const lines = wrapHook(slide.headline.toLowerCase(), 4, 3).join("\n");
+    await pushShadowed(lines, {
+      left: frame.x,
+      top: frame.headlineY ?? frame.y,
+      width: frame.width,
+      height: 240,
+      size: frame.hookSize ?? 64,
+      weight: 700,
+      align: "left",
+      fontFamily: hookFontFamily,
+    });
+    if (slide.body.trim()) {
+      await pushShadowed(slide.body.trim(), {
+        left: frame.x,
+        top: frame.routineContextY ?? frame.bodyY ?? 365,
+        width: Math.min(frame.width, 520),
+        height: 90,
+        size: frame.bodySize ?? 26,
+        weight: 600,
+        align: "left",
+        fontFamily,
+      });
+    }
+    return overlays;
+  }
+
+  if (isFinal) {
+    const headline = wrap(slide.headline, 24, frame.maxHeadlineLines ?? 3).join("\n");
+    await pushShadowed(headline, {
+      left: frame.x,
+      top: frame.headlineY ?? frame.y,
+      width: frame.width,
+      height: 230,
+      size: frame.headlineSize ?? 58,
+      weight: 700,
+      align: "center",
+      fontFamily: hookFontFamily,
+    });
+    if (slide.body.trim()) {
+      const body = wrap(slide.body, 42, frame.maxBodyLines ?? 3).join("\n");
+      await pushShadowed(body, {
+        left: frame.x,
+        top: frame.bodyY ?? 475,
+        width: frame.width,
+        height: 150,
+        size: frame.bodySize ?? 30,
+        weight: 500,
+        align: "center",
+        fontFamily,
+      });
+    }
+    return overlays;
+  }
+
+  const parts = routineCopyParts(slide);
+  if (parts.time) {
+    await pushShadowed(parts.time, {
+      left: frame.routineTimeX ?? 390,
+      top: frame.routineTimeY ?? 110,
+      width: frame.routineTimeWidth ?? 300,
+      height: 58,
+      size: frame.routineTimeSize ?? 30,
+      weight: 700,
+      align: "center",
+      fontFamily,
+    });
+  }
+  const action = wrap(parts.headline, 24, frame.maxHeadlineLines ?? 2).join("\n");
+  await pushShadowed(action, {
+    left: frame.x,
+    top: frame.headlineY ?? frame.y,
+    width: frame.width,
+    height: 170,
+    size: frame.headlineSize ?? 54,
+    weight: 700,
+    align: "center",
+    fontFamily: hookFontFamily,
+  });
+  if (slide.body.trim()) {
+    const support = wrap(slide.body, 46, frame.maxBodyLines ?? 2).join("\n");
+    await pushShadowed(support, {
+      left: frame.x,
+      top: frame.bodyY ?? 715,
+      width: frame.width,
+      height: 120,
+      size: frame.bodySize ?? 26,
+      weight: 500,
+      align: "center",
+      fontFamily,
+    });
+  }
+  return overlays;
+}
+
 async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry, hookDesign?: HookDesign): Promise<OverlayOptions[]> {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const headlineSize = frame.headlineSize ?? 62;
@@ -420,7 +566,11 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
         hookColor: readablePalette.headlineColor,
       }
     : hookDesign;
-  composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
+  if (imageFrame.mode === "routine-timeline") {
+    composites.push(...await routineTextOverlays(slide, readableGeometry));
+  } else {
+    composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
+  }
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
 }
 
@@ -703,7 +853,9 @@ export async function renderCarouselRevision(input: {
       }
     }
 
-    const slideLayout = slide.position === 1 || slide.role.toUpperCase() === "HOOK" ? "single-image" : input.layout;
+    const slideLayout = input.layout === "grid-2x2" && (slide.position === 1 || slide.role.toUpperCase() === "HOOK")
+      ? "single-image"
+      : input.layout;
     const geometry = getSlideGeometry(
       { ...slide, layout: slideLayout },
       slide.position === 1,
