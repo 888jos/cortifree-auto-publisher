@@ -21,7 +21,7 @@ COPY RULES
   - F04_AESTHETIC_EDUCATIONAL: educational/simple and visually fixed. Every slide uses exactly 3 distinct portrait/vertical images in the same three-rectangle composition: smaller left card, taller centered card, smaller right card. Headline stays top-left; the explanation stays centered below the image trio. One educational point/item per slide, concise enough to read instantly. Suitable for lists, notes, "things to know", or simple wellness education.
   - F05_INTERACTIVE_CHECKLIST: interactive/second-person. Problem/question hook, then self-audit/checklist choices written directly to the viewer, then takeaway/CTA.
   - F06_PERSONA_EXPLAINER: relatable/explanatory. Persona-led hook, then 2-4 short observations/points per slide. Preserve cautious health language.
-  - F07_RANKING: opinionated/ranking. Hook frames the ranking. Each body slide covers exactly one item with a clear grade/rating and short justification.
+  - F07_RANKING: opinionated/ranking with a locked visual rhythm. Cover uses a short 3-8 word ranking hook plus one short context line and exactly 2 teaser photos. Every body slide covers exactly ONE item and its headline MUST follow either "8/10 · item name" or "A · item name". Use one short, specific justification in body. Do not rank multiple items on one slide. Final slide is a short recap/save CTA and does not need a score.
   - F08_2X2: contrast/punchy. Existing 2x2 concept using exactly two unique images repeated diagonally when the renderer uses grid-2x2.
 - The renderer supports single-image, routine-timeline, three-rect-educational, editorial-asym-hero, editorial-collage, interactive-checklist, ranking, and grid-2x2. Do not invent any other layout.
 - single-image uses one photo per slide.
@@ -30,7 +30,7 @@ COPY RULES
 - editorial-asym-hero is F02's canonical renderer: exactly 3 distinct cohesive photos per slide, with a large left hero (x60 y190 w590 h770) and two right support images (x690 y215 w310 h310; x690 y555 w310 h310). Cover hook sits upper-left and context sits below the collage. Body headline and 2-4 short lines sit bottom-left. Never ask the image model to draw typography or collage borders.
 - editorial-collage is retained only for legacy renders; do not choose it for new F02 carousels.
 - interactive-checklist uses one contextual photo with one large clean reading panel; write the checklist/choices as the copy, never ask the image model to draw text or UI.
-- ranking uses two teaser photos on the hook and one supporting photo per body slide; every body slide must make its grade/rating explicit in the headline.
+- ranking uses two rounded teaser photos on the cover. Every body slide has one large portrait/supporting photo on the left and a programmatic score block on the right. The renderer extracts the score from the headline, so body headlines MUST begin with "X/10 ·" or "A-F ·". Final CTA uses one photo on the left and short copy on the right. Never ask the image model to draw scores, stars, ranking text, cards, or badges.
 - grid-2x2 uses exactly two different photos repeated diagonally: top-left = bottom-right and top-right = bottom-left.
 - All panels, collage geometry, typography, ratings and text are rendered programmatically. Never ask an image model to generate text, UI, badges, arrows, charts, stickers or decorative graphics.
 - Keep the creative direction feminine and editorial: soft rose/pink, warm butter yellow, cream, plum, and dark brown accents; use elegant serif or friendly rounded typography. The renderer applies the final palette and typography.

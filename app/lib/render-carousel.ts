@@ -103,6 +103,14 @@ type Geometry = {
     editorialKickerY?: number;
     editorialKickerWidth?: number;
     editorialKickerSize?: number;
+    rankingScoreX?: number;
+    rankingScoreY?: number;
+    rankingScoreWidth?: number;
+    rankingScoreSize?: number;
+    rankingKickerX?: number;
+    rankingKickerY?: number;
+    rankingKickerWidth?: number;
+    rankingKickerSize?: number;
   };
   overlay?: { color?: string; opacity?: number };
 };
@@ -452,6 +460,144 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
   return overlays;
 }
 
+function rankingCopyParts(slide: GeneratedSlide) {
+  const source = String(slide.headline ?? "").trim();
+  const rating = source.match(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/i);
+  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*([SABCDF][+-]?)\b/i);
+  const prefixTier = source.match(/^([SABCDF][+-]?)\s*[·•|—–:\-]/i);
+  const score = rating ? `${rating[1]}/10` : (explicitTier?.[1] ?? prefixTier?.[1] ?? "").toUpperCase();
+  const item = source
+    .replace(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/gi, "")
+    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*[SABCDF][+-]?\b/gi, "")
+    .replace(/^[SABCDF][+-]?\s*[·•|—–:\-]\s*/i, "")
+    .replace(/^[\s·•|—–:\-]+|[\s·•|—–:\-]+$/g, "")
+    .trim();
+  return { score, item: item || source };
+}
+
+async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
+  const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
+  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
+  const overlays: OverlayOptions[] = [];
+
+  if (isHook) {
+    const hook = wrapHook(slide.headline.toLowerCase(), 4, 3).join("\n");
+    const hookImage = await rasterText(hook, {
+      width: frame.width,
+      height: 220,
+      size: frame.hookSize ?? 60,
+      weight: 700,
+      color: frame.headlineColor ?? "#261f22",
+      align: "left",
+      spacing: 0,
+      fontFamily: hookFontFamily,
+    });
+    overlays.push({ input: hookImage, left: frame.x, top: frame.headlineY ?? 105 });
+    if (slide.body.trim()) {
+      const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 2).join("\n");
+      const bodyImage = await rasterText(body, {
+        width: frame.width,
+        height: 110,
+        size: frame.bodySize ?? 26,
+        weight: 500,
+        color: frame.bodyColor ?? "#4c3f43",
+        align: "left",
+        spacing: 2,
+        fontFamily,
+      });
+      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 285 });
+    }
+    return overlays;
+  }
+
+  if (isFinal) {
+    const headline = wrap(slide.headline, 24, frame.maxHeadlineLines ?? 3).join("\n");
+    const headlineImage = await rasterText(headline, {
+      width: frame.width,
+      height: 190,
+      size: frame.headlineSize ?? 48,
+      weight: 700,
+      color: frame.headlineColor ?? "#261f22",
+      align: "left",
+      spacing: 0,
+      fontFamily: hookFontFamily,
+    });
+    overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? 340 });
+    if (slide.body.trim()) {
+      const body = wrap(slide.body.trim(), 34, frame.maxBodyLines ?? 4).join("\n");
+      const bodyImage = await rasterText(body, {
+        width: frame.width,
+        height: 190,
+        size: frame.bodySize ?? 28,
+        weight: 500,
+        color: frame.bodyColor ?? "#4c3f43",
+        align: "left",
+        spacing: 2,
+        fontFamily,
+      });
+      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 505 });
+    }
+    return overlays;
+  }
+
+  const { score, item } = rankingCopyParts(slide);
+  const kicker = await rasterText(score.includes("/10") ? "MY SCORE" : "MY TIER", {
+    width: frame.rankingKickerWidth ?? 260,
+    height: 32,
+    size: frame.rankingKickerSize ?? 18,
+    weight: 700,
+    color: frame.accentColor ?? "#7d4e62",
+    align: "left",
+    spacing: 1,
+    fontFamily,
+  });
+  overlays.push({ input: kicker, left: frame.rankingKickerX ?? 620, top: frame.rankingKickerY ?? 132 });
+
+  const scoreImage = await rasterText(score || "—", {
+    width: frame.rankingScoreWidth ?? 350,
+    height: 125,
+    size: frame.rankingScoreSize ?? 96,
+    weight: 700,
+    color: frame.headlineColor ?? "#261f22",
+    align: "left",
+    spacing: 0,
+    fontFamily: hookFontFamily,
+  });
+  overlays.push({ input: scoreImage, left: frame.rankingScoreX ?? 620, top: frame.rankingScoreY ?? 170 });
+
+  const itemText = wrap(item, 20, frame.maxHeadlineLines ?? 3).join("\n");
+  const itemImage = await rasterText(itemText, {
+    width: frame.width,
+    height: 170,
+    size: frame.headlineSize ?? 42,
+    weight: 700,
+    color: frame.headlineColor ?? "#261f22",
+    align: "left",
+    spacing: 0,
+    fontFamily: hookFontFamily,
+  });
+  overlays.push({ input: itemImage, left: frame.x, top: frame.headlineY ?? 395 });
+
+  if (slide.body.trim()) {
+    const reason = wrap(slide.body.trim(), 30, frame.maxBodyLines ?? 5).join("\n");
+    const reasonImage = await rasterText(reason, {
+      width: frame.width,
+      height: 220,
+      size: frame.bodySize ?? 28,
+      weight: 500,
+      color: frame.bodyColor ?? "#4c3f43",
+      align: "left",
+      spacing: 2,
+      fontFamily,
+    });
+    overlays.push({ input: reasonImage, left: frame.x, top: frame.bodyY ?? 530 });
+  }
+  return overlays;
+}
+
 function routineKicker(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body}`.toLowerCase();
   if (/night|bedtime|evening/.test(text)) return "NIGHT ROUTINE";
@@ -691,20 +837,27 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     }
     averageLuminance = 220;
   } else if (imageFrame.mode === "ranking") {
+    const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
     if (isHook && matches.length >= 2) {
-      const placements = [{ left: 66, top: 120, width: 455, height: 650 }, { left: 560, top: 210, width: 455, height: 650 }];
+      const placements = [
+        { left: 70, top: 420, width: 440, height: 650 },
+        { left: 570, top: 500, width: 440, height: 570 },
+      ];
       for (const [index, match] of matches.slice(0, 2).entries()) {
         const imageBytes = await selectedAssetBytes(match);
         const place = placements[index]!;
-        const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+        const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
     } else {
       const imageBytes = await selectedAssetBytes(matches[0]!);
-      const fitted = await sharp(imageBytes).rotate().resize({ width: 880, height: 760, fit: "cover", position: "centre" }).png().toBuffer();
-      composites.push({ input: fitted, left: 100, top: 70 });
+      const place = isFinal
+        ? { left: 70, top: 180, width: 470, height: 800 }
+        : { left: 70, top: 135, width: 500, height: 830 };
+      const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
+      composites.push({ input: fitted, left: place.left, top: place.top });
     }
-    averageLuminance = 220;
+    averageLuminance = 235;
   } else {
     const match = matches[0]!;
     const imageBytes = await selectedAssetBytes(match);
@@ -747,6 +900,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     composites.push(...await threeRectEducationalTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "editorial-asym-hero") {
     composites.push(...await editorialAsymTextOverlays(slide, readableGeometry));
+  } else if (imageFrame.mode === "ranking") {
+    composites.push(...await rankingTextOverlays(slide, readableGeometry));
   } else {
     composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   }

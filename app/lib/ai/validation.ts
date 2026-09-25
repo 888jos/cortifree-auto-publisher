@@ -65,6 +65,15 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (index > 0 && slide.headline.length > 56) issues.push({ code: "EDITORIAL_HEADLINE_LENGTH", message: "Editorial body headline is too long for the fixed lower-left zone", slidePosition: slide.position, severity: "minor" });
       if (slide.body.length > 150) issues.push({ code: "EDITORIAL_BODY_LENGTH", message: "Editorial support copy is too long for the fixed lower-left zone", slidePosition: slide.position, severity: "minor" });
     }
+    if (expected.layout === "ranking") {
+      const isBodyRankingSlide = index > 0 && index < spec.slides.length - 1;
+      const hasRating = /\b(?:10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/i.test(slide.headline)
+        || /\b(?:tier|grade|rank)\s*[:\-]?\s*[SABCDF][+-]?\b/i.test(slide.headline)
+        || /^[SABCDF][+-]?\s*[·•|—–:\-]/i.test(slide.headline.trim());
+      if (isBodyRankingSlide && !hasRating) issues.push({ code: "RANKING_SCORE", message: "Ranking body slide headline must include X/10 or an A-F/S tier", slidePosition: slide.position, severity: "minor" });
+      if (isBodyRankingSlide && slide.headline.length > 64) issues.push({ code: "RANKING_HEADLINE_LENGTH", message: "Ranking item headline is too long for the fixed score layout", slidePosition: slide.position, severity: "minor" });
+      if (slide.body.length > 180) issues.push({ code: "RANKING_BODY_LENGTH", message: "Ranking justification is too long for the fixed score layout", slidePosition: slide.position, severity: "minor" });
+    }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);

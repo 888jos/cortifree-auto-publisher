@@ -14,6 +14,13 @@ if (actual !== expected || (actualProjectId && actualProjectId !== expectedProje
   process.exit(0);
 }
 
+const gitRef = (process.env.VERCEL_GIT_COMMIT_REF || "").trim();
+const previewsEnabled = process.env.CORTIFREE_VERCEL_PREVIEW_BUILDS === "true";
+if (gitRef && gitRef !== "main" && !previewsEnabled) {
+  console.log(`[isolation] Preview build skipped for ${gitRef}; GitHub CI is authoritative. Set CORTIFREE_VERCEL_PREVIEW_BUILDS=true to opt in.`);
+  process.exit(0);
+}
+
 const workerOnlyPrefixes = ["src/worker/", "supabase/migrations/", ".github/"];
 const workerOnlyFiles = new Set(["Dockerfile.worker"]);
 try {
