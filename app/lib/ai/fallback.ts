@@ -163,6 +163,49 @@ function createF01LifestyleFallback(input: CarouselGeneratorInput): CarouselSpec
   };
 }
 
+function createF05NotesFallback(input: CarouselGeneratorInput): CarouselSpec {
+  const fr = input.language === "fr";
+  const categories = fr ? [
+    ["Protéines", "œufs | poulet | saumon | sardines | tofu | tempeh | lentilles | yaourt grec"],
+    ["Lipides", "huile d’olive | avocat | noix | graines de chia | graines de courge | tahini | olives"],
+    ["Glucides", "pommes de terre | patate douce | riz | quinoa | sarrasin | avoine | pain au levain"],
+    ["Fruits", "myrtilles | mûres | kiwi | orange | citron | banane | pomme | grenade"],
+    ["Légumes", "salade | brocoli | épinards | champignons | aubergine | courgette | bok choy | carottes"],
+    ["Condiments", "kimchi | miso | gingembre | curcuma | basilic | menthe | persil | vinaigre de cidre"],
+    ["Boissons", "eau minérale | eau pétillante | thé vert | infusion | kéfir | kombucha"],
+  ] : [
+    ["Protein", "eggs | chicken | salmon | sardines | tofu | tempeh | lentils | greek yogurt"],
+    ["Fats", "olive oil | avocado | walnuts | chia seeds | pumpkin seeds | tahini | olives"],
+    ["Carbs", "potatoes | sweet potato | rice | quinoa | buckwheat | oats | sourdough"],
+    ["Fruit", "blueberries | blackberries | kiwi | orange | lemon | banana | apple | pomegranate"],
+    ["Vegetables", "leafy greens | broccoli | spinach | mushrooms | eggplant | zucchini | bok choy | carrots"],
+    ["Condiments", "kimchi | miso | ginger | turmeric | basil | mint | parsley | apple cider vinegar"],
+    ["Drinks", "mineral water | sparkling water | green tea | herbal tea | kefir | kombucha"],
+  ];
+  const hook = input.preferredHook ?? (fr ? "« je veux mieux manger mais je sais pas par où commencer… »" : "“I want to eat better but I don’t know where to start…”");
+  const slides = Array.from({ length: input.requestedSlideCount }, (_, index) => {
+    if (index === 0) return {
+      position: 1, role: "HOOK" as const, layout: input.layout, headline: hook, body: "",
+      visualIntent: "One candid full-screen grocery or everyday wellness lifestyle photo with a person naturally choosing food; phone-camera realism; this exact photo is the shared background for all following slides; no text or UI inside image.",
+      assetType: "stock" as const, assetQuery: "woman grocery shopping healthy food candid supermarket phone photo",
+    };
+    const copy = categories[(index - 1) % categories.length]!;
+    return {
+      position: index + 1, role: "CHECKLIST" as const, layout: input.layout, headline: copy[0], body: copy[1],
+      visualIntent: "Reuse the exact same carousel cover lifestyle photo as background. Renderer adds the white Notes-style list card programmatically; do not generate text, circles, card or UI in the image.",
+      assetType: "stock" as const, assetQuery: "same carousel cover lifestyle background",
+    };
+  });
+  return {
+    title: fr ? "liste wellness à sauvegarder" : "saveable wellness list",
+    topic: topics.F05_INTERACTIVE_CHECKLIST[input.language],
+    angle: fr ? "Une master list simple à sauvegarder, organisée par catégories." : "A simple category-based master list made to save.",
+    hook, language: input.language,
+    caption: fr ? "La liste simple à garder sous la main. ♡" : "The simple list to keep handy. ♡",
+    ctaType: input.ctaMode, slides,
+  };
+}
+
 function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
   const fr = input.language === "fr";
   const patterns = fr ? [
@@ -219,6 +262,7 @@ function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
   if (String(input.carouselType) === "F01_LIFESTYLE_GUIDE") return createF01LifestyleFallback(input);
   if (String(input.carouselType) === "F04_AESTHETIC_EDUCATIONAL") return createF04Fallback(input);
+  if (String(input.carouselType) === "F05_INTERACTIVE_CHECKLIST") return createF05NotesFallback(input);
   const language = input.language;
   const topic = topics[input.carouselType][language];
   const steps = input.carouselType === "F03_ROUTINE_TIMELINE"
