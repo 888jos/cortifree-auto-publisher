@@ -7,6 +7,7 @@ const imageFrames = {
   "three-rect-educational": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "three-rect-educational" },
   "grid-2x2": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "grid-2x2" },
   "editorial-collage": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "editorial-collage" },
+  "editorial-asym-hero": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "editorial-asym-hero" },
   "interactive-checklist": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "interactive-checklist" },
   "ranking": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "ranking" },
 };
@@ -17,6 +18,7 @@ const textFrames = {
   "three-rect-educational": { x: 74, y: 104, width: 640, align: "left" },
   "grid-2x2": { x: 88, y: 840, width: 904, align: "center" },
   "editorial-collage": { x: 82, y: 930, width: 916, align: "left" },
+  "editorial-asym-hero": { x: 78, y: 960, width: 620, align: "left" },
   "interactive-checklist": { x: 124, y: 360, width: 832, align: "left" },
   "ranking": { x: 110, y: 930, width: 860, align: "left" },
 };
@@ -96,6 +98,30 @@ function educationalThreeRectTextFrame(isCover, isFinal, typography) {
   };
 }
 
+function editorialAsymTextFrame(isCover, isFinal, typography) {
+  if (isCover) {
+    return {
+      x: 74, y: 115, width: 560, align: "left",
+      headlineY: 115, bodyY: 990,
+      headlineSize: 58, bodySize: 26, hookSize: 58,
+      headlineWeight: 700, bodyWeight: 500,
+      maxHeadlineLines: 3, maxBodyLines: 3,
+      editorialKickerX: 74, editorialKickerY: 90, editorialKickerWidth: 300, editorialKickerSize: 18,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  return {
+    x: 78, y: 960, width: 620, align: "left",
+    headlineY: 960, bodyY: 1075,
+    headlineSize: isFinal ? 46 : 44, bodySize: 26, hookSize: isFinal ? 46 : 44,
+    headlineWeight: 700, bodyWeight: 500,
+    maxHeadlineLines: 2, maxBodyLines: 4,
+    fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+    hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+  };
+}
+
 export function getSlideGeometry(slide, isCover = false, isFinal = false, typography = {}) {
   const requested = String(slide.layout ?? "single-image");
   const layout = imageFrames[requested] ? requested : "single-image";
@@ -140,6 +166,29 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         panel: false,
         editorial: true,
         educational: true,
+        ranking: false,
+        final: Boolean(isFinal),
+        cover: Boolean(isCover),
+      },
+    };
+  }
+
+  if (layout === "editorial-asym-hero") {
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        ...editorialAsymTextFrame(isCover, isFinal, typography),
+        headlineColor: "#241f1c",
+        bodyColor: "#3f3631",
+        accentColor: "#7c554c",
+      },
+      overlay: { color: "#f5efe7", opacity: 0 },
+      chrome: {
+        panel: false,
+        editorial: true,
+        asymmetric: true,
         ranking: false,
         final: Boolean(isFinal),
         cover: Boolean(isCover),
