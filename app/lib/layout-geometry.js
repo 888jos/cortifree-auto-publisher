@@ -26,22 +26,22 @@ const textFrames = {
 function routineTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 78, y: 150, width: 575, align: "left",
-      headlineY: 150, bodyY: 365,
-      headlineSize: 64, bodySize: 26, hookSize: 64,
-      headlineWeight: 700, bodyWeight: 500,
-      maxHeadlineLines: 3, maxBodyLines: 2,
-      routineKickerX: 78, routineKickerY: 96, routineKickerWidth: 430, routineKickerSize: 20,
-      routineContextY: 365,
+      x: 90, y: 360, width: 900, align: "center",
+      headlineY: 360, bodyY: 650,
+      headlineSize: 92, bodySize: 34, hookSize: 92,
+      headlineWeight: 800, bodyWeight: 650,
+      maxHeadlineLines: 2, maxBodyLines: 1,
+      routineKickerX: 220, routineKickerY: 295, routineKickerWidth: 640, routineKickerSize: 28,
+      routineContextY: 650,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
   if (isFinal) {
     return {
-      x: 140, y: 300, width: 800, align: "center",
-      headlineY: 300, bodyY: 475,
-      headlineSize: 58, bodySize: 30, hookSize: 58,
+      x: 140, y: 420, width: 800, align: "center",
+      headlineY: 420, bodyY: 580,
+      headlineSize: 52, bodySize: 28, hookSize: 52,
       headlineWeight: 700, bodyWeight: 500,
       maxHeadlineLines: 3, maxBodyLines: 3,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
@@ -49,12 +49,12 @@ function routineTextFrame(isCover, isFinal, typography) {
     };
   }
   return {
-    x: 170, y: 585, width: 740, align: "center",
-    headlineY: 585, bodyY: 715,
-    headlineSize: 54, bodySize: 26, hookSize: 54,
-    headlineWeight: 700, bodyWeight: 500,
-    maxHeadlineLines: 2, maxBodyLines: 2,
-    routineTimeX: 390, routineTimeY: 110, routineTimeWidth: 300, routineTimeSize: 30,
+    x: 140, y: 355, width: 620, align: "center",
+    headlineY: 355, bodyY: 455,
+    headlineSize: 36, bodySize: 24, hookSize: 36,
+    headlineWeight: 700, bodyWeight: 550,
+    maxHeadlineLines: 2, maxBodyLines: 3,
+    routineTimeX: 140, routineTimeY: 300, routineTimeWidth: 620, routineTimeSize: 31,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
   };
