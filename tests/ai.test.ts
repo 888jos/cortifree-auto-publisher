@@ -18,8 +18,8 @@ afterEach(() => {
 });
 
 const baseInput: CarouselGeneratorInput = {
-  carouselType: "C11_HORMONE_EDUCATION",
-  layout: "symptom-map",
+  carouselType: "F04_AESTHETIC_EDUCATIONAL",
+  layout: "single-image",
   persona: "P01",
   language: "en",
   market: "US",
@@ -38,7 +38,7 @@ function validSpec(language: "en" | "fr" = "en") {
     hook: copy[0]![0], language, caption: language === "fr" ? "Sauvegarde pour plus tard." : "Save this for later.", ctaType: "save",
     slides: copy.map(([headline, body], index) => ({
       position: index + 1, role: index === 0 ? "HOOK" : index === copy.length - 1 ? "CTA" : "TIP",
-      layout: "symptom-map", headline, body, visualIntent: "Calm everyday lifestyle scene with negative space", assetType: "stock", assetQuery: `wellness lifestyle ${index + 1}`,
+      layout: "single-image", headline, body, visualIntent: "Calm everyday lifestyle scene with negative space", assetType: "stock", assetQuery: `wellness lifestyle ${index + 1}`,
     })),
   });
 }
@@ -64,15 +64,15 @@ describe("CortiFree AI schemas and generation", () => {
   it("rejects unsafe health claims before AI QA", () => {
     const unsafe = validSpec();
     unsafe.slides[2]!.body = "This lowers cortisol by 35% in one week.";
-    const issues = validateCarouselSpec(unsafe, { slideCount: 7, language: "en", layout: "symptom-map" });
+    const issues = validateCarouselSpec(unsafe, { slideCount: 7, language: "en", layout: "single-image" });
     assert.ok(issues.some((issue) => issue.code === "HEALTH_CLAIM" && issue.severity === "major"));
   });
 
-  it("accepts the visual layout alias returned for a selected model", () => {
+  it("requires the selected canonical renderer layout", () => {
     const spec = validSpec();
-    spec.slides.forEach((slide) => { slide.layout = "bubbles"; });
-    const issues = validateCarouselSpec(spec, { slideCount: 7, language: "en", layout: "symptom-map" });
-    assert.equal(issues.some((issue) => issue.code === "LAYOUT"), false);
+    spec.slides.forEach((slide) => { slide.layout = "grid-2x2"; });
+    const issues = validateCarouselSpec(spec, { slideCount: 7, language: "en", layout: "single-image" });
+    assert.equal(issues.some((issue) => issue.code === "LAYOUT"), true);
   });
 
   it("renders text without a background card", () => {
