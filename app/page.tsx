@@ -776,8 +776,8 @@ export default function Home() {
           preview = { ...preview, approvalStatus: approval.status, publishReady: approval.publishReady };
           setDraftPreview(preview);
           setNotice(approval.contentApproved
-            ? `${preview.id} validé : texte OpenAI, ${preview.slides.length} PNG et contrôle pré-publication OK${approval.publishReady ? "." : "; il ne manque que le profil média."}`
-            : `${preview.id} rendu, mais le contrôle éditorial demande une correction.`);
+            ? `${preview.id} rendu + QA OK · en attente de validation humaine.`
+            : `${preview.id} rendu, mais le contrôle éditorial demande une correction avant review.`);
         } else {
           preview = { ...preview, warning: [preview.warning, `Rendu non terminé : ${renderData.error ?? `API ${renderResponse.status}`}`].filter(Boolean).join(" · ") };
           setDraftPreview(preview);
@@ -1240,7 +1240,7 @@ export default function Home() {
               <div className="batchProgress" role="status">
                 <div><b>{batchProgress.done}/{batchProgress.total}</b> carrousels générés · {batchProgress.failed} échec{batchProgress.failed > 1 ? "s" : ""}</div>
                 <progress max={batchProgress.total} value={batchProgress.done + batchProgress.failed} />
-                <small>Chaque hook est envoyé à OpenAI, sauvegardé, rendu en PNG puis validé automatiquement.</small>
+                <small>Chaque hook est envoyé à OpenAI, sauvegardé, rendu en PNG puis envoyé en review humaine.</small>
               </div>
             )}
 
