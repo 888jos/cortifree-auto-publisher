@@ -239,12 +239,25 @@ async function reviewQueue(chatId: string | number) {
 }
 
 async function top(chatId: string | number) {
-  const list = await rows("analytics_snapshots?workspace_id=eq.cortifree&select=carousel_id,profile_username,platform,views,likes,shares,saves,favorites,performance_score,post_url,captured_at&order=performance_score.desc&limit=10");
-  if (!list.length) return sendTelegramMessage(chatId, "No analytics snapshots yet.");
-  const lines = list.map((row, index) =>
-    `${index + 1}. ${row.carousel_id ?? row.profile_username ?? "post"} · ${String(row.platform ?? "").toUpperCase()} · ${fmt(row.views)} views · score ${fmt(row.performance_score)}`
+  const snapshots = await rows(
+    "analytics_snapshots?workspace_id=eq.cortifree&select=carousel_id,profile_username,platform,platform_post_id,views,likes,shares,saves,favorites,performance_score,post_url,captured_at,snapshot_label&order=captured_at.desc&limit=200",
   );
-  return sendTelegramMessage(chatId, ["🏆 Top content", ...lines].join("\n"));
+  if (!snapshots.length) return sendTelegramMessage(chatId, "No analytics snapshots yet.");
+
+  const latestByContent = new Map<string, Row>();
+  for (const row of snapshots) {
+    const key = String(row.carousel_id ?? row.platform_post_id ?? `${row.profile_username ?? "post"}:${row.platform ?? "unknown"}`);
+    if (!latestByContent.has(key)) latestByContent.set(key, row);
+  }
+
+  const list = [...latestByContent.values()]
+    .sort((a, b) => Number(b.performance_score ?? 0) - Number(a.performance_score ?? 0))
+    .slice(0, 10);
+
+  const lines = list.map((row, index) =>
+    `${index + 1}. ${row.carousel_id ?? row.profile_username ?? "post"} · ${String(row.platform ?? "").toUpperCase()} · ${fmt(row.views)} views · score ${fmt(row.performance_score)} · ${row.snapshot_label ?? "live"}`
+  );
+  return sendTelegramMessage(chatId, ["🏆 Top unique content", ...lines].join("\n"));
 }
 
 async function handleText(chatId: string | number, text: string) {

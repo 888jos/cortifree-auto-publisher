@@ -75,6 +75,27 @@ export async function answerTelegramCallback(callbackQueryId: string, text?: str
   });
 }
 
+export async function setTelegramCommands() {
+  return telegramApi("setMyCommands", {
+    commands: [
+      { command: "status", description: "CortiFree runtime and queue status" },
+      { command: "integrations", description: "Check Telegram, Upload-Post and Google readiness" },
+      { command: "review", description: "Show carousels waiting for review" },
+      { command: "carousel", description: "Open a carousel by ID" },
+      { command: "approve", description: "Approve a carousel by ID" },
+      { command: "changes", description: "Request targeted changes to a carousel" },
+      { command: "reject", description: "Reject a carousel with a reason" },
+      { command: "stats", description: "Fetch live stats for a published carousel" },
+      { command: "videostats", description: "Fetch live stats for a platform post ID" },
+      { command: "top", description: "Show top unique content" },
+    ],
+  });
+}
+
+export async function getTelegramWebhookInfo() {
+  return telegramApi("getWebhookInfo", {});
+}
+
 export async function setTelegramWebhook(origin: string) {
   const { webhookSecret } = config();
   if (!telegramConfigured()) throw new Error("Telegram bot variables are incomplete");
