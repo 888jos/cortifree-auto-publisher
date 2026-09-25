@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const publicPaths = new Set(["/login", "/auth/callback", "/api/health"]);
+const publicPaths = new Set(["/login", "/auth/callback"]);
 
 async function hasSupabaseSession(request: NextRequest, response: NextResponse) {
   const url = process.env.SUPABASE_URL;
