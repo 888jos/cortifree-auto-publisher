@@ -9,12 +9,25 @@ const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL = "cortifree@cortifree-509021.iam.gse
 function googleCredentials() {
   const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
   if (rawJson) {
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(rawJson) as { client_email?: string; private_key?: string };
-      if (parsed.private_key) return { email: parsed.client_email || DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL, privateKey: parsed.private_key };
+      parsed = JSON.parse(rawJson);
+      if (typeof parsed === "string") parsed = JSON.parse(parsed);
     } catch {
-      // Fall through to the split environment variables for backwards compatibility.
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_INVALID_JSON");
     }
+    if (!parsed || typeof parsed !== "object") throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_NOT_OBJECT");
+    const credentials = parsed as { type?: unknown; client_email?: unknown; private_key?: unknown };
+    if (credentials.type !== "service_account") throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_WRONG_TYPE");
+    if (typeof credentials.private_key !== "string" || !credentials.private_key.trim()) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_MISSING_PRIVATE_KEY");
+    }
+    return {
+      email: typeof credentials.client_email === "string" && credentials.client_email.trim()
+        ? credentials.client_email.trim()
+        : DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      privateKey: credentials.private_key,
+    };
   }
   const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   if (!rawKey) return null;
