@@ -78,7 +78,7 @@ function categoryFolder(category: unknown) {
 export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boolean } = {}) {
   const execute = Boolean(options.execute);
   const [assets, rootedFolders] = await Promise.all([
-    rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled&limit=5000`),
+    rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled,drive_file_id,drive_path&limit=5000`),
     folders(PERSONAS_ROOT),
   ]);
 
@@ -97,6 +97,11 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
     const metadata = asset.metadata && typeof asset.metadata === "object" && !Array.isArray(asset.metadata)
       ? asset.metadata as Row
       : {};
+    if (asset.enabled === false) {
+      report.push({ id: asset.id, filename: asset.filename, status: "SKIPPED_DISABLED" });
+      continue;
+    }
+
     const personaId = String(asset.persona_id ?? "").match(/^P\d{2}$/i)?.[0]?.toUpperCase()
       ?? personaIdFromMaster((metadata.input_image_1 as Row | undefined)?.filename);
 
@@ -145,7 +150,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       continue;
     }
 
-    const storedDriveFileId = String(metadata.drive_file_id ?? "").trim();
+    const storedDriveFileId = String(asset.drive_file_id ?? metadata.drive_file_id ?? "").trim();
     if (storedDriveFileId) {
       report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId });
       continue;
@@ -186,13 +191,18 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
         bytes: new Uint8Array(await image.arrayBuffer()),
         mimeType: image.headers.get("content-type") || "image/jpeg",
       });
+      const canonicalDrivePath = [...target.path, String(asset.filename)].join("/");
+      const archivedAt = new Date().toISOString();
       await patchAsset(String(asset.id), {
         ...attribution,
+        drive_file_id: uploaded.id,
+        drive_path: canonicalDrivePath,
+        canonical_updated_at: archivedAt,
         metadata: {
           ...attribution.metadata,
           drive_file_id: uploaded.id,
-          drive_path: [...target.path, String(asset.filename)].join("/"),
-          drive_archived_at: new Date().toISOString(),
+          drive_path: canonicalDrivePath,
+          drive_archived_at: archivedAt,
           canonical_source: "MODELARK_TO_DRIVE",
         },
       });
@@ -202,7 +212,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
         persona_id: personaId,
         status: "ARCHIVED_DRIVE",
         drive_file_id: uploaded.id,
-        drive_path: [...target.path, String(asset.filename)].join("/"),
+        drive_path: canonicalDrivePath,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
