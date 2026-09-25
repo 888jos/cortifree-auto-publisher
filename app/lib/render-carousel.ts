@@ -861,22 +861,30 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   return overlays;
 }
 
-function sharpPosition(frame: Frame) {
-  const x = Math.max(0, Math.min(100, Number(frame.cropX ?? 50)));
-  const y = Math.max(0, Math.min(100, Number(frame.cropY ?? 50)));
-  return { left: x / 100, top: y / 100 };
-}
-
 async function fitEditorImage(bytes: Buffer, frame: Frame) {
   const width = Math.max(1, Math.round(frame.width));
   const height = Math.max(1, Math.round(frame.height ?? HEIGHT));
   const zoom = Math.max(1, Math.min(4, Number(frame.zoom ?? 1)));
-  if (zoom === 1) return sharp(bytes).rotate().resize({ width, height, fit: frame.fit ?? "cover", position: sharpPosition(frame) }).png().toBuffer();
-  const bigW = Math.round(width * zoom), bigH = Math.round(height * zoom);
-  const big = await sharp(bytes).rotate().resize({ width: bigW, height: bigH, fit: "cover", position: sharpPosition(frame) }).png().toBuffer();
-  const cropX = Math.round((bigW - width) * Math.max(0, Math.min(100, Number(frame.cropX ?? 50))) / 100);
-  const cropY = Math.round((bigH - height) * Math.max(0, Math.min(100, Number(frame.cropY ?? 50))) / 100);
-  return sharp(big).extract({ left: Math.min(cropX, bigW - width), top: Math.min(cropY, bigH - height), width, height }).png().toBuffer();
+  const cropX = Math.max(0, Math.min(100, Number(frame.cropX ?? 50))) / 100;
+  const cropY = Math.max(0, Math.min(100, Number(frame.cropY ?? 50))) / 100;
+  if (frame.fit === "contain" && zoom === 1) {
+    return sharp(bytes).rotate().resize({ width, height, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+  }
+  const metadata = await sharp(bytes).rotate().metadata();
+  const sourceW = metadata.width ?? width;
+  const sourceH = metadata.height ?? height;
+  const scale = Math.max(width / sourceW, height / sourceH) * zoom;
+  const resizedW = Math.max(width, Math.ceil(sourceW * scale));
+  const resizedH = Math.max(height, Math.ceil(sourceH * scale));
+  const resized = await sharp(bytes).rotate().resize({ width: resizedW, height: resizedH, fit: "fill" }).png().toBuffer();
+  const maxLeft = Math.max(0, resizedW - width);
+  const maxTop = Math.max(0, resizedH - height);
+  return sharp(resized).extract({
+    left: Math.min(maxLeft, Math.round(maxLeft * cropX)),
+    top: Math.min(maxTop, Math.round(maxTop * cropY)),
+    width,
+    height,
+  }).png().toBuffer();
 }
 
 async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometry: Geometry) {
