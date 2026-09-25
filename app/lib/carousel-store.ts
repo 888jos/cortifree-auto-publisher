@@ -45,6 +45,12 @@ export async function saveGeneratedCarousel(options: {
     editorial_context: input.editorialContext ?? {},
     brand_integration_id: input.editorialContext?.brand_integration?.required ? "CORTIFREE_APP" : null,
     status: "DRAFT",
+    review_status: "AWAITING_REVIEW",
+    requires_human_approval: true,
+    auto_post_without_approval: false,
+    source_timezone: "Europe/Paris",
+    publish_timezone: "America/New_York",
+    generation_batch_date: new Date().toISOString().slice(0, 10),
     spec: {
       slides: result.spec.slides.length,
       carousel_type: input.carouselType,
