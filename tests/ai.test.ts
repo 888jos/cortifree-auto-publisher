@@ -200,10 +200,10 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS" || issue.code === "CHECKLIST_OPTION_LENGTH" || issue.code === "LAYOUT"), false);
   });
 
-  it("produces a canonical F09 lifestyle three-stack fallback", () => {
+  it("produces a canonical F01 lifestyle three-stack fallback", () => {
     const lifestyleInput: CarouselGeneratorInput = {
       ...baseInput,
-      carouselType: "F09_LIFESTYLE_3STACK",
+      carouselType: "F01_LIFESTYLE_GUIDE",
       layout: "lifestyle-3stack",
       requestedSlideCount: 8,
       preferredHook: "become better this summer",
