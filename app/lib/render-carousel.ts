@@ -403,7 +403,24 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
   const readableGeometry = { ...geometry, text: geometry.text ? { ...geometry.text, ...readablePalette } : geometry.text } as Geometry;
-  composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), forceDark ? undefined : hookDesign));
+  const textFrame = readableGeometry.text;
+  const layoutHookDesign: HookDesign | undefined = isHook && forceDark && textFrame
+    ? {
+        format: imageFrame.mode ?? "single",
+        x: textFrame.x,
+        y: textFrame.headlineY ?? textFrame.y,
+        width: textFrame.width,
+        size: textFrame.hookSize ?? 44,
+        weight: textFrame.headlineWeight ?? 700,
+        maxWordsPerLine: 4,
+        lineGap: 8,
+        align: textFrame.align ?? "left",
+        textColor: readablePalette.headlineColor,
+        accentColor: readablePalette.accentColor,
+        hookColor: readablePalette.headlineColor,
+      }
+    : hookDesign;
+  composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
 }
 
