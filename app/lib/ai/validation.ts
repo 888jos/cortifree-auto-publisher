@@ -52,6 +52,11 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     }
     if (slide.headline.length > 72) issues.push({ code: "HEADLINE_LENGTH", message: "Headline is too long for mobile", slidePosition: slide.position, severity: "minor" });
     if (slide.body.length > 220) issues.push({ code: "BODY_LENGTH", message: "Body is too long for mobile", slidePosition: slide.position, severity: "minor" });
+    if (expected.layout === "routine-timeline" && index > 0 && index < spec.slides.length - 1) {
+      const hasTimePrefix = /^((?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:AM|PM)?|(?:[01]?\d|2[0-3])h(?:[0-5]\d)?)\s*(?:[·•|—–-]|:)/i.test(slide.headline.trim());
+      if (!hasTimePrefix) issues.push({ code: "ROUTINE_TIME", message: "Routine body slide headline must start with a time label", slidePosition: slide.position, severity: "minor" });
+      if (slide.body.length > 100) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support line is too long", slidePosition: slide.position, severity: "minor" });
+    }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
