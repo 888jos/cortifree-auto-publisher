@@ -200,6 +200,26 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS" || issue.code === "CHECKLIST_OPTION_LENGTH" || issue.code === "LAYOUT"), false);
   });
 
+  it("produces a canonical F09 lifestyle three-stack fallback", () => {
+    const lifestyleInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F09_LIFESTYLE_3STACK",
+      layout: "lifestyle-3stack",
+      requestedSlideCount: 8,
+      preferredHook: "become better this summer",
+    };
+    const lifestyle = createFallbackCarousel(lifestyleInput);
+    assert.equal(lifestyle.slides.length, 8);
+    assert.ok(lifestyle.slides.every((slide) => slide.layout === "lifestyle-3stack"));
+    assert.equal(lifestyle.slides[0]?.headline, "become better this summer");
+    assert.ok(lifestyle.slides.slice(1).every((slide) => /three|3/i.test(slide.visualIntent)));
+    assert.ok(lifestyle.slides.slice(1).every((slide) => /same behavior|same habit/i.test(slide.visualIntent)));
+    assert.ok(lifestyle.slides.slice(1).every((slide) => slide.body.trim().split(/\s+/).length <= 32));
+    assert.equal(lifestyle.slides.at(-1)?.role, "TAKEAWAY");
+    const issues = validateCarouselSpec(lifestyle, { slideCount: 8, language: "en", layout: "lifestyle-3stack" });
+    assert.equal(issues.some((issue) => issue.code.startsWith("LIFESTYLE_") || issue.code === "LAYOUT"), false);
+  });
+
   it("produces a canonical F07 girly tier-list fallback", () => {
     const rankingInput: CarouselGeneratorInput = {
       ...baseInput,
