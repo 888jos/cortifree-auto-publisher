@@ -3,6 +3,23 @@ import { assertCortiFreeAccountId, CORTIFREE_WORKSPACE_ID } from "../../../lib/w
 
 export const runtime = "nodejs";
 
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+  try {
+    const [carouselResponse, slidesResponse] = await Promise.all([
+      dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=*&limit=1`),
+      dataBackend(`carousel_slides?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&carousel_id=eq.${encodeURIComponent(id)}&select=*&order=position.asc`),
+    ]);
+    if (!carouselResponse.ok) throw new Error(await carouselResponse.text());
+    const carousel = (await carouselResponse.json())[0] ?? null;
+    if (!carousel) return Response.json({ error: "Carousel not found" }, { status: 404 });
+    const slides = slidesResponse.ok ? await slidesResponse.json() : [];
+    return Response.json({ carousel, slides });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   try {
