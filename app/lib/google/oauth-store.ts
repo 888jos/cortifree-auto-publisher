@@ -2,23 +2,45 @@ import crypto from "node:crypto";
 import { dataBackend } from "../data-backend";
 
 const STAGE = "GOOGLE_OAUTH_REFRESH_TOKEN";
-function key() {
-  const seed = process.env.TOKEN_ENCRYPTION_KEY || process.env.GOOGLE_OAUTH_CLIENT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!seed) throw new Error("No token encryption key configured");
-  return crypto.createHash("sha256").update(seed).digest();
+
+function keyCandidates() {
+  const seeds = [
+    process.env.TOKEN_ENCRYPTION_KEY,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+  ].filter((value): value is string => Boolean(value?.trim()));
+  if (!seeds.length) throw new Error("No token encryption key configured");
+  return [...new Set(seeds)].map((seed) => crypto.createHash("sha256").update(seed).digest());
 }
+
 function encrypt(value: string) {
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key(), iv);
+  const [primaryKey] = keyCandidates();
+  const cipher = crypto.createCipheriv("aes-256-gcm", primaryKey, iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   return `${iv.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${ciphertext.toString("base64url")}`;
 }
+
 function decrypt(value: string) {
   const [ivText, tagText, ciphertextText] = value.split(".");
   if (!ivText || !tagText || !ciphertextText) throw new Error("Invalid encrypted OAuth token");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key(), Buffer.from(ivText, "base64url"));
-  decipher.setAuthTag(Buffer.from(tagText, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(ciphertextText, "base64url")), decipher.final()]).toString("utf8");
+
+  const iv = Buffer.from(ivText, "base64url");
+  const tag = Buffer.from(tagText, "base64url");
+  const ciphertext = Buffer.from(ciphertextText, "base64url");
+  let lastError: unknown;
+
+  for (const candidate of keyCandidates()) {
+    try {
+      const decipher = crypto.createDecipheriv("aes-256-gcm", candidate, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Unable to decrypt OAuth token with configured keys");
 }
 export async function storeGoogleRefreshToken(token: string) {
   const response = await dataBackend("system_logs", { method: "POST", body: JSON.stringify({ created_at: new Date().toISOString(), stage: STAGE, status: "STORED", metadata: { encrypted_refresh_token: encrypt(token), storage: "encrypted_backend" } }) });
