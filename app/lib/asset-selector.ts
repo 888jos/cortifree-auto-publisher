@@ -67,23 +67,6 @@ const EXPLICIT_FALLBACK_THRESHOLD = 40;
 // allow it into an automatically rendered carousel.
 const VISUAL_QA_EXCLUDED_FILENAMES = new Set(["MAYA_SELFCARE_001.jpg"]);
 
-const categoryByType: Record<string, string[]> = {
-  C01_MORNING_ROUTINE: ["morning", "food", "self_care", "fitness"],
-  C02_CHECKLIST: ["morning", "stress_reset", "self_care", "work_study"],
-  C03_THINGS_I_STOPPED: ["stress_reset", "morning", "work_study", "night"],
-  C04_THINGS_I_STARTED: ["morning", "fitness", "food", "self_care"],
-  C05_GLOW_UP: ["self_care", "fitness", "food", "morning"],
-  C06_POV_RELATABLE: ["stress_reset", "work_study", "morning", "night"],
-  C07_MISTAKES: ["stress_reset", "work_study", "morning", "food"],
-  C08_MY_REALISTIC: ["morning", "self_care", "food", "work_study"],
-  C09_LIST: ["morning", "self_care", "food", "fitness", "outdoors"],
-  C10_BEFORE_AFTER: ["stress_reset", "morning", "self_care", "fitness"],
-  C11_HORMONE_EDUCATION: ["food", "fitness", "morning", "self_care"],
-  C12_NIGHT_ROUTINE: ["night", "self_care", "stress_reset"],
-  C13_EDUCATIONAL_EXPLAINER: ["stress_reset", "work_study", "morning", "food", "self_care"],
-  C14_STORY_TRANSFORMATION: ["self_care", "morning", "outdoors", "fitness", "work_study"],
-};
-
 const stopWords = new Set(["the", "and", "with", "this", "that", "your", "for", "from", "into", "one", "clear", "everyday", "lifestyle", "image", "photo", "slide", "natural"]);
 function terms(value: string) {
   return [...new Set(value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((term) => term.length > 2 && !stopWords.has(term)))];
