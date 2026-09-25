@@ -844,6 +844,27 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   return overlays;
 }
 
+async function lifestyleThreeStackTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
+  const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
+  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  const overlays: OverlayOptions[] = [];
+  const pushShadowed = async (value: string, top: number, size: number, weight: number, family: string, maxChars: number, maxLines: number) => {
+    const copy = wrap(value, maxChars, maxLines).join("\n");
+    const height = Math.max(70, Math.ceil(size * 1.28 * maxLines));
+    const shadow = await rasterText(copy, { width: frame.width, height, size, weight, color: "#191713", align: "left", spacing: 1, fontFamily: family });
+    const text = await rasterText(copy, { width: frame.width, height, size, weight, color: "#fff0a6", align: "left", spacing: 1, fontFamily: family });
+    overlays.push({ input: shadow, left: frame.x + 3, top: top + 3 });
+    overlays.push({ input: text, left: frame.x, top });
+  };
+  await pushShadowed(slide.headline.toLowerCase(), frame.headlineY ?? frame.y, frame.headlineSize ?? 43, 700, isHook ? hookFontFamily : fontFamily, isHook ? 24 : 30, frame.maxHeadlineLines ?? 2);
+  if (slide.body.trim()) {
+    await pushShadowed(slide.body.trim(), frame.bodyY ?? 735, frame.bodySize ?? 27, 550, fontFamily, isHook ? 46 : 48, frame.maxBodyLines ?? 4);
+  }
+  return overlays;
+}
+
 async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry, hookDesign?: HookDesign): Promise<OverlayOptions[]> {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const headlineSize = frame.headlineSize ?? 62;
@@ -951,6 +972,27 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
     averageLuminance = 220;
+  } else if (imageFrame.mode === "lifestyle-3stack") {
+    if (isHook) {
+      const imageBytes = await selectedAssetBytes(matches[0]!);
+      const stats = await sharp(imageBytes).stats();
+      averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
+      const fitted = await sharp(imageBytes).rotate().resize({ width: 1080, height: 1350, fit: "cover", position: "centre" }).png().toBuffer();
+      composites.push({ input: fitted, left: 0, top: 0 });
+    } else {
+      const placements = [
+        { left: 0, top: 0, width: 1080, height: 450 },
+        { left: 0, top: 450, width: 1080, height: 450 },
+        { left: 0, top: 900, width: 1080, height: 450 },
+      ];
+      for (const [index, match] of matches.slice(0, 3).entries()) {
+        const imageBytes = await selectedAssetBytes(match);
+        const place = placements[index]!;
+        const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+        composites.push({ input: fitted, left: place.left, top: place.top });
+      }
+      averageLuminance = 100;
+    }
   } else if (imageFrame.mode === "ranking") {
     const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
     const tier = rankingCopyParts(slide).score.toUpperCase();
@@ -1022,7 +1064,9 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
         hookColor: readablePalette.headlineColor,
       }
     : hookDesign;
-  if (imageFrame.mode === "routine-timeline") {
+  if (imageFrame.mode === "lifestyle-3stack") {
+    composites.push(...await lifestyleThreeStackTextOverlays(slide, geometry));
+  } else if (imageFrame.mode === "routine-timeline") {
     composites.push(...await routineTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "three-rect-educational") {
     composites.push(...await threeRectEducationalTextOverlays(slide, readableGeometry));
@@ -1074,7 +1118,7 @@ export async function renderCarousel(input: {
     try {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
-      const multiImageLayout = input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero" || input.layout === "editorial-collage" || input.layout === "ranking";
+      const multiImageLayout = input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero" || input.layout === "editorial-collage" || input.layout === "ranking" || input.layout === "lifestyle-3stack";
       const matches = chooseAssets({
         assets,
         carouselType: input.carouselType,
@@ -1097,6 +1141,8 @@ export async function renderCarousel(input: {
               ? 3
             : input.layout === "editorial-collage"
               ? 2
+              : input.layout === "lifestyle-3stack"
+                ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 1 : 3)
               : (index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 1;
           if (desiredCount === 1) return [primary];
           const selected: AssetMatch[] = [primary];
