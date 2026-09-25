@@ -7,6 +7,7 @@ export const CAROUSEL_TYPE_IDS = [
   "F06_PERSONA_EXPLAINER",
   "F07_RANKING",
   "F08_2X2",
+  "F09_LIFESTYLE_3STACK",
 ] as const;
 
 export const SLIDE_ROLES = [
