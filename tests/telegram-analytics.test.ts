@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { normalizeUploadPostAnalytics } from "../app/lib/upload-post";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { normalizeUploadPostAnalytics } from "../app/lib/upload-post.js";
 
 describe("Upload-Post analytics normalization", () => {
   it("normalizes TikTok video metrics", () => {
@@ -26,11 +27,11 @@ describe("Upload-Post analytics normalization", () => {
       },
     }, "tiktok");
 
-    expect(result.views).toBe(1000);
-    expect(result.favorites).toBe(30);
-    expect(result.averageViewDurationSeconds).toBe(6.2);
-    expect(result.fullVideoWatchedRate).toBe(28.5);
-    expect(result.platformPostId).toBe("123");
-    expect(result.mediaType).toBe("video");
+    assert.equal(result.views, 1000);
+    assert.equal(result.favorites, 30);
+    assert.equal(result.averageViewDurationSeconds, 6.2);
+    assert.equal(result.fullVideoWatchedRate, 28.5);
+    assert.equal(result.platformPostId, "123");
+    assert.equal(result.mediaType, "video");
   });
 });
