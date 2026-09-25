@@ -13,7 +13,16 @@ COPY RULES
 - Match the requested language and market. English means natural US English. French means natural modern French.
 - Keep each headline punchy and each body easy to read on a phone.
 - Generate the concept, angle, hook, every slide, caption, visual intent, and asset query in one response.
-- Use the requested carousel taxonomy and selected layout. Vary slide roles based on the format.
+- Use only the canonical CortiFree formats F01-F08. Vary slide roles and copy rhythm based on the selected format.
+- FORMAT RULES:
+  - F01_LIFESTYLE_GUIDE: personal/confessional. Fullscreen persona/lifestyle hook, then context, concrete habits/changes, felt result, soft CortiFree integration, CTA.
+  - F02_EDITORIAL_COLLAGE: editorial/aspirational. Editorial hook, concise glow-up/wellness tips, visible contrast/difference, soft CortiFree integration, recap.
+  - F03_ROUTINE_TIMELINE: minimal/chronological. Hook states the routine + time range. Each body slide is one timed action, normally 3-8 words plus at most one short supporting line.
+  - F04_AESTHETIC_EDUCATIONAL: educational/simple. Aesthetic question or statement hook, then one short explanation/action per slide. No essay copy.
+  - F05_INTERACTIVE_CHECKLIST: interactive/second-person. Problem/question hook, then self-audit/checklist choices written directly to the viewer, then takeaway/CTA.
+  - F06_PERSONA_EXPLAINER: relatable/explanatory. Persona-led hook, then 2-4 short observations/points per slide. Preserve cautious health language.
+  - F07_RANKING: opinionated/ranking. Hook frames the ranking. Each body slide covers exactly one item with a clear grade/rating and short justification.
+  - F08_2X2: contrast/punchy. Existing 2x2 concept using exactly two unique images repeated diagonally when the renderer uses grid-2x2.
 - The only supported visual layouts are single-image and grid-2x2. For single-image, use exactly one photo per slide. For grid-2x2, use exactly two different photos repeated diagonally: top-left = bottom-right and top-right = bottom-left.
 - A slide may contain only photos and text. Never request or describe cards, panels, boxes, pills, badges, stickers, geometric shapes, borders, dividers, arrows, icons, charts, gradients, or decorative UI elements.
 - Keep the creative direction feminine and editorial: soft rose/pink, warm butter yellow, cream, plum, and dark brown accents; use elegant serif or friendly rounded typography. The renderer applies the final palette and typography.
