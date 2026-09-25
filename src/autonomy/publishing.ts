@@ -53,7 +53,7 @@ export async function autoScheduleApproved() {
   const report: Row[]=[];
   const accounts = await loadRuntimeAccounts();
   for (const account of accounts.filter((a)=>a.enabled&&a.posting_enabled&&a.warmup_status==='ACTIVE'&&Boolean(a.upload_post_profile))) {
-    const carousel=(await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&status=eq.APPROVED&order=created_at.asc&limit=1`))[0];
+    const carousel=(await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&status=eq.APPROVED&review_status=eq.APPROVED&requires_human_approval=eq.true&approved_at=not.is.null&order=approved_at.asc&limit=1`))[0];
     if (!carousel) { report.push({account_id:account.id,action:'NO_APPROVED'}); continue; }
     const id=String(carousel.id);
     try {
@@ -68,7 +68,7 @@ export async function autoScheduleApproved() {
       const rendered=slideRows.filter((s)=>s.rendered_url).map((s)=>({position:Number(s.position),url:String(s.rendered_url),assetId:s.asset_id as string|number|undefined}));
       const readiness=await evaluatePublishReadiness({rawSpec,renderedSlides:rendered,platform,profile});
       if(!readiness.ready){report.push({account_id:account.id,carousel_id:id,action:'BLOCKED_READINESS',issues:readiness.issues});continue;}
-      const scheduledDate=nextPostingTime(account.posting_slots,account.timezone).toISOString();
+      const scheduledDate = carousel.scheduled_for ? new Date(String(carousel.scheduled_for)).toISOString() : nextPostingTime(account.posting_slots.filter((slot)=>{ const h=Number(slot.split(':')[0]); return h>=18&&h<=23; }), 'America/New_York').toISOString();
       const idempotencyKey=`cortifree:${profile}:${platform}:${id}`;
       const jobs=await insert('publish_jobs?on_conflict=idempotency_key',{workspace_id:'cortifree',carousel_id:id,account_id:account.id,platform,scheduled_at:scheduledDate,external_id:id,idempotency_key:idempotencyKey,attempts:1,status:'SCHEDULING'});
       const job=jobs[0];
@@ -76,7 +76,7 @@ export async function autoScheduleApproved() {
       const requestId=typeof result.request_id==='string'?result.request_id:id;
       const jobId=typeof result.job_id==='string'?result.job_id:null;
       if(job?.id)await patch(`publish_jobs?id=eq.${encodeURIComponent(String(job.id))}`,{status:'SCHEDULED',provider_request_id:requestId,provider_job_id:jobId,last_error:null});
-      await patch(`carousels?id=eq.${encodeURIComponent(id)}`,{status:'SCHEDULED',updated_at:new Date().toISOString()});
+      await patch(`carousels?id=eq.${encodeURIComponent(id)}`,{status:'SCHEDULED',review_status:'SCHEDULED',scheduled_for:scheduledDate,updated_at:new Date().toISOString()});
       report.push({account_id:account.id,carousel_id:id,action:'SCHEDULED',scheduled_at:scheduledDate});
     } catch(error){report.push({account_id:account.id,carousel_id:id,action:'ERROR',error:error instanceof Error?error.message:String(error)});}
   }
