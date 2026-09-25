@@ -57,7 +57,20 @@ async function heartbeat() {
       version: VERSION,
       capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "OPS_REFRESH", "MODELARK"],
       last_seen_at: new Date().toISOString(),
-      metadata: { hostname: os.hostname(), pid: process.pid },
+      metadata: {
+        hostname: os.hostname(),
+        pid: process.pid,
+        upload_post_configured: Boolean(process.env.UPLOAD_POST_API_KEY?.trim()),
+        telegram_configured: Boolean(
+          process.env.TELEGRAM_BOT_TOKEN?.trim()
+          && process.env.TELEGRAM_CHAT_ID?.trim()
+          && process.env.TELEGRAM_WEBHOOK_SECRET?.trim()
+        ),
+        google_oauth_configured: Boolean(
+          process.env.GOOGLE_OAUTH_CLIENT_ID?.trim()
+          && process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim()
+        ),
+      },
     }),
   });
   if (!response.ok) throw new Error(`heartbeat failed: ${await response.text()}`);
