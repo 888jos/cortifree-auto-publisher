@@ -14,6 +14,7 @@ import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
 import { applyReviewRevision, type ReviewRevision } from "../../app/lib/human-review";
+import { sendPendingTelegramNotifications } from "../../app/lib/telegram-notifications";
 
 type Row = Record<string, unknown>;
 
@@ -23,6 +24,7 @@ const POLL_MS = Math.max(500, Number(process.env.WORKER_POLL_MS ?? 2_000));
 const STALE_MS = Math.max(60_000, Number(process.env.WORKER_STALE_MS ?? 15 * 60_000));
 const MAX_GENERIC_PER_TICK = Math.max(1, Math.min(10, Number(process.env.WORKER_GENERIC_BATCH ?? 2)));
 const MAX_IMAGE_PER_TICK = Math.max(1, Math.min(6, Number(process.env.WORKER_IMAGE_BATCH ?? 2)));
+const OPS_REFRESH_MS = Math.max(5 * 60_000, Number(process.env.WORKER_OPS_REFRESH_MS ?? 60 * 60_000));
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,7 +54,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "OPS_REFRESH", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: { hostname: os.hostname(), pid: process.pid },
     }),
@@ -161,6 +163,30 @@ async function runAutonomy() {
   result.finishedAt = new Date().toISOString();
   result.errors = errors;
   if (Object.keys(errors).length) throw new Error(`AUTONOMY_STAGES_FAILED:${JSON.stringify(errors)}`);
+  return result;
+}
+
+async function runOpsRefresh() {
+  const result: Record<string, unknown> = { startedAt: new Date().toISOString() };
+  const errors: Record<string, string> = {};
+  async function stage<T>(name: string, run: () => Promise<T>) {
+    try {
+      result[name] = await run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors[name] = message;
+      result[`${name}Error`] = message;
+    }
+  }
+
+  await stage("publishStatus", () => refreshPublishStatuses(100));
+  await stage("analytics", () => refreshPostAnalytics(100));
+  await stage("winnerVariants", queueWinnerVariants);
+  await stage("telegram", sendPendingTelegramNotifications);
+
+  result.finishedAt = new Date().toISOString();
+  result.ok = Object.keys(errors).length === 0;
+  result.errors = errors;
   return result;
 }
 
@@ -343,6 +369,7 @@ async function main() {
   await recoverStaleJobs();
   let lastHeartbeat = 0;
   let lastRecovery = 0;
+  let lastOpsRefresh = 0;
 
   while (true) {
     const now = Date.now();
@@ -353,6 +380,15 @@ async function main() {
     if (now - lastRecovery > 5 * 60_000) {
       await recoverStaleJobs();
       lastRecovery = now;
+    }
+    if (now - lastOpsRefresh > OPS_REFRESH_MS) {
+      try {
+        const ops = await runOpsRefresh();
+        console.log("[worker] OPS_REFRESH", ops);
+      } catch (error) {
+        console.error("[worker] OPS_REFRESH FAILED", error);
+      }
+      lastOpsRefresh = now;
     }
 
     const generic = await processGenericBatch();
