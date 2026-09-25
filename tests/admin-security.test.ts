@@ -35,7 +35,7 @@ test("cron authentication is separate from the admin password", () => {
 
 test("client carousel input cannot enable the monthly-cap bypass", () => {
   const parsed = carouselGeneratorInputSchema.parse({
-    carouselType: "C05_GLOW_UP",
+    carouselType: "F01_LIFESTYLE_GUIDE",
     layout: "single-image",
     language: "en",
     market: "US",
