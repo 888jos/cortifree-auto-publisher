@@ -8,7 +8,11 @@
     },
     {
       "path": "/api/autonomy/run",
-      "schedule": "0 8,9 * * *"
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/autonomy/run",
+      "schedule": "0 9 * * *"
     }
   ],
   "ignoreCommand": "node scripts/vercel-ignore.mjs"
