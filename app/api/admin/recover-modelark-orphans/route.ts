@@ -1,4 +1,4 @@
-import { authorizeRecoveryToken, completeRecoveryToken, recoverModelArkOrphans } from "../../../../lib/recovery/modelark-orphans";
+import { authorizeRecoveryToken, completeRecoveryToken, recoverModelArkOrphans } from "../../../lib/recovery/modelark-orphans";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
