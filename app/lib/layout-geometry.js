@@ -64,35 +64,23 @@ function routineTextFrame(isCover, isFinal, typography) {
 function educationalThreeRectTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 74, y: 110, width: 610, align: "left",
-      headlineY: 110, bodyY: 1000,
-      headlineSize: 58, bodySize: 30, hookSize: 58,
-      headlineWeight: 700, bodyWeight: 500,
-      maxHeadlineLines: 3, maxBodyLines: 3,
-      eduBodyX: 155, eduBodyY: 1000, eduBodyWidth: 770,
-      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
-      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
-    };
-  }
-  if (isFinal) {
-    return {
-      x: 74, y: 104, width: 600, align: "left",
-      headlineY: 104, bodyY: 995,
-      headlineSize: 48, bodySize: 30, hookSize: 48,
-      headlineWeight: 700, bodyWeight: 500,
-      maxHeadlineLines: 2, maxBodyLines: 3,
-      eduBodyX: 155, eduBodyY: 995, eduBodyWidth: 770,
+      x: 190, y: 455, width: 700, align: "center",
+      headlineY: 455, bodyY: 720,
+      headlineSize: 72, bodySize: 22, hookSize: 72,
+      headlineWeight: 800, bodyWeight: 600,
+      maxHeadlineLines: 3, maxBodyLines: 1,
+      eduBodyX: 390, eduBodyY: 735, eduBodyWidth: 300,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
   return {
-    x: 74, y: 104, width: 620, align: "left",
-    headlineY: 104, bodyY: 960,
-    headlineSize: 38, bodySize: 32, hookSize: 38,
-    headlineWeight: 700, bodyWeight: 500,
-    maxHeadlineLines: 2, maxBodyLines: 4,
-    eduBodyX: 155, eduBodyY: 960, eduBodyWidth: 770,
+    x: 155, y: 635, width: 770, align: "center",
+    headlineY: 635, bodyY: 165,
+    headlineSize: isFinal ? 54 : 58, bodySize: 25, hookSize: isFinal ? 54 : 58,
+    headlineWeight: 800, bodyWeight: 500,
+    maxHeadlineLines: 2, maxBodyLines: 6,
+    eduBodyX: 610, eduBodyY: 170, eduBodyWidth: 390,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
   };
