@@ -12,6 +12,7 @@ import { processQueuedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
+import { planAndApplyReviewRevision } from "../../app/lib/human-review";
 
 type Row = Record<string, unknown>;
 
@@ -50,7 +51,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: { hostname: os.hostname(), pid: process.pid },
     }),
@@ -203,6 +204,7 @@ async function runRender(resourceId: string | null | undefined) {
 
 async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "HEALTHCHECK") return { ok: true, workerId: WORKER_ID, version: VERSION, checkedAt: new Date().toISOString() };
+  if (job.kind === "APPLY_REVIEW_PATCH") return planAndApplyReviewRevision(String(job.resource_id ?? ""), String(job.payload?.feedback ?? ""), String(job.payload?.actor ?? "admin"));
   if (job.kind === "RENDER_CAROUSEL") return runRender(job.resource_id);
   if (job.kind === "GOOGLE_SYNC") return runGoogleSync(job.payload ?? {});
   if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
