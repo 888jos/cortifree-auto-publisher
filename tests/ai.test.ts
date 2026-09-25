@@ -234,20 +234,34 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "LAYOUT" || issue.code === "EDITORIAL_BODY_LENGTH"), false);
   });
 
-  it("produces a concise canonical F04 three-rectangle fallback", () => {
+  it("produces a canonical F04 educational checklist board fallback", () => {
     const educationalInput: CarouselGeneratorInput = {
       ...baseInput,
       carouselType: "F04_AESTHETIC_EDUCATIONAL",
       layout: "three-rect-educational",
       requestedSlideCount: 6,
-      preferredHook: "5 habits that make my days feel less chaotic",
     };
     const educational = createFallbackCarousel(educationalInput);
     assert.equal(educational.slides.length, 6);
     assert.ok(educational.slides.every((slide) => slide.layout === "three-rect-educational"));
-    assert.ok(educational.slides.every((slide) => slide.body.length <= 150));
+    assert.match(educational.slides[0]?.headline ?? "", /BREATHTAKING/i);
+    assert.ok((educational.slides[0]?.body.length ?? 99) <= 24);
+    assert.ok(educational.slides.slice(1).every((slide) => {
+      const parts = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
+      return /^(BENEFITS|HOW TO|WHY IT HELPS|WHAT TO USE|MISTAKES)$/.test(parts[0] ?? "")
+        && parts.length >= 4
+        && parts.length <= 6
+        && slide.headline.length <= 28
+        && /proof|result|example/i.test(slide.visualIntent)
+        && /tool|product|ingredient|support/i.test(slide.visualIntent);
+    }));
     assert.equal(educational.slides.at(-1)?.assetType, "stock");
     const issues = validateCarouselSpec(educational, { slideCount: 6, language: "en", layout: "three-rect-educational" });
-    assert.equal(issues.some((issue) => issue.code === "LAYOUT" || issue.code === "EDU_BODY_LENGTH"), false);
+    assert.equal(issues.some((issue) => issue.code.startsWith("EDU_") || issue.code === "LAYOUT"), false);
+
+    const paragraph = structuredClone(educational);
+    paragraph.slides[1]!.body = "BENEFITS | This is a long explanatory sentence. It keeps going with another sentence. And then becomes an essay.";
+    const paragraphIssues = validateCarouselSpec(paragraph, { slideCount: 6, language: "en", layout: "three-rect-educational" });
+    assert.ok(paragraphIssues.some((issue) => issue.code === "EDU_BULLET_COUNT" || issue.code === "EDU_PARAGRAPH"));
   });
 });
