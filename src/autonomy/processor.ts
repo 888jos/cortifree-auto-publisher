@@ -16,7 +16,7 @@ async function patch(resource: string, body: Record<string, unknown>) {
   if (!response.ok) throw new Error(await response.text());
 }
 function layoutFor(contentType: string) {
-  return ['C02_CHECKLIST', 'C09_LIST'].includes(contentType) ? 'grid-2x2' : 'single-image';
+  return contentType === 'F08_2X2' ? 'grid-2x2' : 'single-image';
 }
 function slideCountFor(contentType: string, formats: Row[]) {
   const row = formats.find((item) => String(item.format_id) === contentType);
