@@ -505,3 +505,175 @@ export async function renderCarousel(input: {
   if (!carouselResponse.ok) throw new Error(`Carousel render state save failed: ${await carouselResponse.text()}`);
   return rendered;
 }
+
+
+export async function renderCarouselRevision(input: {
+  id: string;
+  carouselType: string;
+  layout: string;
+  slides: GeneratedSlide[];
+  personaId?: string;
+  spec: Record<string, unknown>;
+  changedPositions: number[];
+  visualChangePositions?: number[];
+}) {
+  assertCortiFreeCarouselId(input.id);
+  const changed = new Set(input.changedPositions);
+  const visualChanges = new Set(input.visualChangePositions ?? []);
+  if (!changed.size) return Array.isArray(input.spec.rendered_slides) ? input.spec.rendered_slides as any[] : [];
+
+  let assets = await loadSelectableAssets();
+  if (!assets.length) throw new Error("No synced Drive asset is available");
+  const assetMap = new Map(assets.map((asset) => [String(asset.id), asset]));
+  const existingResponse = await dataBackend(
+    `carousel_slides?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&carousel_id=eq.${encodeURIComponent(input.id)}&select=position,asset_id,rendered_url,render_metadata&order=position.asc`,
+  );
+  if (!existingResponse.ok) throw new Error(`Existing slide lookup failed: ${await existingResponse.text()}`);
+  const existingRows = await existingResponse.json() as Array<{
+    position: number;
+    asset_id?: string | number | null;
+    rendered_url?: string | null;
+    render_metadata?: Record<string, any>;
+  }>;
+  const existingByPosition = new Map(existingRows.map((row) => [Number(row.position), row]));
+  const usedReferenceIds = new Set<string>();
+  const typography = typographyForCarousel(input.id);
+  const prepared: Array<{ databaseRow: Record<string, unknown>; result: any }> = [];
+
+  for (const slide of input.slides.filter((item) => changed.has(item.position))) {
+    const existing = existingByPosition.get(slide.position);
+    let slideMatches: AssetMatch[] = [];
+
+    if (!visualChanges.has(slide.position)) {
+      if (!existing?.rendered_url) throw new Error(`REVISION_EXISTING_RENDER_MISSING:slide_${slide.position}`);
+      const assetIds = Array.isArray(existing.render_metadata?.asset_ids)
+        ? existing.render_metadata!.asset_ids.map(String)
+        : existing.asset_id != null ? [String(existing.asset_id)] : [];
+      if (!assetIds.length) throw new Error(`REVISION_EXISTING_ASSET_MISSING:slide_${slide.position}`);
+      slideMatches = assetIds.map((id) => {
+        const asset = assetMap.get(id);
+        if (!asset) throw new Error(`REVISION_ASSET_NOT_SELECTABLE:${id}:slide_${slide.position}`);
+        return {
+          asset,
+          score: Number(existing.render_metadata?.asset_score ?? 100),
+          matchedTerms: Array.isArray(existing.render_metadata?.matched_terms) ? existing.render_metadata!.matched_terms : [],
+          fallbackPath: "review_preserved_visual",
+          thresholdBypassed: true,
+        } satisfies AssetMatch;
+      });
+    } else {
+      let selected = false;
+      for (let attempt = 0; attempt < 2 && !selected; attempt += 1) {
+        try {
+          const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+          if (input.layout === "grid-2x2" && !isHook) {
+            const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
+            const matches = chooseAssets({
+              assets: personaAssets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              personaOnly: true,
+              slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }],
+            });
+            slideMatches = [matches[0]!, matches[1]!, matches[1]!, matches[0]!];
+          } else {
+            slideMatches = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              slides: [slide],
+            });
+          }
+          selected = true;
+        } catch (error) {
+          if (attempt > 0) throw error;
+          await generateRepairAsset({ input, slide, position: slide.position, usedReferenceIds });
+          assets = await loadSelectableAssets();
+          assetMap.clear();
+          assets.forEach((asset) => assetMap.set(String(asset.id), asset));
+        }
+      }
+    }
+
+    const slideLayout = slide.position === 1 || slide.role.toUpperCase() === "HOOK" ? "single-image" : input.layout;
+    const geometry = getSlideGeometry(
+      { ...slide, layout: slideLayout },
+      slide.position === 1,
+      slide.position === input.slides.length,
+      typography,
+    ) as Geometry;
+    const bytes = await renderSlide(slide, slideMatches, geometry);
+    const upload = await uploadRender(input.id, slide.position, bytes);
+    const primaryMatch = slideMatches[0]!;
+    const renderMetadata = {
+      geometry,
+      storage_path: upload.storagePath,
+      asset_score: primaryMatch.score,
+      matched_terms: primaryMatch.matchedTerms,
+      selection: {
+        selected_asset_id: primaryMatch.asset.id,
+        fallback_path: primaryMatch.fallbackPath ?? (visualChanges.has(slide.position) ? "review_visual_reselect" : "review_preserved_visual"),
+        threshold_bypassed: primaryMatch.thresholdBypassed ?? false,
+      },
+      asset_ids: slideMatches.map((match) => match.asset.id),
+      asset_source_types: slideMatches.map((match) => match.asset.source_type ?? null),
+      review_revision: true,
+      visual_changed: visualChanges.has(slide.position),
+    };
+    prepared.push({
+      databaseRow: {
+        workspace_id: CORTIFREE_WORKSPACE_ID,
+        carousel_id: input.id,
+        position: slide.position,
+        template_id: input.layout,
+        headline: slide.headline,
+        body: slide.body,
+        asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent },
+        asset_id: primaryMatch.asset.id,
+        rendered_url: upload.publicUrl,
+        render_metadata: renderMetadata,
+      },
+      result: {
+        position: slide.position,
+        url: upload.publicUrl,
+        assetId: primaryMatch.asset.id,
+        assetFilename: primaryMatch.asset.filename,
+        score: primaryMatch.score,
+        matchedTerms: primaryMatch.matchedTerms,
+        geometry,
+        assetIds: slideMatches.map((match) => match.asset.id),
+        assetSourceTypes: slideMatches.map((match) => match.asset.source_type ?? null),
+      },
+    });
+  }
+
+  const slideResponse = await dataBackend("carousel_slides?on_conflict=carousel_id,position", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(prepared.map((item) => item.databaseRow)),
+  });
+  if (!slideResponse.ok) throw new Error(`Slide revision save failed: ${await slideResponse.text()}`);
+
+  const previousRendered = Array.isArray(input.spec.rendered_slides) ? input.spec.rendered_slides as any[] : [];
+  const changedResults = new Map(prepared.map((item) => [item.result.position, item.result]));
+  const rendered = input.slides.map((slide) => {
+    const revised = changedResults.get(slide.position);
+    if (revised) return revised;
+    return previousRendered.find((item: any) => Number(item.position) === slide.position)
+      ?? { position: slide.position, url: existingByPosition.get(slide.position)?.rendered_url ?? null, assetId: existingByPosition.get(slide.position)?.asset_id ?? null };
+  }).filter((item) => item.url).sort((a, b) => a.position - b.position);
+
+  const now = new Date().toISOString();
+  const updatedSpec = {
+    ...input.spec,
+    typography,
+    rendered_slides: rendered,
+    rendered_at: now,
+  };
+  const carouselResponse = await dataBackend(
+    `carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.id)}`,
+    { method: "PATCH", body: JSON.stringify({ spec: updatedSpec, updated_at: now }) },
+  );
+  if (!carouselResponse.ok) throw new Error(`Carousel revision render save failed: ${await carouselResponse.text()}`);
+  return rendered;
+}
