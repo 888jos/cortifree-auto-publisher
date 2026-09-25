@@ -1076,6 +1076,11 @@ export async function renderCarousel(input: {
         excludedAssetIds: recentHookAssetIds,
         slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides,
       });
+      if (input.layout === "interactive-checklist") {
+        const shared = matches[0]!;
+        gridMatches = input.slides.map(() => [shared]);
+        break;
+      }
       if (input.layout !== "grid-2x2" && !multiImageLayout) {
         gridMatches = input.slides.map((_, index) => [matches[index]!]);
         break;
