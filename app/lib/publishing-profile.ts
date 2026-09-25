@@ -1,6 +1,6 @@
 import { filterUploadPostProfiles, listUploadPostProfiles, pickAssignedUploadPostProfile } from "./upload-post";
 import { dataBackend } from "./data-backend";
-import { assertCortiFreeAccountId, CORTIFREE_WORKSPACE_ID } from "./workspace";
+import { assertCortiFreeAccountId } from "./workspace";
 
 function configuredCortiFreeProfiles() {
   return (process.env.CORTIFREE_UPLOAD_POST_PROFILES ?? "")
@@ -9,28 +9,14 @@ function configuredCortiFreeProfiles() {
     .filter(Boolean);
 }
 
-type RuntimeAccount = {
-  id: string;
-  posting_enabled?: boolean;
-};
-
-type ContentAccount = {
+type StoredAccount = {
   account_id: string;
   upload_post_profile?: string | null;
   active?: boolean;
+  enabled?: boolean;
+  posting_enabled?: boolean;
+  warmup_status?: string | null;
 };
-
-async function loadPublishingMapping(accountId: string) {
-  const [runtimeResponse, contentResponse] = await Promise.all([
-    dataBackend(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(accountId)}&select=id,posting_enabled&limit=1`),
-    dataBackend(`content_accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=eq.${encodeURIComponent(accountId)}&select=account_id,upload_post_profile,active&limit=1`),
-  ]);
-  if (!runtimeResponse.ok) throw new Error(`Cannot read runtime account ${accountId}: HTTP ${runtimeResponse.status}`);
-  if (!contentResponse.ok) throw new Error(`Cannot read content account ${accountId}: HTTP ${contentResponse.status}`);
-  const runtime = ((await runtimeResponse.json()) as RuntimeAccount[])[0];
-  const content = ((await contentResponse.json()) as ContentAccount[])[0];
-  return { runtime, content };
-}
 
 export async function resolvePublishingProfile(input: {
   accountId: string;
@@ -38,10 +24,14 @@ export async function resolvePublishingProfile(input: {
   requestedProfile?: string;
 }) {
   assertCortiFreeAccountId(input.accountId);
-  const { runtime, content } = await loadPublishingMapping(input.accountId);
-  if (!runtime?.posting_enabled || content?.active === false) return undefined;
+  const response = await dataBackend(
+    `accounts?account_id=eq.${encodeURIComponent(input.accountId)}&select=account_id,upload_post_profile,active,enabled,posting_enabled,warmup_status&limit=1`,
+  );
+  if (!response.ok) throw new Error(`Cannot read CortiFree account mapping: HTTP ${response.status}`);
+  const stored = ((await response.json()) as StoredAccount[])[0];
+  if (!stored?.active || !stored?.enabled || !stored?.posting_enabled || stored?.warmup_status !== "ACTIVE") return undefined;
 
-  const storedProfile = content?.upload_post_profile?.trim() || undefined;
+  const storedProfile = stored.upload_post_profile?.trim() || undefined;
   if (input.requestedProfile && input.requestedProfile !== storedProfile) {
     throw new Error("Requested Upload-Post profile is not assigned to this CortiFree account");
   }
@@ -57,30 +47,15 @@ export async function resolvePublishingProfile(input: {
 }
 
 export async function listCortiFreePublishingProfiles() {
-  const [runtimeResponse, contentResponse] = await Promise.all([
-    dataBackend(`accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=like.CF_*&select=id,posting_enabled`),
-    dataBackend(`content_accounts?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&account_id=like.CF_*&select=account_id,upload_post_profile,active`),
-  ]);
-  if (!runtimeResponse.ok) throw new Error(`Cannot read CortiFree runtime accounts: HTTP ${runtimeResponse.status}`);
-  if (!contentResponse.ok) throw new Error(`Cannot read CortiFree account mappings: HTTP ${contentResponse.status}`);
-
-  const runtimeAccounts = await runtimeResponse.json() as RuntimeAccount[];
-  const contentAccounts = await contentResponse.json() as ContentAccount[];
-  const contentById = new Map(contentAccounts.map((account) => [account.account_id, account]));
+  const response = await dataBackend(
+    "accounts?account_id=like.CF_*&select=account_id,upload_post_profile,active,enabled,posting_enabled,warmup_status&limit=200",
+  );
+  if (!response.ok) throw new Error(`Cannot read CortiFree account mappings: HTTP ${response.status}`);
+  const accounts = (await response.json()) as StoredAccount[];
   const configuredProfiles = configuredCortiFreeProfiles();
-
-  const accounts = runtimeAccounts.map((runtime) => {
-    const content = contentById.get(runtime.id);
-    return {
-      id: runtime.id,
-      posting_enabled: runtime.posting_enabled === true,
-      active: content?.active !== false,
-      upload_post_profile: content?.upload_post_profile ?? null,
-    };
-  });
-
   const assignedUsernames = accounts.flatMap((account) =>
-    account.posting_enabled && account.active && account.upload_post_profile && configuredProfiles.includes(account.upload_post_profile)
+    account.active && account.enabled && account.posting_enabled && account.warmup_status === "ACTIVE"
+      && account.upload_post_profile && configuredProfiles.includes(account.upload_post_profile)
       ? [account.upload_post_profile]
       : [],
   );
