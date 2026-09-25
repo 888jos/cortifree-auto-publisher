@@ -550,7 +550,7 @@ export async function renderCarouselRevision(input: {
       const previous = previousByPosition.get(slide.position);
       const existingUrl = existing?.rendered_url ?? (typeof previous?.url === "string" ? previous.url : null);
       if (!existingUrl) throw new Error(`REVISION_EXISTING_RENDER_MISSING:slide_${slide.position}`);
-      const assetIds = Array.isArray(existing?.render_metadata?.asset_ids)
+      const assetIds: string[] = Array.isArray(existing?.render_metadata?.asset_ids)
         ? existing!.render_metadata!.asset_ids.map(String)
         : Array.isArray(previous?.assetIds)
           ? previous.assetIds.map(String)
