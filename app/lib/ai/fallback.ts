@@ -10,6 +10,7 @@ const topics: Record<CarouselGeneratorInput["carouselType"], { en: string; fr: s
   F06_PERSONA_EXPLAINER: { en: "what I noticed when I changed my routine", fr: "ce que j’ai remarqué en changeant ma routine" },
   F07_RANKING: { en: "ranking the habits I would actually keep", fr: "je classe les habitudes que je garderais vraiment" },
   F08_2X2: { en: "what I stopped vs what I do now", fr: "ce que j’ai arrêté vs ce que je fais maintenant" },
+  F09_LIFESTYLE_3STACK: { en: "small wellness habits that fit real life", fr: "petites habitudes wellness qui rentrent dans la vraie vie" },
 };
 
 const enSteps = [
@@ -116,6 +117,53 @@ const frRankingSteps = [
   ["SS+ · SUIVRE CE QUI SE RÉPÈTE", "Le plus utile, c’est de voir le pattern au lieu de deviner. CortiFree me sert à garder les habitudes que je répète vraiment."],
 ];
 
+function createF09Fallback(input: CarouselGeneratorInput): CarouselSpec {
+  const fr = input.language === "fr";
+  const habits = fr ? [
+    ["bois plus simplement", "Garde l’eau comme boisson par défaut. Si tu veux du goût, ajoute citron, fruits ou glaçons."],
+    ["prends la lumière du matin", "Sors quelques minutes après le réveil. Pas besoin d’une routine parfaite, juste un peu de temps dehors."],
+    ["fais un petit-déj qui tient", "Choisis un petit-déjeuner simple avec une source de protéines et des aliments que tu aimes vraiment."],
+    ["ajoute des protéines", "Construis tes repas autour d’aliments rassasiants que tu peux refaire facilement, sans transformer ça en calcul permanent."],
+    ["bouge pour de vrai", "Muscu, marche ou autre mouvement que tu peux répéter. Le meilleur plan reste celui qui rentre dans ta semaine."],
+    ["simplifie ton assiette", "Pense variété, fibres et aliments que tu tolères bien. Pas besoin d’une liste d’aliments miracles."],
+    ["marche après manger", "Une petite marche peut simplement casser le temps assis et créer une transition agréable après le repas."],
+  ] : [
+    ["drink simpler", "Make water your default drink. If plain water is boring, add lemon, fruit, ice or something you actually enjoy."],
+    ["get morning light", "Step outside for a few minutes after waking. It does not need to become another perfect morning routine."],
+    ["build a real breakfast", "Keep breakfast simple with a protein source and foods you genuinely like enough to repeat."],
+    ["eat enough protein", "Build meals around satisfying foods you can make again without turning every plate into a tracking project."],
+    ["lift something", "Weights, walking or another kind of movement you can repeat. The useful plan is the one that fits your actual week."],
+    ["keep food varied", "Think variety, fiber and foods that work for you. Your gut does not need another miracle-food checklist."],
+    ["walk after meals", "A short walk is an easy way to break up sitting and give the meal a natural ending."],
+  ];
+  const cover = input.preferredHook ?? (fr ? "DEVIENS MIEUX CET ÉTÉ" : "BECOME BETTER THIS SUMMER");
+  const slides = Array.from({ length: input.requestedSlideCount }, (_, index) => {
+    if (index === 0) return {
+      position: 1, role: "HOOK" as const, layout: input.layout,
+      headline: cover, body: fr ? "wellness ♡" : "wellness ♡",
+      visualIntent: "One full-screen candid aspirational female lifestyle photo, natural phone-camera realism, warm daylight, no text baked into image.",
+      assetType: "stock" as const, assetQuery: "young woman wellness lifestyle candid summer natural light phone photo",
+    };
+    const copy = habits[(index - 1) % habits.length]!;
+    const isFinal = index === input.requestedSlideCount - 1;
+    return {
+      position: index + 1, role: isFinal ? "TAKEAWAY" as const : "TIP" as const, layout: input.layout,
+      headline: copy[0], body: copy[1],
+      visualIntent: `Exactly three distinct horizontal lifestyle photos of the SAME behavior: ${copy[0]}. Top = person/action scene; middle = strongest readable lifestyle scene with quiet left area for text; bottom = POV/detail/food/object/environment variation. Candid feminine phone-camera realism, cohesive lighting, no text inside images.`,
+      assetType: "stock" as const,
+      assetQuery: `${copy[0]} female wellness lifestyle candid phone photo natural light action detail POV`,
+    };
+  });
+  return {
+    title: fr ? "habitudes wellness lifestyle" : "lifestyle wellness habits",
+    topic: topics.F09_LIFESTYLE_3STACK[input.language],
+    angle: fr ? "Des habitudes concrètes montrées comme un vrai photo dump lifestyle." : "Concrete habits shown like an organic lifestyle photo dump.",
+    hook: cover, language: input.language,
+    caption: fr ? "Les trucs simples que je garde vraiment. Sauvegarde pour ton prochain reset ♡" : "The simple things I actually keep. Save for your next reset ♡",
+    ctaType: input.ctaMode, slides,
+  };
+}
+
 function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
   const fr = input.language === "fr";
   const patterns = fr ? [
@@ -170,6 +218,7 @@ function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
 }
 
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
+  if (String(input.carouselType) === "F09_LIFESTYLE_3STACK") return createF09Fallback(input);
   if (String(input.carouselType) === "F04_AESTHETIC_EDUCATIONAL") return createF04Fallback(input);
   const language = input.language;
   const topic = topics[input.carouselType][language];
