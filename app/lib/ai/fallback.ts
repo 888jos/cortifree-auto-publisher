@@ -114,7 +114,61 @@ const frRankingSteps = [
   ["5/10 · Routine en dix étapes", "Jolie sur internet, mais je garde les deux étapes que j’aime vraiment et je zappe le reste."],
 ];
 
+function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
+  const fr = input.language === "fr";
+  const patterns = fr ? [
+    ["GLAÇON SUR LE VISAGE", "BENEFITS | Décongestionne visuellement | Donne un effet plus frais | Réveille l’éclat du teint"],
+    ["SOIN DES LÈVRES", "HOW TO | Exfolie très doucement | Applique un baume simple | Remets-en avant de dormir"],
+    ["MASSAGE DU VISAGE", "HOW TO | Commence sur peau glissante | Garde une pression légère | Masse vers l’extérieur | Arrête si ça irrite"],
+    ["SÉRUM CILS", "WHAT TO USE | Formule douce | Applicateur propre | Une fine couche suffit | Régularité avant quantité"],
+    ["ERREURS À ÉVITER", "MISTAKES | Trop frotter la peau | Empiler trop d’actifs | Copier chaque tendance | Ignorer les irritations"],
+  ] : [
+    ["ICE-ING FACE", "BENEFITS | De-puffs the look of skin | Gives a fresher look | Can boost visible glow"],
+    ["LIP CARE", "HOW TO | Exfoliate very gently | Use a simple balm | Reapply before bed"],
+    ["MASSAGING FACE", "HOW TO | Start on slippery skin | Keep pressure light | Massage outward | Stop if skin feels irritated"],
+    ["LASH SERUM", "WHAT TO USE | Gentle formula | Clean applicator | One thin layer | Consistency over quantity"],
+    ["COMMON MISTAKES", "MISTAKES | Scrubbing too hard | Stacking too many actives | Copying every trend | Ignoring irritation"],
+  ];
+  const coverTitle = input.preferredHook ?? (fr ? "COMMENT ÊTRE NATURELLEMENT ÉCLATANTE" : "HOW TO BE NATURALLY BREATHTAKING");
+  const slideCount = input.requestedSlideCount;
+  const slides = Array.from({ length: slideCount }, (_, index) => {
+    if (index === 0) return {
+      position: 1,
+      role: "HOOK" as const,
+      layout: input.layout,
+      headline: coverTitle,
+      body: "✦ · ✧",
+      visualIntent: "Exactly two portrait beauty/wellness images for a diagonal cover: one top-right portrait and one bottom-left portrait; clean light background; no text inside images.",
+      assetType: "stock" as const,
+      assetQuery: "natural beauty portrait clean girl soft daylight skincare editorial",
+    };
+    const copy = patterns[(index - 1) % patterns.length]!;
+    const isFinal = index === slideCount - 1;
+    return {
+      position: index + 1,
+      role: isFinal ? "CTA" as const : "TIP" as const,
+      layout: input.layout,
+      headline: copy[0],
+      body: copy[1],
+      visualIntent: `Exactly three differentiated visuals for ${copy[0]}: top-left proof/result/example close-up; bottom-left support tool/product/ingredient; bottom-right support result/diagram-style visual without text. Natural beauty editorial photography, no text inside images.`,
+      assetType: "stock" as const,
+      assetQuery: `${copy[0]} beauty wellness proof result tool product ingredient close up natural light`,
+    };
+  });
+  return {
+    title: fr ? "guide beauté à sauvegarder" : "saveable beauty cheat sheet",
+    topic: fr ? "conseils beauté et wellness visuels" : "visual beauty and wellness tips",
+    angle: fr ? "Mini fiches éducatives courtes, visuelles et sans promesse miracle." : "Short visual educational boards without miracle claims.",
+    hook: coverTitle,
+    language: input.language,
+    caption: fr ? "Le mini guide beauté à garder sous la main. ✨" : "The little beauty cheat sheet worth saving. ✨",
+    ctaType: input.ctaMode,
+    slides,
+  };
+}
+
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
+  if (input.carouselType === "F04_AESTHETIC_EDUCATIONAL") return createF04Fallback(input);
   const language = input.language;
   const topic = topics[input.carouselType][language];
   const steps = input.carouselType === "F03_ROUTINE_TIMELINE"
