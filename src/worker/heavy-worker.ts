@@ -12,7 +12,7 @@ import { processQueuedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
-import { planAndApplyReviewRevision } from "../../app/lib/human-review";
+import { applyReviewRevision, type ReviewRevision } from "../../app/lib/human-review";
 
 type Row = Record<string, unknown>;
 
@@ -204,7 +204,7 @@ async function runRender(resourceId: string | null | undefined) {
 
 async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "HEALTHCHECK") return { ok: true, workerId: WORKER_ID, version: VERSION, checkedAt: new Date().toISOString() };
-  if (job.kind === "APPLY_REVIEW_PATCH") return planAndApplyReviewRevision(String(job.resource_id ?? ""), String(job.payload?.feedback ?? ""), String(job.payload?.actor ?? "admin"));
+  if (job.kind === "APPLY_REVIEW_PATCH") return applyReviewRevision(String(job.resource_id ?? ""), String(job.payload?.feedback ?? ""), job.payload?.revision as ReviewRevision, String(job.payload?.actor ?? "admin"));
   if (job.kind === "SCHEDULE_APPROVED_POST") return autoScheduleApproved();
   if (job.kind === "RENDER_CAROUSEL") return runRender(job.resource_id);
   if (job.kind === "GOOGLE_SYNC") return runGoogleSync(job.payload ?? {});
