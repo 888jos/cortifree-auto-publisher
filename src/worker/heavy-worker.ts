@@ -5,6 +5,7 @@ import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToConvex } from "../../app/lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../../app/lib/sync/drive";
 import { syncPersonaGeneratedAssetsToDrive } from "../../app/lib/sync/persona-assets";
+import { recoverModelArkOrphans } from "../../app/lib/recovery/modelark-orphans";
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { runScheduler } from "../autonomy/scheduler";
@@ -51,7 +52,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "AUTONOMY_RUN", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: { hostname: os.hostname(), pid: process.pid },
     }),
@@ -179,6 +180,29 @@ async function runGoogleSync(payload: Row) {
   return { editorial, drive };
 }
 
+async function runModelArkOrphanRecovery(payload: Row) {
+  const batchSize = Math.max(1, Math.min(8, Number(payload.batch_size ?? 8)));
+  const maxBatches = Math.max(1, Math.min(20, Number(payload.max_batches ?? 20)));
+  const runs: Row[] = [];
+
+  for (let index = 0; index < maxBatches; index += 1) {
+    const result = await recoverModelArkOrphans({ limit: batchSize });
+    runs.push(result as Row);
+    if (Number(result.remaining ?? 0) === 0) break;
+    if (Number(result.requested ?? 0) === 0) break;
+  }
+
+  const last = runs.at(-1) ?? {};
+  return {
+    ok: true,
+    batches: runs.length,
+    recovered_total: last.recovered_total ?? 0,
+    failed_total: last.failed_total ?? 0,
+    remaining: last.remaining ?? 0,
+    runs,
+  };
+}
+
 async function runRender(resourceId: string | null | undefined) {
   const id = String(resourceId ?? "").trim();
   if (!id) throw new Error("RENDER_CAROUSEL missing resource_id");
@@ -209,6 +233,7 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "RENDER_CAROUSEL") return runRender(job.resource_id);
   if (job.kind === "GOOGLE_SYNC") return runGoogleSync(job.payload ?? {});
   if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
+  if (job.kind === "MODELARK_ORPHAN_RECOVERY") return runModelArkOrphanRecovery(job.payload ?? {});
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }
