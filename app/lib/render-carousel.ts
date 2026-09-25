@@ -536,6 +536,8 @@ export async function renderCarouselRevision(input: {
     render_metadata?: Record<string, any>;
   }>;
   const existingByPosition = new Map(existingRows.map((row) => [Number(row.position), row]));
+  const previousRendered = Array.isArray(input.spec.rendered_slides) ? input.spec.rendered_slides as any[] : [];
+  const previousByPosition = new Map(previousRendered.map((row: any) => [Number(row.position), row]));
   const usedReferenceIds = new Set<string>();
   const typography = typographyForCarousel(input.id);
   const prepared: Array<{ databaseRow: Record<string, unknown>; result: any }> = [];
@@ -545,10 +547,16 @@ export async function renderCarouselRevision(input: {
     let slideMatches: AssetMatch[] = [];
 
     if (!visualChanges.has(slide.position)) {
-      if (!existing?.rendered_url) throw new Error(`REVISION_EXISTING_RENDER_MISSING:slide_${slide.position}`);
-      const assetIds = Array.isArray(existing.render_metadata?.asset_ids)
-        ? existing.render_metadata!.asset_ids.map(String)
-        : existing.asset_id != null ? [String(existing.asset_id)] : [];
+      const previous = previousByPosition.get(slide.position);
+      const existingUrl = existing?.rendered_url ?? (typeof previous?.url === "string" ? previous.url : null);
+      if (!existingUrl) throw new Error(`REVISION_EXISTING_RENDER_MISSING:slide_${slide.position}`);
+      const assetIds = Array.isArray(existing?.render_metadata?.asset_ids)
+        ? existing!.render_metadata!.asset_ids.map(String)
+        : Array.isArray(previous?.assetIds)
+          ? previous.assetIds.map(String)
+          : existing?.asset_id != null
+            ? [String(existing.asset_id)]
+            : previous?.assetId != null ? [String(previous.assetId)] : [];
       if (!assetIds.length) throw new Error(`REVISION_EXISTING_ASSET_MISSING:slide_${slide.position}`);
       slideMatches = assetIds.map((id) => {
         const asset = assetMap.get(id);
@@ -654,12 +662,11 @@ export async function renderCarouselRevision(input: {
   });
   if (!slideResponse.ok) throw new Error(`Slide revision save failed: ${await slideResponse.text()}`);
 
-  const previousRendered = Array.isArray(input.spec.rendered_slides) ? input.spec.rendered_slides as any[] : [];
   const changedResults = new Map(prepared.map((item) => [item.result.position, item.result]));
   const rendered = input.slides.map((slide) => {
     const revised = changedResults.get(slide.position);
     if (revised) return revised;
-    return previousRendered.find((item: any) => Number(item.position) === slide.position)
+    return previousByPosition.get(slide.position)
       ?? { position: slide.position, url: existingByPosition.get(slide.position)?.rendered_url ?? null, assetId: existingByPosition.get(slide.position)?.asset_id ?? null };
   }).filter((item) => item.url).sort((a, b) => a.position - b.position);
 
