@@ -74,6 +74,14 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (isBodyRankingSlide && slide.headline.length > 64) issues.push({ code: "RANKING_HEADLINE_LENGTH", message: "Ranking item headline is too long for the fixed score layout", slidePosition: slide.position, severity: "minor" });
       if (slide.body.length > 180) issues.push({ code: "RANKING_BODY_LENGTH", message: "Ranking justification is too long for the fixed score layout", slidePosition: slide.position, severity: "minor" });
     }
+    if (expected.layout === "interactive-checklist") {
+      const isChecklistBody = index > 0 && index < spec.slides.length - 1;
+      const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
+      if (isChecklistBody && (choices.length < 2 || choices.length > 4)) issues.push({ code: "CHECKLIST_OPTIONS", message: "Checklist body slide must contain 2-4 pipe-separated choices", slidePosition: slide.position, severity: "minor" });
+      if (isChecklistBody && choices.some((choice) => choice.length > 58)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "Checklist choice is too long for the fixed checkbox rows", slidePosition: slide.position, severity: "minor" });
+      if (slide.headline.length > 72) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "Checklist question is too long for the fixed panel", slidePosition: slide.position, severity: "minor" });
+      if (slide.body.length > 220) issues.push({ code: "CHECKLIST_BODY_LENGTH", message: "Checklist copy is too long for the fixed panel", slidePosition: slide.position, severity: "minor" });
+    }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);

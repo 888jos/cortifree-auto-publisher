@@ -111,6 +111,18 @@ type Geometry = {
     rankingKickerY?: number;
     rankingKickerWidth?: number;
     rankingKickerSize?: number;
+    checklistPanelX?: number;
+    checklistPanelY?: number;
+    checklistPanelWidth?: number;
+    checklistPanelHeight?: number;
+    checklistKickerX?: number;
+    checklistKickerY?: number;
+    checklistKickerWidth?: number;
+    checklistKickerSize?: number;
+    checklistChoicesX?: number;
+    checklistChoicesY?: number;
+    checklistChoicesWidth?: number;
+    checklistChoiceGap?: number;
   };
   overlay?: { color?: string; opacity?: number };
 };
@@ -456,6 +468,109 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
       fontFamily,
     });
     overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 1075 });
+  }
+  return overlays;
+}
+
+function checklistChoices(slide: GeneratedSlide) {
+  return String(slide.body ?? "")
+    .split(/\s*(?:\||\n|;)\s*/)
+    .map((item) => item.replace(/^[□☐✓✔•\-–—]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+async function checklistPanel(width: number, height: number) {
+  return Buffer.from(
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${width}" height="${height}" rx="34" ry="34" fill="#fffaf4" fill-opacity="0.96"/></svg>`,
+  );
+}
+
+async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
+  const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+  const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
+  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
+  const overlays: OverlayOptions[] = [];
+
+  const kicker = await rasterText(isHook ? "QUICK SELF-CHECK" : isFinal ? "YOUR TAKEAWAY" : `CHECK ${String(slide.position - 1).padStart(2, "0")}`, {
+    width: frame.checklistKickerWidth ?? 300,
+    height: 32,
+    size: frame.checklistKickerSize ?? 18,
+    weight: 700,
+    color: frame.accentColor ?? "#9a6674",
+    align: "left",
+    spacing: 1,
+    fontFamily,
+  });
+  overlays.push({
+    input: kicker,
+    left: frame.checklistKickerX ?? 138,
+    top: frame.checklistKickerY ?? 295,
+  });
+
+  const headline = wrap(
+    slide.headline.replace(/^\d+[.)]\s*/, ""),
+    isHook ? 28 : 30,
+    frame.maxHeadlineLines ?? 3,
+  ).join("\n");
+  const headlineImage = await rasterText(headline, {
+    width: frame.width,
+    height: isHook ? 215 : 190,
+    size: frame.headlineSize ?? 46,
+    weight: 700,
+    color: frame.headlineColor ?? "#241f1f",
+    align: "left",
+    spacing: 0,
+    fontFamily: hookFontFamily,
+  });
+  overlays.push({
+    input: headlineImage,
+    left: frame.x,
+    top: frame.headlineY ?? frame.y,
+  });
+
+  if (isHook || isFinal) {
+    if (slide.body.trim()) {
+      const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 4).join("\n");
+      const bodyImage = await rasterText(body, {
+        width: frame.width,
+        height: 170,
+        size: frame.bodySize ?? 28,
+        weight: 500,
+        color: frame.bodyColor ?? "#4f4542",
+        align: "left",
+        spacing: 2,
+        fontFamily,
+      });
+      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 635 });
+    }
+    return overlays;
+  }
+
+  const choices = checklistChoices(slide);
+  const startX = frame.checklistChoicesX ?? 138;
+  const startY = frame.checklistChoicesY ?? 610;
+  const choiceWidth = frame.checklistChoicesWidth ?? 804;
+  const gap = frame.checklistChoiceGap ?? 96;
+  for (const [index, choice] of choices.entries()) {
+    const box = Buffer.from(
+      `<svg width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="38" height="38" rx="9" ry="9" fill="none" stroke="#9a6674" stroke-width="3"/></svg>`,
+    );
+    overlays.push({ input: box, left: startX, top: startY + index * gap });
+    const label = wrap(choice, 38, 2).join("\n");
+    const labelImage = await rasterText(label, {
+      width: choiceWidth - 70,
+      height: 72,
+      size: frame.bodySize ?? 28,
+      weight: 500,
+      color: frame.bodyColor ?? "#4f4542",
+      align: "left",
+      spacing: 1,
+      fontFamily,
+    });
+    overlays.push({ input: labelImage, left: startX + 66, top: startY + index * gap + 2 });
   }
   return overlays;
 }
@@ -867,8 +982,14 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
     if (imageFrame.mode === "interactive-checklist") {
-      const panel = await sharp({ create: { width: 900, height: 860, channels: 4, background: { r: 255, g: 252, b: 247, alpha: 0.92 } } }).png().toBuffer();
-      composites.push({ input: panel, left: 90, top: 300 });
+      const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+      const panelWidth = frame.checklistPanelWidth ?? 900;
+      const panelHeight = frame.checklistPanelHeight ?? 930;
+      composites.push({
+        input: await checklistPanel(panelWidth, panelHeight),
+        left: frame.checklistPanelX ?? 90,
+        top: frame.checklistPanelY ?? 245,
+      });
     }
   }
 
@@ -902,6 +1023,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     composites.push(...await editorialAsymTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "ranking") {
     composites.push(...await rankingTextOverlays(slide, readableGeometry));
+  } else if (imageFrame.mode === "interactive-checklist") {
+    composites.push(...await checklistTextOverlays(slide, readableGeometry));
   } else {
     composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   }

@@ -177,6 +177,26 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME" || issue.code === "LAYOUT"), false);
   });
 
+  it("produces a canonical F05 interactive checklist fallback", () => {
+    const checklistInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F05_INTERACTIVE_CHECKLIST",
+      layout: "interactive-checklist",
+      requestedSlideCount: 6,
+      preferredHook: "is your routine helping or just exhausting you?",
+    };
+    const checklist = createFallbackCarousel(checklistInput);
+    assert.equal(checklist.slides.length, 6);
+    assert.ok(checklist.slides.every((slide) => slide.layout === "interactive-checklist"));
+    assert.ok(checklist.slides.slice(1, -1).every((slide) => {
+      const choices = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
+      return choices.length >= 2 && choices.length <= 4;
+    }));
+    assert.equal(checklist.slides.at(-1)?.assetType, "stock");
+    const issues = validateCarouselSpec(checklist, { slideCount: 6, language: "en", layout: "interactive-checklist" });
+    assert.equal(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS" || issue.code === "CHECKLIST_OPTION_LENGTH" || issue.code === "LAYOUT"), false);
+  });
+
   it("produces a canonical F07 ranking fallback with explicit scores", () => {
     const rankingInput: CarouselGeneratorInput = {
       ...baseInput,
