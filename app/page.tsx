@@ -542,6 +542,11 @@ export default function Home() {
   }, [assetQuery, referenceCategory, visualReferences]);
   const selectedImagePersona = personas.find((persona) => persona.id === imagePersonaId) ?? null;
   const selectedImageReference = visualReferences.find((reference) => reference.id === imageReferenceId) ?? null;
+  const visibleAssetGroups = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const asset of filteredAssetPreviews) counts.set(asset.category || "other", (counts.get(asset.category || "other") ?? 0) + 1);
+    return [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(([category,count])=>({category,count}));
+  }, [filteredAssetPreviews]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("cortifree-product-version");
@@ -1296,8 +1301,8 @@ export default function Home() {
           <div className="stats">
             <div>
               <span>Assets indexes</span>
-              <strong>226</strong>
-              <em>Drive synchronise</em>
+              <strong>{assetPreviews.length}</strong>
+              <em>Assets chargés</em>
             </div>
             <div>
               <span>Modeles design</span>
@@ -1511,7 +1516,7 @@ export default function Home() {
                 )}
               </div>
               {assetTab !== "Visual References" && (assetTab === "All Assets" || assetTab === "Stock") && <div className="assetList">
-                {assetGroups.map(({ category, count }) => (
+                {visibleAssetGroups.map(({ category, count }) => (
                   <div className="asset" key={category}>
                     <div className="assetIcon">{category.charAt(0).toUpperCase()}</div>
                     <div className="assetText">
@@ -1522,6 +1527,9 @@ export default function Home() {
                   </div>
                 ))}
               </div>}
+              {assetTab !== "Visual References" && (
+                <div className="assetLibraryMeta"><b>{filteredAssetPreviews.length}</b> image{filteredAssetPreviews.length > 1 ? "s" : ""} · {assetTab}</div>
+              )}
               {assetTab !== "Visual References" && filteredAssetPreviews.length > 0 && (
                 <div className="assetPreviewGrid">
                   {filteredAssetPreviews.map((asset) => (
