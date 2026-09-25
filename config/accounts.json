@@ -29,14 +29,14 @@
       "PILLAR_MORNING": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -72,14 +72,14 @@
       "PILLAR_GLOW": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -115,14 +115,14 @@
       "PILLAR_OUTDOORS": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -158,14 +158,14 @@
       "PILLAR_STRESS": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -201,14 +201,14 @@
       "PILLAR_SEASONAL": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -244,14 +244,14 @@
       "PILLAR_SEASONAL": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -287,14 +287,14 @@
       "PILLAR_STRESS": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -330,14 +330,14 @@
       "PILLAR_FOOD": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -373,14 +373,14 @@
       "PILLAR_HOME": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -416,14 +416,14 @@
       "PILLAR_STRESS": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -459,14 +459,14 @@
       "PILLAR_OUTDOORS": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -502,14 +502,14 @@
       "PILLAR_CORTISOL": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -545,18 +545,18 @@
       "PILLAR_STRESS": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
-    "warmup_status": "CREATED"
+    "warmup_status": "PAUSED"
   },
   {
     "id": "CF_EN_14",
@@ -588,14 +588,14 @@
       "PILLAR_SEASONAL": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -631,14 +631,14 @@
       "PILLAR_MORNING": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,
@@ -674,14 +674,14 @@
       "PILLAR_SEASONAL": 0.25
     },
     "format_mix": {
-      "C02_CHECKLIST": 0.15,
-      "C05_GLOW_UP": 0.15,
-      "C08_MY_REALISTIC": 0.15,
-      "C09_LIST": 0.15,
-      "C01_MORNING_ROUTINE": 0.1,
-      "C12_NIGHT_ROUTINE": 0.1,
-      "C13_EDUCATIONAL_EXPLAINER": 0.1,
-      "EXPERIMENT": 0.1
+      "F01_LIFESTYLE_GUIDE": 0.125,
+      "F02_EDITORIAL_COLLAGE": 0.125,
+      "F03_ROUTINE_TIMELINE": 0.125,
+      "F04_AESTHETIC_EDUCATIONAL": 0.125,
+      "F05_INTERACTIVE_CHECKLIST": 0.125,
+      "F06_PERSONA_EXPLAINER": 0.125,
+      "F07_RANKING": 0.125,
+      "F08_2X2": 0.125
     },
     "promo_ratio": 0.08,
     "ready_buffer_days": 3,

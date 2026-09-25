@@ -62,7 +62,10 @@ type GeneratedSlide = {
   assetType?: string;
 };
 
-type Frame = { x: number; y: number; width: number; height?: number; fit?: "cover" | "contain"; mode?: "single" | "grid-2x2" };
+type Frame = {
+  x: number; y: number; width: number; height?: number; fit?: "cover" | "contain";
+  mode?: "single" | "grid-2x2" | "editorial-collage" | "interactive-checklist" | "ranking";
+};
 type Geometry = {
   canvas?: { width: number; height: number };
   safeZone?: Frame;
@@ -337,6 +340,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
   const composites: OverlayOptions[] = [];
   let hookDesign: HookDesign | undefined;
   let averageLuminance = 128;
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+
   if (imageFrame.mode === "grid-2x2") {
     const tileWidth = 500;
     const tileHeight = 635;
@@ -352,6 +357,33 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       const [left, top] = positions[index]!;
       composites.push({ input: fitted, left, top });
     }
+  } else if (imageFrame.mode === "editorial-collage") {
+    const pair = matches.slice(0, 2);
+    const placements = isHook
+      ? [{ left: 42, top: 70, width: 570, height: 760 }, { left: 610, top: 210, width: 420, height: 600 }]
+      : [{ left: 50, top: 70, width: 500, height: 700 }, { left: 560, top: 150, width: 470, height: 620 }];
+    for (const [index, match] of pair.entries()) {
+      const imageBytes = await selectedAssetBytes(match);
+      const place = placements[index]!;
+      const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+      composites.push({ input: fitted, left: place.left, top: place.top });
+    }
+    averageLuminance = 220;
+  } else if (imageFrame.mode === "ranking") {
+    if (isHook && matches.length >= 2) {
+      const placements = [{ left: 66, top: 120, width: 455, height: 650 }, { left: 560, top: 210, width: 455, height: 650 }];
+      for (const [index, match] of matches.slice(0, 2).entries()) {
+        const imageBytes = await selectedAssetBytes(match);
+        const place = placements[index]!;
+        const fitted = await sharp(imageBytes).rotate().resize({ width: place.width, height: place.height, fit: "cover", position: "centre" }).png().toBuffer();
+        composites.push({ input: fitted, left: place.left, top: place.top });
+      }
+    } else {
+      const imageBytes = await selectedAssetBytes(matches[0]!);
+      const fitted = await sharp(imageBytes).rotate().resize({ width: 880, height: 760, fit: "cover", position: "centre" }).png().toBuffer();
+      composites.push({ input: fitted, left: 100, top: 70 });
+    }
+    averageLuminance = 220;
   } else {
     const match = matches[0]!;
     const imageBytes = await selectedAssetBytes(match);
@@ -360,12 +392,35 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
+    if (imageFrame.mode === "interactive-checklist") {
+      const panel = await sharp({ create: { width: 900, height: 860, channels: 4, background: { r: 255, g: 252, b: 247, alpha: 0.92 } } }).png().toBuffer();
+      composites.push({ input: panel, left: 90, top: 300 });
+    }
   }
-  const readablePalette = averageLuminance > 158
+
+  const forceDark = imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";
+  const readablePalette = forceDark || averageLuminance > 158
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
   const readableGeometry = { ...geometry, text: geometry.text ? { ...geometry.text, ...readablePalette } : geometry.text } as Geometry;
-  composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), hookDesign));
+  const textFrame = readableGeometry.text;
+  const layoutHookDesign: HookDesign | undefined = isHook && forceDark && textFrame
+    ? {
+        format: imageFrame.mode ?? "single",
+        x: textFrame.x,
+        y: textFrame.headlineY ?? textFrame.y,
+        width: textFrame.width,
+        size: textFrame.hookSize ?? 44,
+        weight: textFrame.headlineWeight ?? 700,
+        maxWordsPerLine: 4,
+        lineGap: 8,
+        align: textFrame.align ?? "left",
+        textColor: readablePalette.headlineColor,
+        accentColor: readablePalette.accentColor,
+        hookColor: readablePalette.headlineColor,
+      }
+    : hookDesign;
+  composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: "#f7f3eb" } }).composite(composites).png({ quality: 94 }).toBuffer();
 }
 
@@ -405,17 +460,44 @@ export async function renderCarousel(input: {
     try {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
-      const matches = chooseAssets({ assets, carouselType: input.carouselType, personaId: input.personaId, excludedAssetIds: recentHookAssetIds, slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides });
-      if (input.layout !== "grid-2x2") {
+      const multiImageLayout = input.layout === "editorial-collage" || input.layout === "ranking";
+      const matches = chooseAssets({
+        assets,
+        carouselType: input.carouselType,
+        personaId: input.personaId,
+        excludedAssetIds: recentHookAssetIds,
+        slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides,
+      });
+      if (input.layout !== "grid-2x2" && !multiImageLayout) {
         gridMatches = input.slides.map((_, index) => [matches[index]!]);
         break;
       }
-      const usedCarouselAssets = new Set<string>([matches[0]!.asset.id]);
+
+      const usedCarouselAssets = new Set<string>(matches.filter(Boolean).map((match) => String(match.asset.id)));
+      if (multiImageLayout) {
+        gridMatches = input.slides.map((slide, index) => {
+          const primary = matches[index]!;
+          const needsSecond = input.layout === "editorial-collage" || (input.layout === "ranking" && (index === 0 || slide.role.toUpperCase() === "HOOK"));
+          if (!needsSecond) return [primary];
+          const secondary = chooseAssets({
+            assets,
+            carouselType: input.carouselType,
+            personaId: input.personaId,
+            excludedAssetIds: usedCarouselAssets,
+            slides: [{ ...slide, assetType: slide.assetType ?? "stock" }],
+          })[0]!;
+          usedCarouselAssets.add(String(secondary.asset.id));
+          return [primary, secondary];
+        });
+        break;
+      }
+
+      const usedGridAssets = new Set<string>([matches[0]!.asset.id]);
       gridMatches = input.slides.map((slide, index) => {
         if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
         const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
-        const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, excludedAssetIds: usedCarouselAssets, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
-        selected.forEach((match) => usedCarouselAssets.add(match.asset.id));
+        const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, excludedAssetIds: usedGridAssets, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
+        selected.forEach((match) => usedGridAssets.add(match.asset.id));
         // Keep the established 2x2 editorial pattern, but each source image
         // appears only on its own tile pair and never on a later slide.
         return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
@@ -435,7 +517,9 @@ export async function renderCarousel(input: {
     const slideMatches = gridMatches[index]!;
     // The selected model is authoritative. AI copy may return an old layout alias;
     // never let that silently turn a 2x2 request back into a single-photo slide.
-    const slideLayout = index === 0 || slide.role.toUpperCase() === "HOOK" ? "single-image" : input.layout;
+    const slideLayout = input.layout === "grid-2x2" && (index === 0 || slide.role.toUpperCase() === "HOOK")
+      ? "single-image"
+      : input.layout;
     const typography = typographyForCarousel(input.id);
     const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, index === input.slides.length - 1, typography) as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);

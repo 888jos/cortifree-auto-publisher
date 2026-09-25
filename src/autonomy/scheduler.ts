@@ -23,8 +23,17 @@ function strategy(index: number) {
   return slot < 7 ? 'PROVEN' : slot < 9 ? 'ADJACENT' : 'EXPERIMENT';
 }
 function formatIds(account: Account) {
-  const configured = Object.keys(account.format_mix ?? {}).filter((key) => /^C\d{2}_/.test(key) || /^C\d{2}$/.test(key));
-  return configured.length ? configured : ['C01_MORNING_ROUTINE','C02_CHECKLIST','C05_GLOW_UP','C08_MY_REALISTIC','C09_LIST','C12_NIGHT_ROUTINE','C13_EDUCATIONAL_EXPLAINER'];
+  const configured = Object.keys(account.format_mix ?? {}).filter((key) => /^F0[1-8]_/.test(key) || key === 'F08_2X2');
+  return configured.length ? configured : [
+    'F01_LIFESTYLE_GUIDE',
+    'F02_EDITORIAL_COLLAGE',
+    'F03_ROUTINE_TIMELINE',
+    'F04_AESTHETIC_EDUCATIONAL',
+    'F05_INTERACTIVE_CHECKLIST',
+    'F06_PERSONA_EXPLAINER',
+    'F07_RANKING',
+    'F08_2X2',
+  ];
 }
 function pillarIds(account: Account) {
   const configured = Object.keys(account.pillar_mix ?? {}).filter((key) => key.startsWith('PILLAR_'));
