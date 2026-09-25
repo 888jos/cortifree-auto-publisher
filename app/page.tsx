@@ -255,6 +255,11 @@ type StoredCarousel = {
   angle: string;
   caption: string;
   status: string;
+  review_status?: string;
+  review_notes?: string | null;
+  current_version?: number;
+  revision_count?: number;
+  scheduled_for?: string | null;
   content_type: string;
   language: "en" | "fr";
   created_at: string;
@@ -439,6 +444,8 @@ export default function Home() {
   const [carouselQuery, setCarouselQuery] = useState("");
   const [carouselStatus, setCarouselStatus] = useState("ALL");
   const [openedCarousel, setOpenedCarousel] = useState<StoredCarousel | null>(null);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [calendarDays, setCalendarDays] = useState(7);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -769,8 +776,8 @@ export default function Home() {
           preview = { ...preview, approvalStatus: approval.status, publishReady: approval.publishReady };
           setDraftPreview(preview);
           setNotice(approval.contentApproved
-            ? `${preview.id} validé : texte OpenAI, ${preview.slides.length} PNG et contrôle pré-publication OK${approval.publishReady ? "." : "; il ne manque que le profil média."}`
-            : `${preview.id} rendu, mais le contrôle éditorial demande une correction.`);
+            ? `${preview.id} rendu + QA OK · en attente de validation humaine.`
+            : `${preview.id} rendu, mais le contrôle éditorial demande une correction avant review.`);
         } else {
           preview = { ...preview, warning: [preview.warning, `Rendu non terminé : ${renderData.error ?? `API ${renderResponse.status}`}`].filter(Boolean).join(" · ") };
           setDraftPreview(preview);
@@ -916,6 +923,50 @@ export default function Home() {
       const next = (index + direction + carousel.slides.length) % carousel.slides.length;
       return { ...current, [carouselId]: next };
     });
+  }
+
+  async function refreshCarousels() {
+    const response = await fetch("/api/carousels", { cache: "no-store" });
+    if (!response.ok) throw new Error(`API ${response.status}`);
+    const data = await response.json();
+    const list = Array.isArray(data.carousels) ? data.carousels : [];
+    setStoredCarousels(list);
+    if (openedCarousel) setOpenedCarousel(list.find((item: StoredCarousel) => item.id === openedCarousel.id) ?? null);
+  }
+
+  async function submitReviewAction(action: "approve" | "reject" | "request-changes") {
+    if (!openedCarousel || reviewBusy) return;
+    if (action !== "approve" && !reviewFeedback.trim()) {
+      setNotice("Ajoute une instruction avant d’envoyer la correction.");
+      return;
+    }
+    setReviewBusy(true);
+    try {
+      const endpoint = action === "approve" ? "/api/review/approve" : action === "reject" ? "/api/review/reject" : "/api/review/request-changes";
+      const body = action === "approve"
+        ? { carouselId: openedCarousel.id, actor: "jos" }
+        : action === "reject"
+          ? { carouselId: openedCarousel.id, reason: reviewFeedback.trim(), actor: "jos" }
+          : { carouselId: openedCarousel.id, feedback: reviewFeedback.trim(), actor: "jos" };
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `API ${response.status}`);
+      setNotice(action === "approve"
+        ? `${openedCarousel.id} approuvé · publication prévue dans la fenêtre NYC.`
+        : action === "reject"
+          ? `${openedCarousel.id} rejeté.`
+          : `${openedCarousel.id} · correction ciblée envoyée au worker Railway.`);
+      if (action !== "request-changes") setReviewFeedback("");
+      await refreshCarousels();
+    } catch (error) {
+      setNotice(`Review impossible : ${error instanceof Error ? error.message : "erreur inconnue"}.`);
+    } finally {
+      setReviewBusy(false);
+    }
   }
 
   return (
@@ -1189,7 +1240,7 @@ export default function Home() {
               <div className="batchProgress" role="status">
                 <div><b>{batchProgress.done}/{batchProgress.total}</b> carrousels générés · {batchProgress.failed} échec{batchProgress.failed > 1 ? "s" : ""}</div>
                 <progress max={batchProgress.total} value={batchProgress.done + batchProgress.failed} />
-                <small>Chaque hook est envoyé à OpenAI, sauvegardé, rendu en PNG puis validé automatiquement.</small>
+                <small>Chaque hook est envoyé à OpenAI, sauvegardé, rendu en PNG puis envoyé en review humaine.</small>
               </div>
             )}
 
@@ -1559,12 +1610,31 @@ export default function Home() {
           <div className="carouselModal" onClick={() => setOpenedCarousel(null)} role="presentation">
             <section aria-label={`Aperçu de ${openedCarousel.topic}`} aria-modal="true" className="carouselModalPanel" onClick={(event) => event.stopPropagation()} role="dialog">
               <div className="modalHead"><div><p className="eyebrow">{openedCarousel.id}</p><h2>{openedCarousel.spec?.hook ?? openedCarousel.topic}</h2></div><button aria-label="Fermer" onClick={() => setOpenedCarousel(null)} type="button">×</button></div>
-              <div className="modalMeta"><span className={`statusTag status-${openedCarousel.status.toLowerCase()}`}>{openedCarousel.status}</span><span>{openedCarousel.spec?.model_id ?? "Layout inconnu"}</span><span>{openedCarousel.language.toUpperCase()}</span></div>
+              <div className="modalMeta"><span className={`statusTag status-${openedCarousel.status.toLowerCase()}`}>{openedCarousel.review_status ?? openedCarousel.status}</span><span>v{openedCarousel.current_version ?? 1}</span><span>{openedCarousel.spec?.model_id ?? "Layout inconnu"}</span><span>{openedCarousel.language.toUpperCase()}</span></div>
               <div className="modalSlides">
                 {(openedCarousel.spec?.rendered_slides ?? []).slice().sort((a, b) => a.position - b.position).map((slide) => <figure key={slide.position}><img alt={`Slide ${slide.position}`} src={slide.url} /><figcaption>{slide.position}</figcaption></figure>)}
               </div>
               {!openedCarousel.spec?.rendered_slides?.length && <div className="libraryEmpty">Ce brouillon n’a pas encore de PNG rendu.</div>}
               <div className="modalCaption"><b>Légende</b><p>{openedCarousel.caption}</p></div>
+              <div className="reviewPanel">
+                <div className="reviewPanelHead">
+                  <div><b>Human approval</b><span>{openedCarousel.revision_count ?? 0} correction(s)</span></div>
+                  {openedCarousel.scheduled_for && <small>Prévu : {new Date(openedCarousel.scheduled_for).toLocaleString("fr-FR", { timeZone: "America/New_York" })} NYC</small>}
+                </div>
+                <textarea
+                  disabled={reviewBusy}
+                  onChange={(event) => setReviewFeedback(event.target.value)}
+                  placeholder="Ex: slide 2 plus punchy, garde le reste. Change seulement l’image de la slide 4 pour une scène bedroom journaling."
+                  rows={4}
+                  value={reviewFeedback}
+                />
+                <div className="reviewActions">
+                  <button className="primary" disabled={reviewBusy} onClick={() => submitReviewAction("approve")} type="button">{reviewBusy ? "Traitement…" : "Approve"}</button>
+                  <button disabled={reviewBusy || !reviewFeedback.trim()} onClick={() => submitReviewAction("request-changes")} type="button">Request changes</button>
+                  <button disabled={reviewBusy || !reviewFeedback.trim()} onClick={() => submitReviewAction("reject")} type="button">Reject</button>
+                </div>
+                <small>Les corrections sont ciblées : les slides non visées restent inchangées.</small>
+              </div>
             </section>
           </div>
         )}
