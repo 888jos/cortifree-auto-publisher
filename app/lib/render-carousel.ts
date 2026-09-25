@@ -1143,8 +1143,15 @@ export async function renderCarousel(input: {
     }
   }
   if (!gridMatches.length) throw new Error("CAROUSEL_RENDER_SELECTION_FAILED");
-  const prepared = await Promise.all(input.slides.map(async (slide, index) => {
-    const slideMatches = gridMatches[index]!;
+  const editorOverrides = ((input.spec.editor_overrides ?? {}) as Record<string, { headline?: string; body?: string; assetId?: string | number; text?: Record<string, unknown>; image?: Record<string, unknown> }>);
+  const prepared = await Promise.all(input.slides.map(async (sourceSlide, index) => {
+    const override = editorOverrides[String(sourceSlide.position)] ?? {};
+    const slide = { ...sourceSlide, headline: override.headline ?? sourceSlide.headline, body: override.body ?? sourceSlide.body };
+    let slideMatches = gridMatches[index]!;
+    if (override.assetId != null) {
+      const forced = assets.find((asset) => String(asset.id) === String(override.assetId));
+      if (forced) slideMatches = [{ asset: forced, score: 999, matchedTerms: ["editor_override"], fallbackPath: "editor_override" }, ...slideMatches.slice(1)];
+    }
     // The selected model is authoritative. AI copy may return an old layout alias;
     // never let that silently turn a 2x2 request back into a single-photo slide.
     const slideLayout = input.layout === "grid-2x2" && (index === 0 || slide.role.toUpperCase() === "HOOK")
@@ -1156,7 +1163,12 @@ export async function renderCarousel(input: {
       && new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
     const isVisualFinal = index === input.slides.length - 1
       && (input.layout !== "routine-timeline" || isRoutineCtaFinal);
-    const geometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, isVisualFinal, typography) as Geometry;
+    const baseGeometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, isVisualFinal, typography) as Geometry;
+    const geometry = {
+      ...baseGeometry,
+      image: { ...(baseGeometry.image ?? {}), ...(override.image ?? {}) },
+      text: { ...(baseGeometry.text ?? {}), ...(override.text ?? {}) },
+    } as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0]!;
