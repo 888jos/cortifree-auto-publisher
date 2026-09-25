@@ -154,10 +154,10 @@ function checklistTextFrame(isCover, isFinal, typography) {
 function rankingTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 74, y: 105, width: 700, align: "left",
-      headlineY: 105, bodyY: 285,
-      headlineSize: 60, bodySize: 26, hookSize: 60,
-      headlineWeight: 700, bodyWeight: 500,
+      x: 120, y: 120, width: 840, align: "center",
+      headlineY: 120, bodyY: 305,
+      headlineSize: 68, bodySize: 29, hookSize: 68,
+      headlineWeight: 800, bodyWeight: 500,
       maxHeadlineLines: 3, maxBodyLines: 2,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
@@ -165,23 +165,23 @@ function rankingTextFrame(isCover, isFinal, typography) {
   }
   if (isFinal) {
     return {
-      x: 600, y: 340, width: 390, align: "left",
-      headlineY: 340, bodyY: 505,
-      headlineSize: 48, bodySize: 28, hookSize: 48,
-      headlineWeight: 700, bodyWeight: 500,
-      maxHeadlineLines: 3, maxBodyLines: 4,
+      x: 150, y: 390, width: 780, align: "center",
+      headlineY: 390, bodyY: 600,
+      headlineSize: 58, bodySize: 31, hookSize: 58,
+      headlineWeight: 800, bodyWeight: 500,
+      maxHeadlineLines: 3, maxBodyLines: 5,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
   return {
-    x: 620, y: 395, width: 350, align: "left",
-    headlineY: 395, bodyY: 530,
-    headlineSize: 42, bodySize: 28, hookSize: 42,
-    headlineWeight: 700, bodyWeight: 500,
-    maxHeadlineLines: 3, maxBodyLines: 5,
-    rankingScoreX: 620, rankingScoreY: 170, rankingScoreWidth: 350, rankingScoreSize: 96,
-    rankingKickerX: 620, rankingKickerY: 132, rankingKickerWidth: 260, rankingKickerSize: 18,
+    x: 100, y: 335, width: 880, align: "center",
+    headlineY: 335, bodyY: 505,
+    headlineSize: 42, bodySize: 27, hookSize: 42,
+    headlineWeight: 800, bodyWeight: 500,
+    maxHeadlineLines: 2, maxBodyLines: 7,
+    rankingScoreX: 100, rankingScoreY: 105, rankingScoreWidth: 880, rankingScoreSize: 94,
+    rankingKickerX: 100, rankingKickerY: 72, rankingKickerWidth: 880, rankingKickerSize: 18,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
   };
