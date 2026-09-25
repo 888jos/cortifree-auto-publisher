@@ -6,6 +6,7 @@ const publicPaths = new Set([
   "/auth/callback",
   // These server-to-server routes perform their own secret verification.
   "/api/admin/recover-modelark-orphans",
+  "/api/admin/integrations-status",
   "/api/telegram/webhook",
   "/api/telegram/setup",
 ]);

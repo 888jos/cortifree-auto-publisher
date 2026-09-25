@@ -15,6 +15,7 @@ import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } fro
 import { autoScheduleApproved } from "../autonomy/publishing";
 import { applyReviewRevision, type ReviewRevision } from "../../app/lib/human-review";
 import { sendPendingTelegramNotifications } from "../../app/lib/telegram-notifications";
+import { getLocalIntegrationHealth } from "../../app/lib/integration-health";
 
 type Row = Record<string, unknown>;
 
@@ -364,6 +365,7 @@ function assertWorkerConfiguration() {
 
 async function main() {
   console.log("[worker] starting", { workerId: WORKER_ID, version: VERSION, pollMs: POLL_MS });
+  console.log("[worker] integrations", getLocalIntegrationHealth());
   assertWorkerConfiguration();
   await heartbeat();
   await recoverStaleJobs();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dataBackend } from "../../../lib/data-backend";
 import { approveCarousel, planReviewRevision, recordReviewEvent, rejectCarousel } from "../../../lib/human-review";
 import { enqueueWorkerJob } from "../../../lib/worker-queue";
+import { formatIntegrationHealth, getLocalIntegrationHealth } from "../../../lib/integration-health";
 import {
   getUploadPostAnalyticsByPlatformPost,
   getUploadPostPostAnalytics,
@@ -221,6 +222,15 @@ async function status(chatId: string | number) {
   ].join("\n"));
 }
 
+async function integrations(chatId: string | number) {
+  const heartbeats = await rows("worker_heartbeats?workspace_id=eq.cortifree&select=worker_id,version,last_seen_at,capabilities&order=last_seen_at.desc&limit=1");
+  const worker = heartbeats[0];
+  const suffix = worker
+    ? `\nWorker: ✅ ${worker.version ?? "unknown"} · ${worker.last_seen_at ?? "-"}`
+    : "\nWorker: ❌ offline";
+  return sendTelegramMessage(chatId, formatIntegrationHealth(getLocalIntegrationHealth()) + suffix);
+}
+
 async function reviewQueue(chatId: string | number) {
   const queue = await rows("carousels?workspace_id=eq.cortifree&review_status=eq.AWAITING_REVIEW&select=id&order=created_at.asc&limit=8");
   if (!queue.length) return sendTelegramMessage(chatId, "✅ Review queue is empty.");
@@ -244,6 +254,7 @@ async function handleText(chatId: string | number, text: string) {
     return sendTelegramMessage(chatId, [
       "CortiFree Ops Bot",
       "/status",
+      "/integrations",
       "/review",
       "/carousel <id>",
       "/approve <id>",
@@ -255,6 +266,7 @@ async function handleText(chatId: string | number, text: string) {
     ].join("\n"));
   }
   if (command === "/status") return status(chatId);
+  if (command === "/integrations") return integrations(chatId);
   if (command === "/review") return reviewQueue(chatId);
   if (command === "/top") return top(chatId);
   if (command === "/carousel" && args[0]) return carouselCard(chatId, args[0], true);
