@@ -122,6 +122,47 @@ function editorialAsymTextFrame(isCover, isFinal, typography) {
   };
 }
 
+function checklistTextFrame(isCover, isFinal, typography) {
+  if (isCover) {
+    return {
+      x: 138, y: 785, width: 804, align: "left",
+      headlineY: 785, bodyY: 1015,
+      headlineSize: 58, bodySize: 27, hookSize: 58,
+      headlineWeight: 700, bodyWeight: 500,
+      maxHeadlineLines: 3, maxBodyLines: 2,
+      checklistPanelX: 90, checklistPanelY: 720, checklistPanelWidth: 900, checklistPanelHeight: 500,
+      checklistKickerX: 138, checklistKickerY: 760, checklistKickerWidth: 300, checklistKickerSize: 18,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  if (isFinal) {
+    return {
+      x: 138, y: 430, width: 804, align: "left",
+      headlineY: 430, bodyY: 635,
+      headlineSize: 52, bodySize: 30, hookSize: 52,
+      headlineWeight: 700, bodyWeight: 500,
+      maxHeadlineLines: 3, maxBodyLines: 4,
+      checklistPanelX: 90, checklistPanelY: 330, checklistPanelWidth: 900, checklistPanelHeight: 700,
+      checklistKickerX: 138, checklistKickerY: 382, checklistKickerWidth: 300, checklistKickerSize: 18,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  return {
+    x: 138, y: 340, width: 804, align: "left",
+    headlineY: 340, bodyY: 585,
+    headlineSize: 46, bodySize: 28, hookSize: 46,
+    headlineWeight: 700, bodyWeight: 500,
+    maxHeadlineLines: 3, maxBodyLines: 4,
+    checklistPanelX: 90, checklistPanelY: 245, checklistPanelWidth: 900, checklistPanelHeight: 930,
+    checklistKickerX: 138, checklistKickerY: 295, checklistKickerWidth: 300, checklistKickerSize: 18,
+    checklistChoicesX: 138, checklistChoicesY: 610, checklistChoicesWidth: 804, checklistChoiceGap: 96,
+    fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+    hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+  };
+}
+
 function rankingTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
@@ -248,6 +289,29 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         panel: false,
         editorial: true,
         ranking: true,
+        final: Boolean(isFinal),
+        cover: Boolean(isCover),
+      },
+    };
+  }
+
+  if (layout === "interactive-checklist") {
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        ...checklistTextFrame(isCover, isFinal, typography),
+        headlineColor: "#241f1f",
+        bodyColor: "#4f4542",
+        accentColor: "#9a6674",
+      },
+      overlay: { color: "#f7f1e8", opacity: 0 },
+      chrome: {
+        panel: true,
+        editorial: true,
+        checklist: true,
+        ranking: false,
         final: Boolean(isFinal),
         cover: Boolean(isCover),
       },
