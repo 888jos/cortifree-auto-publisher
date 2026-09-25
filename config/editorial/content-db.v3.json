@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "generated_at": "2026-09-25T19:55:28.825Z",
+  "generated_at": "2026-09-25T20:05:44.260Z",
   "workspace_id": "cortifree",
   "tables": {
     "content_config": [
@@ -862,11 +862,11 @@
         "objective": "Soft educational content with aesthetic imagery",
         "min_slides": 5,
         "max_slides": 8,
-        "slide_structure": "aesthetic question hook > short explanation per slide > action/takeaway",
+        "slide_structure": "top-left headline > exactly 3 fixed vertical rectangles > centered concise explanation > takeaway/CTA",
         "hook_family": "education",
         "cta_type": "save",
-        "image_strategy": "object/food/POV/lifestyle",
-        "preferred_template_family": "single-image",
+        "image_strategy": "exactly 3 distinct cohesive supporting images per slide; center image taller",
+        "preferred_template_family": "three-rect-educational",
         "eligible_pillars": "all",
         "cooldown_days": 4,
         "weight": 0.125,
