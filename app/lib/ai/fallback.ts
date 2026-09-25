@@ -182,7 +182,9 @@ export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselS
           : input.carouselType === "F05_INTERACTIVE_CHECKLIST"
             ? (language === "fr" ? frChecklistSteps : enChecklistSteps)
             : (language === "fr" ? frSteps : enSteps);
-  const hook = input.preferredHook ?? (language === "fr" ? `${topic} — sans routine parfaite` : `${topic} — no perfect routine required`);
+  const hook = input.preferredHook ?? (input.carouselType === "F07_RANKING"
+    ? (language === "fr" ? "HABITUDES WELLNESS TIER LIST" : "WELLNESS HABITS TIER LIST")
+    : (language === "fr" ? `${topic} — sans routine parfaite` : `${topic} — no perfect routine required`));
   const middleCount = input.requestedSlideCount - 2;
   const roles: SlideRole[] = input.carouselType === "F05_INTERACTIVE_CHECKLIST" ? ["CHECKLIST"] : input.carouselType === "F03_ROUTINE_TIMELINE" ? ["STEP"] : ["TIP", "STEP", "TAKEAWAY"];
   const slides = [
