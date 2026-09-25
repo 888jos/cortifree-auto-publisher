@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const publicPaths = new Set(["/login", "/auth/callback"]);
+const publicPaths = new Set([
+  "/login",
+  "/auth/callback",
+  // This admin route performs its own short-lived nonce verification.
+  "/api/admin/recover-modelark-orphans",
+]);
 
 async function hasSupabaseSession(request: NextRequest, response: NextResponse) {
   const url = process.env.SUPABASE_URL;
