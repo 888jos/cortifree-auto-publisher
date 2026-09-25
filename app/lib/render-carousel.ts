@@ -64,7 +64,7 @@ type GeneratedSlide = {
 
 type Frame = {
   x: number; y: number; width: number; height?: number; fit?: "cover" | "contain";
-  mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "editorial-asym-hero" | "interactive-checklist" | "ranking";
+  mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "editorial-asym-hero" | "interactive-checklist" | "ranking" | "lifestyle-3stack";
 };
 type Geometry = {
   canvas?: { width: number; height: number };
