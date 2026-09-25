@@ -63,7 +63,7 @@ type GeneratedSlide = {
 };
 
 type Frame = {
-  x: number; y: number; width: number; height?: number; fit?: "cover" | "contain";
+  x: number; y: number; width: number; height?: number; fit?: "cover" | "contain"; cropX?: number; cropY?: number; zoom?: number;
   mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "editorial-asym-hero" | "interactive-checklist" | "ranking" | "lifestyle-3stack";
 };
 type Geometry = {
@@ -861,6 +861,24 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   return overlays;
 }
 
+function sharpPosition(frame: Frame) {
+  const x = Math.max(0, Math.min(100, Number(frame.cropX ?? 50)));
+  const y = Math.max(0, Math.min(100, Number(frame.cropY ?? 50)));
+  return { left: x / 100, top: y / 100 };
+}
+
+async function fitEditorImage(bytes: Buffer, frame: Frame) {
+  const width = Math.max(1, Math.round(frame.width));
+  const height = Math.max(1, Math.round(frame.height ?? HEIGHT));
+  const zoom = Math.max(1, Math.min(4, Number(frame.zoom ?? 1)));
+  if (zoom === 1) return sharp(bytes).rotate().resize({ width, height, fit: frame.fit ?? "cover", position: sharpPosition(frame) }).png().toBuffer();
+  const bigW = Math.round(width * zoom), bigH = Math.round(height * zoom);
+  const big = await sharp(bytes).rotate().resize({ width: bigW, height: bigH, fit: "cover", position: sharpPosition(frame) }).png().toBuffer();
+  const cropX = Math.round((bigW - width) * Math.max(0, Math.min(100, Number(frame.cropX ?? 50))) / 100);
+  const cropY = Math.round((bigH - height) * Math.max(0, Math.min(100, Number(frame.cropY ?? 50))) / 100);
+  return sharp(big).extract({ left: Math.min(cropX, bigW - width), top: Math.min(cropY, bigH - height), width, height }).png().toBuffer();
+}
+
 async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometry: Geometry) {
   const imageFrame = { ...defaultGeometry.image, ...geometry.image } as Frame;
   const composites: OverlayOptions[] = [];
@@ -981,7 +999,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const imageBytes = await selectedAssetBytes(match);
     const stats = await sharp(imageBytes).stats();
     averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
-    const fitted = await sharp(imageBytes).rotate().resize({ width: imageFrame.width, height: imageFrame.height ?? HEIGHT, fit: imageFrame.fit ?? "cover", position: "centre" }).png().toBuffer();
+    const fitted = await fitEditorImage(imageBytes, imageFrame);
     hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
     composites.push({ input: fitted, left: imageFrame.x, top: imageFrame.y });
     if (imageFrame.mode === "interactive-checklist" && !isHook) {
@@ -996,7 +1014,13 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
   const readablePalette = forceDark || averageLuminance > 158
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
-  const readableGeometry = { ...geometry, text: geometry.text ? { ...geometry.text, ...readablePalette } : geometry.text } as Geometry;
+  const manualText = (geometry.text ?? {}) as Record<string, unknown>;
+  const readableGeometry = { ...geometry, text: geometry.text ? {
+    ...geometry.text,
+    headlineColor: manualText.editorHeadlineColor ?? readablePalette.headlineColor,
+    bodyColor: manualText.editorBodyColor ?? readablePalette.bodyColor,
+    accentColor: manualText.editorAccentColor ?? readablePalette.accentColor,
+  } : geometry.text } as Geometry;
   const textFrame = readableGeometry.text;
   const layoutHookDesign: HookDesign | undefined = isHook && forceDark && textFrame
     ? {
