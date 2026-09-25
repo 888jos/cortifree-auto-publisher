@@ -168,7 +168,7 @@ function createF04Fallback(input: CarouselGeneratorInput): CarouselSpec {
 }
 
 export function createFallbackCarousel(input: CarouselGeneratorInput): CarouselSpec {
-  if (input.carouselType === "F04_AESTHETIC_EDUCATIONAL") return createF04Fallback(input);
+  if (String(input.carouselType) === "F04_AESTHETIC_EDUCATIONAL") return createF04Fallback(input);
   const language = input.language;
   const topic = topics[input.carouselType][language];
   const steps = input.carouselType === "F03_ROUTINE_TIMELINE"
