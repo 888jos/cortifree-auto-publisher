@@ -31,10 +31,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const contentApproved = blockingContentIssues.length === 0;
     const review = { checked_at: new Date().toISOString(), platform: body.platform, profile: profile ?? null, contentApproved, publishReady: readiness.ready, issues: readiness.issues };
     const updatedSpec = { ...carousel.spec, publish_review: review };
-    const nextStatus = contentApproved ? "APPROVED" : "READY_FOR_REVIEW";
-    const update = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus, spec: updatedSpec, updated_at: new Date().toISOString() }) });
+    const nextStatus = "READY_FOR_REVIEW";
+    const update = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus, review_status: "AWAITING_REVIEW", last_review_action: contentApproved ? "QA_PASSED" : "QA_NEEDS_CHANGES", spec: updatedSpec, updated_at: new Date().toISOString() }) });
     if (!update.ok) throw new Error(await update.text());
-    return Response.json({ id, status: nextStatus, ...review }, { status: contentApproved ? 200 : 422 });
+    return Response.json({ id, status: nextStatus, humanApprovalRequired: true, ...review }, { status: contentApproved ? 200 : 422 });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Invalid approval request", details: error.issues }, { status: 400 });
     return Response.json({ error: error instanceof Error ? error.message : "Approval failed" }, { status: 500 });
