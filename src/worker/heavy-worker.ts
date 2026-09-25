@@ -15,6 +15,7 @@ import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } fro
 import { autoScheduleApproved } from "../autonomy/publishing";
 import { applyReviewRevision, type ReviewRevision } from "../../app/lib/human-review";
 import { sendPendingTelegramNotifications } from "../../app/lib/telegram-notifications";
+import { cleanupNonUserReferenceAssets } from "../../app/lib/cleanup/bad-reference-assets";
 import { getLocalIntegrationHealth } from "../../app/lib/integration-health";
 
 type Row = Record<string, unknown>;
@@ -55,7 +56,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "OPS_REFRESH", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: {
         hostname: os.hostname(),
@@ -275,6 +276,7 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
   if (job.kind === "MODELARK_ORPHAN_RECOVERY") return runModelArkOrphanRecovery(job.payload ?? {});
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
+  if (job.kind === "BAD_REFERENCE_CLEANUP") return cleanupNonUserReferenceAssets();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }
 
