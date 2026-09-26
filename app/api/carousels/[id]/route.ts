@@ -1,11 +1,13 @@
 import { dataBackend } from "../../../lib/data-backend";
-import { assertCortiFreeAccountId, CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
+import { assertCortiFreeAccountId, assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
+import { canonicalLayoutFor } from "../../../lib/canonical-layout";
 
 export const runtime = "nodejs";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   try {
+    assertCortiFreeCarouselId(id);
     const [carouselResponse, slidesResponse] = await Promise.all([
       dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=*&limit=1`),
       dataBackend(`carousel_slides?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&carousel_id=eq.${encodeURIComponent(id)}&select=*&order=position.asc`),
@@ -13,7 +15,35 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!carouselResponse.ok) throw new Error(await carouselResponse.text());
     const carousel = (await carouselResponse.json())[0] ?? null;
     if (!carousel) return Response.json({ error: "Carousel not found" }, { status: 404 });
-    const slides = slidesResponse.ok ? await slidesResponse.json() : [];
+    let slides = slidesResponse.ok ? await slidesResponse.json() : [];
+    if (!slides.length) {
+      const spec = (carousel.spec ?? {}) as Record<string, any>;
+      const generated = Array.isArray(spec.generated_slides) ? spec.generated_slides : [];
+      const rendered = Array.isArray(spec.rendered_slides) ? spec.rendered_slides : [];
+      const layout = canonicalLayoutFor(String(carousel.content_type ?? spec.carousel_type ?? ""), String(spec.model_id ?? spec.layout ?? "single-image"));
+      slides = generated.map((generatedSlide: any, index: number) => {
+        const renderedSlide = rendered.find((item: any) => Number(item.position) === Number(generatedSlide.position)) ?? rendered[index] ?? {};
+        const assetIds = Array.isArray(renderedSlide.assetIds)
+          ? renderedSlide.assetIds
+          : renderedSlide.assetId != null ? [renderedSlide.assetId] : [];
+        return {
+          workspace_id: CORTIFREE_WORKSPACE_ID,
+          carousel_id: id,
+          position: generatedSlide.position ?? index + 1,
+          template_id: layout,
+          headline: generatedSlide.headline ?? "",
+          body: generatedSlide.body ?? "",
+          asset_id: renderedSlide.assetId ?? assetIds[0] ?? null,
+          rendered_url: renderedSlide.url ?? null,
+          render_metadata: {
+            geometry: renderedSlide.geometry ?? null,
+            asset_ids: assetIds,
+            selection: renderedSlide.assetId != null ? { selected_asset_id: renderedSlide.assetId } : null,
+            synthesized_from_spec: true,
+          },
+        };
+      });
+    }
     return Response.json({ carousel, slides });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
