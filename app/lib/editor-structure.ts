@@ -5,6 +5,50 @@ export type StructureAction =
   | { action: "duplicate"; index: number }
   | { action: "delete"; index: number };
 
+type RenderedSlideRow = {
+  position?: number | string | null;
+  asset_id?: string | number | null;
+  render_metadata?: {
+    asset_ids?: Array<string | number>;
+    geometry?: {
+      text?: Record<string, any>;
+      imageSlots?: Array<Record<string, any>>;
+    };
+  } | null;
+};
+
+export function hydrateEditorSpecFromRenderedSlides(spec: Record<string, any>, rows: RenderedSlideRow[]) {
+  const next = clone(spec);
+  const overrides = next.editor_overrides && typeof next.editor_overrides === "object"
+    ? clone(next.editor_overrides) as Record<string, EditorOverride>
+    : {};
+
+  for (const row of rows) {
+    const position = Number(row.position);
+    if (!Number.isFinite(position) || position < 1) continue;
+    const key = String(position);
+    const current = overrides[key] ? clone(overrides[key]) : {};
+    const metadata = row.render_metadata && typeof row.render_metadata === "object" ? row.render_metadata : {};
+    const metadataIds = Array.isArray(metadata.asset_ids) ? metadata.asset_ids.filter(Boolean) : [];
+    const assetIds = metadataIds.length ? metadataIds : row.asset_id != null ? [row.asset_id] : [];
+    const geometry = metadata.geometry && typeof metadata.geometry === "object" ? metadata.geometry : {};
+
+    if ((!Array.isArray(current.assetIds) || current.assetIds.length === 0) && assetIds.length) {
+      current.assetIds = clone(assetIds);
+    }
+    if ((!Array.isArray(current.imageSlots) || current.imageSlots.length === 0) && Array.isArray(geometry.imageSlots) && geometry.imageSlots.length) {
+      current.imageSlots = clone(geometry.imageSlots);
+    }
+    if ((!current.text || typeof current.text !== "object") && geometry.text && typeof geometry.text === "object") {
+      current.text = clone(geometry.text);
+    }
+    if (Object.keys(current).length) overrides[key] = current;
+  }
+
+  next.editor_overrides = overrides;
+  return next;
+}
+
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
