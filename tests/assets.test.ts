@@ -7,8 +7,26 @@ import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
 import { chooseAssets, deriveVisualIntent, type SelectableAsset } from '../app/lib/asset-selector';
 import { isAutomaticVisualReference } from '../src/visual-references';
+import { isBrowserRenderableAssetUrl } from '../app/lib/asset-public-url';
 
 describe('asset scanner', () => {
+  it('rejects legacy drive URLs from browser-rendered asset surfaces', () => {
+    assert.equal(isBrowserRenderableAssetUrl('drive://1abc'), false);
+    assert.equal(isBrowserRenderableAssetUrl('file:///tmp/test.jpg'), false);
+    assert.equal(isBrowserRenderableAssetUrl('https://example.com/image.jpg'), true);
+    assert.equal(isBrowserRenderableAssetUrl('http://localhost/image.jpg'), true);
+  });
+
+  it('references curated font files that actually exist', async () => {
+    const css = await fs.readFile(path.join(process.cwd(), 'app/fonts.css'), 'utf8');
+    const urls = [...css.matchAll(/url\('([^']+)'\)/g)].map((match) => match[1]).filter((url) => url.startsWith('/fonts/curated/'));
+    assert.ok(urls.length >= 30);
+    for (const url of urls) {
+      const relative = decodeURIComponent(url.replace(/^\//, ''));
+      await fs.access(path.join(process.cwd(), 'public', relative.replace(/^fonts\//, 'fonts/')));
+    }
+  });
+
   it('indexes stock and persona image metadata with canonical persona IDs', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortifree-scan-'));
     await fs.mkdir(path.join(root, '01_STOCK_ASSETS ', 'morning'), { recursive: true });
