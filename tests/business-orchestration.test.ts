@@ -45,10 +45,12 @@ describe("business orchestration v1", () => {
     assert.ok(generationAt > preflightAt);
     assert.match(processor, /status: 'NEEDS_ASSETS'/);
     assert.match(processor, /resumeAssetBlockedIdeas/);
+    assert.match(processor, /SLOT_MISSED_BEFORE_GENERATION/);
+    assert.match(processor, /status: 'EXPIRED_SLOT'/);
   });
 
   it("defines exact approval fingerprints and one canonical state trigger", async () => {
-    const migration = await fs.readFile(path.join(process.cwd(), "supabase/migrations/20260927003000_business_logic_orchestration_v1.sql"), "utf8");
+    const migration = await fs.readFile(path.join(process.cwd(), "supabase/migrations/20260926225205_business_logic_orchestration_v1.sql"), "utf8");
     assert.match(migration, /approved_hash text/);
     assert.match(migration, /content_hash text/);
     assert.match(migration, /create table if not exists public\.content_slots/);
@@ -66,7 +68,7 @@ describe("business orchestration v1", () => {
   });
 
   it("ships sourced health guardrails from institutional sources", async () => {
-    const migration = await fs.readFile(path.join(process.cwd(), "supabase/migrations/20260927003000_business_logic_orchestration_v1.sql"), "utf8");
+    const migration = await fs.readFile(path.join(process.cwd(), "supabase/migrations/20260926225205_business_logic_orchestration_v1.sql"), "utf8");
     assert.match(migration, /SRC_NHLBI_SLEEP_IMPORTANCE/);
     assert.match(migration, /SRC_NIMH_STRESS/);
     assert.match(migration, /SRC_NCCIH_STRESS/);
