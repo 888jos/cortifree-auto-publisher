@@ -1,5 +1,6 @@
 import { carouselGeneratorInputSchema } from '../../app/lib/ai/schemas';
 import { generateCarousel } from '../../app/lib/ai/carousel-generator';
+import { getAIConfig } from '../../app/lib/ai/config';
 import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carousel-store';
 import { renderCarousel } from '../../app/lib/render-carousel';
 import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
@@ -28,6 +29,17 @@ function slideCountFor(contentType: string, formats: Row[]) {
   const min = Number(row?.min_slides ?? 6), max = Number(row?.max_slides ?? 7);
   return Math.max(4, Math.min(12, Math.round((min + max) / 2)));
 }
+export function generationConfigBlockReason() {
+  const config = getAIConfig();
+  if (!config.AI_GENERATION_ENABLED) return 'AI_GENERATION_ENABLED=false';
+  if (!config.OPENAI_API_KEY) return 'OPENAI_API_KEY is missing';
+  return null;
+}
+
+function isGenerationConfigBlockedMessage(message: string) {
+  return /GENERATION_BLOCKED:(?:OPENAI_API_KEY is missing|AI_GENERATION_ENABLED=false)/.test(message);
+}
+
 function ctaModeFromIdea(idea: Row): 'none' | 'soft' | 'save' | 'comment' | 'follow' {
   const text = String(idea.cta_text ?? '').toLowerCase();
   if (/follow/.test(text)) return 'follow';
@@ -77,6 +89,19 @@ export async function processQueuedIdeas(
         report.push({ id, status: 'EXPIRED_SLOT', slot_id: linkedSlotId });
         continue;
       }
+    }
+
+    const configBlock = generationConfigBlockReason();
+    if (configBlock) {
+      const message = `GENERATION_BLOCKED:${configBlock}`;
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        status: 'BLOCKED_CONFIG',
+        last_error: message,
+        finished_at: null,
+      });
+      await updateContentSlot(idea.slot_id, { status: 'BLOCKED_CONFIG' });
+      report.push({ id, status: 'BLOCKED_CONFIG', reason: configBlock });
+      continue;
     }
 
     const contentType = String(idea.content_type);
@@ -173,6 +198,16 @@ export async function processQueuedIdeas(
       report.push({ id, carousel_id: carouselId, status: assetBlocked ? 'NEEDS_ASSETS' : renderStatus, render_error: renderError });
     } catch (error) {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
+      if (isGenerationConfigBlockedMessage(message)) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+          status: 'BLOCKED_CONFIG',
+          last_error: message,
+          finished_at: null,
+        });
+        await updateContentSlot(idea.slot_id, { status: 'BLOCKED_CONFIG' });
+        report.push({ id, status: 'BLOCKED_CONFIG', error: message });
+        continue;
+      }
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'FAILED', last_error: message, finished_at: new Date().toISOString() });
       await updateContentSlot(idea.slot_id, { status: 'FAILED' });
       report.push({ id, status: 'FAILED', error: message });
@@ -256,6 +291,48 @@ export async function resumeAssetBlockedIdeas(limit = 50) {
       await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
       report.push({ id, status: 'QUEUED', action: 'RESUME_GENERATION' });
     }
+  }
+  return report;
+}
+
+
+export async function resumeConfigBlockedIdeas(limit = 200) {
+  const configBlock = generationConfigBlockReason();
+  if (configBlock) return [{ action: 'CONFIG_STILL_BLOCKED', reason: configBlock }];
+
+  const ideas = await rows(
+    `carousel_ideas?workspace_id=eq.cortifree&status=eq.BLOCKED_CONFIG&order=updated_at.asc&limit=${limit}`,
+  );
+  const report: Row[] = [];
+  for (const idea of ideas) {
+    const id = String(idea.id ?? '').trim();
+    if (!id) continue;
+    const slotId = String(idea.slot_id ?? '').trim();
+    if (slotId && !idea.carousel_id) {
+      const slot = (await rows(
+        `content_slots?id=eq.${encodeURIComponent(slotId)}&workspace_id=eq.cortifree&select=id,scheduled_for&limit=1`,
+      ))[0];
+      const scheduledAt = Date.parse(String(slot?.scheduled_for ?? ''));
+      if (slot && Number.isFinite(scheduledAt) && scheduledAt <= Date.now()) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+          status: 'EXPIRED_SLOT',
+          last_error: 'SLOT_MISSED_WHILE_CONFIG_BLOCKED',
+          finished_at: new Date().toISOString(),
+        });
+        await updateContentSlot(slotId, { status: 'MISSED' });
+        report.push({ id, status: 'EXPIRED_SLOT', slot_id: slotId });
+        continue;
+      }
+    }
+
+    await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+      status: 'QUEUED',
+      last_error: null,
+      started_at: null,
+      finished_at: null,
+    });
+    await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
+    report.push({ id, status: 'QUEUED', action: 'CONFIG_RECOVERED' });
   }
   return report;
 }
