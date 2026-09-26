@@ -109,11 +109,19 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
     const health=diagnostics[i]||{level:"ok",issues:[]};
     const ids=assignedIds(i),fallback=assets.find(a=>String(a.id)===String(ids[0]))?.public_url;
     const thumb=slides[i]?.rendered_url||carousel.spec?.rendered_slides?.[i]?.url||fallback||"";
-    return <button key={s.position??i} className={i===active?"active":""} onClick={()=>{setActive(i);setSelection("headline");setEditingText(null);setPreviewMode(false)}}>
-      <div className="ce-thumb-wrap">{thumb?<img src={thumb} alt={"Slide "+(i+1)}/>:<div className="ce-thumb-empty">No render</div>}<span className={"ce-health "+health.level}>{health.level==="ok"?"✓":health.level==="error"?"!":"⚠"}</span></div>
-      <div className="ce-slide-meta"><b>{String(s.position??i+1).padStart(2,"0")}</b><span>{String(s.role||"slide").toLowerCase()}</span></div>
-    </button>
+    const protectedSlide=isStructureProtected(i);
+    return <div key={s.position??i} className={"ce-slide-card "+(i===active?"active ":"")+(slideDragIndex===i?"dragging ":"")} draggable={!protectedSlide&&!structureBusy} onDragStart={e=>{if(protectedSlide){e.preventDefault();return}setSlideDragIndex(i);e.dataTransfer.effectAllowed="move"}} onDragOver={e=>{if(slideDragIndex!==null&&!protectedSlide){e.preventDefault();e.dataTransfer.dropEffect="move"}}} onDrop={e=>{e.preventDefault();if(slideDragIndex!==null&&!protectedSlide&&slideDragIndex!==i)void structureAction({action:"reorder",fromIndex:slideDragIndex,toIndex:i})}} onDragEnd={()=>setSlideDragIndex(null)}>
+      <button className="ce-slide-main" onClick={()=>{setActive(i);setSelection("headline");setEditingText(null);setPreviewMode(false)}}>
+       <div className="ce-thumb-wrap">{thumb?<img src={thumb} alt={"Slide "+(i+1)}/>:<div className="ce-thumb-empty">No render</div>}<span className={"ce-health "+health.level}>{health.level==="ok"?"✓":health.level==="error"?"!":"⚠"}</span>{protectedSlide&&<span className="ce-structure-lock" title="Protected format slide">◆</span>}</div>
+       <div className="ce-slide-meta"><b>{String(s.position??i+1).padStart(2,"0")}</b><span>{String(s.role||"slide").toLowerCase()}</span><i>{protectedSlide?"fixed":"drag"}</i></div>
+      </button>
+      <div className="ce-slide-actions">
+       <button disabled={protectedSlide||generated.length>=12||structureBusy} title="Duplicate slide" onClick={()=>void structureAction({action:"duplicate",index:i})}>⧉</button>
+       <button disabled={protectedSlide||generated.length<=4||structureBusy} title="Delete slide" onClick={()=>void structureAction({action:"delete",index:i})}>×</button>
+      </div>
+     </div>
    })}
+   <div className="ce-slide-help">Drag middle slides to reorder. Hook and CTA stay fixed.</div>
   </aside>
 
   <section className="ce-work">
