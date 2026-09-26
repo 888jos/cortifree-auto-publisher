@@ -324,7 +324,7 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "MODELARK_ORPHAN_RECOVERY") return runModelArkOrphanRecovery(job.payload ?? {});
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
   if (job.kind === "ACCEPTANCE_SAMPLE") return runAcceptanceSample(job.payload ?? {});
-  if (job.kind === "PERSONA_CACHE_REFILL") return refillPersonaCaches();
+  if (job.kind === "PERSONA_CACHE_REFILL") return refillPersonaCaches({ personaIds: Array.isArray(job.payload?.persona_ids) ? job.payload.persona_ids.map(String) : undefined });
   if (job.kind === "SCHEDULER_RUN") return runScheduler();
   if (job.kind === "BAD_REFERENCE_CLEANUP") return cleanupNonUserReferenceAssets();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
