@@ -27,7 +27,10 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
   const generationEnabled = process.env.IMAGE_GENERATION_ENABLED === 'true';
   const report: Row[] = [];
   const requestedPersonaIds = new Set((options.personaIds ?? []).map((id) => id.trim().toUpperCase()).filter(Boolean));
-  const active = accounts.filter((account) => account.enabled && (!requestedPersonaIds.size || requestedPersonaIds.has(account.persona_id)));
+  const active = accounts.filter((account) =>
+    (!requestedPersonaIds.size ? account.enabled : requestedPersonaIds.has(account.persona_id))
+    && !["PAUSED","ERROR"].includes(account.warmup_status)
+  );
   const rejectedReferenceJobs = await rows(
     'image_generation_jobs?workspace_id=eq.cortifree&status=eq.FAILED&select=visual_reference_id,last_error&order=created_at.desc&limit=200',
   );
