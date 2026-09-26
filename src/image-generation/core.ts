@@ -90,3 +90,9 @@ export class ModelArkSeedreamProvider implements ImageGenerationProvider {
     return { url: image.url, base64: image.b64_json, model: this.options.model };
   }
 }
+
+
+export function isPermanentImageGenerationError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /InputImageSensitiveContentDetected|SensitiveContent|ModelArk\s+400\b|BadRequest|content\s*policy|moderation/i.test(message);
+}
