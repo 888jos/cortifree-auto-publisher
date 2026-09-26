@@ -1112,18 +1112,55 @@ export async function renderCarousel(input: {
   }
   const usedReferenceIds = new Set<string>();
   const repairedPositions = new Set<number>();
+  const editorOverrides = ((input.spec.editor_overrides ?? {}) as Record<string, { headline?: string; body?: string; assetId?: string | number; assetIds?: Array<string | number>; text?: Record<string, unknown>; image?: Record<string, unknown>; imageSlots?: Frame[] }>);
+  const previousRendered = Array.isArray(input.spec.rendered_slides) ? input.spec.rendered_slides as Array<Record<string, unknown>> : [];
+  function lockedIdsForSlide(slide: GeneratedSlide, index: number) {
+    const override = editorOverrides[String(slide.position)] ?? {};
+    if (override.assetIds?.length) return override.assetIds;
+    if (override.assetId != null) return [override.assetId];
+    const previous = previousRendered.find((item) => Number(item.position) === Number(slide.position)) ?? previousRendered[index];
+    const previousIds = Array.isArray(previous?.assetIds) ? previous!.assetIds as Array<string | number> : [];
+    if (previousIds.length) return previousIds;
+    return previous?.assetId != null ? [previous.assetId as string | number] : [];
+  }
+  function lockedMatchesForSlide(slide: GeneratedSlide, index: number): AssetMatch[] {
+    return lockedIdsForSlide(slide, index).map((id) => {
+      const asset = assets.find((item) => String(item.id) === String(id));
+      return asset ? { asset, score: 999, matchedTerms: ["locked_existing_asset"], fallbackPath: "locked_existing_asset", thresholdBypassed: true } as AssetMatch : null;
+    }).filter((item): item is AssetMatch => Boolean(item));
+  }
+  function rerenderSupportFallback(primary: AssetMatch, used: Set<string>): AssetMatch | null {
+    if (!previousRendered.length) return null;
+    const candidates = assets.filter((asset) => !used.has(String(asset.id)));
+    const ranked = candidates.sort((a, b) => {
+      const score = (asset: typeof a) =>
+        (asset.persona_id === input.personaId ? 100 : 0)
+        + (asset.category === primary.asset.category ? 30 : 0)
+        + (asset.source_type === "persona_generated" ? 10 : 0)
+        - Number(asset.use_count ?? 0);
+      return score(b) - score(a);
+    });
+    const asset = ranked[0];
+    return asset ? { asset, score: 0, matchedTerms: [], fallbackPath: "rerender_support_fallback", thresholdBypassed: true } as AssetMatch : null;
+  }
   let gridMatches: AssetMatch[][] = [];
   for (let attempt = 0; attempt <= Math.max(2, input.slides.length); attempt += 1) {
     try {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
       const multiImageLayout = input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero" || input.layout === "editorial-collage" || input.layout === "ranking" || input.layout === "lifestyle-3stack";
-      const matches = chooseAssets({
-        assets,
-        carouselType: input.carouselType,
-        personaId: input.personaId,
-        excludedAssetIds: recentHookAssetIds,
-        slides: input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides,
+      const selectionSlides = input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides;
+      const matches = selectionSlides.map((slide, selectionIndex) => {
+        const actualIndex = input.layout === "grid-2x2" ? 0 : selectionIndex;
+        const locked = lockedMatchesForSlide(slide, actualIndex)[0];
+        if (locked) return locked;
+        return chooseAssets({
+          assets,
+          carouselType: input.carouselType,
+          personaId: input.personaId,
+          excludedAssetIds: recentHookAssetIds,
+          slides: [slide],
+        })[0]!;
       });
       if (input.layout === "interactive-checklist") {
         const shared = matches[0]!;
@@ -1138,7 +1175,8 @@ export async function renderCarousel(input: {
       const usedCarouselAssets = new Set<string>(matches.filter(Boolean).map((match) => String(match.asset.id)));
       if (multiImageLayout) {
         gridMatches = input.slides.map((slide, index) => {
-          const primary = matches[index]!;
+          const locked = lockedMatchesForSlide(slide, index);
+          const primary = locked[0] ?? matches[index]!;
           const desiredCount = input.layout === "three-rect-educational"
             ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 3)
             : input.layout === "editorial-asym-hero"
@@ -1149,7 +1187,8 @@ export async function renderCarousel(input: {
                 ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 1 : 3)
               : (index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 1;
           if (desiredCount === 1) return [primary];
-          const selected: AssetMatch[] = [primary];
+          const selected: AssetMatch[] = locked.length ? locked.slice(0, desiredCount) : [primary];
+          selected.forEach((match) => usedCarouselAssets.add(String(match.asset.id)));
           while (selected.length < desiredCount) {
             try {
               const next = chooseAssets({
@@ -1162,6 +1201,12 @@ export async function renderCarousel(input: {
               selected.push(next);
               usedCarouselAssets.add(String(next.asset.id));
             } catch (error) {
+              const fallback = rerenderSupportFallback(primary, usedCarouselAssets);
+              if (fallback) {
+                selected.push(fallback);
+                usedCarouselAssets.add(String(fallback.asset.id));
+                continue;
+              }
               const message = error instanceof Error ? error.message : String(error);
               throw new Error(`${message}:slide_${slide.position}`);
             }
@@ -1173,7 +1218,10 @@ export async function renderCarousel(input: {
 
       const usedGridAssets = new Set<string>([matches[0]!.asset.id]);
       gridMatches = input.slides.map((slide, index) => {
-        if (index === 0 || slide.role.toUpperCase() === "HOOK") return [matches[0]!];
+        const locked = lockedMatchesForSlide(slide, index);
+        if (index === 0 || slide.role.toUpperCase() === "HOOK") return locked.length ? [locked[0]!] : [matches[0]!];
+        if (locked.length >= 4) return locked.slice(0, 4);
+        if (locked.length >= 2) return [locked[0]!, locked[1]!, locked[1]!, locked[0]!];
         const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
         const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, excludedAssetIds: usedGridAssets, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
         selected.forEach((match) => usedGridAssets.add(match.asset.id));
@@ -1192,7 +1240,6 @@ export async function renderCarousel(input: {
     }
   }
   if (!gridMatches.length) throw new Error("CAROUSEL_RENDER_SELECTION_FAILED");
-  const editorOverrides = ((input.spec.editor_overrides ?? {}) as Record<string, { headline?: string; body?: string; assetId?: string | number; assetIds?: Array<string | number>; text?: Record<string, unknown>; image?: Record<string, unknown>; imageSlots?: Frame[] }>);
   const prepared = await Promise.all(input.slides.map(async (sourceSlide, index) => {
     const override = editorOverrides[String(sourceSlide.position)] ?? {};
     const slide = { ...sourceSlide, headline: override.headline ?? sourceSlide.headline, body: override.body ?? sourceSlide.body };
