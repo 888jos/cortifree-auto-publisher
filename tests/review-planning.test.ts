@@ -49,6 +49,17 @@ describe("review planning workflow", () => {
     assert.ok(reject.every((button) => !button.callback_data || button.callback_data.length <= 64));
   });
 
+  it("uses canonical content slots as the planning matrix source", async () => {
+    const planningApi = await fs.readFile(path.join(process.cwd(), "app/api/planning/route.ts"), "utf8");
+    const planningLib = await fs.readFile(path.join(process.cwd(), "app/lib/planning.ts"), "utf8");
+    assert.match(planningApi, /content_slots\?workspace_id=eq\.cortifree/);
+    assert.match(planningApi, /source: "content_slots"/);
+    assert.doesNotMatch(planningApi, /publish_jobs\?/);
+    assert.match(planningLib, /MANUAL_SLOT_/);
+    assert.match(planningLib, /calendar_slot_id: slotId/);
+    assert.match(planningLib, /status: "PLANNED"/);
+  });
+
   it("keeps approval separate from planning and publishing", async () => {
     const approveRoute = await fs.readFile(path.join(process.cwd(), "app/api/review/approve/route.ts"), "utf8");
     const publishing = await fs.readFile(path.join(process.cwd(), "src/autonomy/publishing.ts"), "utf8");
