@@ -915,10 +915,11 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
         const stats = await sharp(imageBytes).stats();
         averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
       }
-      const fitted = await sharp(imageBytes).rotate().resize({ width: tileWidth, height: tileHeight, fit: "cover", position: "centre" }).png().toBuffer();
+      const [fallbackLeft, fallbackTop] = positions[index]!;
+      const place = editorSlot(geometry, index, { left: fallbackLeft, top: fallbackTop, width: tileWidth, height: tileHeight });
+      const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       if (index === 0) hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
-      const [left, top] = positions[index]!;
-      composites.push({ input: fitted, left, top });
+      composites.push({ input: fitted, left: place.left, top: place.top });
     }
   } else if (imageFrame.mode === "three-rect-educational") {
     const placements = isHook
@@ -968,8 +969,9 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       const imageBytes = await selectedAssetBytes(matches[0]!);
       const stats = await sharp(imageBytes).stats();
       averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
-      const fitted = await sharp(imageBytes).rotate().resize({ width: 1080, height: 1350, fit: "cover", position: "centre" }).png().toBuffer();
-      composites.push({ input: fitted, left: 0, top: 0 });
+      const place = editorSlot(geometry, 0, { left: 0, top: 0, width: 1080, height: 1350 });
+      const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
+      composites.push({ input: fitted, left: place.left, top: place.top });
     } else {
       const placements = [
         { left: 0, top: 0, width: 1080, height: 450 },
@@ -1000,16 +1002,19 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
       ];
       for (const [index, match] of matches.slice(0, 2).entries()) {
         const imageBytes = await selectedAssetBytes(match);
-        const place = placements[index]!;
-        const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
+        const place = editorSlot(geometry, index, placements[index]!);
+        const fitted = geometry.imageSlots?.[index]
+          ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
+          : await roundedPhoto(imageBytes, place.width, place.height, 24);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
     } else {
       const imageBytes = await selectedAssetBytes(matches[0]!);
-      const place = isFinal
-        ? { left: 330, top: 900, width: 420, height: 300 }
-        : { left: 330, top: 900, width: 420, height: 300 };
-      const fitted = await roundedPhoto(imageBytes, place.width, place.height, 24);
+      const basePlace = { left: 330, top: 900, width: 420, height: 300 };
+      const place = editorSlot(geometry, 0, basePlace);
+      const fitted = geometry.imageSlots?.[0]
+        ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
+        : await roundedPhoto(imageBytes, place.width, place.height, 24);
       composites.push({ input: fitted, left: place.left, top: place.top });
     }
     averageLuminance = 235;
