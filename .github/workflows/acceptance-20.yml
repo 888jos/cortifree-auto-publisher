@@ -2,11 +2,6 @@ name: Generate CortiFree acceptance 20
 
 on:
   workflow_dispatch:
-    inputs:
-      account_id:
-        description: "CortiFree account used for the acceptance batch"
-        required: false
-        default: "CF_EN_01"
 
 permissions:
   contents: read
@@ -29,7 +24,6 @@ jobs:
       MODELARK_API_KEY: ${{ secrets.MODELARK_API_KEY }}
       MODELARK_MODEL_ID: ${{ secrets.MODELARK_MODEL_ID || vars.MODELARK_MODEL_ID }}
       IMAGE_GENERATION_ENABLED: "false"
-      ACCEPTANCE_ACCOUNT_ID: ${{ inputs.account_id }}
       ALLOW_RUNTIME_JSON_FALLBACK: "false"
       DRY_RUN: "true"
       AUTONOMY_AUTO_APPROVE: "false"
