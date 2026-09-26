@@ -27,6 +27,17 @@ export const editorialContextSchema = z.object({
   account_id: z.string(), persona_id: z.string(),
   brand_integration: z.object({ required: z.boolean(), mention: z.string(), screenshot_required: z.boolean() }),
 });
+export const healthGuardrailsSchema = z.object({
+  sources: z.array(z.object({
+    sourceId: z.string(), topic: z.string(), organization: z.string().nullable(), title: z.string(), url: z.string().url(),
+    evidenceLevel: z.string().nullable(), allowedClaims: z.string().nullable(),
+  })).max(50),
+  rules: z.array(z.object({
+    ruleId: z.string(), topic: z.string(), riskLevel: z.string(), claimType: z.string().nullable(),
+    allowedWording: z.string().nullable(), avoidWording: z.string().nullable(), exampleSafe: z.string().nullable(),
+    requiresSource: z.boolean(), sourceIds: z.array(z.string()),
+  })).max(100),
+});
 export const carouselGeneratorInputSchema = z.object({
   carouselType: carouselTypeSchema,
   layout: z.string().min(1).max(80),
@@ -44,6 +55,7 @@ export const carouselGeneratorInputSchema = z.object({
   hookId: z.string().min(1).optional(),
   formatId: z.string().min(1).optional(),
   editorialContext: editorialContextSchema.optional(),
+  healthGuardrails: healthGuardrailsSchema.optional(),
   requireCanonicalContext: z.boolean().default(false),
 });
 export const carouselSlideSchema = z.object({
