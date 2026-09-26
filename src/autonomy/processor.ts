@@ -164,7 +164,7 @@ export async function processQueuedIdeas(
 }
 
 export async function retryPendingRenders(limit = 20) {
-  const drafts = (await rows(`carousels?status=eq.DRAFT&order=created_at.asc&limit=${limit}`)).slice(0, limit);
+  const drafts = (await rows(`carousels?status=eq.DRAFT&select=*&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
   for (const carousel of drafts) {
     const id = String(carousel.id);
@@ -181,9 +181,23 @@ export async function retryPendingRenders(limit = 20) {
       }
       await assertCarouselHasCompleteRender(id);
       await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', review_status: 'AWAITING_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
+      if (carousel.source_idea_id) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
+          status: 'GENERATED', render_status: 'READY_FOR_REVIEW', last_error: null,
+        });
+      }
+      await updateContentSlot(carousel.calendar_slot_id, { status: 'READY_FOR_REVIEW', carousel_id: id });
       report.push({ id, status: 'READY_FOR_REVIEW', rendered: rendered.length });
     } catch (error) {
-      report.push({ id, status: 'DRAFT', error: error instanceof Error ? error.message : String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET/i.test(message);
+      if (assetBlocked && carousel.source_idea_id) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
+          status: 'NEEDS_ASSETS', render_status: 'NEEDS_ASSETS', last_error: message.slice(0,1000),
+        });
+      }
+      if (assetBlocked) await updateContentSlot(carousel.calendar_slot_id, { status: 'NEEDS_ASSETS', carousel_id: id });
+      report.push({ id, status: assetBlocked ? 'NEEDS_ASSETS' : 'DRAFT', error: message });
     }
   }
   return report;
@@ -210,11 +224,20 @@ export async function resumeAssetBlockedIdeas(limit = 50) {
       report.push({ id, status: 'NEEDS_ASSETS', reasons: preflight.reasons });
       continue;
     }
-    await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
-      status: 'QUEUED', render_status: null, last_error: null,
-    });
-    await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
-    report.push({ id, status: 'QUEUED' });
+    const existingCarouselId = String(idea.carousel_id ?? "").trim();
+    if (existingCarouselId) {
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        status: 'GENERATED', render_status: 'DRAFT', last_error: null,
+      });
+      await updateContentSlot(idea.slot_id, { status: 'DRAFT', carousel_id: existingCarouselId });
+      report.push({ id, status: 'DRAFT', carousel_id: existingCarouselId, action: 'RERENDER_EXISTING' });
+    } else {
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        status: 'QUEUED', render_status: null, last_error: null,
+      });
+      await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
+      report.push({ id, status: 'QUEUED', action: 'RESUME_GENERATION' });
+    }
   }
   return report;
 }
