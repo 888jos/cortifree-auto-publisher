@@ -48,14 +48,16 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
     const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);
     const jobs: Row[] = [];
+    const sceneStart = sceneRows.length ? existing.length % sceneRows.length : 0;
     for (let index = 0; index < need; index += 1) {
-      const scene = sceneRows[index % Math.max(sceneRows.length, 1)];
+      const scene = sceneRows[(sceneStart + index) % Math.max(sceneRows.length, 1)];
       if (!scene) break;
       const categories = Array.isArray(scene.recommended_reference_categories) ? scene.recommended_reference_categories.map(String) : [];
       const preferred = refs.filter((ref) => categories.includes(ref.category));
       const rotated = preferred.filter((ref) => !recentReferenceIds.has(ref.id));
       const reference = (rotated.length ? rotated : preferred).at(index % Math.max((rotated.length ? rotated : preferred).length, 1)) ?? refs.find((ref) => !recentReferenceIds.has(ref.id)) ?? refs[index % Math.max(refs.length, 1)];
       if (!reference) break;
+      recentReferenceIds.add(reference.id);
       const input = imageGenerationInputSchema.parse({
         persona_id: account.persona_id, master_asset_id: master.id, visual_reference_id: reference.id,
         scene: String(scene.scene_description ?? scene.id), category: String(scene.category ?? 'other'),
