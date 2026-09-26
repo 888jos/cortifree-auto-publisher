@@ -9,6 +9,16 @@ async function rows(resource: string): Promise<Row[]> {
   return await response.json() as Row[];
 }
 
+async function post(resource: string, body: Row) {
+  const response = await dataBackend(resource, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json() as Row[];
+}
+
 async function patch(resource: string, body: Row) {
   const response = await dataBackend(resource, {
     method: "PATCH",
@@ -74,7 +84,7 @@ export async function scheduleCarousel(input: {
 }) {
   const actor = input.actor?.trim() || "admin";
   const carousel = (await rows(
-    `carousels?id=eq.${encodeURIComponent(input.carouselId)}&workspace_id=eq.cortifree&select=id,account_id,status,review_status,current_version,approved_version,approved_hash,content_hash,approved_at,calendar_slot_id&limit=1`,
+    `carousels?id=eq.${encodeURIComponent(input.carouselId)}&workspace_id=eq.cortifree&select=id,account_id,persona_id,status,review_status,current_version,approved_version,approved_hash,content_hash,approved_at,calendar_slot_id&limit=1`,
   ))[0];
   if (!carousel) throw new Error(`Carousel not found: ${input.carouselId}`);
   if (!["APPROVED","PLANNED","SCHEDULED"].includes(String(carousel.status))) {
@@ -92,28 +102,63 @@ export async function scheduleCarousel(input: {
   ))[0];
   if (!account) throw new Error(`Account not found: ${accountId}`);
   if (account.enabled === false) throw new Error(`ACCOUNT_DISABLED: ${accountId}`);
+  const linkedSlotId = String(carousel.calendar_slot_id ?? "").trim();
+  const linkedSlot = linkedSlotId
+    ? (await rows(
+        `content_slots?id=eq.${encodeURIComponent(linkedSlotId)}&workspace_id=eq.cortifree&select=id,status,scheduled_for,timezone&limit=1`,
+      ))[0]
+    : null;
   const providerJob = (await rows(
     `publish_jobs?workspace_id=eq.cortifree&carousel_id=eq.${encodeURIComponent(input.carouselId)}&status=in.(SCHEDULING,SCHEDULED,PUBLISHING,PUBLISHED)&select=id,status,provider_request_id&order=created_at.desc&limit=1`,
   ))[0];
   if (providerJob?.provider_request_id) throw new Error("PROVIDER_SCHEDULE_ALREADY_CREATED");
 
+  const timezone = String(account.timezone ?? linkedSlot?.timezone ?? "America/New_York");
   let scheduled: Date;
   if (input.mode === "exact" || input.scheduledFor) {
     scheduled = new Date(String(input.scheduledFor ?? ""));
     if (!Number.isFinite(scheduled.getTime())) throw new Error("scheduledFor is invalid");
     if (scheduled.getTime() <= Date.now() + 60_000) throw new Error("scheduledFor must be in the future");
   } else {
-    scheduled = nextAccountPostingTime(
-      Array.isArray(account.posting_slots) ? account.posting_slots.map(String) : [],
-      String(account.timezone ?? "America/New_York"),
-    );
+    const canonicalSlotAt = linkedSlot?.scheduled_for ? new Date(String(linkedSlot.scheduled_for)) : null;
+    scheduled = canonicalSlotAt && Number.isFinite(canonicalSlotAt.getTime()) && canonicalSlotAt.getTime() > Date.now() + 60_000
+      ? canonicalSlotAt
+      : nextAccountPostingTime(
+          Array.isArray(account.posting_slots) ? account.posting_slots.map(String) : [],
+          timezone,
+        );
   }
 
   const scheduledFor = scheduled.toISOString();
+  const local = localParts(scheduled, timezone);
+  const slotDate = `${local.year}-${String(local.month).padStart(2,"0")}-${String(local.day).padStart(2,"0")}`;
+  const slotTime = `${String(local.hour).padStart(2,"0")}:${String(local.minute).padStart(2,"0")}`;
+  const slotId = linkedSlotId || `MANUAL_SLOT_${input.carouselId}_${scheduledFor.replace(/[^0-9]/g,"").slice(0,14)}`;
+
+  if (!linkedSlotId) {
+    await post("content_slots?on_conflict=id", {
+      id: slotId,
+      workspace_id: "cortifree",
+      account_id: accountId,
+      persona_id: carousel.persona_id ?? null,
+      slot_date: slotDate,
+      slot_time: slotTime,
+      timezone,
+      scheduled_for: scheduledFor,
+      strategy: "MANUAL",
+      status: "APPROVED",
+      carousel_id: input.carouselId,
+      source: "manual_planning",
+      metadata: { created_from_approved_carousel: true, actor },
+      updated_at: new Date().toISOString(),
+    });
+  }
+
   await patch(`carousels?id=eq.${encodeURIComponent(input.carouselId)}`, {
     status: "PLANNED",
     review_status: "PLANNED",
     scheduled_for: scheduledFor,
+    calendar_slot_id: slotId,
     last_review_action: "PLANNED",
   });
   await recordReviewEvent({
@@ -124,14 +169,15 @@ export async function scheduleCarousel(input: {
     beforeVersion: currentVersion,
     afterVersion: currentVersion,
   });
-  if (carousel.calendar_slot_id) {
-    await patch(`content_slots?id=eq.${encodeURIComponent(String(carousel.calendar_slot_id))}&workspace_id=eq.cortifree`, {
-      status: "PLANNED",
-      carousel_id: input.carouselId,
-      scheduled_for: scheduledFor,
-    });
-  }
-  return { carouselId: input.carouselId, status: "PLANNED", scheduledFor };
+  await patch(`content_slots?id=eq.${encodeURIComponent(slotId)}&workspace_id=eq.cortifree`, {
+    status: "PLANNED",
+    carousel_id: input.carouselId,
+    slot_date: slotDate,
+    slot_time: slotTime,
+    timezone,
+    scheduled_for: scheduledFor,
+  });
+  return { carouselId: input.carouselId, slotId, status: "PLANNED", scheduledFor };
 }
 
 export async function unscheduleCarousel(carouselId: string, actor = "admin") {
