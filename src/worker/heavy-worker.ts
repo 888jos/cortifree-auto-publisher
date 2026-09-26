@@ -10,7 +10,7 @@ import { recoverModelArkOrphans } from "../../app/lib/recovery/modelark-orphans"
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { createAcceptanceSample, runScheduler } from "../autonomy/scheduler";
-import { processQueuedIdeas, resumeAssetBlockedIdeas, retryPendingRenders } from "../autonomy/processor";
+import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
@@ -203,6 +203,7 @@ async function runAutonomy() {
   await stage("cacheRefill", refillPersonaCaches);
   await stage("imageJobs", processPendingImageJobs);
   await stage("assetRecovery", resumeAssetBlockedIdeas);
+  await stage("configRecovery", resumeConfigBlockedIdeas);
   await stage("scheduler", runScheduler);
   await stage("drafts", processQueuedIdeas);
   await stage("rerenders", retryPendingRenders);
