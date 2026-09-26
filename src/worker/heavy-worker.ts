@@ -119,7 +119,7 @@ function stale(lockedAt: unknown) {
 
 async function recoverStaleJobs() {
   const generic = await rows<WorkerJob>("worker_jobs?workspace_id=eq.cortifree&status=eq.RUNNING&select=*&limit=100");
-  for (const job of generic.filter((item) => stale(item.locked_at))) {
+  for (const job of generic.filter((item) => stale(item.locked_at ?? item.started_at))) {
     await patch(`worker_jobs?id=eq.${encodeURIComponent(job.id)}&status=eq.RUNNING`, {
       status: "RETRY",
       worker_id: null,
@@ -129,8 +129,8 @@ async function recoverStaleJobs() {
     });
   }
 
-  const imageJobs = await rows("image_generation_jobs?workspace_id=eq.cortifree&status=eq.RUNNING&select=id,locked_at&limit=100");
-  for (const job of imageJobs.filter((item) => stale(item.locked_at))) {
+  const imageJobs = await rows("image_generation_jobs?workspace_id=eq.cortifree&status=eq.RUNNING&select=id,locked_at,started_at&limit=100");
+  for (const job of imageJobs.filter((item) => stale(item.locked_at ?? item.started_at))) {
     await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}&status=eq.RUNNING`, {
       status: "RETRY",
       worker_id: null,
