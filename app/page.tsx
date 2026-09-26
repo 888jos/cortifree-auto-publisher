@@ -20,7 +20,7 @@ type ImageJob = { id: string; status: string; output_asset_id?: string | number;
 type PersonaScene = { id: string; category: string; scene_description: string };
 type AssetTab = "All Assets" | "Stock" | "Persona Generated" | "Masters" | "Visual References";
 
-const menus = ["Carrousels", "Edit", "Overview", "Content studio", "Models", "Hook library", "Asset library", "Calendar", "Settings"] as const;
+const menus = ["Carrousels", "Edit", "Overview", "Content studio", "Formats", "Hook library", "Asset library", "Calendar", "Settings"] as const;
 const referenceImages = [
   {
     src: "https://p16-common-sign.tiktokcdn-eu.com/tos-no1a-i-photomode-no/d6e07a2a6336432d936d5f58dfb95676~tplv-photomode-image.jpeg?dr=10375&x-expires=1788782400&x-signature=W%2F68OxVnQe7H1cgTkzl1CfanNcM%3D&t=4d5b0474&ps=13740610&shp=81f88b70&shcp=9b759fb9&idc=no1a&ftpl=1",
@@ -1202,7 +1202,7 @@ export default function Home() {
           </section>
         )}
 
-        {(active === "Overview" || active === "Models") && (
+        {active === "Overview" && (
           <section className="typeBand">
             <div className="panelHead">
               <div>
@@ -1248,6 +1248,30 @@ export default function Home() {
                   </button>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {active === "Formats" && (
+          <section className="modelsBand">
+            <div className="panelHead">
+              <div>
+                <p className="eyebrow">CANONICAL FORMATS</p>
+                <h2>F01–F08</h2>
+                <p className="muted">Ces formats sont ceux réellement utilisés par le renderer, le worker et l’éditeur.</p>
+              </div>
+              <span className="modelCount">{modelData.length} formats</span>
+            </div>
+            <div className="modelGrid">
+              {modelData.map((model) => (
+                <button className="modelCard" key={model.id} onClick={() => pickModel(model.id)} type="button">
+                  <LayoutMockup layout={model.layout} reference={model.reference} sample={model.spec.sample} />
+                  <span>{model.slides}</span>
+                  <h3>{model.name}</h3>
+                  <p>{model.format}</p>
+                  <small>{model.spec.bestFor}</small>
+                </button>
+              ))}
             </div>
           </section>
         )}
