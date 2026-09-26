@@ -28,6 +28,15 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
   const report: Row[] = [];
   const requestedPersonaIds = new Set((options.personaIds ?? []).map((id) => id.trim().toUpperCase()).filter(Boolean));
   const active = accounts.filter((account) => account.enabled && (!requestedPersonaIds.size || requestedPersonaIds.has(account.persona_id)));
+  const rejectedReferenceJobs = await rows(
+    'image_generation_jobs?workspace_id=eq.cortifree&status=eq.FAILED&select=visual_reference_id,last_error&order=created_at.desc&limit=200',
+  );
+  const rejectedReferenceIds = new Set(
+    rejectedReferenceJobs
+      .filter((row) => /InputImageSensitiveContentDetected|SensitiveContent/i.test(String(row.last_error ?? "")))
+      .map((row) => String(row.visual_reference_id ?? ""))
+      .filter(Boolean),
+  );
 
   for (const account of active) {
     const existing = await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`);
@@ -42,13 +51,11 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       .filter((result) => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
-    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(DONE,FAILED)&select=visual_reference_id,status,last_error&order=created_at.desc&limit=20`);
+    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=eq.DONE&select=visual_reference_id&order=created_at.desc&limit=20`);
     const recentReferenceIds = new Set(
-      recentJobs
-        .filter((row) => String(row.status) === "DONE" || /InputImageSensitiveContentDetected|SensitiveContent/i.test(String(row.last_error ?? "")))
-        .map((row) => String(row.visual_reference_id ?? ""))
-        .filter(Boolean),
+      recentJobs.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean),
     );
+    const allowedRefs = refs.filter((ref) => !rejectedReferenceIds.has(ref.id));
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
     const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);
@@ -58,9 +65,12 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       const scene = sceneRows[(sceneStart + index) % Math.max(sceneRows.length, 1)];
       if (!scene) break;
       const categories = Array.isArray(scene.recommended_reference_categories) ? scene.recommended_reference_categories.map(String) : [];
-      const preferred = refs.filter((ref) => categories.includes(ref.category));
+      const preferred = allowedRefs.filter((ref) => categories.includes(ref.category));
       const rotated = preferred.filter((ref) => !recentReferenceIds.has(ref.id));
-      const reference = (rotated.length ? rotated : preferred).at(index % Math.max((rotated.length ? rotated : preferred).length, 1)) ?? refs.find((ref) => !recentReferenceIds.has(ref.id)) ?? refs[index % Math.max(refs.length, 1)];
+      const pool = rotated.length ? rotated : preferred;
+      const reference = pool.at(index % Math.max(pool.length, 1))
+        ?? allowedRefs.find((ref) => !recentReferenceIds.has(ref.id))
+        ?? allowedRefs[index % Math.max(allowedRefs.length, 1)];
       if (!reference) break;
       recentReferenceIds.add(reference.id);
       const input = imageGenerationInputSchema.parse({
