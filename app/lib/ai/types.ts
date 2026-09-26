@@ -45,6 +45,7 @@ export type EditorialContext = {
   trend_terms: string[];
   persona_voice: string;
   golden_example_ids: string[];
+  concept_id?: string;
   topic_id: string;
   hook_id: string;
   format_id: string;
