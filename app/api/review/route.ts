@@ -21,14 +21,16 @@ export async function GET(request: Request) {
     const all = await rows(
       "carousels?workspace_id=eq.cortifree&select=id,account_id,persona_id,topic,angle,content_type,status,review_status,review_notes,current_version,revision_count,approved_version,approved_at,rejected_at,rejection_reason_code,rejection_action,scheduled_for,spec,created_at&order=created_at.desc&limit=1000",
     );
-    const summary = all.reduce<Record<string, number>>((totals, row) => {
+    const operational = all.filter((row) => String(row.status ?? "") !== "ARCHIVED");
+    const summary = operational.reduce<Record<string, number>>((totals, row) => {
       const key = String(row.review_status ?? "UNKNOWN");
       totals[key] = (totals[key] ?? 0) + 1;
       return totals;
     }, {});
 
-    const queue = all
+    const queue = operational
       .filter((row) => String(row.review_status ?? "") === status)
+      .filter((row) => status !== "AWAITING_REVIEW" || String(row.status ?? "") === "READY_FOR_REVIEW")
       .filter((row) => !persona || String(row.persona_id ?? "") === persona)
       .slice(0, limit);
     const ids = new Set(queue.map((row) => String(row.id)));
