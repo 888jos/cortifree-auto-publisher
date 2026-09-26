@@ -522,7 +522,8 @@ export default function Home() {
   const filteredCarousels = useMemo(() => {
     const query = carouselQuery.trim().toLowerCase();
     return storedCarousels.filter((carousel) =>
-      (carouselStatus === "ALL" || carousel.status === carouselStatus)
+      carousel.status !== "ARCHIVED"
+      && (carouselStatus === "ALL" || carousel.status === carouselStatus)
       && (carouselFormat === "ALL" || carousel.content_type === carouselFormat || carousel.spec?.model_id === carouselFormat)
       && (!query || `${carousel.id} ${carousel.topic} ${carousel.angle} ${carousel.spec?.hook ?? ""}`.toLowerCase().includes(query)),
     );
