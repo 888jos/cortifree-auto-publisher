@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
     const [accounts, carousels, slideRows, publishJobs] = await Promise.all([
       rows("content_accounts?select=account_id,persona_id,username,display_name,timezone,daily_target,posting_slots,enabled,posting_enabled,warmup_status&order=account_id.asc&limit=100"),
-      rows("carousels?workspace_id=eq.cortifree&status=in.(READY_FOR_REVIEW,APPROVED,SCHEDULED,PUBLISHING,PUBLISHED,FAILED)&select=id,account_id,persona_id,topic,content_type,status,review_status,approved_at,approved_version,current_version,scheduled_for,created_at,spec&order=created_at.desc&limit=1000"),
+      rows("carousels?workspace_id=eq.cortifree&status=in.(READY_FOR_REVIEW,APPROVED,PLANNED,SCHEDULED,PUBLISHING,PUBLISHED,FAILED)&select=id,account_id,persona_id,topic,content_type,status,review_status,approved_at,approved_version,current_version,scheduled_for,created_at,spec&order=created_at.desc&limit=1000"),
       rows("carousel_slides?workspace_id=eq.cortifree&status=eq.CURRENT&select=carousel_id,position,rendered_url&order=position.asc&limit=5000"),
       rows("publish_jobs?workspace_id=eq.cortifree&select=carousel_id,status,scheduled_at,published_at,post_url,last_error,updated_at&order=updated_at.desc&limit=2000"),
     ]);
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
     const summary = {
       awaitingReview: items.filter((item) => item.reviewStatus === "AWAITING_REVIEW").length,
       approvedBacklog: items.filter((item) => item.status === "APPROVED" && !item.scheduledFor).length,
-      scheduled: items.filter((item) => item.status === "SCHEDULED").length,
+      scheduled: items.filter((item) => ["PLANNED","SCHEDULED"].includes(item.status)).length,
       published: items.filter((item) => item.status === "PUBLISHED").length,
       failed: items.filter((item) => item.status === "FAILED").length,
     };
