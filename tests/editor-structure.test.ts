@@ -13,6 +13,7 @@ const baseSpec = {
     "2": { headline: "override two", assetIds: ["a2"] },
     "3": { body: "override three" },
   },
+  editor_state: { layers: { "2": { headline: { locked: true } }, "3": { "image:0": { hidden: true } } } },
   rendered_slides: [{ position: 1, url: "old" }],
   rendered_at: "old",
 };
@@ -29,6 +30,8 @@ describe("editor structure mutations", () => {
     assert.deepEqual(result.spec.generated_slides.map((s:any) => s.headline), ["h", "three", "two", "cta"]);
     assert.equal(result.spec.editor_overrides["2"].body, "override three");
     assert.equal(result.spec.editor_overrides["3"].headline, "override two");
+    assert.equal(result.spec.editor_state.layers["2"]["image:0"].hidden, true);
+    assert.equal(result.spec.editor_state.layers["3"].headline.locked, true);
     assert.equal(result.spec.rendered_slides, undefined);
     assert.equal(result.spec.editor_structure_dirty, true);
   });
