@@ -32,7 +32,7 @@ describe("editor structure mutations", () => {
     assert.equal(result.spec.editor_overrides["3"].headline, "override two");
     assert.equal(result.spec.editor_state.layers["2"]["image:0"].hidden, true);
     assert.equal(result.spec.editor_state.layers["3"].headline.locked, true);
-    assert.equal(result.spec.rendered_slides, undefined);
+    assert.equal((result.spec as any).rendered_slides, undefined);
     assert.equal(result.spec.editor_structure_dirty, true);
   });
 
