@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       rows("worker_heartbeats?workspace_id=eq.cortifree&select=worker_id,version,last_seen_at,metadata&order=last_seen_at.desc&limit=1"),
       rows("worker_jobs?workspace_id=eq.cortifree&select=id,kind,status,attempts,created_at,updated_at,last_error&order=created_at.desc&limit=500"),
       rows("image_generation_jobs?workspace_id=eq.cortifree&select=id,status,persona_id,created_at,finished_at,last_error&order=created_at.desc&limit=500"),
-      rows(`ai_usage_logs?workspace_id=eq.cortifree&select=provider,estimated_cost_usd,created_at&created_at=gte.${encodeURIComponent(sevenDaysAgo)}&limit=5000`),
+      rows(`ai_usage_logs?workspace_id=eq.cortifree&select=model,operation,estimated_cost_usd,created_at&created_at=gte.${encodeURIComponent(sevenDaysAgo)}&limit=5000`),
       rows(`analytics_snapshots?workspace_id=eq.cortifree&select=carousel_id,account_id,views,performance_score,post_url,captured_at&captured_at=gte.${encodeURIComponent(sevenDaysAgo)}&order=captured_at.desc&limit=5000`),
     ]);
 
@@ -92,9 +92,9 @@ export async function GET(request: Request) {
       ...buffers.filter((item) => item.days < item.targetDays).map((item) => ({ code: "BUFFER_LOW", severity: "warning", message: `${item.accountId}: ${item.days} day(s) ready, target ${item.targetDays}` })),
     ];
 
-    const costByProvider = usage.reduce<Record<string, number>>((totals, row) => {
-      const provider = String(row.provider ?? "unknown");
-      totals[provider] = Number(((totals[provider] ?? 0) + Number(row.estimated_cost_usd ?? 0)).toFixed(4));
+    const costByModel = usage.reduce<Record<string, number>>((totals, row) => {
+      const model = String(row.model ?? row.operation ?? "unknown");
+      totals[model] = Number(((totals[model] ?? 0) + Number(row.estimated_cost_usd ?? 0)).toFixed(4));
       return totals;
     }, {});
 
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
       worker: { latest: latestHeartbeat, heartbeatAgeSeconds, oldestQueueAgeSeconds, activeQueue: activeQueue.length, recentFailures },
       buffers,
       personaAssetsUnderThreshold,
-      costs7d: costByProvider,
+      costs7d: costByModel,
       analytics: { views7d: latestSnapshots.reduce((sum, item) => sum + Number(item.views ?? 0), 0), topCarousels },
       accountsInError: accounts.filter((account) => account.warmup_status === "ERROR" || account.enabled === false).map((account) => ({ accountId: account.account_id, personaId: account.persona_id, status: account.warmup_status })),
       alerts,

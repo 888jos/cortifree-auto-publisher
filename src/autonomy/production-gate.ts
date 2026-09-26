@@ -1,6 +1,7 @@
 import { backendConfigured, backendMode, dataBackend, getBackendCounts, getBackendPing } from "../../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../../app/lib/google/auth";
 import { loadRuntimeAccounts, loadRuntimeRows } from "../runtime/config";
+import { acceptanceGateStatus } from "./acceptance";
 
 type Row = Record<string, unknown>;
 
@@ -136,18 +137,18 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   checks.cacheMissingForPublishingPersonas = cacheMissing;
   if (cacheMissing.length) blockers.push("PUBLISHING_PERSONA_CACHE_BELOW_MIN");
 
-  const acceptance = (await rows("system_logs?event=eq.ACCEPTANCE_GATE&order=created_at.desc&limit=1").catch(() => []))[0];
-  const reviewed = Number(acceptance?.reviewed ?? 0);
-  const usable = Number(acceptance?.usable ?? 0);
-  const accepted = acceptance?.passed === true || String(acceptance?.passed).toLowerCase() === "true";
-  checks.acceptance = {
-    id: acceptance?.id ?? null,
-    reviewed,
-    usable,
-    passed: accepted,
-    created_at: acceptance?.created_at ?? null,
-  };
-  if (!(accepted && reviewed >= 20 && usable >= 15)) blockers.push("ACCEPTANCE_GATE_NOT_PASSED");
+  const acceptance = await acceptanceGateStatus().catch(() => ({
+    passed: false,
+    reviewed: 0,
+    usable: 0,
+    batchId: null,
+    createdAt: null,
+    notes: null,
+  }));
+  checks.acceptance = acceptance;
+  if (!(acceptance.passed && acceptance.reviewed >= 20 && acceptance.usable >= 15)) {
+    blockers.push("ACCEPTANCE_GATE_NOT_PASSED");
+  }
 
   checks.cronSecret = boolEnv("CRON_SECRET");
   if (!checks.cronSecret) blockers.push("CRON_SECRET_MISSING");

@@ -2,6 +2,15 @@ import { dataBackend } from "../lib/data-backend";
 
 type Row = Record<string, unknown>;
 
+export type AcceptanceGateSnapshot = {
+  passed: boolean;
+  reviewed: number;
+  usable: number;
+  batchId: string | null;
+  createdAt: string | null;
+  notes: string | null;
+};
+
 async function rows(resource: string): Promise<Row[]> {
   const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
@@ -11,7 +20,7 @@ async function rows(resource: string): Promise<Row[]> {
 async function write(resource: string, body: Row) {
   const response = await dataBackend(resource, {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    headers: { Prefer: "return=representation" },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(await response.text());
@@ -28,16 +37,28 @@ export function acceptanceDecision(reviewed: number, usable: number) {
   };
 }
 
-export async function acceptanceGateStatus() {
-  const latest = (await rows("system_logs?event=eq.ACCEPTANCE_GATE&order=created_at.desc&limit=1"))[0] ?? null;
+export function acceptanceSnapshotFromSystemLog(row: Row | null | undefined): AcceptanceGateSnapshot {
+  const metadata = row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? row.metadata as Record<string, unknown>
+    : {};
+  const reviewed = Number(metadata.reviewed ?? 0);
+  const usable = Number(metadata.usable ?? 0);
+  const passed = metadata.passed === true || String(metadata.passed ?? "").toLowerCase() === "true";
   return {
-    passed: Boolean(latest && (latest.passed === true || String(latest.passed).toLowerCase() === "true")),
-    reviewed: Number(latest?.reviewed ?? 0),
-    usable: Number(latest?.usable ?? 0),
-    batchId: latest?.batch_id ? String(latest.batch_id) : null,
-    createdAt: latest?.created_at ? String(latest.created_at) : null,
-    notes: latest?.notes ? String(latest.notes) : null,
+    passed,
+    reviewed: Number.isFinite(reviewed) ? reviewed : 0,
+    usable: Number.isFinite(usable) ? usable : 0,
+    batchId: metadata.batch_id ? String(metadata.batch_id) : null,
+    createdAt: row?.created_at ? String(row.created_at) : null,
+    notes: metadata.notes ? String(metadata.notes) : null,
   };
+}
+
+export async function acceptanceGateStatus() {
+  const latest = (await rows(
+    "system_logs?workspace_id=eq.cortifree&stage=eq.ACCEPTANCE_GATE&order=created_at.desc&limit=1",
+  ))[0] ?? null;
+  return acceptanceSnapshotFromSystemLog(latest);
 }
 
 export async function recordAcceptanceGate(input: {
@@ -47,17 +68,24 @@ export async function recordAcceptanceGate(input: {
   notes?: string;
 }) {
   const { reviewed, usable, passed } = acceptanceDecision(input.reviewed, input.usable);
-  const row = {
-    id: `ACCEPTANCE_GATE_${Date.now()}`,
-    workspace_id: "cortifree",
+  const createdAt = new Date().toISOString();
+  const metadata = {
     event: "ACCEPTANCE_GATE",
     reviewed,
     usable,
     passed,
     batch_id: input.batchId ?? null,
     notes: input.notes ?? null,
-    created_at: new Date().toISOString(),
   };
-  await write("system_logs", row);
-  return row;
+  const inserted = await write("system_logs", {
+    workspace_id: "cortifree",
+    stage: "ACCEPTANCE_GATE",
+    status: passed ? "SUCCESS" : "FAILED",
+    metadata,
+    created_at: createdAt,
+  });
+  return {
+    ...acceptanceSnapshotFromSystemLog(inserted[0] ?? { created_at: createdAt, metadata }),
+    metadata,
+  };
 }
