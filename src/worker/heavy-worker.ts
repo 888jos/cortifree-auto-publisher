@@ -93,6 +93,8 @@ async function heartbeat() {
         hostname: os.hostname(),
         pid: process.pid,
         upload_post_configured: Boolean(process.env.UPLOAD_POST_API_KEY?.trim()),
+        openai_configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+        ai_generation_enabled: process.env.AI_GENERATION_ENABLED !== "false",
         telegram_configured: Boolean(
           process.env.TELEGRAM_BOT_TOKEN?.trim()
           && process.env.TELEGRAM_CHAT_ID?.trim()
