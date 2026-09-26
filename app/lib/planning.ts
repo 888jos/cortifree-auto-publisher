@@ -84,6 +84,17 @@ export async function scheduleCarousel(input: {
   const approvedVersion = Number(carousel.approved_version ?? currentVersion);
   if (approvedVersion !== currentVersion) throw new Error("APPROVAL_STALE: carousel changed after approval");
   await assertCarouselHasCompleteRender(input.carouselId);
+  const accountId = String(carousel.account_id ?? "");
+  if (!accountId) throw new Error("Carousel has no account_id");
+  const account = (await rows(
+    `content_accounts?account_id=eq.${encodeURIComponent(accountId)}&select=account_id,timezone,posting_slots,enabled&limit=1`,
+  ))[0];
+  if (!account) throw new Error(`Account not found: ${accountId}`);
+  if (account.enabled === false) throw new Error(`ACCOUNT_DISABLED: ${accountId}`);
+  const providerJob = (await rows(
+    `publish_jobs?workspace_id=eq.cortifree&carousel_id=eq.${encodeURIComponent(input.carouselId)}&status=in.(SCHEDULING,SCHEDULED,PUBLISHING,PUBLISHED)&select=id,status,provider_request_id&order=created_at.desc&limit=1`,
+  ))[0];
+  if (providerJob?.provider_request_id) throw new Error("PROVIDER_SCHEDULE_ALREADY_CREATED");
 
   let scheduled: Date;
   if (input.mode === "exact" || input.scheduledFor) {
@@ -91,12 +102,6 @@ export async function scheduleCarousel(input: {
     if (!Number.isFinite(scheduled.getTime())) throw new Error("scheduledFor is invalid");
     if (scheduled.getTime() <= Date.now() + 60_000) throw new Error("scheduledFor must be in the future");
   } else {
-    const accountId = String(carousel.account_id ?? "");
-    if (!accountId) throw new Error("Carousel has no account_id");
-    const account = (await rows(
-      `content_accounts?account_id=eq.${encodeURIComponent(accountId)}&select=account_id,timezone,posting_slots&limit=1`,
-    ))[0];
-    if (!account) throw new Error(`Account not found: ${accountId}`);
     scheduled = nextAccountPostingTime(
       Array.isArray(account.posting_slots) ? account.posting_slots.map(String) : [],
       String(account.timezone ?? "America/New_York"),
@@ -127,6 +132,10 @@ export async function unscheduleCarousel(carouselId: string, actor = "admin") {
   ))[0];
   if (!carousel) throw new Error(`Carousel not found: ${carouselId}`);
   if (String(carousel.status) === "PUBLISHED") throw new Error("Published carousel cannot be unscheduled");
+  const providerJob = (await rows(
+    `publish_jobs?workspace_id=eq.cortifree&carousel_id=eq.${encodeURIComponent(carouselId)}&status=in.(SCHEDULING,SCHEDULED,PUBLISHING,PUBLISHED)&select=id,status,provider_request_id&order=created_at.desc&limit=1`,
+  ))[0];
+  if (providerJob?.provider_request_id) throw new Error("PROVIDER_SCHEDULE_ALREADY_CREATED");
   const version = Number(carousel.current_version ?? 1);
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
     status: "APPROVED",
