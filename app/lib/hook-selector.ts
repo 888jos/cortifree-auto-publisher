@@ -1,12 +1,12 @@
 import { hookLibrary } from "../hook-library.js";
 
-export type HookLayout = "single-image" | "grid-2x2";
+export type HookLayout = "lifestyle-3stack" | "editorial-asym-hero" | "routine-timeline" | "three-rect-educational" | "interactive-checklist" | "persona-explainer" | "ranking" | "grid-2x2";
 export type HookGenerationPlan = {
-  carouselType: string;
+  conceptType: string;
+  formatId: string;
   layout: HookLayout;
-  requestedSlideCount: 6;
+  requestedSlideCount: number;
 };
-
 const categoryByType: Record<string, string[]> = {
   C01_MORNING_ROUTINE: ["Morning & night", "Hormones & cortisol", "Stress & calm"],
   C02_CHECKLIST: ["Weekly & seasonal reset", "Stress & calm"],
@@ -41,17 +41,35 @@ export function getHookGenerationPlan(hook: { category: string; text: string }):
   const text = hook.text.toLowerCase();
   const category = hook.category;
 
-  let carouselType = "C09_LIST";
-  if (category === "Morning & night" || /morning|night|bed|sleep|waking|9pm/.test(text)) carouselType = /night|bed|sleep|waking|9pm/.test(text) ? "C12_NIGHT_ROUTINE" : "C01_MORNING_ROUTINE";
-  else if (category === "Hormones & cortisol") carouselType = /started|habits/.test(text) ? "C04_THINGS_I_STARTED" : "C11_HORMONE_EDUCATION";
-  else if (category === "Stress & calm") carouselType = /stopped/.test(text) ? "C03_THINGS_I_STOPPED" : /reset|routine/.test(text) ? "C08_MY_REALISTIC" : "C09_LIST";
-  else if (category === "Overstimulation & reset") carouselType = /stopped|instead/.test(text) ? "C03_THINGS_I_STOPPED" : "C08_MY_REALISTIC";
-  else if (category === "Energy & food") carouselType = /eat|breakfast|grocery|coffee/.test(text) ? "C09_LIST" : "C08_MY_REALISTIC";
-  else if (category === "Glow-up & feminine") carouselType = "C05_GLOW_UP";
-  else if (category === "Productivity & boundaries") carouselType = /stopped/.test(text) ? "C03_THINGS_I_STOPPED" : "C08_MY_REALISTIC";
-  else if (category === "Weekly & seasonal reset") carouselType = "C02_CHECKLIST";
-  else if (category === "Fitness & wellness") carouselType = /started|walking/.test(text) ? "C04_THINGS_I_STARTED" : "C08_MY_REALISTIC";
+  let conceptType = "C09_LIST";
+  if (category === "Morning & night" || /morning|night|bed|sleep|waking|9pm/.test(text)) conceptType = /night|bed|sleep|waking|9pm/.test(text) ? "C12_NIGHT_ROUTINE" : "C01_MORNING_ROUTINE";
+  else if (category === "Hormones & cortisol") conceptType = /started|habits/.test(text) ? "C04_THINGS_I_STARTED" : "C11_HORMONE_EDUCATION";
+  else if (category === "Stress & calm") conceptType = /stopped/.test(text) ? "C03_THINGS_I_STOPPED" : /reset|routine/.test(text) ? "C08_MY_REALISTIC" : "C09_LIST";
+  else if (category === "Overstimulation & reset") conceptType = /stopped|instead/.test(text) ? "C03_THINGS_I_STOPPED" : "C08_MY_REALISTIC";
+  else if (category === "Energy & food") conceptType = /eat|breakfast|grocery|coffee/.test(text) ? "C09_LIST" : "C13_EDUCATIONAL_EXPLAINER";
+  else if (category === "Glow-up & feminine") conceptType = "C05_GLOW_UP";
+  else if (category === "Productivity & boundaries") conceptType = /stopped/.test(text) ? "C03_THINGS_I_STOPPED" : "C08_MY_REALISTIC";
+  else if (category === "Weekly & seasonal reset") conceptType = "C02_CHECKLIST";
+  else if (category === "Fitness & wellness") conceptType = /started|walking/.test(text) ? "C04_THINGS_I_STARTED" : "C08_MY_REALISTIC";
 
-  const useGrid = /5 |habits|things|breakfast|grocery|checklist|tips|foods|eat|ideas|signs/.test(text) || category === "Energy & food" || category === "Weekly & seasonal reset";
-  return { carouselType, layout: useGrid ? "grid-2x2" : "single-image", requestedSlideCount: 6 };
+  let formatId = "F01_LIFESTYLE_GUIDE";
+  if (/rank|ranking|tier|rated|rating/.test(text)) formatId = "F07_RANKING";
+  else if (/before|after|vs\.?|versus/.test(text) && !/morning after|night after/.test(text)) formatId = "F08_2X2";
+  else if (category === "Morning & night" || /morning routine|night routine|day in my life|day-in-my-life/.test(text)) formatId = "F03_ROUTINE_TIMELINE";
+  else if (category === "Weekly & seasonal reset" || /checklist|grocery|foods|things to eat|shopping list|save this list/.test(text)) formatId = "F05_INTERACTIVE_CHECKLIST";
+  else if (/pov|what i noticed|why i|signs|i stopped|i started|things i stopped|things i started/.test(text)) formatId = "F06_PERSONA_EXPLAINER";
+  else if (category === "Hormones & cortisol" || /cortisol|hormone|why this happens|explained|science/.test(text)) formatId = "F04_AESTHETIC_EDUCATIONAL";
+  else if (/editorial|guide|reset guide/.test(text)) formatId = "F02_EDITORIAL_COLLAGE";
+
+  const layoutByFormat: Record<string, HookLayout> = {
+    F01_LIFESTYLE_GUIDE: "lifestyle-3stack",
+    F02_EDITORIAL_COLLAGE: "editorial-asym-hero",
+    F03_ROUTINE_TIMELINE: "routine-timeline",
+    F04_AESTHETIC_EDUCATIONAL: "three-rect-educational",
+    F05_INTERACTIVE_CHECKLIST: "interactive-checklist",
+    F06_PERSONA_EXPLAINER: "persona-explainer",
+    F07_RANKING: "ranking",
+    F08_2X2: "grid-2x2",
+  };
+  return { conceptType, formatId, layout: layoutByFormat[formatId] ?? "lifestyle-3stack", requestedSlideCount: formatId === "F07_RANKING" ? 7 : 6 };
 }
