@@ -708,8 +708,8 @@ export default function Home() {
           id: draftId,
           accountId: "CF_EN_01",
           personaId: "P01",
-          carouselType: currentType.id,
-          layout: currentModel.id,
+          carouselType: currentModel.id,
+          layout: currentModel.layout,
           persona: "P01",
           language,
           market,
@@ -727,9 +727,9 @@ export default function Home() {
             slides: isPrimary ? blueprint?.slides.map((slide) => ({
               position: slide.position,
               role: slide.role,
-              imagePlacement: currentModel.layout === "grid-2x2" ? "grid-2x2" : "single-image",
+              imagePlacement: currentModel.layout,
               textPlacement: currentModel.layout === "grid-2x2" ? "center" : "lower-third",
-              textAlign: currentModel.layout === "grid-2x2" ? "center" : "left",
+              textAlign: currentModel.layout === "grid-2x2" || currentModel.layout === "routine-timeline" ? "center" : "left",
             })) : undefined,
           };
           }),
@@ -804,7 +804,7 @@ export default function Home() {
           stage: "carousel.create",
           status: "SUCCESS",
           carousel_id: preview.id,
-          metadata: { model_id: currentModel.id, carousel_type: currentType.id, blueprint_id: currentBlueprint?.id, generation_source: data.generation.source },
+          metadata: { format_id: currentModel.id, layout: currentModel.layout, concept_type: currentType.id, blueprint_id: currentBlueprint?.id, generation_source: data.generation.source },
         }),
       });
     } catch (error) {
@@ -816,9 +816,8 @@ export default function Home() {
 
   async function generateOneLibraryHook(hook: (typeof hookLibrary)[number], index: number) {
     const plan = getHookGenerationPlan(hook);
-    const modelId: ModelId = index % 2 === 0 ? "single-image" : "grid-2x2";
-    const model = modelData.find((item) => item.id === modelId) ?? modelData[0];
-    const type = carouselTypes.find((item) => item.id === plan.carouselType) ?? carouselTypes[0];
+    const model = modelData.find((item) => item.id === plan.formatId) ?? modelData[0];
+    const type = carouselTypes.find((item) => item.id === plan.conceptType) ?? carouselTypes[0];
     const refs = type.refIds
       .map((refId) => referenceCarousels.find((carousel) => carousel.id === refId))
       .filter(Boolean);
@@ -830,8 +829,8 @@ export default function Home() {
         id: draftId,
         accountId: "CF_EN_01",
         personaId: "P01",
-        carouselType: plan.carouselType,
-        layout: model.id,
+        carouselType: plan.formatId,
+        layout: plan.layout,
         persona: "P01",
         language,
         market,
@@ -875,7 +874,7 @@ export default function Home() {
         stage: "hook-library.generate",
         status: "SUCCESS",
         carousel_id: data.carousel.id,
-        metadata: { hook_id: hook.id, hook: hook.text, model_id: model.id, carousel_type: plan.carouselType, approval: approval.status },
+        metadata: { hook_id: hook.id, hook: hook.text, format_id: plan.formatId, layout: plan.layout, concept_type: plan.conceptType, approval: approval.status },
       }),
     });
     return { id: data.carousel.id, source: data.generation.source, slides: renderData.slides.length };
