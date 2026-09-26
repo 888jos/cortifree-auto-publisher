@@ -11,6 +11,7 @@ import {
   generatedAssetName,
   personaAssetFolder,
   withImageRetry,
+  isPermanentImageGenerationError,
 } from '../src/image-generation/core.js';
 import {
   deterministicReferenceName,
@@ -90,6 +91,12 @@ describe('persona image infrastructure', () => {
     assert.equal(result, 'ok');
     assert.equal(attempts, 3);
     await assert.rejects(() => withImageRetry(async () => { throw new Error('invalid prompt'); }), /invalid prompt/);
+  });
+
+  it('classifies permanent ModelArk input moderation failures as non-retryable', () => {
+    assert.equal(isPermanentImageGenerationError(new Error('ModelArk 400: {"error":{"code":"InputImageSensitiveContentDetected","type":"BadRequest"}}')), true);
+    assert.equal(isPermanentImageGenerationError(new Error('ModelArk 500: temporary upstream failure')), false);
+    assert.equal(isPermanentImageGenerationError(new Error('429 temporary')), false);
   });
 
   it('scans image metadata, deduplicates bytes and searches semantic fields', async () => {
