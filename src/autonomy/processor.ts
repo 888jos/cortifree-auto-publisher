@@ -109,7 +109,7 @@ export async function processQueuedIdeas(
           search_query: `${String(idea.topic ?? '')} ${String(idea.angle ?? '')}`.trim(),
           primary_keyword: String(idea.topic ?? ''), secondary_keywords: [], language_profile: 'GENZ_GIRLY_US',
           language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
-          golden_example_ids: [], topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
+          golden_example_ids: [], concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
           format_id: contentType, account_id: accountId, persona_id: personaId,
           brand_integration: { required: true, mention: 'CortiFree', screenshot_required: true },
         },
