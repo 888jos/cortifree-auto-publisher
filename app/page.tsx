@@ -77,7 +77,7 @@ const canonicalFormats = [
   { id:"F03_ROUTINE_TIMELINE", short:"F03", name:"Routine Timeline", mode:"Full photo + timed step", concepts:"Morning · night · day in life", status:"READY" },
   { id:"F04_AESTHETIC_EDUCATIONAL", short:"F04", name:"Aesthetic Educational", mode:"3-image education board", concepts:"How-to · glow-up", status:"READY" },
   { id:"F05_INTERACTIVE_CHECKLIST", short:"F05", name:"Notes Master List", mode:"Notes card + shared photo", concepts:"Lists · wellness · glow-up", status:"READY" },
-  { id:"F06_PERSONA_EXPLAINER", short:"F06", name:"Persona Explainer", mode:"Persona-led explainer", concepts:"Signs · before/after · how-to", status:"LEGACY" },
+  { id:"F06_PERSONA_EXPLAINER", short:"F06", name:"Persona Explainer", mode:"Persona-led explainer", concepts:"Signs · before/after · how-to", status:"READY" },
   { id:"F07_RANKING", short:"F07", name:"Girly Tier List", mode:"Tier ranking", concepts:"Ranking · habits", status:"READY" },
   { id:"F08_2X2", short:"F08", name:"2×2 Contrast", mode:"Diagonal 2-image grid", concepts:"Before/after · contrasts", status:"READY" },
 ] as const;
@@ -1018,6 +1018,7 @@ export default function Home() {
             <b>CortiFree</b>
             <small>Workspace</small>
           </div>
+          <form action="/api/auth/logout" method="post"><button className="logoutButton" type="submit">Logout</button></form>
         </div>
       </aside>
 
@@ -1038,8 +1039,8 @@ export default function Home() {
         <header>
           <div>
             <p className="eyebrow">CONTENT OPERATIONS</p>
-            <h1>{active === "Overview" ? "Choisis un modèle" : active}</h1>
-            <p className="muted">{active === "Carrousels" ? "Retrouve tous les carrousels générés et leurs slides finales." : "Sélectionne un type de carrousel, puis ouvre ses références et layouts."}</p>
+            <h1>{active === "Overview" ? "Choisis un concept" : active}</h1>
+            <p className="muted">{active === "Carrousels" ? "Retrouve tous les carrousels générés et leurs slides finales." : active === "Formats" ? "Les 8 formats canoniques réellement utilisés par le renderer et le Studio." : "Choisis un concept éditorial, puis le format F01–F08 qui le sert le mieux."}</p>
           </div>
           <button
             className="primary"
@@ -1206,8 +1207,8 @@ export default function Home() {
           <section className="typeBand">
             <div className="panelHead">
               <div>
-                <p className="eyebrow">CONTENT TYPES</p>
-                <h2>Modèles</h2>
+                <p className="eyebrow">EDITORIAL CONCEPTS</p>
+                <h2>Concepts</h2>
               </div>
               <span className="modelCount">clic = voir les carrousels</span>
             </div>
@@ -1354,10 +1355,10 @@ export default function Home() {
           <section className="modelsBand">
             <div className="panelHead">
               <div>
-                <p className="eyebrow">LAYOUTS RECOMMANDÉS</p>
+                <p className="eyebrow">FORMATS RECOMMANDÉS</p>
                 <h2>{currentType.id}</h2>
               </div>
-              <span className="modelCount">{currentTypeModels.length} layouts</span>
+              <span className="modelCount">{currentTypeModels.length} formats</span>
             </div>
 
             <div className="modelGrid">
@@ -1411,7 +1412,7 @@ export default function Home() {
             </div>
 
             <label>
-              Modele
+              Format
               <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value as ModelId)}>
                 {currentTypeModels.map((model) => {
                   if (!model) return null;
