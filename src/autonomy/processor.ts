@@ -2,6 +2,7 @@ import { carouselGeneratorInputSchema } from '../../app/lib/ai/schemas';
 import { generateCarousel } from '../../app/lib/ai/carousel-generator';
 import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carousel-store';
 import { renderCarousel } from '../../app/lib/render-carousel';
+import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
 
@@ -16,14 +17,7 @@ async function patch(resource: string, body: Record<string, unknown>) {
   if (!response.ok) throw new Error(await response.text());
 }
 function layoutFor(contentType: string) {
-  if (contentType === 'F01_LIFESTYLE_GUIDE') return 'lifestyle-3stack';
-  if (contentType === 'F02_EDITORIAL_COLLAGE') return 'editorial-asym-hero';
-  if (contentType === 'F03_ROUTINE_TIMELINE') return 'routine-timeline';
-  if (contentType === 'F04_AESTHETIC_EDUCATIONAL') return 'three-rect-educational';
-  if (contentType === 'F05_INTERACTIVE_CHECKLIST') return 'interactive-checklist';
-  if (contentType === 'F07_RANKING') return 'ranking';
-  if (contentType === 'F08_2X2') return 'grid-2x2';
-  return 'single-image';
+  return canonicalLayoutFor(contentType);
 }
 function slideCountFor(contentType: string, formats: Row[]) {
   const row = formats.find((item) => String(item.format_id) === contentType);
