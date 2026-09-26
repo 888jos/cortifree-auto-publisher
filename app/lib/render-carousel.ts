@@ -12,6 +12,7 @@ import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-ge
 import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../src/visual-references";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 import { downloadDriveFile } from "./google/drive";
+import { canonicalLayoutFor } from "./canonical-layout";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -1090,6 +1091,7 @@ export async function renderCarousel(input: {
   spec: Record<string, unknown>;
 }) {
   assertCortiFreeCarouselId(input.id);
+  input = { ...input, layout: canonicalLayoutFor(input.carouselType, input.layout) };
   let assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
   const personaHookIds = assets
