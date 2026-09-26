@@ -42,8 +42,13 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       .filter((result) => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
-    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=eq.DONE&select=visual_reference_id&order=created_at.desc&limit=10`);
-    const recentReferenceIds = new Set(recentJobs.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean));
+    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(DONE,FAILED)&select=visual_reference_id,status,last_error&order=created_at.desc&limit=20`);
+    const recentReferenceIds = new Set(
+      recentJobs
+        .filter((row) => String(row.status) === "DONE" || /InputImageSensitiveContentDetected|SensitiveContent/i.test(String(row.last_error ?? "")))
+        .map((row) => String(row.visual_reference_id ?? ""))
+        .filter(Boolean),
+    );
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
     const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);
