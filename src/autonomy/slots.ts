@@ -56,6 +56,7 @@ export async function syncContentSlotsFromCalendar() {
   const existingById = new Map(existing.map((row) => [String(row.id), row]));
   const now = Date.now();
   const batch: Row[] = [];
+  let restDays = 0;
   for (const record of records) {
     const data = record.data && typeof record.data === "object" ? record.data as Record<string, unknown> : {};
     const id = String(record.key ?? data.slot_id ?? "").trim();
@@ -63,6 +64,11 @@ export async function syncContentSlotsFromCalendar() {
     const date = String(data.date ?? "").trim();
     const time = String(data.local_time ?? "").trim();
     const timezone = String(data.timezone ?? "America/New_York");
+    const isRest = String(data.content_mode ?? "").toUpperCase() === "REST" || String(data.status ?? "").toUpperCase() === "NO_POST";
+    if (isRest) {
+      restDays += 1;
+      continue;
+    }
     if (!id || !accountId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) continue;
     const scheduled = zonedToUtc(date,time,timezone);
     const prior = existingById.get(id);
@@ -80,7 +86,7 @@ export async function syncContentSlotsFromCalendar() {
     });
   }
   if (batch.length) await upsert("content_slots?on_conflict=id", batch);
-  return { synced: batch.length };
+  return { synced: batch.length, restDays };
 }
 
 function dateKeyInZone(date: Date, timezone: string) {
@@ -88,7 +94,23 @@ function dateKeyInZone(date: Date, timezone: string) {
 }
 
 export async function ensureRollingSlots(accounts: Account[], now = new Date()) {
-  const existing = await rows("content_slots?workspace_id=eq.cortifree&scheduled_for=gte."+encodeURIComponent(now.toISOString())+"&select=id,account_id,slot_date,status&order=scheduled_for.asc&limit=2000").catch(() => []);
+  await patch(
+    "content_slots?workspace_id=eq.cortifree&status=eq.OPEN&scheduled_for=lt." + encodeURIComponent(now.toISOString()),
+    { status: "EXPIRED" },
+  ).catch(() => undefined);
+  const [existing, calendarRecords] = await Promise.all([
+    rows("content_slots?workspace_id=eq.cortifree&scheduled_for=gte."+encodeURIComponent(now.toISOString())+"&select=id,account_id,slot_date,status&order=scheduled_for.asc&limit=2000").catch(() => []),
+    rows("editorial_records?kind=eq.content_calendar&active=eq.true&select=key,data&limit=2000").catch(() => []),
+  ]);
+  const restDays = new Set(
+    calendarRecords.flatMap((record) => {
+      const data = record.data && typeof record.data === "object" ? record.data as Record<string, unknown> : {};
+      const rest = String(data.content_mode ?? "").toUpperCase() === "REST" || String(data.status ?? "").toUpperCase() === "NO_POST";
+      const accountId = String(data.account_id ?? "").trim();
+      const date = String(data.date ?? "").trim();
+      return rest && accountId && /^\d{4}-\d{2}-\d{2}$/.test(date) ? [`${accountId}:${date}`] : [];
+    }),
+  );
   const byAccountDate = new Map<string, number>();
   for (const row of existing) {
     const key = `${String(row.account_id)}:${String(row.slot_date)}`;
@@ -103,19 +125,25 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
       const instant = new Date(now.getTime()+offset*86_400_000);
       const day = dateKeyInZone(instant,account.timezone);
       const key = `${account.id}:${day}`;
+      if (restDays.has(key)) continue;
       const current=byAccountDate.get(key)??0;
+      let added = 0;
       for(let index=current;index<target;index+=1){
         const time=candidateTimes[index % candidateTimes.length]!;
+        const scheduled = zonedToUtc(day,time,account.timezone);
+        if (scheduled.getTime() <= now.getTime() + 5 * 60_000) continue;
         const id=`AUTO_SLOT_${account.id}_${day.replaceAll("-","")}_${index+1}`;
         created.push({
           id,workspace_id:"cortifree",account_id:account.id,persona_id:account.persona_id,
           slot_date:day,slot_time:time,timezone:account.timezone,
-          scheduled_for:zonedToUtc(day,time,account.timezone).toISOString(),
+          scheduled_for:scheduled.toISOString(),
           strategy:strategyForSlot(id),pillar_id:account.primary_pillar_id??null,
           concept_id:null,format_id:null,topic_id:null,hook_id:null,status:"OPEN",
           source:"runtime_generated",metadata:{generated_from_account:true},updated_at:new Date().toISOString(),
         });
+        added += 1;
       }
+      if (added) byAccountDate.set(key, current + added);
     }
   }
   if(created.length)await upsert("content_slots?on_conflict=id",created);
