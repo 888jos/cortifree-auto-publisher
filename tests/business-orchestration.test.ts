@@ -48,6 +48,15 @@ describe("business orchestration v1", () => {
     assert.ok(parsed.filters.some((filter) => filter.field === "rejected_at" && filter.op === "is_null"));
   });
 
+  it("keeps missing OpenAI credentials recoverable instead of FAILED", async () => {
+    const processor = await fs.readFile(path.join(process.cwd(), "src/autonomy/processor.ts"), "utf8");
+    assert.match(processor, /status: 'BLOCKED_CONFIG'/);
+    assert.match(processor, /resumeConfigBlockedIdeas/);
+    assert.match(processor, /CONFIG_STILL_BLOCKED/);
+    assert.match(processor, /CONFIG_RECOVERED/);
+    assert.match(processor, /SLOT_MISSED_WHILE_CONFIG_BLOCKED/);
+  });
+
   it("keeps OpenAI behind asset preflight in autonomous processing", async () => {
     const processor = await fs.readFile(path.join(process.cwd(), "src/autonomy/processor.ts"), "utf8");
     const preflightAt = processor.indexOf("checkGenerationAssetReadiness");
@@ -82,6 +91,13 @@ describe("business orchestration v1", () => {
     const acceptance = await fs.readFile(path.join(process.cwd(), "src/autonomy/acceptance-run.ts"), "utf8");
     assert.match(acceptance, /createAcceptanceSample/);
     assert.doesNotMatch(acceptance, /C01_MORNING_ROUTINE|C13_EDUCATIONAL_EXPLAINER/);
+  });
+
+  it("tracks generation config protection and duplicate-index cleanup as a migration", async () => {
+    const migration = await fs.readFile(path.join(process.cwd(), "supabase/migrations/20260926233042_recoverable_generation_config_and_index_cleanup.sql"), "utf8");
+    assert.match(migration, /BLOCKED_CONFIG/);
+    assert.match(migration, /OPENAI_API_KEY is missing/);
+    assert.match(migration, /drop index if exists public\.carousels_review_status_idx/);
   });
 
   it("ships sourced health guardrails from institutional sources", async () => {
