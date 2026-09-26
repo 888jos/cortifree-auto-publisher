@@ -3,6 +3,7 @@ import { dataBackend } from "./data-backend";
 import { requestStructured } from "./ai/openai-client";
 import { getAIConfig } from "./ai/config";
 import { renderCarouselRevision } from "./render-carousel";
+import { type RejectionAction, reviewReasonLabel } from "./review-reasons";
 
 type Row = Record<string, unknown>;
 
@@ -132,31 +133,69 @@ export async function approveCarousel(carouselId: string, actor = "admin") {
   const current = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=*&limit=1`))[0];
   if (!current) throw new Error(`Carousel not found: ${carouselId}`);
   await assertCarouselHasCompleteRender(carouselId, current);
-  const scheduledFor = nextHumanApprovedPostingTime().toISOString();
+  const reviewedAt = new Date().toISOString();
   const version = Number(current.current_version ?? 1);
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
     status: "APPROVED",
     review_status: "APPROVED",
     approved_by: actor,
-    approved_at: new Date().toISOString(),
+    approved_at: reviewedAt,
+    reviewed_by: actor,
+    reviewed_at: reviewedAt,
+    approved_version: version,
     rejected_at: null,
-    scheduled_for: scheduledFor,
+    rejection_reason_code: null,
+    rejection_action: null,
+    review_notes: null,
+    scheduled_for: null,
     last_review_action: "APPROVED",
   });
-  await recordReviewEvent({ carouselId, eventType: "APPROVED", actor, beforeVersion: version, afterVersion: version });
-  return { carouselId, status: "APPROVED", scheduledFor };
+  await recordReviewEvent({
+    carouselId,
+    eventType: "APPROVED",
+    actor,
+    patchPlan: { approved_version: version },
+    beforeVersion: version,
+    afterVersion: version,
+  });
+  return { carouselId, status: "APPROVED", approvedVersion: version };
 }
 
-export async function rejectCarousel(carouselId: string, reason: string, actor = "admin") {
+export async function rejectCarousel(
+  carouselId: string,
+  reason: string,
+  actor = "admin",
+  options: { reasonCode?: string; action?: RejectionAction } = {},
+) {
   const current = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=current_version&limit=1`))[0];
   if (!current) throw new Error(`Carousel not found: ${carouselId}`);
   const version = Number(current.current_version ?? 1);
+  const reviewedAt = new Date().toISOString();
+  const reasonCode = options.reasonCode?.trim() || "OTHER";
+  const action = options.action ?? "ARCHIVE";
+  const status = action === "REVISION" ? "NEEDS_FIX" : "REJECTED";
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
-    status: "REJECTED", review_status: "REJECTED", review_notes: reason,
-    rejected_at: new Date().toISOString(), last_review_action: "REJECTED",
+    status,
+    review_status: status,
+    review_notes: reason,
+    reviewed_by: actor,
+    reviewed_at: reviewedAt,
+    rejected_at: action === "ARCHIVE" ? reviewedAt : null,
+    rejection_reason_code: reasonCode,
+    rejection_action: action,
+    scheduled_for: null,
+    last_review_action: action === "REVISION" ? "REJECTED_FOR_REVISION" : "REJECTED",
   });
-  await recordReviewEvent({ carouselId, eventType: "REJECTED", actor, feedback: reason, beforeVersion: version, afterVersion: version });
-  return { carouselId, status: "REJECTED" };
+  await recordReviewEvent({
+    carouselId,
+    eventType: action === "REVISION" ? "REJECTED_FOR_REVISION" : "REJECTED",
+    actor,
+    feedback: reason,
+    patchPlan: { reason_code: reasonCode, reason_label: reviewReasonLabel(reasonCode), action },
+    beforeVersion: version,
+    afterVersion: version,
+  });
+  return { carouselId, status, reasonCode, action };
 }
 
 export async function planReviewRevision(carouselId: string, feedback: string) {
@@ -216,6 +255,7 @@ export async function applyReviewRevision(
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
     review_status: "REVISION_GENERATING", status: "REVISION_GENERATING",
     review_notes: feedback, last_review_action: "REVISION_REQUESTED",
+    approved_at: null, approved_by: null, approved_version: null, scheduled_for: null,
   });
 
   const revisedByPosition = new Map(revision.revisedSlides.map((slide) => [slide.position, slide]));
