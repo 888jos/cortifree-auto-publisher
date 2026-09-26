@@ -6,14 +6,26 @@ import { canonicalLayoutFor } from "../../lib/canonical-layout";
 import { getSlideGeometry } from "../../lib/layout-geometry.js";
 type Frame={x:number;y:number;width:number;height:number;cropX?:number;cropY?:number;zoom?:number;fit?:string};
 type Override={headline?:string;body?:string;assetIds?:Array<string|number>;text?:Record<string,any>;image?:Record<string,any>;imageSlots?:Frame[]};
-type Asset={id:string|number;public_url:string;filename:string;source_type?:string;persona_id?:string|null;category?:string;subcategory?:string;scene?:string;use_count?:number;last_used_at?:string|null;drive_file_id?:string|null;metadata?:Record<string,unknown>|null};
+type Asset={id:string|number;public_url:string;filename:string;source_type?:string;persona_id?:string|null;category?:string;subcategory?:string;scene?:string;use_count?:number;last_used_at?:string|null;drive_file_id?:string|null;visual_description?:string;visible_objects?:unknown;visible_actions?:unknown;setting?:string;activity?:string;mood?:string;good_for?:unknown;tags?:unknown;metadata?:Record<string,unknown>|null};
 type LayerTarget="headline"|"body"|number;
 type LayerFlags={locked?:boolean;hidden?:boolean};
-type EditorState={snap?:boolean;layers?:Record<string,Record<string,LayerFlags>>};
+type EditorState={snap?:boolean;template_id?:string;layers?:Record<string,Record<string,LayerFlags>>};
 type EditSnapshot={overrides:Record<string,Override>;editorState:EditorState};
 type VersionItem={id:string;type:string;label?:string|null;version?:number|null;created_at:string;slide_count?:number|null};
 type ClipboardItem={kind:"text";source:"headline"|"body";content:string;props:Record<string,any>}|{kind:"image";assetId?:string|number;frame:Frame};
 const FONTS=["TikTok Sans","Instrument Sans","Manrope","Inter Tight","DM Sans","Plus Jakarta Sans","Space Grotesk","Bricolage Grotesque","Archivo","Urbanist"];
+const FORMAT_MODELS=[
+ {id:"F01_LIFESTYLE_GUIDE",name:"Lifestyle guide",description:"Conseils lifestyle en séquence visuelle",layout:"lifestyle-3stack"},
+ {id:"F02_EDITORIAL_COLLAGE",name:"Editorial collage",description:"Composition éditoriale et asymétrique",layout:"editorial-asym-hero"},
+ {id:"F03_ROUTINE_TIMELINE",name:"Routine timeline",description:"Routine claire, étape par étape",layout:"routine-timeline"},
+ {id:"F04_AESTHETIC_EDUCATIONAL",name:"Aesthetic educational",description:"Pédagogie visuelle en trois blocs",layout:"three-rect-educational"},
+ {id:"F05_INTERACTIVE_CHECKLIST",name:"Interactive checklist",description:"Checklist simple et actionnable",layout:"interactive-checklist"},
+ {id:"F06_PERSONA_EXPLAINER",name:"Persona explainer",description:"Une personne, une idée forte",layout:"persona-explainer"},
+ {id:"F07_RANKING",name:"Ranking",description:"Classement natif et très lisible",layout:"ranking"},
+ {id:"F08_2X2",name:"2 × 2",description:"Comparaison en grille de quatre",layout:"grid-2x2"},
+ {id:"scratch",name:"Scratch",description:"Canvas libre sans modèle imposé",layout:"scratch"},
+] as const;
+type AssetFilter="recommended"|"all"|"persona"|"stock"|"app_screenshot";
 function defaultSlots(layout:string,isHook:boolean,count:number):Frame[]{
  if(layout==="lifestyle-3stack"&&!isHook)return [{x:0,y:0,width:1080,height:450},{x:0,y:450,width:1080,height:450},{x:0,y:900,width:1080,height:450}];
  if(layout==="three-rect-educational")return isHook?[{x:690,y:90,width:300,height:390},{x:90,y:830,width:300,height:390}]:[{x:80,y:110,width:450,height:430},{x:90,y:820,width:390,height:390},{x:600,y:820,width:390,height:390}];
@@ -26,14 +38,14 @@ function defaultSlots(layout:string,isHook:boolean,count:number):Frame[]{
 export default function Editor({params}:{params:Promise<{id:string}>}){
  const [id,setId]=useState(""),[carousel,setCarousel]=useState<any>(),[slides,setSlides]=useState<any[]>([]),[assets,setAssets]=useState<Asset[]>([]),[personas,setPersonas]=useState<any[]>([]),[refs,setRefs]=useState<any[]>([]);
  const [active,setActive]=useState(0),[selection,setSelection]=useState<"headline"|"body"|number>("headline"),[overrides,setOverrides]=useState<Record<string,Override>>({}),[editorState,setEditorState]=useState<EditorState>({snap:true,layers:{}}),[history,setHistory]=useState<EditSnapshot[]>([]),[future,setFuture]=useState<EditSnapshot[]>([]);
- const [dirty,setDirty]=useState(false),[saveState,setSaveState]=useState<"saved"|"saving"|"unsaved"|"error">("saved"),[busy,setBusy]=useState(""),[scene,setScene]=useState(""),[assetSearch,setAssetSearch]=useState(""),[assetFilter,setAssetFilter]=useState<"all"|"persona_generated"|"stock"|"app_screenshot">("all"),[previewMode,setPreviewMode]=useState(false),[diagnoseMode,setDiagnoseMode]=useState(false),[historyMode,setHistoryMode]=useState(false),[versions,setVersions]=useState<VersionItem[]>([]),[editingText,setEditingText]=useState<"headline"|"body"|null>(null),[renderOutdated,setRenderOutdated]=useState(false),[structureBusy,setStructureBusy]=useState(false),[guides,setGuides]=useState<{x?:number;y?:number}>({}),[clipboard,setClipboard]=useState<ClipboardItem|null>(null),[slideDragIndex,setSlideDragIndex]=useState<number|null>(null),[canvasScale,setCanvasScale]=useState(.5),drag=useRef<any>(null),canvasRef=useRef<HTMLDivElement>(null),revision=useRef(0);
+ const [dirty,setDirty]=useState(false),[saveState,setSaveState]=useState<"saved"|"saving"|"unsaved"|"error">("saved"),[lastSavedAt,setLastSavedAt]=useState<Date|null>(null),[busy,setBusy]=useState(""),[scene,setScene]=useState(""),[assetSearch,setAssetSearch]=useState(""),[assetFilter,setAssetFilter]=useState<AssetFilter>("recommended"),[previewMode,setPreviewMode]=useState(false),[diagnoseMode,setDiagnoseMode]=useState(false),[historyMode,setHistoryMode]=useState(false),[templateMode,setTemplateMode]=useState(false),[versions,setVersions]=useState<VersionItem[]>([]),[editingText,setEditingText]=useState<"headline"|"body"|null>(null),[renderOutdated,setRenderOutdated]=useState(false),[structureBusy,setStructureBusy]=useState(false),[guides,setGuides]=useState<{x?:number;y?:number}>({}),[clipboard,setClipboard]=useState<ClipboardItem|null>(null),[slideDragIndex,setSlideDragIndex]=useState<number|null>(null),[canvasScale,setCanvasScale]=useState(.5),drag=useRef<any>(null),canvasRef=useRef<HTMLDivElement>(null),revision=useRef(0),saveQueue=useRef<Promise<boolean>>(Promise.resolve(true));
  useEffect(()=>{params.then(x=>setId(x.id))},[params]);
  useEffect(()=>{if(!id)return;Promise.all([fetch("/api/carousels/"+id,{cache:"no-store"}).then(r=>r.json()),fetch("/api/assets?editor=1",{cache:"no-store"}).then(r=>r.json()),fetch("/api/personas",{cache:"no-store"}).then(r=>r.json()),fetch("/api/visual-references",{cache:"no-store"}).then(r=>r.json())]).then(([c,a,p,v])=>{setCarousel(c.carousel);setSlides(c.slides||[]);setAssets(a.previews||[]);setPersonas(p.personas||[]);setRefs(v.references||[]);setOverrides(c.carousel?.spec?.editor_overrides||{});setEditorState(c.carousel?.spec?.editor_state||{snap:true,layers:{}});setDirty(false);setSaveState("saved");setRenderOutdated(Boolean(c.carousel?.spec?.editor_structure_dirty))})},[id]);
  useEffect(()=>{if(id)void loadVersions()},[id]);
  useEffect(()=>{if(!carousel||previewMode)return;const el=canvasRef.current;if(!el)return;const sync=()=>setCanvasScale(el.getBoundingClientRect().width/1080||.5);sync();const observer=new ResizeObserver(sync);observer.observe(el);return()=>observer.disconnect()},[carousel,previewMode]);
  useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{if(!dirty)return;event.preventDefault();event.returnValue=""};window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn)},[dirty]);
  useEffect(()=>{if(!dirty||!carousel||!id||structureBusy)return;const timer=window.setTimeout(()=>{void save(false,true)},900);return()=>window.clearTimeout(timer)},[overrides,editorState,dirty,id,carousel,structureBusy]);
- const generated=carousel?.spec?.generated_slides||[],slide=slides[active]||{},gen=generated[active]||{},key=String(gen.position||slide.position||active+1),ov=overrides[key]||{},layout=canonicalLayoutFor(carousel?.content_type||carousel?.spec?.carousel_type,carousel?.spec?.model_id||slide.template_id||"single-image"),isHook=active===0||String(gen.role||"").toUpperCase()==="HOOK";
+ const generated=carousel?.spec?.generated_slides||[],slide=slides[active]||{},gen=generated[active]||{},key=String(gen.position||slide.position||active+1),ov=overrides[key]||{},selectedTemplate=editorState.template_id||carousel?.content_type||carousel?.spec?.format_id||carousel?.spec?.carousel_type||"scratch",layout=selectedTemplate==="scratch"?"scratch":canonicalLayoutFor(selectedTemplate,carousel?.spec?.model_id||slide.template_id||"single-image"),isHook=active===0||String(gen.role||"").toUpperCase()==="HOOK";
  const isRoutineCtaFinal=layout==="routine-timeline"&&active===generated.length-1&&["CTA","TAKEAWAY"].includes(String(gen.role||"").toUpperCase());
  const isVisualFinal=active===generated.length-1&&(layout!=="routine-timeline"||isRoutineCtaFinal);
  const canonicalGeometry=getSlideGeometry({...gen,layout},isHook,isVisualFinal,{});
@@ -76,12 +88,26 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  async function structureAction(payload:any){if(structureBusy)return;setStructureBusy(true);setBusy(payload.action==="reorder"?"Reordering slides...":payload.action==="duplicate"?"Duplicating slide...":"Deleting slide...");try{if(dirty){const ok=await save(false,true);if(!ok)return}const response=await fetch("/api/carousels/"+id+"/structure",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const out=await response.json();if(!response.ok||!out.carousel){setBusy(out.error||"Structure update failed");return}setCarousel(out.carousel);setSlides([]);setOverrides(out.carousel.spec?.editor_overrides||{});setEditorState(out.carousel.spec?.editor_state||{snap:true,layers:{}});setActive(Number(out.activeIndex||0));setSelection("headline");setEditingText(null);setHistory([]);setFuture([]);setDirty(false);setSaveState("saved");setRenderOutdated(true);setBusy("Structure updated · render required");await loadVersions()}finally{setSlideDragIndex(null);setStructureBusy(false)}}
  async function refreshCarousel(){const next=await fetch("/api/carousels/"+id,{cache:"no-store"}).then(r=>r.json());if(next.carousel){setCarousel(next.carousel);setSlides(next.slides||[]);setOverrides(next.carousel.spec?.editor_overrides||overrides);setEditorState(next.carousel.spec?.editor_state||editorState)}return next}
  async function waitForRender(){for(let attempt=0;attempt<30;attempt+=1){await new Promise(resolve=>setTimeout(resolve,1500));const next=await refreshCarousel();if(next.carousel?.status==="READY_FOR_REVIEW"&&!next.carousel?.spec?.editor_structure_dirty)return true}return false}
- async function save(render=false,silent=false){const rev=revision.current,snapshot=structuredClone(overrides),editorSnapshot=structuredClone(editorState);setSaveState("saving");if(!silent)setBusy(render?"Rendering...":"Saving...");const spec={...carousel.spec,editor_overrides:snapshot,editor_state:editorSnapshot};const r=await fetch("/api/carousels/"+id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({spec})});if(!r.ok){setSaveState("error");if(!silent)setBusy("Save failed");return false}setCarousel((current:any)=>({...current,spec}));if(revision.current===rev){setDirty(false);setSaveState("saved")}else setSaveState("unsaved");if(!render){if(!silent)setBusy("Saved");return true}const rr=await fetch("/api/carousels/"+id+"/render",{method:"POST"});if(!rr.ok){setBusy("Render failed");return false}if(rr.status===202){setBusy("Render queued...");const done=await waitForRender();setBusy(done?"Rendered":"Render still running");if(done)setRenderOutdated(false)}else{await refreshCarousel();setRenderOutdated(false);setBusy("Rendered")}return true}
+ async function save(render=false,silent=false){
+  const rev=revision.current,snapshot=structuredClone(overrides),editorSnapshot=structuredClone(editorState),spec={...carousel.spec,editor_overrides:snapshot,editor_state:editorSnapshot};
+  const operation=async()=>{setSaveState("saving");if(!silent)setBusy(render?"Rendu en cours…":"Sauvegarde…");try{const r=await fetch("/api/carousels/"+id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({spec})});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||"Save failed");setCarousel((current:any)=>({...current,spec}));setLastSavedAt(new Date());if(revision.current===rev){setDirty(false);setSaveState("saved")}else setSaveState("unsaved");if(!render){if(!silent)setBusy("Modifications sauvegardées");return true}const rr=await fetch("/api/carousels/"+id+"/render",{method:"POST"});if(!rr.ok)throw new Error((await rr.json().catch(()=>({}))).error||"Render failed");if(rr.status===202){setBusy("Rendu dans la file…");const done=await waitForRender();setBusy(done?"Rendu terminé":"Le rendu continue en arrière-plan");if(done)setRenderOutdated(false)}else{await refreshCarousel();setRenderOutdated(false);setBusy("Rendu terminé")}return true}catch(error){setSaveState("error");setBusy(error instanceof Error?error.message:"Échec de la sauvegarde");return false}};
+  saveQueue.current=saveQueue.current.catch(()=>false).then(operation);return saveQueue.current;
+ }
+ async function applyTemplate(formatId:string){
+  const model=FORMAT_MODELS.find(item=>item.id===formatId);if(!model||structureBusy)return;
+  setStructureBusy(true);setBusy("Application du modèle…");
+  const nextEditorState={...editorState,template_id:model.id};
+  const nextSpec={...carousel.spec,format_id:model.id==="scratch"?carousel.spec?.format_id:model.id,carousel_type:model.id==="scratch"?carousel.spec?.carousel_type:model.id,model_id:model.layout,layout:model.layout,editor_overrides:{},editor_state:nextEditorState};
+  try{const response=await fetch("/api/carousels/"+id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({spec:nextSpec,...(model.id==="scratch"?{}:{content_type:model.id,format_id:model.id})})});const out=await response.json();if(!response.ok||!out.carousel)throw new Error(out.error||"Template update failed");setCarousel(out.carousel);setOverrides({});setEditorState(nextEditorState);setHistory([]);setFuture([]);setDirty(false);setSaveState("saved");setLastSavedAt(new Date());setRenderOutdated(true);setTemplateMode(false);setBusy(model.id==="scratch"?"Mode Scratch activé":"Modèle "+model.name+" appliqué · rendu requis")}catch(error){setSaveState("error");setBusy(error instanceof Error?error.message:"Impossible d’appliquer le modèle")}finally{setStructureBusy(false)}
+ }
  function commitInline(kind:"headline"|"body",event:React.FocusEvent<HTMLDivElement>){if(isLocked(kind)){setEditingText(null);return}const value=event.currentTarget.innerText.replace(/\n{3,}/g,"\n\n").trim();const current=kind==="headline"?String(headline):String(body);if(value!==current)setOv(kind==="headline"?{headline:value}:{body:value});setEditingText(null)}
  async function generate(){if(selectedSlot===null||isLocked(selectedSlot))return;const persona=personas.find(p=>p.id===carousel.persona_id)||personas[0],ref=refs[0];if(!persona?.master||!ref){setBusy("Missing persona/reference");return}setBusy("Generating persona image…");const cr=await fetch("/api/image-generation/jobs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({persona_id:persona.id,master_asset_id:persona.master.id,visual_reference_id:ref.id,carousel_id:id,slide_id:"slide_"+key,category:"self_care",scene:scene||"natural candid lifestyle photo matching the selected carousel image slot",framing:"portrait"})});const cj=await cr.json();if(!cj.job?.id){setBusy(cj.error||"Generation failed");return}const rr=await fetch("/api/image-generation/jobs/"+cj.job.id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"run"})});const out=await rr.json();if(out.asset?.id){const generatedAsset:Asset={...out.asset,public_url:out.asset.public_url||out.asset.url,source_type:"persona_generated",persona_id:persona.id};setAssets(a=>[generatedAsset,...a.filter(x=>String(x.id)!==String(generatedAsset.id))]);chooseAsset(selectedSlot,generatedAsset.id);setBusy("Generated & inserted")}else setBusy(out.error||"Generation failed")}
  if(!carousel)return <main className="ce-loading">Loading Carousel Studio…</main>;
- const filtered=assets.filter(a=>(assetFilter==="all"||a.source_type===assetFilter)&&(!assetSearch||[a.filename,a.source_type,a.persona_id,a.category,a.subcategory,a.scene].join(" ").toLowerCase().includes(assetSearch.toLowerCase()))).slice(0,240);
- const saveLabel=saveState==="saving"?"Saving…":saveState==="unsaved"?"Unsaved":saveState==="error"?"Save failed":"Saved";
+ const normalizedSearch=assetSearch.trim().toLowerCase();
+ const searchableAssetText=(asset:Asset)=>[asset.filename,asset.source_type,asset.persona_id,asset.category,asset.subcategory,asset.scene,asset.visual_description,asset.setting,asset.activity,asset.mood,JSON.stringify(asset.visible_objects||[]),JSON.stringify(asset.visible_actions||[]),JSON.stringify(asset.good_for||[]),JSON.stringify(asset.tags||[]),JSON.stringify(asset.metadata||{})].join(" ").toLowerCase();
+ const sourceMatches=(asset:Asset)=>assetFilter==="all"||assetFilter==="recommended"||(assetFilter==="persona"?String(asset.source_type||"").startsWith("persona_"):assetFilter==="app_screenshot"?asset.source_type==="app_screenshot":asset.source_type===assetFilter);
+ const filtered=assets.filter(asset=>sourceMatches(asset)&&(!normalizedSearch||searchableAssetText(asset).includes(normalizedSearch))).sort((left,right)=>{const score=(asset:Asset)=>(asset.persona_id===carousel.persona_id?8:0)+(asset.source_type==="persona_generated"?4:0)+(assetFilter==="recommended"&&asset.source_type==="stock"?2:0)-(asset.use_count||0)*.01;return score(right)-score(left)});
+ const saveLabel=saveState==="saving"?"Sauvegarde…":saveState==="unsaved"?"À sauvegarder":saveState==="error"?"Échec sauvegarde":"Sauvegardé";
  const activeHealth=diagnostics[active]||{level:"ok",issues:[]};
  return <main className="ce-shell" tabIndex={-1} onKeyDown={e=>{
    const target=e.target as HTMLElement,typing=Boolean(editingText)||["INPUT","TEXTAREA","SELECT"].includes(target.tagName)||target.isContentEditable;
@@ -92,20 +118,22 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
    if(e.key==="Escape"){setEditingText(null);setPreviewMode(false);setDiagnoseMode(false);setHistoryMode(false);setGuides({})}
  }}>
   <header className="ce-top">
-   <a href="/">← Carrousels</a>
-   <div className="ce-titleblock"><strong>{carousel.topic||carousel.content_type||"Untitled carousel"}</strong><small>{carousel.content_type} · {layout}</small></div>
+   <a className="ce-back" href="/"><span>CF</span><i>←</i><b>Carrousels</b></a>
+   <div className="ce-titleblock"><strong>{carousel.topic||carousel.content_type||"Carrousel sans titre"}</strong><small>{FORMAT_MODELS.find(item=>item.id===selectedTemplate)?.name||carousel.content_type} · slide {active+1}/{generated.length}</small></div>
    <div className="ce-history-actions"><button disabled={!history.length} onClick={undo} title="Undo">↶</button><button disabled={!future.length} onClick={redo} title="Redo">↷</button></div>
    <span className={"ce-save-state "+saveState}>{saveLabel}</span>
-   {renderOutdated&&<span className="ce-outdated">Render outdated</span>}
-   <button className={previewMode?"active":""} onClick={()=>{setPreviewMode(v=>!v);setDiagnoseMode(false);setHistoryMode(false)}}>Preview</button>
-   <button className={(diagnoseMode?"active ":"")+"ce-diagnose-button"} onClick={()=>{setDiagnoseMode(v=>!v);setPreviewMode(false);setHistoryMode(false)}}>Diagnose {blockingCount>0?<b>{blockingCount}</b>:warningCount>0?<em>{warningCount}</em>:<i>✓</i>}</button>
-   <button className={historyMode?"active":""} onClick={()=>{void loadVersions();setHistoryMode(v=>!v);setPreviewMode(false);setDiagnoseMode(false)}}>History</button>
-   <button onClick={()=>void saveNow()}>Save now</button>
-   <button className="primary" onClick={()=>{if(blockingCount){setDiagnoseMode(true);setPreviewMode(false);setBusy(blockingCount+" blocking issue"+(blockingCount>1?"s":"")+" before render")}else void save(true)}}>Render</button>
+   {lastSavedAt&&saveState==="saved"&&<span className="ce-last-saved">à {lastSavedAt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
+   {renderOutdated&&<span className="ce-outdated">Rendu à actualiser</span>}
+   <button className={templateMode?"active":""} onClick={()=>{setTemplateMode(v=>!v);setPreviewMode(false);setDiagnoseMode(false);setHistoryMode(false)}}>Modèle</button>
+   <button className={previewMode?"active":""} onClick={()=>{setPreviewMode(v=>!v);setDiagnoseMode(false);setHistoryMode(false);setTemplateMode(false)}}>Aperçu</button>
+   <button className={(diagnoseMode?"active ":"")+"ce-diagnose-button"} onClick={()=>{setDiagnoseMode(v=>!v);setPreviewMode(false);setHistoryMode(false);setTemplateMode(false)}}>Vérifier {blockingCount>0?<b>{blockingCount}</b>:warningCount>0?<em>{warningCount}</em>:<i>✓</i>}</button>
+   <button className={historyMode?"active":""} onClick={()=>{void loadVersions();setHistoryMode(v=>!v);setPreviewMode(false);setDiagnoseMode(false);setTemplateMode(false)}}>Historique</button>
+   <button onClick={()=>void saveNow()}>Sauvegarder</button>
+   <button className="primary" onClick={()=>{if(blockingCount){setDiagnoseMode(true);setPreviewMode(false);setBusy(blockingCount+" problème"+(blockingCount>1?"s":"")+" bloquant le rendu")}else void save(true)}}>Mettre à jour le rendu</button>
   </header>
 
   <aside className="ce-slides">
-   <div className="ce-sidebar-label">Slides <span>{generated.length}</span></div>
+   <div className="ce-sidebar-label"><div><b>Slides</b><small>Structure du carrousel</small></div><span>{generated.length}</span></div>
    {generated.map((s:any,i:number)=>{
     const health=diagnostics[i]||{level:"ok",issues:[]};
     const ids=assignedIds(i),fallback=assets.find(a=>String(a.id)===String(ids[0]))?.public_url;
@@ -122,7 +150,7 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
       </div>
      </div>
    })}
-   <div className="ce-slide-help">Drag middle slides to reorder. Hook and CTA stay fixed.</div>
+   <div className="ce-slide-help">Glisse les slides intermédiaires pour les réordonner. Le hook et le CTA restent protégés.</div>
   </aside>
 
   <section className="ce-work">
@@ -134,11 +162,11 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
     </div>:
     <>
      <div className="ce-contextbar">
-      <span>Slide {active+1}</span><span>{String(gen.role||"slide")}</span><span>{layout}</span>
-      <span className={"ce-active-health "+activeHealth.level}>{activeHealth.level==="ok"?"Ready":activeHealth.issues.length+" issue"+(activeHealth.issues.length>1?"s":"")}</span>
-      <button className={"ce-snap-toggle "+(editorState.snap===false?"":"active")} onClick={toggleSnap}>Snap {editorState.snap===false?"off":"on"}</button>
-      <button className="ce-context-action" onClick={copySelected}>Copy</button><button className="ce-context-action" disabled={!clipboard} onClick={pasteSelected}>Paste</button>
-      <span className="ce-tip">Double-click text to edit inline</span>
+      <span>Slide {active+1}</span><span>{String(gen.role||"slide").toLowerCase()}</span><span>{FORMAT_MODELS.find(item=>item.layout===layout)?.name||layout}</span>
+      <span className={"ce-active-health "+activeHealth.level}>{activeHealth.level==="ok"?"Prête":activeHealth.issues.length+" point"+(activeHealth.issues.length>1?"s":"")+" à vérifier"}</span>
+      <button className={"ce-snap-toggle "+(editorState.snap===false?"":"active")} onClick={toggleSnap}>Guides {editorState.snap===false?"off":"on"}</button>
+      <button className="ce-context-action" onClick={copySelected}>Copier</button><button className="ce-context-action" disabled={!clipboard} onClick={pasteSelected}>Coller</button>
+      <span className="ce-tip">Double-clique sur un texte pour le modifier</span>
      </div>
      <div ref={canvasRef} className={"ce-canvas layout-"+layout}>
       <div className="ce-safe-area"/>
@@ -163,7 +191,14 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
   </section>
 
   <aside className="ce-props">
-   {historyMode?
+   {templateMode?
+    <div className="ce-template-panel">
+     <div className="ce-diagnostic-head"><div><span className="ce-eyebrow">Bibliothèque</span><h2>Choisir un modèle</h2><small>Les 8 formats CortiFree conservent leur structure. Scratch libère entièrement le canvas.</small></div><button onClick={()=>setTemplateMode(false)}>×</button></div>
+     <div className="ce-current-template"><span>Modèle actuel</span><b>{FORMAT_MODELS.find(item=>item.id===selectedTemplate)?.name||"Format existant"}</b><small>{FORMAT_MODELS.find(item=>item.id===selectedTemplate)?.description||layout}</small></div>
+     <div className="ce-template-grid">{FORMAT_MODELS.map((model,index)=><button key={model.id} disabled={structureBusy} className={(selectedTemplate===model.id?"active ":"")+(model.id==="scratch"?"scratch":"")} onClick={()=>void applyTemplate(model.id)}><span>{model.id==="scratch"?"✦":"0"+(index+1)}</span><div><b>{model.name}</b><small>{model.description}</small></div>{selectedTemplate===model.id&&<i>Actuel</i>}</button>)}</div>
+     <div className="ce-template-note">Changer de modèle remet uniquement la mise en page de l’éditeur à zéro. Le texte du carrousel reste disponible dans les slides générées.</div>
+    </div>:
+   historyMode?
     <div className="ce-history-panel">
      <div className="ce-diagnostic-head"><div><h2>Version history</h2><small>Persistent snapshots stored with this carousel.</small></div><button onClick={()=>setHistoryMode(false)}>×</button></div>
      <button className="ce-history-create" onClick={()=>void snapshotVersion("Manual snapshot")}>+ Create snapshot now</button>
@@ -200,20 +235,19 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
        <div className="ce-row"><label>Width<input disabled={isLocked(selection)} type="number" value={text.width??850} onChange={e=>textPatch({width:+e.target.value})}/></label><label>Weight<input disabled={isLocked(selection)} type="number" min="100" max="900" step="100" value={selection==="headline"?text.headlineWeight||700:text.bodyWeight||500} onChange={e=>textPatch(selection==="headline"?{headlineWeight:+e.target.value}:{bodyWeight:+e.target.value})}/></label></div>
       </div>:
       <div className={"ce-panel "+(isLocked(selection)?"locked":"")}>
-       <div className="ce-panel-heading"><div><b>Image {selection+1}</b><span>Crop, source & replacement</span></div></div>
-       {selectedAsset?<div className="ce-selected-asset"><img src={selectedAsset.public_url}/><div><b>{selectedAsset.filename}</b><span>{selectedAsset.source_type||"unknown"}{selectedAsset.persona_id?" · "+selectedAsset.persona_id:""}</span><small>{selectedAsset.scene||selectedAsset.category||"No scene metadata"}</small></div></div>:<div className="ce-selected-asset missing"><b>No image assigned</b><span>Choose an asset below. Silent stock fallback is not allowed.</span></div>}
+       <div className="ce-panel-heading"><div><b>Image {selection+1}</b><span>Recadrage, source et remplacement</span></div></div>
+       {selectedAsset?<div className="ce-selected-asset"><img src={selectedAsset.public_url} alt=""/><div><b>{selectedAsset.filename}</b><span>{selectedAsset.source_type||"source inconnue"}{selectedAsset.persona_id?" · "+selectedAsset.persona_id:""}</span><small>{selectedAsset.scene||selectedAsset.category||"Aucune scène renseignée"}</small></div></div>:<div className="ce-selected-asset missing"><b>Aucune image assignée</b><span>Choisis une image ci-dessous pour remplir ce bloc.</span></div>}
        {selectedAsset&&<div className="ce-provenance"><span><b>Source</b>{selectedAsset.source_type||"—"}</span><span><b>Persona</b>{selectedAsset.persona_id||"—"}</span><span><b>Uses</b>{selectedAsset.use_count??0}</span><span><b>Drive</b>{selectedAsset.drive_file_id?"linked":"—"}</span>{Boolean(selectedAsset.metadata?.generation_job_id)&&<span className="wide-meta"><b>Generation job</b>{String(selectedAsset.metadata?.generation_job_id)}</span>}</div>}
        <div className="ce-row"><label>X<input disabled={isLocked(selection)} type="number" value={selectedFrame?.x||0} onChange={e=>slotPatch(selection,{x:+e.target.value})}/></label><label>Y<input disabled={isLocked(selection)} type="number" value={selectedFrame?.y||0} onChange={e=>slotPatch(selection,{y:+e.target.value})}/></label></div>
        <div className="ce-row"><label>Width<input disabled={isLocked(selection)} type="number" value={selectedFrame?.width||0} onChange={e=>slotPatch(selection,{width:+e.target.value})}/></label><label>Height<input disabled={isLocked(selection)} type="number" value={selectedFrame?.height||0} onChange={e=>slotPatch(selection,{height:+e.target.value})}/></label></div>
        <label>Zoom<input disabled={isLocked(selection)} type="range" min="1" max="4" step=".05" value={selectedFrame?.zoom||1} onChange={e=>slotPatch(selection,{zoom:+e.target.value})}/></label>
        <div className="ce-row"><label>Crop X<input disabled={isLocked(selection)} type="range" min="0" max="100" value={selectedFrame?.cropX??50} onChange={e=>slotPatch(selection,{cropX:+e.target.value})}/></label><label>Crop Y<input disabled={isLocked(selection)} type="range" min="0" max="100" value={selectedFrame?.cropY??50} onChange={e=>slotPatch(selection,{cropY:+e.target.value})}/></label></div>
-       <div className="ce-asset-heading"><h3>Replace</h3><small>{filtered.length} shown / {assets.length}</small></div>
-       <input disabled={isLocked(selection)} placeholder="Search filename, persona, scene…" value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}/>
-       <div className="ce-asset-filters">{([["all","All"],["persona_generated","Persona"],["stock","Stock"],["app_screenshot","App"]] as const).map(([value,label])=><button disabled={isLocked(selection)} key={value} className={assetFilter===value?"active":""} onClick={()=>setAssetFilter(value)}>{label}</button>)}</div>
-       <div className="ce-assets">{filtered.map(a=><button disabled={isLocked(selection)} className={String(a.id)===String(selectedAsset?.id)?"active":""} key={a.id} title={a.filename+" · "+(a.scene||a.source_type||"")} onClick={()=>chooseAsset(selection,a.id)}><img src={a.public_url}/><span>{a.persona_id||a.source_type?.replace("_generated","")||"asset"}</span></button>)}</div>
-       <h3>Generate with {personas.find(p=>p.id===carousel.persona_id)?.name||carousel.persona_id}</h3>
-       <textarea disabled={isLocked(selection)} value={scene} onChange={e=>setScene(e.target.value)} placeholder="Scene: mirror selfie after skincare…"/>
-       <button disabled={isLocked(selection)} className="primary wide" onClick={generate}>Generate & insert here</button>
+       <div className="ce-asset-heading"><div><span className="ce-eyebrow">Médiathèque</span><h3>Remplacer l’image</h3></div><small>{filtered.length} résultat{filtered.length>1?"s":""} · {assets.length} assets</small></div>
+       <div className="ce-search"><span>⌕</span><input disabled={isLocked(selection)} placeholder="Décris l’image, une scène, un objet, un persona…" value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}/>{assetSearch&&<button onClick={()=>setAssetSearch("")} aria-label="Effacer la recherche">×</button>}</div>
+       <div className="ce-asset-filters">{([["recommended","Pour cette slide"],["persona","Personas"],["stock","Stock"],["app_screenshot","App"],["all","Tout"]] as const).map(([value,label])=><button disabled={isLocked(selection)} key={value} className={assetFilter===value?"active":""} onClick={()=>setAssetFilter(value)}>{label}</button>)}</div>
+       <div className="ce-assets">{filtered.map(a=><button disabled={isLocked(selection)} className={String(a.id)===String(selectedAsset?.id)?"active":""} key={a.id} title={a.filename+" · "+(a.scene||a.visual_description||a.source_type||"")} onClick={()=>{chooseAsset(selection,a.id);setBusy("Image remplacée · sauvegarde automatique…")}}><img src={a.public_url} alt={a.visual_description||a.filename}/><span>{a.persona_id||a.source_type?.replace("_generated","")||"asset"}</span><small>{a.scene||a.category||"visuel"}</small>{String(a.id)===String(selectedAsset?.id)&&<i>✓</i>}</button>)}</div>
+       {!filtered.length&&<div className="ce-assets-empty"><b>Aucune image trouvée</b><span>Essaie un objet, une ambiance ou affiche tous les assets.</span><button onClick={()=>{setAssetSearch("");setAssetFilter("all")}}>Voir toute la médiathèque</button></div>}
+       <div className="ce-generate-card"><div><span className="ce-eyebrow">ModelArk</span><h3>Générer une image avec {personas.find(p=>p.id===carousel.persona_id)?.name||carousel.persona_id}</h3><p>Décris uniquement la scène : le master du persona reste imposé.</p></div><textarea disabled={isLocked(selection)} value={scene} onChange={e=>setScene(e.target.value)} placeholder="ex. mirror selfie après sa routine skincare, lumière du matin…"/><button disabled={isLocked(selection)||!scene.trim()} className="primary wide" onClick={generate}>Générer et insérer</button></div>
       </div>
      }
      <button className="reset" onClick={()=>{checkpoint();setOverrides(o=>{const n={...o};delete n[key];return n});setEditorState(state=>{const layers={...(state.layers||{})};delete layers[key];return {...state,layers}});markChanged()}}>Reset slide to template</button>

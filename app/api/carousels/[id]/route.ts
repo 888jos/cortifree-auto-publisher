@@ -53,7 +53,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   try {
-    const body = await request.json() as { spec?: Record<string, unknown>; topic?: string; angle?: string; caption?: string; account_id?: string; persona_id?: string };
+    const body = await request.json() as { spec?: Record<string, unknown>; topic?: string; angle?: string; caption?: string; account_id?: string; persona_id?: string; content_type?: string; format_id?: string };
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (body.account_id) {
       assertCortiFreeAccountId(body.account_id);
@@ -62,6 +62,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (body.persona_id) {
       if (!/^P\d{2}$/.test(body.persona_id)) throw new Error("Invalid persona id");
       patch.persona_id = body.persona_id;
+    }
+    const requestedFormat = body.content_type ?? body.format_id;
+    if (requestedFormat) {
+      const allowedFormats = new Set(["F01_LIFESTYLE_GUIDE","F02_EDITORIAL_COLLAGE","F03_ROUTINE_TIMELINE","F04_AESTHETIC_EDUCATIONAL","F05_INTERACTIVE_CHECKLIST","F06_PERSONA_EXPLAINER","F07_RANKING","F08_2X2"]);
+      if (!allowedFormats.has(requestedFormat)) throw new Error("Invalid carousel format");
+      patch.content_type = requestedFormat;
+      patch.format_id = requestedFormat;
     }
     if (body.spec) patch.spec = body.spec;
     if (body.topic) patch.topic = body.topic;
