@@ -28,6 +28,31 @@ const revisionSchema = z.object({
 
 export type ReviewRevision = z.infer<typeof revisionSchema>;
 
+export async function assertCarouselHasCompleteRender(carouselId: string, carousel?: Row) {
+  const current = carousel ?? (await rows(
+    `carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=id,spec&limit=1`,
+  ))[0];
+  if (!current) throw new Error(`Carousel not found: ${carouselId}`);
+  const spec = (current.spec ?? {}) as Record<string, unknown>;
+  if (spec.editor_structure_dirty === true) {
+    throw new Error(`RENDER_REQUIRED: ${carouselId} has unapplied editor changes`);
+  }
+  const generated = Array.isArray(spec.generated_slides) ? spec.generated_slides as Array<{ position?: number }> : [];
+  if (!generated.length) throw new Error(`RENDER_REQUIRED: ${carouselId} has no generated slides`);
+  const rendered = await rows(
+    `carousel_slides?workspace_id=eq.cortifree&carousel_id=eq.${encodeURIComponent(carouselId)}&select=position,rendered_url,status&order=position.asc`,
+  );
+  const currentRows = rendered.filter((slide) => !slide.status || slide.status === "CURRENT");
+  const byPosition = new Map(currentRows.map((slide) => [Number(slide.position), String(slide.rendered_url ?? "").trim()]));
+  const missing = generated
+    .map((slide, index) => Number(slide.position ?? index + 1))
+    .filter((position) => !/^https:\/\//.test(byPosition.get(position) ?? ""));
+  if (missing.length) throw new Error(`RENDER_REQUIRED: missing final PNG for slide(s) ${missing.join(", ")}`);
+  const urls = generated.map((slide, index) => byPosition.get(Number(slide.position ?? index + 1)) ?? "");
+  if (new Set(urls).size !== urls.length) throw new Error("RENDER_REQUIRED: rendered slide URLs must be distinct");
+  return { expected: generated.length, rendered: urls.length, urls };
+}
+
 async function rows(resource: string): Promise<Row[]> {
   const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
@@ -106,6 +131,7 @@ export async function recordReviewEvent(input: {
 export async function approveCarousel(carouselId: string, actor = "admin") {
   const current = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=*&limit=1`))[0];
   if (!current) throw new Error(`Carousel not found: ${carouselId}`);
+  await assertCarouselHasCompleteRender(carouselId, current);
   const scheduledFor = nextHumanApprovedPostingTime().toISOString();
   const version = Number(current.current_version ?? 1);
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
@@ -235,6 +261,10 @@ export async function applyReviewRevision(
     changedPositions,
     visualChangePositions,
   });
+
+  if (rendered.length !== nextSlides.length || rendered.some((slide) => !slide.url)) {
+    throw new Error(`RENDER_INCOMPLETE: expected ${nextSlides.length} final PNGs, received ${rendered.length}`);
+  }
 
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
     review_status: "AWAITING_REVIEW",

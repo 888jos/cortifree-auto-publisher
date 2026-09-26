@@ -113,3 +113,60 @@ export async function runScheduler() {
   }
   return report;
 }
+
+export async function createAcceptanceSample(input: { batchId?: string; limit?: number } = {}) {
+  const [{ topics, hooks, ctas, autonomyRules }, allAccounts] = await Promise.all([
+    loadRuntimeEditorial(),
+    loadRuntimeAccounts(),
+  ]);
+  const batchId = input.batchId?.trim() || `E2E_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
+  const limit = Math.max(1, Math.min(16, input.limit ?? 16));
+  const accounts = allAccounts
+    .filter((account) => account.enabled && !['PAUSED', 'ERROR'].includes(account.warmup_status))
+    .filter((account, index, source) => source.findIndex((candidate) => candidate.persona_id === account.persona_id) === index)
+    .slice(0, limit);
+  const historyRows = await rows('carousel_ideas?order=created_at.desc&limit=2000');
+  const history: SelectionHistory[] = historyRows.map((row) => ({
+    account_id: String(row.account_id ?? ''), topic_id: row.topic_id ? String(row.topic_id) : undefined,
+    hook_id: row.hook_id ? String(row.hook_id) : undefined, final_hook: row.final_hook ? String(row.final_hook) : undefined,
+    visual_ref_id: row.visual_ref_id ? String(row.visual_ref_id) : undefined, combo_key: row.combo_key ? String(row.combo_key) : undefined,
+    created_at: row.created_at ? String(row.created_at) : undefined,
+  }));
+  const formatCycle = ['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2'];
+  const report: AnyRow[] = [];
+  for (const [index, account] of accounts.entries()) {
+    const formatId = formatCycle[index % formatCycle.length]!;
+    let picked: ReturnType<typeof selectEditorial> | null = null;
+    let selectedSeed = '';
+    for (let attempt = 0; attempt < 20 && !picked; attempt += 1) {
+      selectedSeed = crypto.createHash('sha1').update(`${batchId}:${account.id}:${attempt}`).digest('hex');
+      try {
+        picked = selectEditorial({
+          seed: selectedSeed, accountId: account.id, personaId: account.persona_id,
+          pillarIds: pillarIds(account), formatIds: [formatId], topics, hooks, ctas, history,
+          accountTopicCooldownDays: autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14),
+          accountHookCooldownDays: autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7),
+          networkTopicCooldownHours: autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48),
+          networkHookCooldownHours: autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48),
+        });
+      } catch { /* try the next deterministic seed */ }
+    }
+    if (!picked) {
+      report.push({ account_id: account.id, persona_id: account.persona_id, format_id: formatId, status: 'NO_ELIGIBLE_EDITORIAL' });
+      continue;
+    }
+    const id = `CF_E2E_IDEA_${batchId}_${account.persona_id}_${formatId.slice(0, 3)}`.replace(/[^A-Z0-9_]/gi, '').slice(0, 120);
+    const row = {
+      id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
+      pillar_id: picked.topic.pillar_id, content_type: formatId, topic_id: picked.topic.topic_id,
+      topic: picked.topic.topic, angle: picked.topic.angle, hook_id: picked.hook.hook_id,
+      hook_formula: picked.hook.formula, final_hook: picked.finalHook, cta_id: picked.cta.cta_id,
+      cta_text: picked.cta.text, combo_key: picked.comboKey, strategy: strategy(index), status: 'QUEUED',
+      seed: selectedSeed, acceptance_batch_id: batchId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    await write('carousel_ideas?on_conflict=id', row);
+    history.push(row as SelectionHistory);
+    report.push({ id, account_id: account.id, persona_id: account.persona_id, format_id: formatId, status: 'QUEUED' });
+  }
+  return { batchId, requested: limit, created: report.filter((item) => item.status === 'QUEUED').length, ideas: report };
+}

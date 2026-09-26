@@ -5,6 +5,7 @@ import { renderCarousel } from '../../app/lib/render-carousel';
 import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
+import { assertCarouselHasCompleteRender } from '../../app/lib/human-review';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
@@ -107,6 +108,10 @@ export async function processQueuedIdeas(
           id: carouselId, carouselType: contentType, layout, personaId,
           slides: result.spec.slides, references: input.references, spec: saved.spec,
         });
+        if (rendered.length !== result.spec.slides.length || rendered.some((slide) => !slide.url)) {
+          throw new Error(`RENDER_INCOMPLETE: expected ${result.spec.slides.length} final PNGs, received ${rendered.length}`);
+        }
+        await assertCarouselHasCompleteRender(carouselId);
         renderStatus = 'READY_FOR_REVIEW';
         await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: renderStatus, review_status: 'AWAITING_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
 
@@ -140,6 +145,10 @@ export async function retryPendingRenders(limit = 20) {
         id, carouselType: String(carousel.content_type), layout: String(spec?.model_id ?? spec?.layout ?? 'single-image'),
         personaId: String(carousel.persona_id ?? ''), slides, references: Array.isArray(spec?.references) ? spec!.references as any[] : [], spec: spec ?? {},
       });
+      if (rendered.length !== slides.length || rendered.some((slide) => !slide.url)) {
+        throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
+      }
+      await assertCarouselHasCompleteRender(id);
       await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', review_status: 'AWAITING_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
       report.push({ id, status: 'READY_FOR_REVIEW', rendered: rendered.length });
     } catch (error) {

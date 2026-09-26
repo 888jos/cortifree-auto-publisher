@@ -8,12 +8,12 @@ import { syncPersonaGeneratedAssetsToDrive } from "../../app/lib/sync/persona-as
 import { recoverModelArkOrphans } from "../../app/lib/recovery/modelark-orphans";
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
-import { runScheduler } from "../autonomy/scheduler";
+import { createAcceptanceSample, runScheduler } from "../autonomy/scheduler";
 import { processQueuedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
-import { applyReviewRevision, type ReviewRevision } from "../../app/lib/human-review";
+import { applyReviewRevision, assertCarouselHasCompleteRender, type ReviewRevision } from "../../app/lib/human-review";
 import { sendPendingTelegramNotifications } from "../../app/lib/telegram-notifications";
 import { cleanupNonUserReferenceAssets } from "../../app/lib/cleanup/bad-reference-assets";
 import { getLocalIntegrationHealth } from "../../app/lib/integration-health";
@@ -86,7 +86,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "ACCEPTANCE_SAMPLE", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: {
         hostname: os.hostname(),
@@ -211,6 +211,15 @@ async function runAutonomy() {
   return result;
 }
 
+async function runAcceptanceSample(payload: Row) {
+  const sample = await createAcceptanceSample({
+    batchId: payload.batch_id ? String(payload.batch_id) : undefined,
+    limit: payload.limit ? Number(payload.limit) : 16,
+  });
+  const drafts = await processQueuedIdeas(sample.created, { acceptanceBatchId: sample.batchId });
+  return { ...sample, drafts };
+}
+
 async function runOpsRefresh() {
   const result: Record<string, unknown> = { startedAt: new Date().toISOString() };
   const errors: Record<string, string> = {};
@@ -293,7 +302,15 @@ async function runRender(resourceId: string | null | undefined) {
     references: Array.isArray(spec.references) ? spec.references as any[] : [],
     spec,
   });
-  await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: "READY_FOR_REVIEW" });
+  if (rendered.length !== slides.length || rendered.some((slide) => !slide.url)) {
+    throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
+  }
+  await assertCarouselHasCompleteRender(id);
+  await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
+    status: "READY_FOR_REVIEW",
+    review_status: "AWAITING_REVIEW",
+    last_review_action: "RENDERED",
+  });
   return { rendered: rendered.length, urls: rendered.map((slide) => slide.url) };
 }
 
@@ -306,6 +323,7 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
   if (job.kind === "MODELARK_ORPHAN_RECOVERY") return runModelArkOrphanRecovery(job.payload ?? {});
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
+  if (job.kind === "ACCEPTANCE_SAMPLE") return runAcceptanceSample(job.payload ?? {});
   if (job.kind === "BAD_REFERENCE_CLEANUP") return cleanupNonUserReferenceAssets();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }

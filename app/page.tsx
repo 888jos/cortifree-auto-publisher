@@ -273,6 +273,18 @@ type StoredCarousel = {
 type CalendarEntry = { id: string; account_id: string; account_name: string; persona_id: string; date: string; slot: string; timezone: string; platform: string; status: string; content_type: string; content_type_label: string; topic: string; angle: string; phase: string; source: string };
 type CalendarAccount = { id: string; name: string; persona_id: string; timezone: string; enabled: boolean; posting_enabled: boolean; daily_target: number; slots: string[]; entries: CalendarEntry[] };
 type CalendarData = { source: string; accounts: CalendarAccount[]; dailyTotals: Array<{ date: string; total: number; byStatus: Record<string, number> }>; summary: { accountCount: number; postsPerDay: number; averagePostsPerDay: number; maxPostsPerDay: number; totalSlots: number; phaseCounts: Record<string, number> } };
+type OpsOverview = {
+  ok: boolean;
+  checkedAt: string;
+  posts: { today: number; publishedToday: number; failedToday: number; successRate7d: number | null; byStatus7d: Record<string, number> };
+  worker: { latest: { version?: string; last_seen_at?: string } | null; heartbeatAgeSeconds: number | null; oldestQueueAgeSeconds: number | null; activeQueue: number; recentFailures: Array<{ id?: string; last_error?: string }> };
+  buffers: Array<{ accountId: string; personaId: string; ready: number; days: number; targetDays: number }>;
+  personaAssetsUnderThreshold: Array<{ personaId: string; count: number; threshold: number }>;
+  costs7d: Record<string, number>;
+  analytics: { views7d: number; topCarousels: Array<{ carouselId: string; accountId: string; views: number; score: number; postUrl?: string | null }> };
+  accountsInError: Array<{ accountId: string; personaId: string; status: string }>;
+  alerts: Array<{ code: string; severity: string; message: string }>;
+};
 
 function displayLabel(value: unknown, fallback = "uncategorized") {
   const text = typeof value === "string" ? value.trim() : "";
@@ -478,6 +490,8 @@ export default function Home() {
   const [batchConcurrency, setBatchConcurrency] = useState(1);
   const [batchConfirmed, setBatchConfirmed] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [opsOverview, setOpsOverview] = useState<OpsOverview | null>(null);
+  const [opsLoading, setOpsLoading] = useState(false);
 
   const currentModel = useMemo(
     () => modelData.find((model) => model.id === selectedModel) ?? modelData[0],
@@ -595,6 +609,16 @@ export default function Home() {
       .catch(() => setNotice("Impossible de charger le calendrier détaillé."))
       .finally(() => setCalendarLoading(false));
   }, [active, calendarDays]);
+
+  useEffect(() => {
+    if (active !== "Overview") return;
+    setOpsLoading(true);
+    fetch("/api/ops/overview", { cache: "no-store" })
+      .then((response) => { if (!response.ok) throw new Error(`API ${response.status}`); return response.json(); })
+      .then((data) => setOpsOverview(data))
+      .catch(() => setNotice("Impossible de charger le dashboard d’exploitation."))
+      .finally(() => setOpsLoading(false));
+  }, [active]);
 
   function changeProductVersion(version: ProductVersion) {
     setProductVersion(version);
@@ -1039,7 +1063,7 @@ export default function Home() {
         <header>
           <div>
             <p className="eyebrow">CONTENT OPERATIONS</p>
-            <h1>{active === "Overview" ? "Choisis un concept" : active}</h1>
+            <h1>{active === "Overview" ? "Pilotage" : active}</h1>
             <p className="muted">{active === "Carrousels" ? "Retrouve tous les carrousels générés et leurs slides finales." : active === "Formats" ? "Les 8 formats canoniques réellement utilisés par le renderer et le Studio." : "Choisis un concept éditorial, puis le format F01–F08 qui le sert le mieux."}</p>
           </div>
           <button
@@ -1204,7 +1228,23 @@ export default function Home() {
         )}
 
         {active === "Overview" && (
-          <section className="typeBand">
+          <section className="typeBand opsDashboard">
+            <div className="panelHead">
+              <div><p className="eyebrow">OPERATIONS</p><h2>État réel de la production</h2></div>
+              <span className="modelCount">{opsLoading ? "actualisation…" : opsOverview?.checkedAt ? new Date(opsOverview.checkedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "indisponible"}</span>
+            </div>
+            <div className="opsMetrics">
+              <article><span>Planifiés aujourd’hui</span><strong>{opsOverview?.posts.today ?? "—"}</strong><small>{opsOverview?.posts.publishedToday ?? 0} publiés · {opsOverview?.posts.failedToday ?? 0} failed</small></article>
+              <article><span>Succès 7 jours</span><strong>{opsOverview?.posts.successRate7d == null ? "—" : `${opsOverview.posts.successRate7d}%`}</strong><small>{opsOverview?.analytics.views7d.toLocaleString("fr-FR") ?? 0} vues</small></article>
+              <article><span>Worker</span><strong>{opsOverview?.worker.heartbeatAgeSeconds != null && opsOverview.worker.heartbeatAgeSeconds < 600 ? "OK" : "ALERTE"}</strong><small>{opsOverview?.worker.latest?.version ?? "aucune version"} · file {opsOverview?.worker.activeQueue ?? 0}</small></article>
+              <article><span>Alertes</span><strong>{opsOverview?.alerts.length ?? "—"}</strong><small>{opsOverview?.accountsInError.length ?? 0} compte(s) en erreur</small></article>
+            </div>
+            <div className="opsGrid">
+              <article className="opsPanel"><h3>Alertes actives</h3>{opsOverview?.alerts.length ? <ul>{opsOverview.alerts.slice(0,8).map((alert,index)=><li className={`ops-${alert.severity}`} key={`${alert.code}-${index}`}><b>{alert.code}</b><span>{alert.message}</span></li>)}</ul> : <p className="muted">Aucune alerte active.</p>}</article>
+              <article className="opsPanel"><h3>Buffer par compte</h3><ul>{opsOverview?.buffers.slice(0,16).map(item=><li key={item.accountId}><b>{item.accountId}</b><span>{item.days} j / cible {item.targetDays} · {item.ready} prêts</span></li>)}</ul></article>
+              <article className="opsPanel"><h3>Assets persona sous seuil</h3>{opsOverview?.personaAssetsUnderThreshold.length ? <ul>{opsOverview.personaAssetsUnderThreshold.map(item=><li key={item.personaId}><b>{item.personaId}</b><span>{item.count} / {item.threshold}</span></li>)}</ul> : <p className="muted">Toutes les personas dépassent le seuil.</p>}</article>
+              <article className="opsPanel"><h3>Top carrousels · 7 jours</h3>{opsOverview?.analytics.topCarousels.length ? <ul>{opsOverview.analytics.topCarousels.map(item=><li key={item.carouselId}><b>{item.carouselId}</b><span>{item.views.toLocaleString("fr-FR")} vues</span></li>)}</ul> : <p className="muted">Pas encore de statistiques.</p>}<p className="opsCosts">Coûts 7 j · {Object.entries(opsOverview?.costs7d ?? {}).map(([provider,cost])=>`${provider}: $${cost.toFixed(2)}`).join(" · ") || "$0.00"}</p></article>
+            </div>
             <div className="panelHead">
               <div>
                 <p className="eyebrow">EDITORIAL CONCEPTS</p>
