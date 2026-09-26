@@ -1,36 +1,36 @@
 /* Local, self-hosted font families for carousel/UI rendering. */
-@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/tiktok-sans-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/tiktok-sans-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/tiktok-sans-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/tiktok-sans-700.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/instrument-sans-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/instrument-sans-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/instrument-sans-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/instrument-sans-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/tiktok%20sans-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/tiktok%20sans-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/tiktok%20sans-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'TikTok Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/tiktok%20sans-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/instrument%20sans-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/instrument%20sans-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/instrument%20sans-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/instrument%20sans-700.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Manrope';font-style:normal;font-weight:400;src:url('/fonts/curated/manrope-400.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Manrope';font-style:normal;font-weight:500;src:url('/fonts/curated/manrope-500.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Manrope';font-style:normal;font-weight:600;src:url('/fonts/curated/manrope-600.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Manrope';font-style:normal;font-weight:700;src:url('/fonts/curated/manrope-700.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Inter Tight';font-style:normal;font-weight:400;src:url('/fonts/curated/inter-tight-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Inter Tight';font-style:normal;font-weight:500;src:url('/fonts/curated/inter-tight-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Inter Tight';font-style:normal;font-weight:600;src:url('/fonts/curated/inter-tight-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Inter Tight';font-style:normal;font-weight:700;src:url('/fonts/curated/inter-tight-700.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'DM Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/dm-sans-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'DM Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/dm-sans-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'DM Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/dm-sans-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'DM Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/dm-sans-700.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/plus-jakarta-sans-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/plus-jakarta-sans-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/plus-jakarta-sans-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/plus-jakarta-sans-700.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:400;src:url('/fonts/curated/space-grotesk-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500;src:url('/fonts/curated/space-grotesk-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:600;src:url('/fonts/curated/space-grotesk-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:700;src:url('/fonts/curated/space-grotesk-700.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:400;src:url('/fonts/curated/bricolage-grotesque-400.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:500;src:url('/fonts/curated/bricolage-grotesque-500.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:600;src:url('/fonts/curated/bricolage-grotesque-600.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:700;src:url('/fonts/curated/bricolage-grotesque-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:400;src:url('/fonts/curated/inter%20tight-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:500;src:url('/fonts/curated/inter%20tight-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:600;src:url('/fonts/curated/inter%20tight-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Inter Tight';font-style:normal;font-weight:700;src:url('/fonts/curated/inter%20tight-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/dm%20sans-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/dm%20sans-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/dm%20sans-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/dm%20sans-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:400;src:url('/fonts/curated/plus%20jakarta%20sans-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:500;src:url('/fonts/curated/plus%20jakarta%20sans-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:600;src:url('/fonts/curated/plus%20jakarta%20sans-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:700;src:url('/fonts/curated/plus%20jakarta%20sans-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:400;src:url('/fonts/curated/space%20grotesk-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500;src:url('/fonts/curated/space%20grotesk-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:600;src:url('/fonts/curated/space%20grotesk-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:700;src:url('/fonts/curated/space%20grotesk-700.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:400;src:url('/fonts/curated/bricolage%20grotesque-400.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:500;src:url('/fonts/curated/bricolage%20grotesque-500.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:600;src:url('/fonts/curated/bricolage%20grotesque-600.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-weight:700;src:url('/fonts/curated/bricolage%20grotesque-700.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Archivo';font-style:normal;font-weight:400;src:url('/fonts/curated/archivo-400.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Archivo';font-style:normal;font-weight:500;src:url('/fonts/curated/archivo-500.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'Archivo';font-style:normal;font-weight:600;src:url('/fonts/curated/archivo-600.ttf') format('truetype');font-display:swap}
