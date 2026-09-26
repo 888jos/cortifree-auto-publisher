@@ -86,7 +86,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "ACCEPTANCE_SAMPLE", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "ACCEPTANCE_SAMPLE", "PERSONA_CACHE_REFILL", "SCHEDULER_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: {
         hostname: os.hostname(),
@@ -324,6 +324,8 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "MODELARK_ORPHAN_RECOVERY") return runModelArkOrphanRecovery(job.payload ?? {});
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
   if (job.kind === "ACCEPTANCE_SAMPLE") return runAcceptanceSample(job.payload ?? {});
+  if (job.kind === "PERSONA_CACHE_REFILL") return refillPersonaCaches();
+  if (job.kind === "SCHEDULER_RUN") return runScheduler();
   if (job.kind === "BAD_REFERENCE_CLEANUP") return cleanupNonUserReferenceAssets();
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }
