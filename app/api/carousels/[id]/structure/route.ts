@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { applyEditorStructureAction } from "../../../../lib/editor-structure";
+import { applyEditorStructureAction, hydrateEditorSpecFromRenderedSlides } from "../../../../lib/editor-structure";
 import { dataBackend } from "../../../../lib/data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 
@@ -16,14 +16,25 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     try { assertCortiFreeCarouselId(id); } catch { return Response.json({ error: "Invalid carousel id" }, { status: 400 }); }
     const action = actionSchema.parse(await request.json());
-    const response = await dataBackend(
-      `carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,spec,topic,angle,caption,current_version,revision_count&limit=1`,
-    );
+    const [response, slideResponse] = await Promise.all([
+      dataBackend(
+        `carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,spec,topic,angle,caption,current_version,revision_count&limit=1`,
+      ),
+      dataBackend(
+        `carousel_slides?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&carousel_id=eq.${encodeURIComponent(id)}&status=eq.CURRENT&select=position,asset_id,render_metadata&order=position.asc&limit=20`,
+      ),
+    ]);
     if (!response.ok) throw new Error(await response.text());
     const carousel = (await response.json() as Array<any>)[0];
     if (!carousel) return Response.json({ error: "Carousel not found" }, { status: 404 });
+    const currentSlides = slideResponse.ok ? await slideResponse.json() as Array<any> : [];
 
-    const result = applyEditorStructureAction(carousel.spec ?? {}, action);
+    // Structural edits used to drop implicit asset assignments because only
+    // explicit editor overrides were remapped. Materialize the currently
+    // rendered asset IDs/geometry into the editor spec before reordering so
+    // the canvas keeps showing the same slide after drag/duplicate/delete.
+    const hydratedSpec = hydrateEditorSpecFromRenderedSlides(carousel.spec ?? {}, currentSlides);
+    const result = applyEditorStructureAction(hydratedSpec, action);
     const beforeVersion = Number(carousel.current_version ?? 1);
     const afterVersion = beforeVersion + 1;
     const now = new Date().toISOString();
