@@ -240,9 +240,201 @@ select
 from public.editorial_records er
 where er.kind = 'content_calendar'
   and er.active = true
-  and er.data ? 'account_id'
-  and er.data ? 'date'
-  and er.data ? 'local_time'
+  and coalesce(er.data ->> 'account_id','') <> ''
+  and coalesce(er.data ->> 'date','') ~ '^20[0-9]{2}-[0-9]{2}-[0-9]{2}
+on conflict (id) do update set
+  account_id = excluded.account_id,
+  persona_id = excluded.persona_id,
+  slot_date = excluded.slot_date,
+  slot_time = excluded.slot_time,
+  timezone = excluded.timezone,
+  scheduled_for = excluded.scheduled_for,
+  pillar_id = excluded.pillar_id,
+  concept_id = excluded.concept_id,
+  topic_id = excluded.topic_id,
+  hook_id = excluded.hook_id,
+  metadata = excluded.metadata,
+  updated_at = now();
+
+insert into public.content_health_sources
+  (source_id, topic, organization, title, url, evidence_level, last_reviewed, allowed_claims, active)
+values
+  ('SRC_NHLBI_SLEEP_IMPORTANCE','sleep','NIH / NHLBI','How Sleep Works - Why Is Sleep Important?',
+   'https://www.nhlbi.nih.gov/health/sleep/why-sleep-important','government_health_guidance','2026-09-27',
+   'Sleep supports healthy brain and physical function; inadequate sleep can impair focus and is associated with health risks. Cortisol has a normal daily rhythm and helps promote wakefulness in the morning.',true),
+  ('SRC_NHLBI_SLEEP_HABITS','sleep_habits','NIH / NHLBI','Sleep Deprivation and Deficiency - Healthy Sleep Habits',
+   'https://www.nhlbi.nih.gov/health/sleep-deprivation/healthy-sleep-habits','government_health_guidance','2026-09-27',
+   'Regular sleep/wake timing and reducing bright artificial light before bed are reasonable sleep-habit suggestions.',true),
+  ('SRC_NIMH_STRESS','stress','NIH / NIMH','I''m So Stressed Out!',
+   'https://www.nimh.nih.gov/health/publications/so-stressed-out-infographic','government_health_guidance','2026-09-27',
+   'Stress is commonly a response to an external cause; regular sleep, exercise, avoiding excess caffeine, journaling and social support are coping options. Persistent symptoms may warrant professional help.',true),
+  ('SRC_NCCIH_STRESS','stress_relaxation','NIH / NCCIH','Stress',
+   'https://www.nccih.nih.gov/health/stress','government_health_guidance','2026-09-27',
+   'Stress triggers a fight-or-flight response. Relaxation and slow/deep breathing may help reduce self-reported stress; evidence for specific outcomes varies.',true),
+  ('SRC_CDC_ACTIVITY','physical_activity','CDC','Health Benefits of Physical Activity for Adults',
+   'https://www.cdc.gov/physical-activity-basics/health-benefits/adults.html','government_health_guidance','2026-09-27',
+   'A session of moderate-to-vigorous physical activity can improve sleep quality and reduce feelings of anxiety; regular activity has broader health benefits.',true),
+  ('SRC_FDA_CAFFEINE','caffeine','FDA','Spilling the Beans: How Much Caffeine is Too Much?',
+   'https://www.fda.gov/consumers/consumer-updates/spilling-beans-how-much-caffeine-too-much','government_health_guidance','2026-09-27',
+   'Caffeine sensitivity varies. Too much caffeine can cause insomnia or sleep disruption; the FDA cites 400 mg/day for most adults as an amount not generally associated with negative effects.',true)
+on conflict (source_id) do update set
+  topic=excluded.topic,
+  organization=excluded.organization,
+  title=excluded.title,
+  url=excluded.url,
+  evidence_level=excluded.evidence_level,
+  last_reviewed=excluded.last_reviewed,
+  allowed_claims=excluded.allowed_claims,
+  active=true,
+  updated_at=now();
+
+insert into public.content_claim_rules
+  (rule_id, topic, risk_level, claim_type, allowed_wording, avoid_wording, example_safe, requires_source, source_ids, active)
+values
+  ('CLAIM_SLEEP_GENERAL','sleep','low','wellness_context',
+   'Use supportive language: sleep supports health, focus and daytime functioning; regular sleep habits may help.',
+   'Do not promise that a sleep habit fixes hormones, cures anxiety, treats disease, or guarantees lower cortisol.',
+   'keeping my sleep schedule consistent makes my mornings feel less chaotic',true,
+   array['SRC_NHLBI_SLEEP_IMPORTANCE','SRC_NHLBI_SLEEP_HABITS'],true),
+  ('CLAIM_CORTISOL_RHYTHM','cortisol','medium','physiology_context',
+   'You may say cortisol naturally follows a daily rhythm and helps promote wakefulness in the morning.',
+   'Do not diagnose high/low cortisol from appearance or symptoms. Do not claim a routine resets, flushes, balances, detoxes or permanently lowers cortisol.',
+   'cortisol is supposed to change across the day — one bad morning is not a diagnosis',true,
+   array['SRC_NHLBI_SLEEP_IMPORTANCE'],true),
+  ('CLAIM_STRESS_RESPONSE','stress','medium','physiology_context',
+   'Use: stress is a normal physical and emotional response; long-term stress may contribute to or worsen some symptoms.',
+   'Avoid diagnosing chronic stress, adrenal fatigue, hormonal imbalance, or attributing specific symptoms to cortisol without clinical evaluation.',
+   'stress can show up in your body, but a symptom alone cannot tell you what your cortisol is doing',true,
+   array['SRC_NIMH_STRESS','SRC_NCCIH_STRESS'],true),
+  ('CLAIM_BREATHING_RELAXATION','breathing','medium','behavior',
+   'Use cautious language: slow/deep breathing or relaxation techniques may help some people feel calmer or reduce self-reported stress.',
+   'Do not call breathing a treatment, cure, cortisol hack, or substitute for medical care.',
+   'a few slow breaths can be a low-pressure way to downshift when I feel tense',true,
+   array['SRC_NCCIH_STRESS'],true),
+  ('CLAIM_ACTIVITY','physical_activity','low','behavior',
+   'Physical activity can support sleep quality and reduce feelings of anxiety; keep recommendations general and accessible.',
+   'Do not promise a workout lowers cortisol by a specific amount or treats a medical condition.',
+   'a walk is movement, not a hormone prescription — I use it because it helps me reset',true,
+   array['SRC_CDC_ACTIVITY'],true),
+  ('CLAIM_CAFFEINE','caffeine','medium','behavior',
+   'Use: caffeine sensitivity varies; excess caffeine can disrupt sleep. General advice to notice timing/amount is acceptable.',
+   'Do not prescribe a universal caffeine cutoff, diagnose sensitivity, or present 400 mg as a personal safe limit for everyone.',
+   'if late caffeine messes with your sleep, moving it earlier is a reasonable experiment',true,
+   array['SRC_FDA_CAFFEINE'],true),
+  ('CLAIM_NO_DIAGNOSIS','diagnosis','high','safety_boundary',
+   'If persistent or concerning symptoms interfere with daily life, suggest discussing them with a qualified health professional.',
+   'Never diagnose cortisol imbalance, adrenal fatigue, anxiety disorders, sleep disorders, or other conditions from lifestyle signs, face scans, quizzes, or photos.',
+   'persistent symptoms deserve a real clinician, not a carousel diagnosis',false,
+   array['SRC_NIMH_STRESS'],true)
+on conflict (rule_id) do update set
+  topic=excluded.topic,
+  risk_level=excluded.risk_level,
+  claim_type=excluded.claim_type,
+  allowed_wording=excluded.allowed_wording,
+  avoid_wording=excluded.avoid_wording,
+  example_safe=excluded.example_safe,
+  requires_source=excluded.requires_source,
+  source_ids=excluded.source_ids,
+  active=true,
+  updated_at=now();
+
+  and coalesce(er.data ->> 'local_time','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]
+on conflict (id) do update set
+  account_id = excluded.account_id,
+  persona_id = excluded.persona_id,
+  slot_date = excluded.slot_date,
+  slot_time = excluded.slot_time,
+  timezone = excluded.timezone,
+  scheduled_for = excluded.scheduled_for,
+  pillar_id = excluded.pillar_id,
+  concept_id = excluded.concept_id,
+  topic_id = excluded.topic_id,
+  hook_id = excluded.hook_id,
+  metadata = excluded.metadata,
+  updated_at = now();
+
+insert into public.content_health_sources
+  (source_id, topic, organization, title, url, evidence_level, last_reviewed, allowed_claims, active)
+values
+  ('SRC_NHLBI_SLEEP_IMPORTANCE','sleep','NIH / NHLBI','How Sleep Works - Why Is Sleep Important?',
+   'https://www.nhlbi.nih.gov/health/sleep/why-sleep-important','government_health_guidance','2026-09-27',
+   'Sleep supports healthy brain and physical function; inadequate sleep can impair focus and is associated with health risks. Cortisol has a normal daily rhythm and helps promote wakefulness in the morning.',true),
+  ('SRC_NHLBI_SLEEP_HABITS','sleep_habits','NIH / NHLBI','Sleep Deprivation and Deficiency - Healthy Sleep Habits',
+   'https://www.nhlbi.nih.gov/health/sleep-deprivation/healthy-sleep-habits','government_health_guidance','2026-09-27',
+   'Regular sleep/wake timing and reducing bright artificial light before bed are reasonable sleep-habit suggestions.',true),
+  ('SRC_NIMH_STRESS','stress','NIH / NIMH','I''m So Stressed Out!',
+   'https://www.nimh.nih.gov/health/publications/so-stressed-out-infographic','government_health_guidance','2026-09-27',
+   'Stress is commonly a response to an external cause; regular sleep, exercise, avoiding excess caffeine, journaling and social support are coping options. Persistent symptoms may warrant professional help.',true),
+  ('SRC_NCCIH_STRESS','stress_relaxation','NIH / NCCIH','Stress',
+   'https://www.nccih.nih.gov/health/stress','government_health_guidance','2026-09-27',
+   'Stress triggers a fight-or-flight response. Relaxation and slow/deep breathing may help reduce self-reported stress; evidence for specific outcomes varies.',true),
+  ('SRC_CDC_ACTIVITY','physical_activity','CDC','Health Benefits of Physical Activity for Adults',
+   'https://www.cdc.gov/physical-activity-basics/health-benefits/adults.html','government_health_guidance','2026-09-27',
+   'A session of moderate-to-vigorous physical activity can improve sleep quality and reduce feelings of anxiety; regular activity has broader health benefits.',true),
+  ('SRC_FDA_CAFFEINE','caffeine','FDA','Spilling the Beans: How Much Caffeine is Too Much?',
+   'https://www.fda.gov/consumers/consumer-updates/spilling-beans-how-much-caffeine-too-much','government_health_guidance','2026-09-27',
+   'Caffeine sensitivity varies. Too much caffeine can cause insomnia or sleep disruption; the FDA cites 400 mg/day for most adults as an amount not generally associated with negative effects.',true)
+on conflict (source_id) do update set
+  topic=excluded.topic,
+  organization=excluded.organization,
+  title=excluded.title,
+  url=excluded.url,
+  evidence_level=excluded.evidence_level,
+  last_reviewed=excluded.last_reviewed,
+  allowed_claims=excluded.allowed_claims,
+  active=true,
+  updated_at=now();
+
+insert into public.content_claim_rules
+  (rule_id, topic, risk_level, claim_type, allowed_wording, avoid_wording, example_safe, requires_source, source_ids, active)
+values
+  ('CLAIM_SLEEP_GENERAL','sleep','low','wellness_context',
+   'Use supportive language: sleep supports health, focus and daytime functioning; regular sleep habits may help.',
+   'Do not promise that a sleep habit fixes hormones, cures anxiety, treats disease, or guarantees lower cortisol.',
+   'keeping my sleep schedule consistent makes my mornings feel less chaotic',true,
+   array['SRC_NHLBI_SLEEP_IMPORTANCE','SRC_NHLBI_SLEEP_HABITS'],true),
+  ('CLAIM_CORTISOL_RHYTHM','cortisol','medium','physiology_context',
+   'You may say cortisol naturally follows a daily rhythm and helps promote wakefulness in the morning.',
+   'Do not diagnose high/low cortisol from appearance or symptoms. Do not claim a routine resets, flushes, balances, detoxes or permanently lowers cortisol.',
+   'cortisol is supposed to change across the day — one bad morning is not a diagnosis',true,
+   array['SRC_NHLBI_SLEEP_IMPORTANCE'],true),
+  ('CLAIM_STRESS_RESPONSE','stress','medium','physiology_context',
+   'Use: stress is a normal physical and emotional response; long-term stress may contribute to or worsen some symptoms.',
+   'Avoid diagnosing chronic stress, adrenal fatigue, hormonal imbalance, or attributing specific symptoms to cortisol without clinical evaluation.',
+   'stress can show up in your body, but a symptom alone cannot tell you what your cortisol is doing',true,
+   array['SRC_NIMH_STRESS','SRC_NCCIH_STRESS'],true),
+  ('CLAIM_BREATHING_RELAXATION','breathing','medium','behavior',
+   'Use cautious language: slow/deep breathing or relaxation techniques may help some people feel calmer or reduce self-reported stress.',
+   'Do not call breathing a treatment, cure, cortisol hack, or substitute for medical care.',
+   'a few slow breaths can be a low-pressure way to downshift when I feel tense',true,
+   array['SRC_NCCIH_STRESS'],true),
+  ('CLAIM_ACTIVITY','physical_activity','low','behavior',
+   'Physical activity can support sleep quality and reduce feelings of anxiety; keep recommendations general and accessible.',
+   'Do not promise a workout lowers cortisol by a specific amount or treats a medical condition.',
+   'a walk is movement, not a hormone prescription — I use it because it helps me reset',true,
+   array['SRC_CDC_ACTIVITY'],true),
+  ('CLAIM_CAFFEINE','caffeine','medium','behavior',
+   'Use: caffeine sensitivity varies; excess caffeine can disrupt sleep. General advice to notice timing/amount is acceptable.',
+   'Do not prescribe a universal caffeine cutoff, diagnose sensitivity, or present 400 mg as a personal safe limit for everyone.',
+   'if late caffeine messes with your sleep, moving it earlier is a reasonable experiment',true,
+   array['SRC_FDA_CAFFEINE'],true),
+  ('CLAIM_NO_DIAGNOSIS','diagnosis','high','safety_boundary',
+   'If persistent or concerning symptoms interfere with daily life, suggest discussing them with a qualified health professional.',
+   'Never diagnose cortisol imbalance, adrenal fatigue, anxiety disorders, sleep disorders, or other conditions from lifestyle signs, face scans, quizzes, or photos.',
+   'persistent symptoms deserve a real clinician, not a carousel diagnosis',false,
+   array['SRC_NIMH_STRESS'],true)
+on conflict (rule_id) do update set
+  topic=excluded.topic,
+  risk_level=excluded.risk_level,
+  claim_type=excluded.claim_type,
+  allowed_wording=excluded.allowed_wording,
+  avoid_wording=excluded.avoid_wording,
+  example_safe=excluded.example_safe,
+  requires_source=excluded.requires_source,
+  source_ids=excluded.source_ids,
+  active=true,
+  updated_at=now();
+
 on conflict (id) do update set
   account_id = excluded.account_id,
   persona_id = excluded.persona_id,
