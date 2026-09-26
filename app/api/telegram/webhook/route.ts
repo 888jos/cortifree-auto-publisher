@@ -137,7 +137,7 @@ async function carouselCard(chatId: string | number, id: string, includeSlides =
     `Persona: ${carousel.persona_id ?? "-"} · Account: ${carousel.account_id ?? "-"}`,
     `Status: ${carousel.status ?? "-"} / ${carousel.review_status ?? "-"}`,
     `Version: ${carousel.current_version ?? 1} · Revisions: ${carousel.revision_count ?? 0}`,
-  ].join("\n"), carouselButtons(id, { canPlan: ["APPROVED","SCHEDULED"].includes(String(carousel.status ?? "")) }));
+  ].join("\n"), carouselButtons(id, { canPlan: ["APPROVED","PLANNED","SCHEDULED"].includes(String(carousel.status ?? "")) }));
 }
 
 async function approve(chatId: string | number, id: string) {
@@ -240,7 +240,7 @@ async function reviewQueue(chatId: string | number) {
 async function planning(chatId: string | number, personaId?: string) {
   const filter = personaId ? `&persona_id=eq.${encodeURIComponent(personaId.toUpperCase())}` : "";
   const rowsList = await rows(
-    `carousels?workspace_id=eq.cortifree&status=in.(APPROVED,SCHEDULED,PUBLISHING,PUBLISHED)&select=id,persona_id,account_id,topic,status,scheduled_for&order=scheduled_for.asc.nullslast,approved_at.asc&limit=100${filter}`,
+    `carousels?workspace_id=eq.cortifree&status=in.(APPROVED,PLANNED,SCHEDULED,PUBLISHING,PUBLISHED)&select=id,persona_id,account_id,topic,status,scheduled_for&order=scheduled_for.asc.nullslast,approved_at.asc&limit=100${filter}`,
   );
   const backlog = rowsList.filter((row) => String(row.status) === "APPROVED" && !row.scheduled_for);
   const scheduled = rowsList.filter((row) => Boolean(row.scheduled_for)).slice(0, 20);
