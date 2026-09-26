@@ -31,6 +31,7 @@ export default defineSchema({
   carousel_ideas: cortiFreeTable(),
   carousels: cortiFreeTable(),
   carousel_slides: cortiFreeTable(),
+  content_slots: cortiFreeTable(),
   image_generation_jobs: cortiFreeTable(),
   render_jobs: cortiFreeTable(),
   publish_jobs: cortiFreeTable(),
