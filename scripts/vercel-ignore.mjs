@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
 
+// Deployment sync marker: business orchestration hardening is ready for production.
+
 const expectedProjectId = process.env.CORTIFREE_VERCEL_PROJECT_ID || "prj_VAzxY6ziL68xkWugWCdw6ympilER";
 const actualProjectId = process.env.VERCEL_PROJECT_ID || "";
 const gitRef = (process.env.VERCEL_GIT_COMMIT_REF || "").trim();
