@@ -163,3 +163,5 @@
 @media(max-width:1080px){
  .ce-shell{grid-template-columns:118px minmax(0,1fr) 300px}
 }
+
+/* deployment marker: editor asset parity/layout fix */
