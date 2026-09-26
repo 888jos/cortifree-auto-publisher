@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     account_id: accountId,
     persona_id: body.persona_id || "P01",
     language: body.language || "en",
-    content_type: body.content_type || spec.carousel_type || "C13_EDUCATIONAL_EXPLAINER",
+    content_type: body.content_type || spec.carousel_type || "F04_AESTHETIC_EDUCATIONAL",
     topic: body.topic || spec.carousel_type_name || "Carousel draft",
     angle: body.angle || `Draft generated with ${spec.model_id || "selected model"}`,
     caption: body.caption || "Save this for later.",
