@@ -37,7 +37,7 @@ async function rows(resource: string): Promise<Row[]> {
 
 export async function loadHealthGuardrails(): Promise<HealthGuardrails> {
   const [sourceRows, ruleRows] = await Promise.all([
-    rows("content_sources?active=eq.true&select=source_id,topic,organization,title,url,evidence_level,allowed_claims&limit=100"),
+    rows("content_health_sources?active=eq.true&select=source_id,topic,organization,title,url,evidence_level,allowed_claims&limit=100"),
     rows("content_claim_rules?active=eq.true&select=rule_id,topic,risk_level,claim_type,allowed_wording,avoid_wording,example_safe,requires_source,source_ids&limit=200"),
   ]);
   return {
