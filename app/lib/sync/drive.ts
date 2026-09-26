@@ -1,4 +1,5 @@
 import { backendMode, dataBackend } from "../data-backend";
+import { isBrowserRenderableAssetUrl } from "../asset-public-url";
 import { uploadConvexFile } from "../convex-storage";
 import { listDriveChildren, getDriveFile, downloadDriveFile, type DriveFile } from "../google/drive";
 import { readSheetObjects } from "../google/sheets";
@@ -77,7 +78,7 @@ async function patch(table: string, id: string, row: Row) {
   if (!response.ok) throw new Error(await response.text());
 }
 function md5Matches(existing: Row | undefined, file: DriveFile) {
-  return Boolean(existing?.public_url && file.md5Checksum && existing.drive_md5 === file.md5Checksum);
+  return Boolean(isBrowserRenderableAssetUrl(existing?.public_url) && file.md5Checksum && existing?.drive_md5 === file.md5Checksum);
 }
 function canonicalArray(value: unknown) {
   return Array.isArray(value) ? value.map(String).sort() : [];
