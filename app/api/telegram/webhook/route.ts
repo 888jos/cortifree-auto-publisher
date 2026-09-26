@@ -231,7 +231,7 @@ async function integrations(chatId: string | number) {
 }
 
 async function reviewQueue(chatId: string | number) {
-  const queue = await rows("carousels?workspace_id=eq.cortifree&review_status=eq.AWAITING_REVIEW&select=id&order=created_at.asc&limit=8");
+  const queue = await rows("carousels?workspace_id=eq.cortifree&review_status=eq.AWAITING_REVIEW&status=eq.READY_FOR_REVIEW&select=id&order=created_at.asc&limit=8");
   if (!queue.length) return sendTelegramMessage(chatId, "✅ Review queue is empty.");
   await sendTelegramMessage(chatId, `🧾 ${queue.length} carousel(s) shown from the review queue.`);
   for (const row of queue) await carouselCard(chatId, String(row.id), false);
