@@ -292,6 +292,8 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
   let skipped = 0;
   let metadataRepaired = 0;
   let duplicatesSkipped = 0;
+  const resolvedStockDriveIds = new Set<string>();
+  const resolvedStockKeys = new Set<string>();
   const resolvedRefIds = new Set<string>();
   let failed = 0;
   const failures: Array<{ id: string; name: string; error: string }> = [];
@@ -479,6 +481,8 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
       ?? (entry.file.md5Checksum ? assetByMd5.get(entry.file.md5Checksum) : undefined);
     if (existing && entry.file.md5Checksum && assetByMd5.get(entry.file.md5Checksum)
       && String(existing.drive_file_id ?? "") !== String(entry.file.id)) {
+      resolvedStockDriveIds.add(String(entry.file.id));
+      if (taxonomy.stock_key) resolvedStockKeys.add(String(taxonomy.stock_key));
       duplicatesSkipped += 1;
       skipped += 1;
       return;
@@ -525,6 +529,8 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
         drive_md5: existing.drive_md5 ?? entry.file.md5Checksum ?? null,
         drive_modified_time: entry.file.modifiedTime ?? existing.drive_modified_time ?? null,
       });
+      resolvedStockDriveIds.add(String(entry.file.id));
+      if (taxonomy.stock_key) resolvedStockKeys.add(String(taxonomy.stock_key));
       metadataRepaired += 1;
       skipped += 1;
       return;
@@ -545,6 +551,8 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
       use_count: Number(taxonomy.use_count ?? 0),
       indexed_at: new Date().toISOString(),
     }, ["workspace_id", "drive_file_id"]);
+    resolvedStockDriveIds.add(String(entry.file.id));
+    if (taxonomy.stock_key) resolvedStockKeys.add(String(taxonomy.stock_key));
     uploaded += 1;
   }
 
@@ -656,6 +664,7 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
     };
     if (reviewStatus === "DUPLICATE" || qaFlag === "MULTI_PERSON_AUTO_DISABLED") {
       if (existing?.id) await patch("visual_references", String(existing.id), { ...canonicalMetadata, enabled: false });
+      if (refId) resolvedRefIds.add(refId);
       duplicatesSkipped += 1;
       skipped += 1;
       return;
@@ -747,7 +756,9 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
     const existing = row.drive_file_id
       ? assetByDrive.get(String(row.drive_file_id)) ?? assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""))
       : assetByFilename.get(String(row.filename ?? "").trim().toLowerCase()) ?? assetByMd5.get(String(row.drive_md5 ?? row.md5 ?? ""));
-    return { row, existing, status: existing ? `INDEXED_${backendMode().toUpperCase()}` : "DRIVE_ONLY_NEEDS_SYNC" };
+    const resolved = (row.drive_file_id && resolvedStockDriveIds.has(String(row.drive_file_id)))
+      || (row.stock_key && resolvedStockKeys.has(String(row.stock_key)));
+    return { row, existing, status: existing || resolved ? `INDEXED_${backendMode().toUpperCase()}` : "DRIVE_ONLY_NEEDS_SYNC" };
   });
   const visualAuditRows = refTaxonomy.map((row) => {
     const existing = row.ref_id ? refById.get(String(row.ref_id)) : undefined;
@@ -781,8 +792,8 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
         : stockTree.length ? stockTree.filter((entry) => isImage(entry.file)).length : stockTaxonomy.filter((row) => row.drive_file_id).length,
       runtime_count: scope === "visual_refs" || scope === "visual_refs_missing" ? existingRefs.length : existingAssets.filter((row) => row.source_type === "stock").length,
       missing_runtime: scope === "visual_refs" || scope === "visual_refs_missing"
-        ? refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id)) && !refByHash.has(String(row.file_hash ?? "")) && !resolvedRefIds.has(String(row.ref_id)) && sheetSelectable(row)).length
-        : stockTaxonomy.filter((row) => row.drive_file_id && !assetByDrive.has(String(row.drive_file_id)) && !assetByFilename.has(String(row.filename ?? "").trim().toLowerCase()) && !assetByMd5.has(String(row.drive_md5 ?? row.md5 ?? ""))).length,
+        ? visualAuditRows.filter((item) => item.status === "DRIVE_ONLY_NEEDS_SYNC" && sheetSelectable(item.row)).length
+        : stockAuditRows.filter((item) => item.status === "DRIVE_ONLY_NEEDS_SYNC" && sheetSelectable(item.row)).length,
       duplicates_skipped: duplicatesSkipped,
       metadata_repaired: metadataRepaired,
       uploaded,
@@ -796,7 +807,9 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
       visual_ref_status_counts: statusCounts(visualAuditRows),
       visual_ref_drive_images: scope === "visual_refs" || scope === "visual_refs_missing" ? refTaxonomy.length : refTree.filter((entry) => isImage(entry.file)).length,
       visual_ref_sheet_rows: refTaxonomy.length,
-      visual_ref_runtime_missing_rows: refTaxonomy.filter((row) => row.ref_id && !refById.has(String(row.ref_id))).map((row) => String(row.ref_id)),
+      visual_ref_runtime_missing_rows: visualAuditRows
+        .filter((item) => item.status === "DRIVE_ONLY_NEEDS_SYNC" && sheetSelectable(item.row))
+        .map(({ row }) => String(row.ref_id)),
       canonical_metadata_repaired: metadataRepaired,
     },
     finished_at: new Date().toISOString(),
