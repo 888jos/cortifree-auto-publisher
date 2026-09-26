@@ -241,7 +241,8 @@ from public.editorial_records er
 where er.kind = 'content_calendar'
   and er.active = true
   and coalesce(er.data ->> 'account_id','') <> ''
-  and coalesce(er.data ->> 'date','') ~ '^20[0-9]{2}-[0-9]{2}-[0-9]{2}
+  and coalesce(er.data ->> 'date','') ~ '^20[0-9]{2}-[0-9]{2}-[0-9]{2}$'
+  and coalesce(er.data ->> 'local_time','') ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
 on conflict (id) do update set
   account_id = excluded.account_id,
   persona_id = excluded.persona_id,
