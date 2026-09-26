@@ -56,6 +56,17 @@ export type EditorialContext = {
     screenshot_required: boolean;
   };
 };
+export type HealthGuardrails = {
+  sources: Array<{
+    sourceId: string; topic: string; organization: string | null; title: string; url: string;
+    evidenceLevel: string | null; allowedClaims: string | null;
+  }>;
+  rules: Array<{
+    ruleId: string; topic: string; riskLevel: string; claimType: string | null;
+    allowedWording: string | null; avoidWording: string | null; exampleSafe: string | null;
+    requiresSource: boolean; sourceIds: string[];
+  }>;
+};
 export type CarouselGeneratorInput = {
   carouselType: CarouselTypeId;
   layout: string;
@@ -73,6 +84,7 @@ export type CarouselGeneratorInput = {
   hookId?: string;
   formatId?: string;
   editorialContext?: EditorialContext;
+  healthGuardrails?: HealthGuardrails;
   requireCanonicalContext?: boolean;
 };
 export type TokenUsage = { inputTokens: number; cachedInputTokens: number; outputTokens: number };
