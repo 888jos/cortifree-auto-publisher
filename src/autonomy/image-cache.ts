@@ -64,7 +64,7 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
         prompt_additions: 'Autonomous persona cache refill. Keep identity exact and scene natural.',
       });
       jobs.push({
-        id: `IMG_AUTO_${account.persona_id}_${Date.now()}_${index}`, workspace_id: 'cortifree', persona_id: account.persona_id,
+        workspace_id: 'cortifree', persona_id: account.persona_id,
         master_asset_id: master.id, visual_reference_id: reference.id, category: input.category, scene: input.scene,
         input, prompt: buildImagePrompt(persona as any, reference, input), provider: 'modelark_seedream',
         model: process.env.MODELARK_MODEL_ID ?? null, status: 'PENDING', attempts: 0, attempt_count: 0,
