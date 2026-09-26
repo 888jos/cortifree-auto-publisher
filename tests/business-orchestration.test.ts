@@ -5,6 +5,7 @@ import path from "node:path";
 import { parseConvexResource } from "../app/lib/data-backend.js";
 import { learningMultiplier, strategyExponent } from "../src/autonomy/learning.js";
 import { minimumPersonaAssets } from "../src/autonomy/preflight.js";
+import { personaCacheGenerationPolicy } from "../src/autonomy/image-cache.js";
 import { strategyForSlot, zonedToUtc } from "../src/autonomy/slots.js";
 
 describe("business orchestration v1", () => {
@@ -20,6 +21,16 @@ describe("business orchestration v1", () => {
     assert.equal(minimumPersonaAssets("F01_LIFESTYLE_GUIDE", 7), 4);
     assert.equal(minimumPersonaAssets("F06_PERSONA_EXPLAINER", 7), 4);
     assert.equal(minimumPersonaAssets("F08_2X2", 7), 2);
+  });
+
+  it("uses the staged 100/80/20 persona generation policy", () => {
+    assert.equal(personaCacheGenerationPolicy(0, "P01", "2026-09-27").generatePercent, 100);
+    assert.equal(personaCacheGenerationPolicy(9, "P01", "2026-09-27").generatePercent, 100);
+    assert.equal(personaCacheGenerationPolicy(10, "P01", "2026-09-27").generatePercent, 80);
+    assert.equal(personaCacheGenerationPolicy(19, "P01", "2026-09-27").generatePercent, 80);
+    assert.equal(personaCacheGenerationPolicy(20, "P01", "2026-09-27").generatePercent, 20);
+    assert.equal(personaCacheGenerationPolicy(24, "P01", "2026-09-27").generatePercent, 20);
+    assert.equal(personaCacheGenerationPolicy(25, "P01", "2026-09-27").generatePercent, 0);
   });
 
   it("keeps slot strategy deterministic and converts local NY time to UTC", () => {
@@ -65,6 +76,12 @@ describe("business orchestration v1", () => {
     assert.match(planning, /status: "PLANNED"/);
     assert.match(planning, /eventType: "PLANNED"/);
     assert.doesNotMatch(planning, /last_review_action: "SCHEDULED"/);
+  });
+
+  it("uses one canonical F01-F08 acceptance pipeline", async () => {
+    const acceptance = await fs.readFile(path.join(process.cwd(), "src/autonomy/acceptance-run.ts"), "utf8");
+    assert.match(acceptance, /createAcceptanceSample/);
+    assert.doesNotMatch(acceptance, /C01_MORNING_ROUTINE|C13_EDUCATIONAL_EXPLAINER/);
   });
 
   it("ships sourced health guardrails from institutional sources", async () => {
