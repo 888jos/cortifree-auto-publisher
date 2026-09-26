@@ -16,7 +16,7 @@ async function insert(resource: string, body: unknown) {
   return await response.json() as Row[];
 }
 
-export async function refillPersonaCaches() {
+export async function refillPersonaCaches(options: { personaIds?: string[] } = {}) {
   const [{ autonomyRules }, accounts, personas] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
@@ -26,7 +26,8 @@ export async function refillPersonaCaches() {
   const target = autonomyRuleValue(autonomyRules, 'persona_cache_target', 20);
   const generationEnabled = process.env.IMAGE_GENERATION_ENABLED === 'true';
   const report: Row[] = [];
-  const active = accounts.filter((account) => account.enabled);
+  const requestedPersonaIds = new Set((options.personaIds ?? []).map((id) => id.trim().toUpperCase()).filter(Boolean));
+  const active = accounts.filter((account) => account.enabled && (!requestedPersonaIds.size || requestedPersonaIds.has(account.persona_id)));
 
   for (const account of active) {
     const existing = await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`);

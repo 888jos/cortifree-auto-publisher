@@ -120,11 +120,11 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
     loadRuntimeAccounts(),
   ]);
   const batchId = input.batchId?.trim() || `E2E_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
-  const limit = Math.max(1, Math.min(16, input.limit ?? 16));
+  const limit = Math.max(1, Math.min(20, input.limit ?? 20));
   const accounts = allAccounts
     .filter((account) => account.enabled && !['PAUSED', 'ERROR'].includes(account.warmup_status))
-    .filter((account, index, source) => source.findIndex((candidate) => candidate.persona_id === account.persona_id) === index)
-    .slice(0, limit);
+    .filter((account, index, source) => source.findIndex((candidate) => candidate.persona_id === account.persona_id) === index);
+  if (!accounts.length) return { batchId, requested: limit, created: 0, ideas: [] };
   const historyRows = await rows('carousel_ideas?order=created_at.desc&limit=2000');
   const history: SelectionHistory[] = historyRows.map((row) => ({
     account_id: String(row.account_id ?? ''), topic_id: row.topic_id ? String(row.topic_id) : undefined,
@@ -134,7 +134,8 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
   }));
   const formatCycle = ['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2'];
   const report: AnyRow[] = [];
-  for (const [index, account] of accounts.entries()) {
+  for (let index = 0; index < limit; index += 1) {
+    const account = accounts[index % accounts.length]!;
     const formatId = formatCycle[index % formatCycle.length]!;
     let picked: ReturnType<typeof selectEditorial> | null = null;
     let selectedSeed = '';
@@ -155,7 +156,7 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
       report.push({ account_id: account.id, persona_id: account.persona_id, format_id: formatId, status: 'NO_ELIGIBLE_EDITORIAL' });
       continue;
     }
-    const id = `CF_E2E_IDEA_${batchId}_${account.persona_id}_${formatId.slice(0, 3)}`.replace(/[^A-Z0-9_]/gi, '').slice(0, 120);
+    const id = `CF_E2E_IDEA_${batchId}_${String(index + 1).padStart(2, "0")}_${account.persona_id}_${formatId.slice(0, 3)}`.replace(/[^A-Z0-9_]/gi, '').slice(0, 120);
     const row = {
       id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
       pillar_id: picked.topic.pillar_id, content_type: formatId, topic_id: picked.topic.topic_id,
