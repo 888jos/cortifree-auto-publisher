@@ -57,6 +57,14 @@ describe("review planning workflow", () => {
     assert.doesNotMatch(publishing, /status=eq\.APPROVED&review_status=eq\.APPROVED/);
   });
 
+  it("keeps archived history out of the active review queue", async () => {
+    const reviewApi = await fs.readFile(path.join(process.cwd(), "app/api/review/route.ts"), "utf8");
+    const telegramWebhook = await fs.readFile(path.join(process.cwd(), "app/api/telegram/webhook/route.ts"), "utf8");
+    assert.match(reviewApi, /status \?\? ""\) !== "ARCHIVED"/);
+    assert.match(reviewApi, /status !== "AWAITING_REVIEW" \|\| String\(row\.status \?\? ""\) === "READY_FOR_REVIEW"/);
+    assert.match(telegramWebhook, /review_status=eq\.AWAITING_REVIEW&status=eq\.READY_FOR_REVIEW/);
+  });
+
   it("ships dedicated Review and Planning workspaces", async () => {
     const review = await fs.readFile(path.join(process.cwd(), "app/review/page.tsx"), "utf8");
     const planning = await fs.readFile(path.join(process.cwd(), "app/planning/page.tsx"), "utf8");
