@@ -3,6 +3,8 @@ import type { Account } from '../domain';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, autonomyRuleValue } from '../runtime/config';
 import { selectEditorial, type EditorialTopic, type EditorialHook, type EditorialCta, type SelectionHistory } from './selection';
+import { loadLearningWeights } from './learning';
+import { claimContentSlot, ensureRollingSlots, syncContentSlotsFromCalendar } from './slots';
 
 type AnyRow = Record<string, unknown>;
 
@@ -41,16 +43,24 @@ function pillarIds(account: Account) {
 }
 
 export async function runScheduler() {
-  const [{ topics, hooks, ctas, autonomyRules }, accounts] = await Promise.all([
+  const [{ topics, hooks, ctas, autonomyRules }, accounts, learningWeights] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
+    loadLearningWeights(),
   ]);
+
+  const calendarSync = await syncContentSlotsFromCalendar();
+  const rolling = await ensureRollingSlots(accounts);
   const accountTopicCooldownDays = autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14);
   const accountHookCooldownDays = autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7);
   const networkTopicCooldownHours = autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48);
   const networkHookCooldownHours = autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48);
   const report: Array<Record<string, unknown>> = [];
-  const networkIdeas = await rows('carousel_ideas?order=created_at.desc&limit=2000');
+
+  const [networkIdeas, slotRows] = await Promise.all([
+    rows('carousel_ideas?order=created_at.desc&limit=2000'),
+    rows('content_slots?workspace_id=eq.cortifree&status=eq.OPEN&scheduled_for=gte.' + encodeURIComponent(new Date().toISOString()) + '&select=*&order=scheduled_for.asc&limit=2000'),
+  ]);
   const networkHistory: SelectionHistory[] = networkIdeas.map((row) => ({
     account_id: String(row.account_id ?? ''),
     topic_id: row.topic_id ? String(row.topic_id) : undefined,
@@ -66,52 +76,114 @@ export async function runScheduler() {
       report.push({ account_id: account.id, action: 'SKIP_DISABLED' });
       continue;
     }
-    const existingIdeas = await rows(`carousel_ideas?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
-    const readyCarousels = await rows(`carousels?account_id=eq.${encodeURIComponent(account.id)}&limit=500`);
-    const bufferedCarousels = readyCarousels.filter((row) => ['DRAFT','READY_FOR_REVIEW','APPROVED','SCHEDULED'].includes(String(row.status)));
-    const queuedIdeas = existingIdeas.filter((row) => ['QUEUED','GENERATING'].includes(String(row.status)));
-    // posting_slots are candidate windows, not the number of posts to create.
-    // Warm-up accounts can legitimately have two available slots while targeting only one post/day.
-    const dailyCadence = Math.max(account.daily_target, 1);
-    const target = Math.max(1, dailyCadence * (account.ready_buffer_days ?? 3));
-    const missing = Math.max(0, target - bufferedCarousels.length - queuedIdeas.length);
-    const history: SelectionHistory[] = [...networkHistory];
 
+    const horizon = Date.now() + Math.max(1, account.ready_buffer_days ?? 3) * 86_400_000;
+    const demand = slotRows
+      .filter((slot) => String(slot.account_id ?? '') === account.id)
+      .filter((slot) => !slot.idea_id && Date.parse(String(slot.scheduled_for ?? '')) <= horizon)
+      .sort((a,b) => Date.parse(String(a.scheduled_for ?? '')) - Date.parse(String(b.scheduled_for ?? '')));
+    const history: SelectionHistory[] = [...networkHistory];
     let created = 0;
-    for (let index = 0; index < missing; index += 1) {
+    const failures: Array<{ slot_id: string; reason: string }> = [];
+
+    for (const [index, slot] of demand.entries()) {
+      const slotId = String(slot.id);
+      const slotStrategy = String(slot.strategy ?? strategy(index));
+      const preferredTopicId = String(slot.topic_id ?? '').trim();
+      const preferredHookId = String(slot.hook_id ?? '').trim();
+      const preferredPillarId = String(slot.pillar_id ?? '').trim();
       let picked: ReturnType<typeof selectEditorial> | null = null;
       let selectedSeed = '';
-      for (let attempt = 0; attempt < 12 && !picked; attempt += 1) {
-        selectedSeed = seed(account.id, index * 20 + attempt);
+
+      for (let attempt = 0; attempt < 20 && !picked; attempt += 1) {
+        selectedSeed = crypto.createHash('sha1').update(`${slotId}:${attempt}`).digest('hex');
+        const topicPool = preferredTopicId && attempt < 14
+          ? topics.filter((topic) => topic.topic_id === preferredTopicId)
+          : topics;
+        const hookPool = preferredHookId && attempt < 8
+          ? hooks.filter((hook) => hook.hook_id === preferredHookId)
+          : hooks;
+        if (!topicPool.length || !hookPool.length) continue;
         try {
           picked = selectEditorial({
-            seed: selectedSeed, accountId: account.id, personaId: account.persona_id,
-            pillarIds: pillarIds(account), formatIds: formatIds(account), topics, hooks, ctas, history,
-            accountTopicCooldownDays, accountHookCooldownDays, networkTopicCooldownHours, networkHookCooldownHours,
+            seed: selectedSeed,
+            accountId: account.id,
+            personaId: account.persona_id,
+            pillarIds: preferredPillarId ? [preferredPillarId] : pillarIds(account),
+            formatIds: formatIds(account),
+            topics: topicPool,
+            hooks: hookPool,
+            ctas,
+            history,
+            accountTopicCooldownDays,
+            accountHookCooldownDays,
+            networkTopicCooldownHours,
+            networkHookCooldownHours,
+            pillarWeights: account.pillar_mix ?? {},
+            formatWeights: account.format_mix ?? {},
+            learningWeights,
+            strategy: slotStrategy,
           });
         } catch {
-          // Try another deterministic seed before conceding that the eligible pool is exhausted.
+          // Preserve the calendar's topic/hook first, then progressively relax
+          // only the incompatible dimension while keeping cooldowns intact.
         }
       }
-      if (!picked) break;
-      const dayKey = new Date().toISOString().slice(0, 10).replaceAll('-', '');
-      const id = `CF_IDEA_${account.id.replace(/[^A-Z0-9]/gi, '')}_${dayKey}_${picked.comboKey}`;
+
+      if (!picked) {
+        failures.push({ slot_id: slotId, reason: 'NO_ELIGIBLE_EDITORIAL' });
+        continue;
+      }
+
+      const safeSlot = slotId.replace(/[^A-Z0-9]/gi,'').slice(-50);
+      const id = `CF_IDEA_SLOT_${safeSlot}_${picked.comboKey}`;
       const row = {
-        id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
-        pillar_id: picked.topic.pillar_id, content_type: picked.formatId,
-        topic_id: picked.topic.topic_id, topic: picked.topic.topic, angle: picked.topic.angle,
-        hook_id: picked.hook.hook_id, hook_formula: picked.hook.formula, final_hook: picked.finalHook,
-        cta_id: picked.cta.cta_id, cta_text: picked.cta.text, combo_key: picked.comboKey,
-        strategy: strategy(index), status: 'QUEUED', seed: selectedSeed, created_at: new Date().toISOString(),
+        id,
+        workspace_id: 'cortifree',
+        account_id: account.id,
+        persona_id: account.persona_id,
+        slot_id: slotId,
+        concept_id: slot.concept_id ?? null,
+        pillar_id: picked.topic.pillar_id,
+        content_type: picked.formatId,
+        topic_id: picked.topic.topic_id,
+        topic: picked.topic.topic,
+        angle: picked.topic.angle,
+        hook_id: picked.hook.hook_id,
+        hook_formula: picked.hook.formula,
+        final_hook: picked.finalHook,
+        cta_id: picked.cta.cta_id,
+        cta_text: picked.cta.text,
+        combo_key: picked.comboKey,
+        strategy: slotStrategy,
+        status: 'QUEUED',
+        seed: selectedSeed,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
       await write('carousel_ideas?on_conflict=id', row);
+      await claimContentSlot(slotId, id, picked.formatId);
       history.push(row as SelectionHistory);
       networkHistory.push(row as SelectionHistory);
       created += 1;
     }
-    report.push({ account_id: account.id, target, buffered: bufferedCarousels.length, queued: queuedIdeas.length, created });
+
+    report.push({
+      account_id: account.id,
+      source: 'content_slots',
+      demand: demand.length,
+      created,
+      failures,
+      ready_buffer_days: account.ready_buffer_days ?? 3,
+    });
   }
-  return report;
+
+  return {
+    calendarSync,
+    rollingSlots: rolling,
+    accounts: report,
+    mode: 'SLOT_FIRST',
+  };
 }
 
 export async function createAcceptanceSample(input: { batchId?: string; limit?: number } = {}) {
