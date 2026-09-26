@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { learningMultiplier, type LearningWeights } from './learning';
 
 export type EditorialTopic = {
   topic_id: string; pillar_id: string; topic: string; angle: string; target_problem?: string | null;
@@ -76,11 +77,16 @@ export function selectEditorial(input: {
   accountHookCooldownDays?: number;
   networkTopicCooldownHours?: number;
   networkHookCooldownHours?: number;
+  pillarWeights?: Record<string, number>;
+  formatWeights?: Record<string, number>;
+  learningWeights?: LearningWeights;
+  strategy?: string;
 }) {
   const {
     seed, accountId, personaId, pillarIds, formatIds, topics, hooks, ctas, history,
     accountTopicCooldownDays = 14, accountHookCooldownDays = 7,
     networkTopicCooldownHours = 48, networkHookCooldownHours = 48,
+    pillarWeights = {}, formatWeights = {}, learningWeights, strategy = 'PROVEN',
   } = input;
   const eligibleTopics = topics.filter((topic) =>
     topic.active !== false &&
@@ -90,9 +96,23 @@ export function selectEditorial(input: {
     !recentForAccount(history, accountId, 'topic_id', topic.topic_id, Number(topic.cooldown_days ?? accountTopicCooldownDays)) &&
     !recentNetwork(history, 'topic_id', topic.topic_id, networkTopicCooldownHours)
   );
-  const topic = weightedPick(eligibleTopics, (x) => Number(x.weight ?? 1), `${seed}:topic`);
+  const topic = weightedPick(
+    eligibleTopics,
+    (x) => Number(x.weight ?? 1)
+      * Math.max(0.05, Number(pillarWeights[x.pillar_id] ?? 1))
+      * learningMultiplier(learningWeights?.topic, x.topic_id, strategy)
+      * learningMultiplier(learningWeights?.pillar, x.pillar_id, strategy),
+    `${seed}:topic`,
+  );
   const compatibleFormats = formatIds.filter((id) => includesToken(topic.eligible_formats, id));
-  const formatId = compatibleFormats[Math.floor(unit(`${seed}:format`) * compatibleFormats.length)] ?? compatibleFormats[0];
+  const formatId = compatibleFormats.length
+    ? weightedPick(
+        compatibleFormats,
+        (id) => Math.max(0.05, Number(formatWeights[id] ?? 1))
+          * learningMultiplier(learningWeights?.format, id, strategy),
+        `${seed}:format`,
+      )
+    : undefined;
   if (!formatId) throw new Error(`No compatible format for ${topic.topic_id}`);
 
   const eligibleHooks = hooks.filter((hook) =>
@@ -102,7 +122,11 @@ export function selectEditorial(input: {
     includesToken(hook.persona_fit, personaId) &&
     !recentForAccount(history, accountId, 'hook_id', hook.hook_id, Number(hook.cooldown_days ?? accountHookCooldownDays))
   );
-  const hook = weightedPick(eligibleHooks, (x) => Number(x.weight ?? 1), `${seed}:hook`);
+  const hook = weightedPick(
+    eligibleHooks,
+    (x) => Number(x.weight ?? 1) * learningMultiplier(learningWeights?.hook, x.hook_id, strategy),
+    `${seed}:hook`,
+  );
   const finalHook = fillHook(hook.formula, topic);
   if (recentNetwork(history, 'final_hook', finalHook, networkHookCooldownHours)) {
     throw new Error(`Network hook cooldown collision: ${finalHook}`);
