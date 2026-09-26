@@ -61,6 +61,24 @@ export async function processQueuedIdeas(
       report.push({ id, status: 'BLOCKED_ACCOUNT' });
       continue;
     }
+    const linkedSlotId = String(idea.slot_id ?? "").trim();
+    if (linkedSlotId) {
+      const slot = (await rows(
+        `content_slots?id=eq.${encodeURIComponent(linkedSlotId)}&workspace_id=eq.cortifree&select=id,status,scheduled_for&limit=1`,
+      ))[0];
+      const slotAt = Date.parse(String(slot?.scheduled_for ?? ""));
+      if (slot && Number.isFinite(slotAt) && slotAt <= Date.now() && !idea.carousel_id) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+          status: 'EXPIRED_SLOT',
+          last_error: 'SLOT_MISSED_BEFORE_GENERATION',
+          finished_at: new Date().toISOString(),
+        });
+        await updateContentSlot(linkedSlotId, { status: 'MISSED' });
+        report.push({ id, status: 'EXPIRED_SLOT', slot_id: linkedSlotId });
+        continue;
+      }
+    }
+
     const contentType = String(idea.content_type);
     const layout = layoutFor(contentType);
     const carouselId = `CF_AUTO_${id.replace(/^CF_IDEA_/, '').replace(/[^A-Z0-9_]/gi, '').slice(0, 72)}`;
