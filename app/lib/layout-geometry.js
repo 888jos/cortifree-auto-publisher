@@ -9,6 +9,7 @@ const imageFrames = {
   "editorial-collage": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "editorial-collage" },
   "editorial-asym-hero": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "editorial-asym-hero" },
   "interactive-checklist": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "interactive-checklist" },
+  "persona-explainer": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "persona-explainer" },
   "ranking": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "ranking" },
   "lifestyle-3stack": { x: 0, y: 0, width: 1080, height: 1350, fit: "cover", mode: "lifestyle-3stack" },
 };
@@ -21,6 +22,7 @@ const textFrames = {
   "editorial-collage": { x: 82, y: 930, width: 916, align: "left" },
   "editorial-asym-hero": { x: 78, y: 960, width: 620, align: "left" },
   "interactive-checklist": { x: 124, y: 360, width: 832, align: "left" },
+  "persona-explainer": { x: 92, y: 770, width: 820, align: "left" },
   "ranking": { x: 110, y: 930, width: 860, align: "left" },
   "lifestyle-3stack": { x: 70, y: 650, width: 700, align: "left" },
 };
@@ -160,6 +162,40 @@ function lifestyleThreeStackTextFrame(isCover, isFinal, typography) {
   };
 }
 
+function personaExplainerTextFrame(isCover, isFinal, typography) {
+  if (isCover) {
+    return {
+      x: 92, y: 760, width: 840, align: "left",
+      headlineY: 760, bodyY: 1010,
+      headlineSize: 62, bodySize: 27, hookSize: 62,
+      headlineWeight: 800, bodyWeight: 550,
+      maxHeadlineLines: 3, maxBodyLines: 3,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  if (isFinal) {
+    return {
+      x: 110, y: 720, width: 800, align: "left",
+      headlineY: 720, bodyY: 900,
+      headlineSize: 50, bodySize: 28, hookSize: 50,
+      headlineWeight: 800, bodyWeight: 550,
+      maxHeadlineLines: 3, maxBodyLines: 4,
+      fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    };
+  }
+  return {
+    x: 96, y: 705, width: 820, align: "left",
+    headlineY: 705, bodyY: 825,
+    headlineSize: 42, bodySize: 27, hookSize: 42,
+    headlineWeight: 800, bodyWeight: 550,
+    maxHeadlineLines: 2, maxBodyLines: 5,
+    fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+    hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+  };
+}
+
 function rankingTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
@@ -286,6 +322,29 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         panel: false,
         editorial: false,
         lifestyleStack: true,
+        ranking: false,
+        final: Boolean(isFinal),
+        cover: Boolean(isCover),
+      },
+    };
+  }
+
+  if (layout === "persona-explainer") {
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        ...personaExplainerTextFrame(isCover, isFinal, typography),
+        headlineColor: "#fffaf8",
+        bodyColor: "#fffaf8",
+        accentColor: "#ffd7e6",
+      },
+      overlay: { color: "#12100f", opacity: 0.34 },
+      chrome: {
+        panel: false,
+        editorial: false,
+        personaExplainer: true,
         ranking: false,
         final: Boolean(isFinal),
         cover: Boolean(isCover),
