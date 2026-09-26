@@ -396,7 +396,8 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
   const rawBody = String(slide.body ?? "").trim();
   const parts = rawBody.split("|").map((item) => item.trim()).filter(Boolean);
   const hasExplicitLabel = parts.length > 1;
-  const label = (hasExplicitLabel ? parts.shift() : slide.role || "NOTES").toUpperCase();
+  const explicitLabel = hasExplicitLabel ? (parts.shift() ?? "") : "";
+  const label = (explicitLabel || slide.role || "NOTES").toUpperCase();
   const bullets = (hasExplicitLabel
     ? parts
     : rawBody.split(/(?<=[.!?])\s+|\s*[;•]\s*/).map((item) => item.trim()).filter(Boolean)
