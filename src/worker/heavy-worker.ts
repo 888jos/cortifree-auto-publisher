@@ -32,6 +32,36 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function transientBackendError(error: unknown) {
+  return /bad gateway|gateway timeout|http\s*50[234]|fetch failed|econnreset|econnrefused|etimedout|eai_again|und_err_connect_timeout|socket hang up/i.test(errorMessage(error));
+}
+
+function loopBackoffMs(failures: number, transient: boolean) {
+  const base = transient ? 2_000 : 5_000;
+  return Math.min(60_000, base * 2 ** Math.min(5, Math.max(0, failures - 1)));
+}
+
+async function startupBackendCheck() {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      await heartbeat();
+      await recoverStaleJobs();
+      return;
+    } catch (error) {
+      lastError = error;
+      const delay = loopBackoffMs(attempt, transientBackendError(error));
+      console.error("[worker] STARTUP BACKEND RETRY", { attempt, delay, error: errorMessage(error) });
+      await sleep(delay);
+    }
+  }
+  throw lastError ?? new Error("Worker backend startup check failed");
+}
+
 async function rows<T extends Row = Row>(resource: string): Promise<T[]> {
   const response = await dataBackend(resource);
   if (!response.ok) throw new Error(await response.text());
@@ -382,35 +412,50 @@ async function main() {
   console.log("[worker] starting", { workerId: WORKER_ID, version: VERSION, pollMs: POLL_MS });
   console.log("[worker] integrations", getLocalIntegrationHealth());
   assertWorkerConfiguration();
-  await heartbeat();
-  await recoverStaleJobs();
-  let lastHeartbeat = 0;
-  let lastRecovery = 0;
+  await startupBackendCheck();
+
+  let lastHeartbeat = Date.now();
+  let lastRecovery = Date.now();
   let lastOpsRefresh = 0;
+  let consecutiveLoopFailures = 0;
 
   while (true) {
-    const now = Date.now();
-    if (now - lastHeartbeat > 30_000) {
-      await heartbeat();
-      lastHeartbeat = now;
-    }
-    if (now - lastRecovery > 5 * 60_000) {
-      await recoverStaleJobs();
-      lastRecovery = now;
-    }
-    if (now - lastOpsRefresh > OPS_REFRESH_MS) {
-      try {
-        const ops = await runOpsRefresh();
-        console.log("[worker] OPS_REFRESH", ops);
-      } catch (error) {
-        console.error("[worker] OPS_REFRESH FAILED", error);
+    try {
+      const now = Date.now();
+      if (now - lastHeartbeat > 30_000) {
+        await heartbeat();
+        lastHeartbeat = now;
       }
-      lastOpsRefresh = now;
-    }
+      if (now - lastRecovery > 5 * 60_000) {
+        await recoverStaleJobs();
+        lastRecovery = now;
+      }
+      if (now - lastOpsRefresh > OPS_REFRESH_MS) {
+        try {
+          const ops = await runOpsRefresh();
+          console.log("[worker] OPS_REFRESH", ops);
+        } catch (error) {
+          console.error("[worker] OPS_REFRESH FAILED", error);
+        }
+        lastOpsRefresh = now;
+      }
 
-    const generic = await processGenericBatch();
-    const images = await processImageBatch();
-    if (generic === 0 && images === 0) await sleep(POLL_MS);
+      const generic = await processGenericBatch();
+      const images = await processImageBatch();
+      consecutiveLoopFailures = 0;
+      if (generic === 0 && images === 0) await sleep(POLL_MS);
+    } catch (error) {
+      consecutiveLoopFailures += 1;
+      const transient = transientBackendError(error);
+      const delay = loopBackoffMs(consecutiveLoopFailures, transient);
+      console.error("[worker] LOOP RECOVERABLE ERROR", {
+        transient,
+        failures: consecutiveLoopFailures,
+        delay,
+        error: errorMessage(error),
+      });
+      await sleep(delay);
+    }
   }
 }
 
