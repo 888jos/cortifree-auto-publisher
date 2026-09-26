@@ -74,6 +74,8 @@ type Geometry = {
   imageSlots?: Frame[];
   text?: Frame & {
     align?: "left" | "center" | "right";
+    headlineX?: number;
+    bodyX?: number;
     headlineY?: number;
     bodyY?: number;
     headlineSize?: number;
@@ -391,7 +393,7 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
     spacing: 0,
     fontFamily: hookFontFamily,
   });
-  overlays.push({ input: subjectImage, left: frame.x, top: frame.headlineY ?? frame.y });
+  overlays.push({ input: subjectImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
 
   const rawBody = String(slide.body ?? "").trim();
   const parts = rawBody.split("|").map((item) => item.trim()).filter(Boolean);
@@ -412,7 +414,9 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
     spacing: 1,
     fontFamily,
   });
-  overlays.push({ input: labelImage, left: frame.eduBodyX ?? 610, top: frame.eduBodyY ?? 170 });
+  const eduBodyX = frame.bodyX ?? frame.eduBodyX ?? 610;
+  const eduBodyY = frame.bodyY ?? frame.eduBodyY ?? 170;
+  overlays.push({ input: labelImage, left: eduBodyX, top: eduBodyY });
 
   const bulletText = bullets.map((bullet) => `• ${bullet}`).join("\n");
   if (bulletText) {
@@ -426,7 +430,7 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
       spacing: 10,
       fontFamily,
     });
-    overlays.push({ input: bulletImage, left: frame.eduBodyX ?? 610, top: (frame.eduBodyY ?? 170) + 55 });
+    overlays.push({ input: bulletImage, left: eduBodyX, top: eduBodyY + 55 });
   }
   return overlays;
 }
@@ -466,7 +470,7 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
       spacing: 0,
       fontFamily: hookFontFamily,
     });
-    overlays.push({ input: hookImage, left: frame.x, top: frame.headlineY ?? frame.y });
+    overlays.push({ input: hookImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
 
     if (slide.body.trim()) {
       const context = wrap(slide.body.trim(), 38, frame.maxBodyLines ?? 3).join("\n");
@@ -480,7 +484,7 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
         spacing: 2,
         fontFamily,
       });
-      overlays.push({ input: contextImage, left: frame.x, top: frame.bodyY ?? 990 });
+      overlays.push({ input: contextImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 990 });
     }
     return overlays;
   }
@@ -496,7 +500,7 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
     spacing: 0,
     fontFamily: hookFontFamily,
   });
-  overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? 960 });
+  overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 960 });
 
   if (slide.body.trim()) {
     const body = wrap(slide.body.trim(), 44, frame.maxBodyLines ?? 4).join("\n");
@@ -510,7 +514,7 @@ async function editorialAsymTextOverlays(slide: GeneratedSlide, geometry: Geomet
       spacing: 2,
       fontFamily,
     });
-    overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 1075 });
+    overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 1075 });
   }
   return overlays;
 }
@@ -549,11 +553,11 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
     width: frame.width, height: 58, size: frame.headlineSize ?? 34, weight: 700,
     color: "#282828", align: "left", spacing: 0, fontFamily,
   });
-  overlays.push({ input: categoryImage, left: frame.x, top: frame.headlineY ?? frame.y });
+  overlays.push({ input: categoryImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
 
   const choices = checklistChoices(slide);
-  const startX = frame.checklistChoicesX ?? 165;
-  const startY = frame.checklistChoicesY ?? 405;
+  const startX = frame.bodyX ?? frame.checklistChoicesX ?? 165;
+  const startY = frame.bodyY ?? frame.checklistChoicesY ?? 405;
   const choiceWidth = frame.checklistChoicesWidth ?? 750;
   const gap = choices.length >= 11 ? 63 : choices.length >= 9 ? 69 : 76;
   const fontSize = choices.length >= 11 ? 25 : choices.length >= 9 ? 27 : 29;
@@ -601,14 +605,14 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       width: frame.width, height: 235, size: frame.hookSize ?? 68, weight: 800,
       color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
-    overlays.push({ input: hookImage, left: frame.x, top: frame.headlineY ?? 120 });
+    overlays.push({ input: hookImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 120 });
     if (slide.body.trim()) {
       const body = wrap(slide.body.trim(), 52, frame.maxBodyLines ?? 2).join("\n");
       const bodyImage = await rasterText(body, {
         width: frame.width, height: 105, size: frame.bodySize ?? 29, weight: 500,
         color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 2, fontFamily,
       });
-      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 305 });
+      overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 305 });
     }
     return overlays;
   }
@@ -619,14 +623,14 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       width: frame.width, height: 220, size: frame.headlineSize ?? 58, weight: 800,
       color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
-    overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? 390 });
+    overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 390 });
     if (slide.body.trim()) {
       const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 5).join("\n");
       const bodyImage = await rasterText(body, {
         width: frame.width, height: 220, size: frame.bodySize ?? 31, weight: 500,
         color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
       });
-      overlays.push({ input: bodyImage, left: frame.x, top: frame.bodyY ?? 600 });
+      overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 600 });
     }
     return overlays;
   }
@@ -644,7 +648,7 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     width: frame.width, height: 140, size: frame.headlineSize ?? 42, weight: 800,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily,
   });
-  overlays.push({ input: itemImage, left: frame.x, top: frame.headlineY ?? 335 });
+  overlays.push({ input: itemImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 335 });
 
   if (slide.body.trim()) {
     const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
@@ -653,7 +657,7 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       width: frame.width, height: 285, size: frame.bodySize ?? 27, weight: 500,
       color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });
-    overlays.push({ input: reasonImage, left: frame.x, top: frame.bodyY ?? 505 });
+    overlays.push({ input: reasonImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 505 });
   }
   return overlays;
 }
@@ -716,7 +720,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     });
     const lines = wrapHook(routineCoverTitle(slide), 2, 2).join("\n");
     await pushShadowed(lines, {
-      left: frame.x,
+      left: frame.headlineX ?? frame.x,
       top: frame.headlineY ?? frame.y,
       width: frame.width,
       height: 240,
@@ -727,7 +731,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     });
     if (slide.body.trim()) {
       await pushShadowed(slide.body.trim(), {
-        left: frame.x,
+        left: frame.bodyX ?? frame.x,
         top: frame.routineContextY ?? frame.bodyY ?? 365,
         width: Math.min(frame.width, 520),
         height: 90,
@@ -743,7 +747,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   if (isFinal) {
     const headline = wrap(slide.headline, 24, frame.maxHeadlineLines ?? 3).join("\n");
     await pushShadowed(headline, {
-      left: frame.x,
+      left: frame.headlineX ?? frame.x,
       top: frame.headlineY ?? frame.y,
       width: frame.width,
       height: 230,
@@ -755,7 +759,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     if (slide.body.trim()) {
       const body = wrap(slide.body, 42, frame.maxBodyLines ?? 3).join("\n");
       await pushShadowed(body, {
-        left: frame.x,
+        left: frame.bodyX ?? frame.x,
         top: frame.bodyY ?? 475,
         width: frame.width,
         height: 150,
@@ -783,7 +787,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   }
   const action = wrap(parts.headline, 24, frame.maxHeadlineLines ?? 2).join("\n");
   await pushShadowed(action, {
-    left: frame.x,
+    left: frame.headlineX ?? frame.x,
     top: frame.headlineY ?? frame.y,
     width: frame.width,
     height: 170,
@@ -795,7 +799,7 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   if (slide.body.trim()) {
     const support = wrap(slide.body, 46, frame.maxBodyLines ?? 2).join("\n");
     await pushShadowed(support, {
-      left: frame.x,
+      left: frame.bodyX ?? frame.x,
       top: frame.bodyY ?? 715,
       width: frame.width,
       height: 120,
@@ -814,17 +818,17 @@ async function lifestyleThreeStackTextOverlays(slide: GeneratedSlide, geometry: 
   const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
   const overlays: OverlayOptions[] = [];
-  const pushShadowed = async (value: string, top: number, size: number, weight: number, family: string, maxChars: number, maxLines: number) => {
+  const pushShadowed = async (value: string, left: number, top: number, size: number, weight: number, family: string, maxChars: number, maxLines: number) => {
     const copy = wrap(value, maxChars, maxLines).join("\n");
     const height = Math.max(70, Math.ceil(size * 1.28 * maxLines));
     const shadow = await rasterText(copy, { width: frame.width, height, size, weight, color: "#191713", align: "left", spacing: 1, fontFamily: family });
     const text = await rasterText(copy, { width: frame.width, height, size, weight, color: "#fff0a6", align: "left", spacing: 1, fontFamily: family });
-    overlays.push({ input: shadow, left: frame.x + 3, top: top + 3 });
-    overlays.push({ input: text, left: frame.x, top });
+    overlays.push({ input: shadow, left: left + 3, top: top + 3 });
+    overlays.push({ input: text, left, top });
   };
-  await pushShadowed(slide.headline.toLowerCase(), frame.headlineY ?? frame.y, frame.headlineSize ?? 43, 700, isHook ? hookFontFamily : fontFamily, isHook ? 24 : 30, frame.maxHeadlineLines ?? 2);
+  await pushShadowed(slide.headline.toLowerCase(), frame.headlineX ?? frame.x, frame.headlineY ?? frame.y, frame.headlineSize ?? 43, 700, isHook ? hookFontFamily : fontFamily, isHook ? 24 : 30, frame.maxHeadlineLines ?? 2);
   if (slide.body.trim()) {
-    await pushShadowed(slide.body.trim(), frame.bodyY ?? 735, frame.bodySize ?? 27, 550, fontFamily, isHook ? 46 : 48, frame.maxBodyLines ?? 4);
+    await pushShadowed(slide.body.trim(), frame.bodyX ?? frame.x, frame.bodyY ?? 735, frame.bodySize ?? 27, 550, fontFamily, isHook ? 46 : 48, frame.maxBodyLines ?? 4);
   }
   return overlays;
 }
@@ -862,11 +866,11 @@ async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Geometry,
   }
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
   const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
-  overlays.push({ input: headlineImage, left: frame.x, top: frame.headlineY ?? frame.y });
+  overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
     const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
-    const bodyTop = (frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22;
-    overlays.push({ input: bodyImage, left: frame.x, top: bodyTop });
+    const bodyTop = frame.bodyY ?? ((frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22);
+    overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: bodyTop });
   }
   return overlays;
 }
@@ -1274,9 +1278,11 @@ export async function renderCarousel(input: {
     const isVisualFinal = index === input.slides.length - 1
       && (input.layout !== "routine-timeline" || isRoutineCtaFinal);
     const baseGeometry = getSlideGeometry({ ...slide, layout: slideLayout }, index === 0, isVisualFinal, typography) as Geometry;
+    const singleImageMode = new Set(["single", "routine-timeline", "interactive-checklist"]).has(String(baseGeometry.image?.mode ?? "single"));
+    const slotZeroImage = singleImageMode && override.imageSlots?.[0] ? override.imageSlots[0] : {};
     const geometry = {
       ...baseGeometry,
-      image: { ...(baseGeometry.image ?? {}), ...(override.image ?? {}) },
+      image: { ...(baseGeometry.image ?? {}), ...slotZeroImage, ...(override.image ?? {}) },
       imageSlots: override.imageSlots,
       text: { ...(baseGeometry.text ?? {}), ...(override.text ?? {}) },
     } as Geometry;
