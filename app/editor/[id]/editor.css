@@ -128,3 +128,38 @@
  .ce-render-button{min-width:142px}
  .ce-contextbar{width:min(560px,100%)}
 }
+
+
+/* Carousel Studio v7 — isolate editor layout from global aside/header rules */
+.ce-shell{
+ width:100vw;
+ max-width:none;
+ grid-template-columns:190px minmax(0,1fr) 360px;
+}
+.ce-shell>.ce-slides,
+.ce-shell>.ce-props{
+ width:100%;
+ min-width:0;
+ max-width:none;
+ margin:0;
+}
+.ce-shell>.ce-slides{
+ overflow-x:hidden;
+ border-right:1px solid var(--ce-line);
+}
+.ce-shell>.ce-props{
+ justify-self:stretch;
+ border-right:0;
+}
+.ce-shell>.ce-work{min-width:0}
+.ce-shell>.ce-top{
+ width:100%;
+ margin:0;
+ grid-column:1/-1;
+}
+@media(max-width:1280px){
+ .ce-shell{grid-template-columns:160px minmax(0,1fr) 330px}
+}
+@media(max-width:1080px){
+ .ce-shell{grid-template-columns:118px minmax(0,1fr) 300px}
+}
