@@ -66,7 +66,11 @@ export async function saveGeneratedCarousel(options: {
         generated_at: result.generatedAt,
         qa_reviewed: result.qa !== null,
         qa_score: result.qa?.score ?? null,
-        prompt_version: "carousel-generator-v2-canonical",
+        prompt_version: "carousel-generator-v3-sourced-health",
+        health_guardrails: input.healthGuardrails ? {
+          source_ids: input.healthGuardrails.sources.map((source) => source.sourceId),
+          rule_ids: input.healthGuardrails.rules.map((rule) => rule.ruleId),
+        } : null,
       },
     },
   };

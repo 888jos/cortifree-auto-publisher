@@ -135,6 +135,8 @@ export async function approveCarousel(carouselId: string, actor = "admin") {
   await assertCarouselHasCompleteRender(carouselId, current);
   const reviewedAt = new Date().toISOString();
   const version = Number(current.current_version ?? 1);
+  const contentHash = String(current.content_hash ?? "").trim();
+  if (!contentHash) throw new Error("CONTENT_HASH_MISSING: carousel must be fingerprinted before approval");
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
     status: "APPROVED",
     review_status: "APPROVED",
@@ -143,6 +145,7 @@ export async function approveCarousel(carouselId: string, actor = "admin") {
     reviewed_by: actor,
     reviewed_at: reviewedAt,
     approved_version: version,
+    approved_hash: contentHash,
     rejected_at: null,
     rejection_reason_code: null,
     rejection_action: null,
@@ -154,11 +157,17 @@ export async function approveCarousel(carouselId: string, actor = "admin") {
     carouselId,
     eventType: "APPROVED",
     actor,
-    patchPlan: { approved_version: version },
+    patchPlan: { approved_version: version, approved_hash: contentHash },
     beforeVersion: version,
     afterVersion: version,
   });
-  return { carouselId, status: "APPROVED", approvedVersion: version };
+  if (current.calendar_slot_id) {
+    await patch(`content_slots?id=eq.${encodeURIComponent(String(current.calendar_slot_id))}&workspace_id=eq.cortifree`, {
+      status: "APPROVED",
+      carousel_id: carouselId,
+    });
+  }
+  return { carouselId, status: "APPROVED", approvedVersion: version, approvedHash: contentHash };
 }
 
 export async function rejectCarousel(
@@ -167,7 +176,7 @@ export async function rejectCarousel(
   actor = "admin",
   options: { reasonCode?: string; action?: RejectionAction } = {},
 ) {
-  const current = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=current_version&limit=1`))[0];
+  const current = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=current_version,calendar_slot_id&limit=1`))[0];
   if (!current) throw new Error(`Carousel not found: ${carouselId}`);
   const version = Number(current.current_version ?? 1);
   const reviewedAt = new Date().toISOString();
@@ -183,9 +192,19 @@ export async function rejectCarousel(
     rejected_at: action === "ARCHIVE" ? reviewedAt : null,
     rejection_reason_code: reasonCode,
     rejection_action: action,
+    approved_at: null,
+    approved_by: null,
+    approved_version: null,
+    approved_hash: null,
     scheduled_for: null,
     last_review_action: action === "REVISION" ? "REJECTED_FOR_REVISION" : "REJECTED",
   });
+  if (current.calendar_slot_id) {
+    await patch(`content_slots?id=eq.${encodeURIComponent(String(current.calendar_slot_id))}&workspace_id=eq.cortifree`, {
+      status: action === "REVISION" ? "NEEDS_FIX" : "REJECTED",
+      carousel_id: carouselId,
+    });
+  }
   await recordReviewEvent({
     carouselId,
     eventType: action === "REVISION" ? "REJECTED_FOR_REVISION" : "REJECTED",
@@ -255,7 +274,7 @@ export async function applyReviewRevision(
   await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
     review_status: "REVISION_GENERATING", status: "REVISION_GENERATING",
     review_notes: feedback, last_review_action: "REVISION_REQUESTED",
-    approved_at: null, approved_by: null, approved_version: null, scheduled_for: null,
+    approved_at: null, approved_by: null, approved_version: null, approved_hash: null, scheduled_for: null,
   });
 
   const revisedByPosition = new Map(revision.revisedSlides.map((slide) => [slide.position, slide]));

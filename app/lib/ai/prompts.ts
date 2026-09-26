@@ -1,6 +1,6 @@
 import type { CarouselGeneratorInput } from "./types";
 
-export const CAROUSEL_GENERATOR_PROMPT_VERSION = "carousel-generator-v2-canonical";
+export const CAROUSEL_GENERATOR_PROMPT_VERSION = "carousel-generator-v3-sourced-health";
 export const CAROUSEL_REVIEWER_PROMPT_VERSION = "carousel-reviewer-v1";
 export const PERFORMANCE_ANALYZER_PROMPT_VERSION = "performance-analyzer-v1";
 
@@ -39,6 +39,7 @@ COPY RULES
 - If preferredHook is supplied, use that hook verbatim on slide 1 and adapt the rest of the carousel around it.
 - References are creative metadata only: learn their structure without copying their wording.
 - The CANONICAL EDITORIAL CONTEXT is authoritative. Do not invent a topic, angle, hook, format, persona voice, search intent, or brand integration outside it.
+- concept_id (Cxx) is the editorial/narrative concept. format_id (F01-F08) is the visual/render format. Never treat a Cxx concept as a renderer layout or replace the required Fxx format with it.
 - Write for GENZ_GIRLY_US: conversational US creator language for Gen Z and younger millennial women. Use specificity, a first-person detail, tension, or an opinion. Slang is optional and normally no more than one marker per slide; never force it.
 - Avoid generic Pinterest/wellness-coach language. Do not use phrases such as "tiny steps count", "come back gently", "nourish your body", "prioritize yourself", "wellness journey", "a routine you can repeat", or "feel more grounded".
 - The copy must make the practical behavior obvious: what to do, when, where, or what to stop doing. Abstract encouragement alone is not useful.
@@ -49,8 +50,11 @@ HEALTH SAFETY
 - Never diagnose, prescribe treatment, promise outcomes, invent percentages, invent studies, or claim that a habit medically causes a cortisol/hormone change.
 - Never write claims such as "lowers cortisol by X%", "balances hormones", "fixes cortisol", or fear-based symptom diagnoses.
 - Prefer gentle lifestyle language: routine, sleep hygiene, walking, journaling, stress management, self-care, everyday nutrition, and habits.
-- For hormone/cortisol education, if a precise claim would need a reliable source not supplied here, generalize it or omit it.
-- Do not include placeholders, citations, fake experts, or fabricated evidence.
+- When HEALTH GUARDRAILS are supplied in VARIABLE INPUT, they are the maximum allowed factual claim set. Use only wording compatible with those rules.
+- A source-backed rule is permission to use cautious wording, not an instruction to force a health claim into the carousel.
+- Do not diagnose "high cortisol", "low cortisol", "cortisol face", hormonal imbalance, adrenal fatigue, or infer hormone status from symptoms/photos/quizzes.
+- For hormone/cortisol education, if a precise claim would need a reliable source not supplied in HEALTH GUARDRAILS, generalize it or omit it.
+- Do not print source IDs, URLs, citations, fake experts, or fabricated evidence in consumer-facing carousel copy.
 
 OUTPUT
 - Return exactly the requested number of slides (4-12, normally 6-8).

@@ -3,7 +3,7 @@ import { anyApi } from "convex/server";
 
 const api = anyApi;
 
-type Filter = { field: string; op: "eq" | "gte" | "like" | "in" | "not_null"; value: unknown };
+type Filter = { field: string; op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "not_null" | "is_null"; value: unknown };
 
 let client: ConvexHttpClient | null = null;
 const SUPABASE_TABLE_ALIASES: Record<string, string> = {
@@ -49,8 +49,14 @@ export function parseConvexResource(resource: string) {
     if (["select", "order", "limit", "on_conflict"].includes(field)) continue;
     if (field === "workspace_id") continue;
     if (raw === "not.is.null") filters.push({ field, op: "not_null", value: true });
+    else if (raw === "is.null") filters.push({ field, op: "is_null", value: true });
+    else if (raw.startsWith("not.eq.")) filters.push({ field, op: "neq", value: raw.slice(7) });
+    else if (raw.startsWith("neq.")) filters.push({ field, op: "neq", value: raw.slice(4) });
     else if (raw.startsWith("eq.")) filters.push({ field, op: "eq", value: raw.slice(3) });
     else if (raw.startsWith("gte.")) filters.push({ field, op: "gte", value: raw.slice(4) });
+    else if (raw.startsWith("gt.")) filters.push({ field, op: "gt", value: raw.slice(3) });
+    else if (raw.startsWith("lte.")) filters.push({ field, op: "lte", value: raw.slice(4) });
+    else if (raw.startsWith("lt.")) filters.push({ field, op: "lt", value: raw.slice(3) });
     else if (raw.startsWith("like.")) filters.push({ field, op: "like", value: raw.slice(5) });
     else if (raw.startsWith("in.(") && raw.endsWith(")")) filters.push({ field, op: "in", value: raw.slice(4, -1).split(",") });
   }
@@ -84,6 +90,7 @@ function supabaseQuery(parsed: ReturnType<typeof parseConvexResource>) {
   for (const filter of parsed.filters) {
     if (filter.field === "workspace_id" && SUPABASE_TABLES_WITHOUT_WORKSPACE_FILTER.has(table)) continue;
     if (filter.op === "not_null") query.set(filter.field, "not.is.null");
+    else if (filter.op === "is_null") query.set(filter.field, "is.null");
     else if (filter.op === "in") query.set(filter.field, `in.(${(filter.value as string[]).join(",")})`);
     else query.set(filter.field, `${filter.op}.${String(filter.value)}`);
   }

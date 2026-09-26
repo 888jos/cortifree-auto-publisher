@@ -5,7 +5,7 @@ import type { DataModel } from "./_generated/dataModel";
 export const tableNames = [
   "personas", "accounts", "assets", "content_config", "content_formats", "content_pillars", "content_topics",
   "content_hooks", "content_ctas", "content_claim_rules", "content_sources", "autonomy_rules", "template_specs",
-  "carousel_ideas", "carousels", "carousel_slides",
+  "carousel_ideas", "carousels", "carousel_slides", "content_slots",
   "image_generation_jobs", "render_jobs", "publish_jobs", "platform_posts", "analytics_snapshots",
   "template_performance", "topic_performance", "persona_performance", "system_logs", "ai_usage_logs",
   "asset_usage_history", "visual_references", "persona_scene_templates", "image_generation_usage",
@@ -14,11 +14,11 @@ export const tableNames = [
 const tableName = v.union(...tableNames.map((name) => v.literal(name)));
 const filterValidator = v.object({
   field: v.string(),
-  op: v.union(v.literal("eq"), v.literal("gte"), v.literal("like"), v.literal("in"), v.literal("not_null")),
+  op: v.union(v.literal("eq"), v.literal("neq"), v.literal("gt"), v.literal("gte"), v.literal("lt"), v.literal("lte"), v.literal("like"), v.literal("in"), v.literal("not_null"), v.literal("is_null")),
   value: v.any(),
 });
 type TableName = (typeof tableNames)[number];
-type Filter = { field: string; op: "eq" | "gte" | "like" | "in" | "not_null"; value: unknown };
+type Filter = { field: string; op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "not_null" | "is_null"; value: unknown };
 type StoredDoc = { _id: unknown; legacyId: string; data: Record<string, unknown>; storageId?: unknown; storageField?: string };
 
 function assertSecret(secret: string) {
@@ -30,9 +30,18 @@ function matches(data: Record<string, unknown>, filters: Filter[]) {
   return filters.every((filter) => {
     const actual = data[filter.field];
     if (filter.op === "eq") return String(actual) === String(filter.value);
-    if (filter.op === "gte") return String(actual ?? "") >= String(filter.value ?? "");
+    if (filter.op === "neq") return String(actual) !== String(filter.value);
+    const numericActual = Number(actual);
+    const numericExpected = Number(filter.value);
+    const comparableActual = Number.isFinite(numericActual) && Number.isFinite(numericExpected) ? numericActual : String(actual ?? "");
+    const comparableExpected = Number.isFinite(numericActual) && Number.isFinite(numericExpected) ? numericExpected : String(filter.value ?? "");
+    if (filter.op === "gt") return comparableActual > comparableExpected;
+    if (filter.op === "gte") return comparableActual >= comparableExpected;
+    if (filter.op === "lt") return comparableActual < comparableExpected;
+    if (filter.op === "lte") return comparableActual <= comparableExpected;
     if (filter.op === "in") return Array.isArray(filter.value) && filter.value.map(String).includes(String(actual));
     if (filter.op === "not_null") return actual !== null && actual !== undefined;
+    if (filter.op === "is_null") return actual === null || actual === undefined;
     if (filter.op === "like") {
       const expression = String(filter.value)
         .split(/[*%]/)

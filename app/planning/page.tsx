@@ -28,7 +28,7 @@ function timeLabel(value:string|null,timezone:string){
   return new Intl.DateTimeFormat("fr-FR",{timeZone:timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(value));
 }
 function statusLabel(status:string){
-  const labels:Record<string,string>={APPROVED:"Validé",SCHEDULED:"Planifié",PUBLISHING:"Publication",PUBLISHED:"Publié",FAILED:"Échec",READY_FOR_REVIEW:"À vérifier"};
+  const labels:Record<string,string>={APPROVED:"Validé",PLANNED:"Planifié",SCHEDULED:"Planifié provider",PUBLISHING:"Publication",PUBLISHED:"Publié",FAILED:"Échec",READY_FOR_REVIEW:"À vérifier"};
   return labels[status]||status;
 }
 
@@ -107,7 +107,7 @@ export default function PlanningPage(){
                 {items.length===0?<span className="planningEmptyCell">—</span>:items.map(item=><article className={"planningCard status-"+item.status.toLowerCase()} key={item.id}>
                   {item.cover&&<img src={item.cover} alt=""/>}
                   <div><b>{timeLabel(item.publishedAt||item.scheduledFor,persona.timezone)||"—"}</b><strong>{item.topic}</strong><span>{item.format}</span><small>{statusLabel(item.status)}</small></div>
-                  {item.status==="SCHEDULED"&&<button title="Retirer du planning" onClick={()=>void unschedule(item)}>×</button>}
+                  {["PLANNED","SCHEDULED"].includes(item.status)&&<button title="Retirer du planning" onClick={()=>void unschedule(item)}>×</button>}
                 </article>)}
               </div>
             })}

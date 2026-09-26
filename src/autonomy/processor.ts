@@ -6,6 +6,9 @@ import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
 import { assertCarouselHasCompleteRender } from '../../app/lib/human-review';
+import { loadHealthGuardrails } from './health-context';
+import { checkGenerationAssetReadiness, requestPreflightRefill } from './preflight';
+import { updateContentSlot } from './slots';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
@@ -37,10 +40,11 @@ export async function processQueuedIdeas(
   limit = Math.max(1, Math.min(24, Number(process.env.AUTONOMY_MAX_DRAFTS_PER_RUN ?? 16))),
   options: { acceptanceBatchId?: string } = {},
 ) {
-  const [accounts, personas, formats] = await Promise.all([
+  const [accounts, personas, formats, healthGuardrails] = await Promise.all([
     loadRuntimeAccounts(),
     loadRuntimePersonaConfigs(),
     loadRuntimeRows("content_formats", 100),
+    loadHealthGuardrails(),
   ]);
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const personaNames = new Map(personas.map((persona) => [persona.id, persona.name]));
@@ -51,8 +55,9 @@ export async function processQueuedIdeas(
   for (const idea of ideas) {
     const id = String(idea.id), accountId = String(idea.account_id), personaId = String(idea.persona_id);
     const account = accountMap.get(accountId);
-    if (!account?.enabled) {
+    if (!account || (!account.enabled && !options.acceptanceBatchId)) {
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'BLOCKED_ACCOUNT', last_error: 'Account is not enabled' });
+      await updateContentSlot(idea.slot_id, { status: 'BLOCKED_ACCOUNT' });
       report.push({ id, status: 'BLOCKED_ACCOUNT' });
       continue;
     }
@@ -63,9 +68,24 @@ export async function processQueuedIdeas(
       const existingCarousel = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&limit=1`))[0];
       if (existingCarousel) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'GENERATED', carousel_id: carouselId, last_error: null });
+        await updateContentSlot(idea.slot_id, { status: String(existingCarousel.status ?? 'DRAFT'), carousel_id: carouselId });
         report.push({ id, carousel_id: carouselId, status: existingCarousel.status ?? 'DRAFT', action: 'IDEMPOTENT_REUSE' });
         continue;
       }
+
+      const requestedSlideCount = slideCountFor(contentType, formats);
+      const preflight = await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount });
+      if (!preflight.ready) {
+        const reason = `ASSET_PREFLIGHT:${preflight.reasons.join(',')}`;
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+          status: 'NEEDS_ASSETS', render_status: 'NEEDS_ASSETS', last_error: reason,
+        });
+        await updateContentSlot(idea.slot_id, { status: 'NEEDS_ASSETS' });
+        const refill = await requestPreflightRefill(preflight).catch((error) => [{ action: 'REFILL_FAILED', error: error instanceof Error ? error.message : String(error) }]);
+        report.push({ id, status: 'NEEDS_ASSETS', preflight, refill });
+        continue;
+      }
+
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'GENERATING', started_at: new Date().toISOString(), last_error: null });
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
@@ -75,7 +95,7 @@ export async function processQueuedIdeas(
         market: account.market,
         references: [],
         recentCarousels: await getRecentCarousels(10),
-        requestedSlideCount: slideCountFor(contentType, formats),
+        requestedSlideCount,
         preferredHook: String(idea.final_hook || idea.hook_formula || ''),
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
@@ -84,11 +104,12 @@ export async function processQueuedIdeas(
         topicId: String(idea.topic_id || ''),
         hookId: String(idea.hook_id || ''),
         formatId: contentType,
+        healthGuardrails,
         editorialContext: {
           search_query: `${String(idea.topic ?? '')} ${String(idea.angle ?? '')}`.trim(),
           primary_keyword: String(idea.topic ?? ''), secondary_keywords: [], language_profile: 'GENZ_GIRLY_US',
           language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
-          golden_example_ids: [], topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
+          golden_example_ids: [], concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
           format_id: contentType, account_id: accountId, persona_id: personaId,
           brand_integration: { required: true, mention: 'CortiFree', screenshot_required: true },
         },
@@ -100,6 +121,7 @@ export async function processQueuedIdeas(
       await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
         pillar_id: idea.pillar_id ?? null, topic_id: idea.topic_id ?? null, hook_id: idea.hook_id ?? null,
         cta_id: idea.cta_id ?? null, strategy: idea.strategy ?? null, source_idea_id: id, combo_key: idea.combo_key ?? null,
+        calendar_slot_id: idea.slot_id ?? null, concept_id: idea.concept_id ?? null,
       });
       let renderStatus = 'DRAFT';
       let renderError: string | null = null;
@@ -114,18 +136,27 @@ export async function processQueuedIdeas(
         await assertCarouselHasCompleteRender(carouselId);
         renderStatus = 'READY_FOR_REVIEW';
         await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: renderStatus, review_status: 'AWAITING_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
+        await updateContentSlot(idea.slot_id, { status: 'READY_FOR_REVIEW', carousel_id: carouselId });
 
       } catch (error) {
         renderError = error instanceof Error ? error.message : String(error);
       }
+      const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET/i.test(renderError));
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
-        status: renderError ? (renderError.startsWith('PERSONA_ASSET_REQUIRED') ? 'NEEDS_ASSETS' : 'GENERATED') : 'GENERATED',
+        status: assetBlocked ? 'NEEDS_ASSETS' : 'GENERATED',
         carousel_id: carouselId, generated_at: new Date().toISOString(), render_status: renderStatus, last_error: renderError,
       });
-      report.push({ id, carousel_id: carouselId, status: renderStatus, render_error: renderError });
+      if (assetBlocked) {
+        await updateContentSlot(idea.slot_id, { status: 'NEEDS_ASSETS', carousel_id: carouselId });
+        await requestPreflightRefill(await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount })).catch(() => []);
+      } else if (renderError) {
+        await updateContentSlot(idea.slot_id, { status: 'DRAFT', carousel_id: carouselId });
+      }
+      report.push({ id, carousel_id: carouselId, status: assetBlocked ? 'NEEDS_ASSETS' : renderStatus, render_error: renderError });
     } catch (error) {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'FAILED', last_error: message, finished_at: new Date().toISOString() });
+      await updateContentSlot(idea.slot_id, { status: 'FAILED' });
       report.push({ id, status: 'FAILED', error: message });
     }
   }
@@ -154,6 +185,36 @@ export async function retryPendingRenders(limit = 20) {
     } catch (error) {
       report.push({ id, status: 'DRAFT', error: error instanceof Error ? error.message : String(error) });
     }
+  }
+  return report;
+}
+
+
+export async function resumeAssetBlockedIdeas(limit = 50) {
+  const [ideas, formats] = await Promise.all([
+    rows(`carousel_ideas?workspace_id=eq.cortifree&status=eq.NEEDS_ASSETS&order=updated_at.asc&limit=${limit}`),
+    loadRuntimeRows("content_formats", 100),
+  ]);
+  const report: Row[] = [];
+  for (const idea of ideas) {
+    const id = String(idea.id ?? "");
+    const personaId = String(idea.persona_id ?? "");
+    const formatId = String(idea.content_type ?? "");
+    if (!id || !personaId || !formatId) continue;
+    const preflight = await checkGenerationAssetReadiness({
+      personaId,
+      formatId,
+      slideCount: slideCountFor(formatId, formats),
+    });
+    if (!preflight.ready) {
+      report.push({ id, status: 'NEEDS_ASSETS', reasons: preflight.reasons });
+      continue;
+    }
+    await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+      status: 'QUEUED', render_status: null, last_error: null,
+    });
+    await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
+    report.push({ id, status: 'QUEUED' });
   }
   return report;
 }

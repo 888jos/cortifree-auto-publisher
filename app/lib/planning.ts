@@ -74,15 +74,16 @@ export async function scheduleCarousel(input: {
 }) {
   const actor = input.actor?.trim() || "admin";
   const carousel = (await rows(
-    `carousels?id=eq.${encodeURIComponent(input.carouselId)}&workspace_id=eq.cortifree&select=id,account_id,status,review_status,current_version,approved_version,approved_at&limit=1`,
+    `carousels?id=eq.${encodeURIComponent(input.carouselId)}&workspace_id=eq.cortifree&select=id,account_id,status,review_status,current_version,approved_version,approved_hash,content_hash,approved_at,calendar_slot_id&limit=1`,
   ))[0];
   if (!carousel) throw new Error(`Carousel not found: ${input.carouselId}`);
-  if (!["APPROVED","SCHEDULED"].includes(String(carousel.status))) {
+  if (!["APPROVED","PLANNED","SCHEDULED"].includes(String(carousel.status))) {
     throw new Error(`PLANNING_REQUIRES_APPROVAL: ${input.carouselId} is ${carousel.status ?? "unknown"}`);
   }
   const currentVersion = Number(carousel.current_version ?? 1);
   const approvedVersion = Number(carousel.approved_version ?? currentVersion);
   if (approvedVersion !== currentVersion) throw new Error("APPROVAL_STALE: carousel changed after approval");
+  if (!carousel.approved_hash || carousel.approved_hash !== carousel.content_hash) throw new Error("APPROVAL_STALE: content hash changed after approval");
   await assertCarouselHasCompleteRender(input.carouselId);
   const accountId = String(carousel.account_id ?? "");
   if (!accountId) throw new Error("Carousel has no account_id");
@@ -110,25 +111,32 @@ export async function scheduleCarousel(input: {
 
   const scheduledFor = scheduled.toISOString();
   await patch(`carousels?id=eq.${encodeURIComponent(input.carouselId)}`, {
-    status: "SCHEDULED",
-    review_status: "SCHEDULED",
+    status: "PLANNED",
+    review_status: "PLANNED",
     scheduled_for: scheduledFor,
-    last_review_action: "SCHEDULED",
+    last_review_action: "PLANNED",
   });
   await recordReviewEvent({
     carouselId: input.carouselId,
-    eventType: "SCHEDULED",
+    eventType: "PLANNED",
     actor,
     patchPlan: { scheduled_for: scheduledFor },
     beforeVersion: currentVersion,
     afterVersion: currentVersion,
   });
-  return { carouselId: input.carouselId, status: "SCHEDULED", scheduledFor };
+  if (carousel.calendar_slot_id) {
+    await patch(`content_slots?id=eq.${encodeURIComponent(String(carousel.calendar_slot_id))}&workspace_id=eq.cortifree`, {
+      status: "PLANNED",
+      carousel_id: input.carouselId,
+      scheduled_for: scheduledFor,
+    });
+  }
+  return { carouselId: input.carouselId, status: "PLANNED", scheduledFor };
 }
 
 export async function unscheduleCarousel(carouselId: string, actor = "admin") {
   const carousel = (await rows(
-    `carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=current_version,status&limit=1`,
+    `carousels?id=eq.${encodeURIComponent(carouselId)}&workspace_id=eq.cortifree&select=current_version,status,calendar_slot_id&limit=1`,
   ))[0];
   if (!carousel) throw new Error(`Carousel not found: ${carouselId}`);
   if (String(carousel.status) === "PUBLISHED") throw new Error("Published carousel cannot be unscheduled");
@@ -143,6 +151,12 @@ export async function unscheduleCarousel(carouselId: string, actor = "admin") {
     scheduled_for: null,
     last_review_action: "UNSCHEDULED",
   });
+  if (carousel.calendar_slot_id) {
+    await patch(`content_slots?id=eq.${encodeURIComponent(String(carousel.calendar_slot_id))}&workspace_id=eq.cortifree`, {
+      status: "APPROVED",
+      carousel_id: carouselId,
+    });
+  }
   await recordReviewEvent({
     carouselId,
     eventType: "UNSCHEDULED",
