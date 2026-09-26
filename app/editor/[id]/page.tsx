@@ -3,6 +3,8 @@
 import { useEffect,useMemo,useRef,useState } from "react";
 import "./editor.css";
 import { canonicalLayoutFor } from "../../lib/canonical-layout";
+// @ts-expect-error legacy geometry module is intentionally shared with the browser editor
+import { getSlideGeometry } from "../../lib/layout-geometry.js";
 type Frame={x:number;y:number;width:number;height:number;cropX?:number;cropY?:number;zoom?:number;fit?:string};
 type Override={headline?:string;body?:string;assetIds?:Array<string|number>;text?:Record<string,any>;image?:Record<string,any>;imageSlots?:Frame[]};
 type Asset={id:string|number;public_url:string;filename:string;source_type?:string;persona_id?:string|null};
@@ -23,7 +25,12 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  useEffect(()=>{params.then(x=>setId(x.id))},[params]);
  useEffect(()=>{if(!id)return;Promise.all([fetch("/api/carousels/"+id,{cache:"no-store"}).then(r=>r.json()),fetch("/api/assets",{cache:"no-store"}).then(r=>r.json()),fetch("/api/personas",{cache:"no-store"}).then(r=>r.json()),fetch("/api/visual-references",{cache:"no-store"}).then(r=>r.json())]).then(([c,a,p,v])=>{setCarousel(c.carousel);setSlides(c.slides||[]);setAssets(a.previews||[]);setPersonas(p.personas||[]);setRefs(v.references||[]);setOverrides(c.carousel?.spec?.editor_overrides||{})})},[id]);
  const generated=carousel?.spec?.generated_slides||[],slide=slides[active]||{},gen=generated[active]||{},key=String(gen.position||slide.position||active+1),ov=overrides[key]||{},layout=canonicalLayoutFor(carousel?.content_type||carousel?.spec?.carousel_type,carousel?.spec?.model_id||slide.template_id||"single-image"),isHook=active===0||String(gen.role||"").toUpperCase()==="HOOK";
- const baseText=slide.render_metadata?.geometry?.text||{},text={...baseText,...(ov.text||{})},headline=ov.headline??gen.headline??slide.headline??"",body=ov.body??gen.body??slide.body??"";
+ const isRoutineCtaFinal=layout==="routine-timeline"&&active===generated.length-1&&["CTA","TAKEAWAY"].includes(String(gen.role||"").toUpperCase());
+ const isVisualFinal=active===generated.length-1&&(layout!=="routine-timeline"||isRoutineCtaFinal);
+ const canonicalGeometry=getSlideGeometry({...gen,layout},isHook,isVisualFinal,{});
+ const storedGeometry=slide.render_metadata?.geometry;
+ const storedIsCanonical=storedGeometry&&!slide.render_metadata?.synthesized_from_spec&&String(slide.template_id||"")===layout;
+ const baseText=(storedIsCanonical?storedGeometry?.text:canonicalGeometry?.text)||{},text={...baseText,...(ov.text||{})},headline=ov.headline??gen.headline??slide.headline??"",body=ov.body??gen.body??slide.body??"";
  const originalIds=(slide.render_metadata?.asset_ids||[slide.asset_id]).filter(Boolean),assetIds=ov.assetIds||originalIds,slots=ov.imageSlots||defaultSlots(layout,isHook,assetIds.length);
  const slotAssets=assetIds.map((aid:any)=>assets.find(a=>String(a.id)===String(aid)));
  const selectedSlot=typeof selection==="number"?selection:null,selectedFrame=selectedSlot===null?null:(slots[selectedSlot]||defaultSlots(layout,isHook,assetIds.length)[selectedSlot]);
@@ -44,6 +51,8 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
   <header className="ce-top"><a href="/">← Carrousels</a><strong>Carousel Studio · {carousel.content_type}</strong><button disabled={!history.length} onClick={undo}>↶</button><button disabled={!future.length} onClick={redo}>↷</button><span>{dirty?"Unsaved":"Saved"}</span><button onClick={()=>save()}>Save</button><button className="primary" onClick={()=>save(true)}>Save & render</button></header>
   <aside className="ce-slides">{generated.map((s:any,i:number)=><button key={s.position} className={i===active?"active":""} onClick={()=>{setActive(i);setSelection("headline")}}><span>{s.position}</span><img src={slides[i]?.rendered_url||carousel.spec?.rendered_slides?.[i]?.url||""}/></button>)}</aside>
   <section className="ce-work"><div className={"ce-canvas layout-"+layout}>
+   {layout==="interactive-checklist"&&!isHook&&<div className="ce-checklist-panel"/>}
+   {layout==="ranking"&&<div className="ce-ranking-wash"/>}
    {slotAssets.map((asset:Asset|undefined,i:number)=>asset&&<div key={i} className={"ce-image-frame "+(selection===i?"sel":"")} style={{left:slots[i]!.x/2,top:slots[i]!.y/2,width:slots[i]!.width/2,height:slots[i]!.height/2}} onClick={()=>setSelection(i)} onPointerDown={e=>{setSelection(i);down(e,"move")}} onPointerMove={move} onPointerUp={()=>drag.current=null}><img draggable={false} src={asset.public_url} style={{transform:`scale(${slots[i]!.zoom||1})`,objectPosition:`${slots[i]!.cropX??50}% ${slots[i]!.cropY??50}%`}}/>{selection===i&&<i className="ce-handle" onPointerDown={e=>down(e,"resize")} onPointerMove={move}/>}</div>)}
    <div className={"ce-text "+(selection==="headline"?"sel":"")} onClick={()=>setSelection("headline")} onPointerDown={e=>down(e,"move")} onPointerMove={move} onPointerUp={()=>drag.current=null} style={{left:Number(text.x||90)/2,top:Number(text.headlineY??text.y??700)/2,width:Number(text.width||850)/2,fontSize:Number(text.headlineSize||54)/2,color:text.editorHeadlineColor||text.headlineColor||"#fff",fontFamily:text.fontFamily||"TikTok Sans",textAlign:text.align||"left",fontWeight:text.headlineWeight||700}}>{headline}{selection==="headline"&&<i className="ce-handle" onPointerDown={e=>down(e,"resize")} onPointerMove={move}/>}</div>
    {body&&<div className={"ce-text body "+(selection==="body"?"sel":"")} onClick={()=>setSelection("body")} onPointerDown={e=>down(e,"move")} onPointerMove={move} onPointerUp={()=>drag.current=null} style={{left:Number(text.x||90)/2,top:Number(text.bodyY||900)/2,width:Number(text.width||850)/2,fontSize:Number(text.bodySize||28)/2,color:text.editorBodyColor||text.bodyColor||"#fff",fontFamily:text.fontFamily||"TikTok Sans",textAlign:text.align||"left",fontWeight:text.bodyWeight||500}}>{body}{selection==="body"&&<i className="ce-handle" onPointerDown={e=>down(e,"resize")} onPointerMove={move}/>}</div>}
