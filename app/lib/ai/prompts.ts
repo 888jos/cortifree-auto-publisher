@@ -39,6 +39,7 @@ COPY RULES
 - If preferredHook is supplied, use that hook verbatim on slide 1 and adapt the rest of the carousel around it.
 - References are creative metadata only: learn their structure without copying their wording.
 - The CANONICAL EDITORIAL CONTEXT is authoritative. Do not invent a topic, angle, hook, format, persona voice, search intent, or brand integration outside it.
+- concept_id (Cxx) is the editorial/narrative concept. format_id (F01-F08) is the visual/render format. Never treat a Cxx concept as a renderer layout or replace the required Fxx format with it.
 - Write for GENZ_GIRLY_US: conversational US creator language for Gen Z and younger millennial women. Use specificity, a first-person detail, tension, or an opinion. Slang is optional and normally no more than one marker per slide; never force it.
 - Avoid generic Pinterest/wellness-coach language. Do not use phrases such as "tiny steps count", "come back gently", "nourish your body", "prioritize yourself", "wellness journey", "a routine you can repeat", or "feel more grounded".
 - The copy must make the practical behavior obvious: what to do, when, where, or what to stop doing. Abstract encouragement alone is not useful.
