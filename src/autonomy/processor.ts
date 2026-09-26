@@ -49,7 +49,7 @@ export async function processQueuedIdeas(
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const personaNames = new Map(personas.map((persona) => [persona.id, persona.name]));
   const acceptanceFilter = options.acceptanceBatchId ? `&acceptance_batch_id=eq.${encodeURIComponent(options.acceptanceBatchId)}` : "";
-  const ideas = (await rows(`carousel_ideas?status=eq.QUEUED${acceptanceFilter}&order=created_at.asc&limit=${limit}`)).slice(0, limit);
+  const ideas = (await rows(`carousel_ideas?status=in.(QUEUED,BLOCKED_CONFIG)${acceptanceFilter}&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
 
   for (const idea of ideas) {
@@ -74,6 +74,18 @@ export async function processQueuedIdeas(
       }
 
       const requestedSlideCount = slideCountFor(contentType, formats);
+
+      if (!process.env.OPENAI_API_KEY?.trim()) {
+        const reason = 'GENERATION_BLOCKED:OPENAI_API_KEY is missing';
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+          status: 'BLOCKED_CONFIG',
+          last_error: reason,
+        });
+        await updateContentSlot(idea.slot_id, { status: 'BLOCKED_CONFIG' });
+        report.push({ id, status: 'BLOCKED_CONFIG', error: reason });
+        continue;
+      }
+
       const preflight = await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount });
       if (!preflight.ready) {
         const reason = `ASSET_PREFLIGHT:${preflight.reasons.join(',')}`;
