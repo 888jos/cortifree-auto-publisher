@@ -13,6 +13,13 @@ export async function loadRuntimeRows(table: string, limit = 5000): Promise<AnyR
   return await response.json() as AnyRow[];
 }
 
+export function normalizeBackendDatetime(value: unknown): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = new Date(String(value));
+  if (!Number.isFinite(parsed.getTime())) return String(value);
+  return parsed.toISOString();
+}
+
 function allowJsonFallback() {
   return process.env.ALLOW_RUNTIME_JSON_FALLBACK === "true";
 }
@@ -43,7 +50,7 @@ export async function loadRuntimeAccounts(): Promise<Account[]> {
           promo_ratio: Number(row.promo_ratio ?? 0.08),
           ready_buffer_days: Number(row.ready_buffer_days ?? 3),
           warmup_status: row.warmup_status ?? "CREATED",
-          created_at: row.created_at,
+          created_at: normalizeBackendDatetime(row.created_at),
         };
         const result = accountSchema.safeParse(candidate);
         if (!result.success) throw new Error(`Invalid runtime account at index ${index}: ${result.error.message}`);

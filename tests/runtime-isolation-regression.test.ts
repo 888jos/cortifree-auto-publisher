@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { normalizeBackendDatetime } from "../src/runtime/config.js";
 
 function filesBelow(root: string): string[] {
   if (!fs.existsSync(root)) return [];
@@ -47,4 +48,17 @@ test("JSON fallback remains opt-in", () => {
   const env = fs.readFileSync(".env.example", "utf8");
   assert.match(env, /^ALLOW_RUNTIME_JSON_FALLBACK=false$/m);
   assert.match(env, /^CORTIFREE_CANONICAL_HOST=cortifree-auto-publisher\.vercel\.app$/m);
+});
+
+
+test("Supabase timestamp offsets are normalized before strict runtime validation", () => {
+  assert.equal(
+    normalizeBackendDatetime("2026-09-26T15:11:02.040+00:00"),
+    "2026-09-26T15:11:02.040Z",
+  );
+  assert.equal(
+    normalizeBackendDatetime("2026-09-26 15:11:02.04+00"),
+    "2026-09-26T15:11:02.040Z",
+  );
+  assert.equal(normalizeBackendDatetime(null), undefined);
 });
