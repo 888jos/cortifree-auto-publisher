@@ -16,8 +16,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const carousel = (await carouselResponse.json())[0] ?? null;
     if (!carousel) return Response.json({ error: "Carousel not found" }, { status: 404 });
     let slides = slidesResponse.ok ? await slidesResponse.json() : [];
-    if (!slides.length) {
-      const spec = (carousel.spec ?? {}) as Record<string, any>;
+    const spec = (carousel.spec ?? {}) as Record<string, any>;
+    if (!slides.length || spec.editor_structure_dirty === true) {
       const generated = Array.isArray(spec.generated_slides) ? spec.generated_slides : [];
       const rendered = Array.isArray(spec.rendered_slides) ? spec.rendered_slides : [];
       const layout = canonicalLayoutFor(String(carousel.content_type ?? spec.carousel_type ?? ""), String(spec.model_id ?? spec.layout ?? "single-image"));

@@ -1401,6 +1401,7 @@ export async function renderCarousel(input: {
     typography: typographyForCarousel(input.id),
     rendered_slides: rendered,
     rendered_at: now,
+    editor_structure_dirty: false,
   };
   const carouselResponse = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.id)}`, { method: "PATCH", body: JSON.stringify({ spec: updatedSpec, updated_at: now }) });
   if (!carouselResponse.ok) throw new Error(`Carousel render state save failed: ${await carouselResponse.text()}`);
@@ -1611,6 +1612,7 @@ export async function renderCarouselRevision(input: {
     typography,
     rendered_slides: rendered,
     rendered_at: now,
+    editor_structure_dirty: false,
   };
   const carouselResponse = await dataBackend(
     `carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(input.id)}`,
