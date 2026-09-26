@@ -4,7 +4,7 @@ import type { DataModel } from "./_generated/dataModel";
 
 export const tableNames = [
   "personas", "accounts", "assets", "content_config", "content_formats", "content_pillars", "content_topics",
-  "content_hooks", "content_ctas", "content_claim_rules", "content_sources", "autonomy_rules", "template_specs",
+  "content_hooks", "content_ctas", "content_claim_rules", "content_sources", "content_health_sources", "autonomy_rules", "template_specs",
   "carousel_ideas", "carousels", "carousel_slides", "content_slots",
   "image_generation_jobs", "render_jobs", "publish_jobs", "platform_posts", "analytics_snapshots",
   "template_performance", "topic_performance", "persona_performance", "system_logs", "ai_usage_logs",
