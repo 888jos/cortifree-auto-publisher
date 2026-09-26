@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs, autonomyRuleValue } from '../runtime/config';
 import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core';
@@ -16,6 +17,25 @@ async function insert(resource: string, body: unknown) {
   return await response.json() as Row[];
 }
 
+
+export function personaCacheGenerationPolicy(
+  count: number,
+  personaId: string,
+  dateKey = new Date().toISOString().slice(0, 10),
+) {
+  const normalized = Math.max(0, Math.floor(count));
+  const generatePercent = normalized < 10 ? 100 : normalized < 20 ? 80 : normalized < 25 ? 20 : 0;
+  const bucket = crypto.createHash('sha1').update(`${personaId}:${dateKey}:${normalized}`).digest().readUInt32BE(0) % 100;
+  return {
+    count: normalized,
+    generatePercent,
+    recyclePercent: 100 - generatePercent,
+    shouldGenerate: generatePercent > 0 && bucket < generatePercent,
+    bucket,
+    maxCache: 25,
+  };
+}
+
 export async function refillPersonaCaches(options: { personaIds?: string[] } = {}) {
   const [{ autonomyRules }, accounts, personas] = await Promise.all([
     loadRuntimeEditorial(),
@@ -24,6 +44,7 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
   ]);
   const min = autonomyRuleValue(autonomyRules, 'persona_cache_min', 12);
   const target = autonomyRuleValue(autonomyRules, 'persona_cache_target', 20);
+  const maxCache = Math.max(25, autonomyRuleValue(autonomyRules, 'persona_cache_max', 25));
   const generationEnabled = process.env.IMAGE_GENERATION_ENABLED === 'true';
   const report: Row[] = [];
   const requestedPersonaIds = new Set((options.personaIds ?? []).map((id) => id.trim().toUpperCase()).filter(Boolean));
@@ -42,8 +63,30 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
   );
 
   for (const account of active) {
-    const existing = await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`);
-    if (existing.length >= target) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'HEALTHY' }); continue; }
+    const [existing, inFlight] = await Promise.all([
+      rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`),
+      rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(PENDING,RETRY,RUNNING)&select=id&limit=100`),
+    ]);
+    if (existing.length >= maxCache) {
+      report.push({ persona_id: account.persona_id, count: existing.length, action: 'HEALTHY_MAX' });
+      continue;
+    }
+    if (inFlight.length) {
+      report.push({ persona_id: account.persona_id, count: existing.length, in_flight: inFlight.length, action: 'REFILL_IN_FLIGHT' });
+      continue;
+    }
+    const policy = personaCacheGenerationPolicy(existing.length, account.persona_id);
+    if (!policy.shouldGenerate && existing.length >= min) {
+      report.push({
+        persona_id: account.persona_id,
+        count: existing.length,
+        target,
+        action: 'RECYCLE_ONLY',
+        generation_percent: policy.generatePercent,
+        recycle_percent: policy.recyclePercent,
+      });
+      continue;
+    }
     const master = (await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_master&enabled=eq.true&select=id&limit=1`))[0];
     if (!master) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'BLOCKED_MASTER' }); continue; }
     if (!generationEnabled) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'GENERATION_DISABLED' }); continue; }
@@ -54,14 +97,19 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       .filter((result) => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
-    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=eq.DONE&select=visual_reference_id&order=created_at.desc&limit=20`);
+    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(DONE,READY)&select=visual_reference_id&order=created_at.desc&limit=20`);
     const recentReferenceIds = new Set(
       recentJobs.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean),
     );
     const allowedRefs = refs.filter((ref) => !rejectedReferenceIds.has(ref.id));
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
-    const need = Math.min(Math.max(1, target - existing.length), existing.length < min ? 4 : 2);
+    const policyCeiling = existing.length < 10 ? Math.min(10, maxCache) : existing.length < 20 ? Math.min(20, maxCache) : maxCache;
+    const desiredCeiling = Math.max(existing.length + 1, Math.min(policyCeiling, existing.length < min ? Math.max(min, target) : policyCeiling));
+    const need = Math.min(
+      Math.max(1, desiredCeiling - existing.length),
+      existing.length < 10 ? 4 : existing.length < 20 ? 2 : 1,
+    );
     const jobs: Row[] = [];
     const sceneStart = sceneRows.length ? existing.length % sceneRows.length : 0;
     for (let index = 0; index < need; index += 1) {
@@ -92,7 +140,16 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       });
     }
     if (jobs.length) await insert('image_generation_jobs', jobs);
-    report.push({ persona_id: account.persona_id, count: existing.length, action: jobs.length ? 'QUEUED_REFILL' : 'NO_USABLE_SCENE', queued: jobs.length });
+    report.push({
+      persona_id: account.persona_id,
+      count: existing.length,
+      target,
+      max_cache: maxCache,
+      action: jobs.length ? 'QUEUED_REFILL' : 'NO_USABLE_SCENE',
+      queued: jobs.length,
+      generation_percent: policy.generatePercent,
+      recycle_percent: policy.recyclePercent,
+    });
   }
   return report;
 }
