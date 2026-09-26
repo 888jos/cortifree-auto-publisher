@@ -7,14 +7,23 @@ import "./planning.css";
 type Item={
   id:string;accountId:string;personaId:string;topic:string;format:string;status:string;reviewStatus:string;
   scheduledFor:string|null;publishedAt:string|null;postUrl:string|null;error:string|null;approvedAt:string|null;
-  approvalStale:boolean;date:string|null;cover:string|null;
+  approvalStale:boolean;date:string|null;cover:string|null;slotId:string|null;
+};
+type SlotItem={
+  slotId:string;carouselId:string|null;ideaId:string|null;accountId:string;personaId:string;topic:string;format:string;
+  concept:string;status:string;reviewStatus:string;strategy:string;scheduledFor:string|null;date:string;cover:string|null;
+  error:string|null;source:string;approvalStale:boolean;
 };
 type Persona={
   accountId:string;personaId:string;username?:string|null;name?:string|null;timezone:string;dailyTarget:number;
   postingSlots:string[];enabled:boolean;postingEnabled:boolean;warmupStatus:string;backlog:Item[];
-  byDay:Record<string,Item[]>;
+  byDay:Record<string,SlotItem[]>;
 };
-type PlanningPayload={generatedAt:string;start:string;days:string[];summary:{awaitingReview:number;approvedBacklog:number;scheduled:number;published:number;failed:number};personas:Persona[];items:Item[]};
+type PlanningPayload={
+  generatedAt:string;source:string;start:string;days:string[];
+  summary:{open:number;queued:number;blockedConfig:number;needsAssets:number;awaitingReview:number;approvedBacklog:number;planned:number;failed:number};
+  personas:Persona[];slots:SlotItem[];items:Item[];
+};
 
 function todayKey(){
   const now=new Date();
@@ -28,7 +37,12 @@ function timeLabel(value:string|null,timezone:string){
   return new Intl.DateTimeFormat("fr-FR",{timeZone:timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(value));
 }
 function statusLabel(status:string){
-  const labels:Record<string,string>={APPROVED:"Validé",PLANNED:"Planifié",SCHEDULED:"Planifié provider",PUBLISHING:"Publication",PUBLISHED:"Publié",FAILED:"Échec",READY_FOR_REVIEW:"À vérifier"};
+  const labels:Record<string,string>={
+    OPEN:"À produire",QUEUED:"En file",GENERATING:"Génération",BLOCKED_CONFIG:"Config bloquée",
+    NEEDS_ASSETS:"Assets manquants",DRAFT:"Brouillon",READY_FOR_REVIEW:"À vérifier",APPROVED:"Validé",
+    PLANNED:"Planifié",FAILED:"Échec",MISSED:"Créneau raté",EXPIRED:"Expiré",EXPIRED_SLOT:"Expiré",
+    BLOCKED_ACCOUNT:"Compte bloqué"
+  };
   return labels[status]||status;
 }
 
@@ -80,10 +94,12 @@ export default function PlanningPage(){
     <section className="planningHero">
       <div><p>CONTENT PLANNING</p><h1>Une semaine, 16 personas, zéro devinette.</h1><span>Les carrousels validés restent en backlog tant qu’ils n’ont pas de créneau.</span></div>
       {payload&&<div className="planningStats">
-        <div><b>{payload.summary.approvedBacklog}</b><span>À planifier</span></div>
-        <div><b>{payload.summary.scheduled}</b><span>Planifiés</span></div>
-        <div><b>{payload.summary.published}</b><span>Publiés</span></div>
+        <div><b>{payload.summary.open}</b><span>À produire</span></div>
+        <div><b>{payload.summary.blockedConfig}</b><span>Config bloquée</span></div>
+        <div><b>{payload.summary.needsAssets}</b><span>Assets</span></div>
         <div><b>{payload.summary.awaitingReview}</b><span>À vérifier</span></div>
+        <div><b>{payload.summary.approvedBacklog}</b><span>Validés</span></div>
+        <div><b>{payload.summary.planned}</b><span>Planifiés</span></div>
       </div>}
     </section>
 
@@ -104,10 +120,19 @@ export default function PlanningPage(){
             {payload.days.map(day=>{
               const items=persona.byDay[day]||[];
               return <div className={"planningCell "+(items.length>persona.dailyTarget?"over":"")} key={day}>
-                {items.length===0?<span className="planningEmptyCell">—</span>:items.map(item=><article className={"planningCard status-"+item.status.toLowerCase()} key={item.id}>
-                  {item.cover&&<img src={item.cover} alt=""/>}
-                  <div><b>{timeLabel(item.publishedAt||item.scheduledFor,persona.timezone)||"—"}</b><strong>{item.topic}</strong><span>{item.format}</span><small>{statusLabel(item.status)}</small></div>
-                  {["PLANNED","SCHEDULED"].includes(item.status)&&<button title="Retirer du planning" onClick={()=>void unschedule(item)}>×</button>}
+                {items.length===0?<span className="planningEmptyCell">—</span>:items.map(item=><article className={"planningCard status-"+item.status.toLowerCase().replaceAll("_","-")} key={item.slotId} title={item.error||item.slotId}>
+                  {item.cover?<img src={item.cover} alt=""/>:<div className="planningSlotIcon">{item.status==="OPEN"?"＋":item.status==="BLOCKED_CONFIG"?"!":item.status==="NEEDS_ASSETS"?"◇":"·"}</div>}
+                  <div>
+                    <b>{timeLabel(item.scheduledFor,persona.timezone)||"—"}</b>
+                    <strong>{item.topic}</strong>
+                    <span>{[item.concept,item.format,item.strategy].filter(Boolean).join(" · ")||item.source}</span>
+                    <small>{statusLabel(item.status)}</small>
+                    {item.error&&<em>{item.error.replace(/^GENERATION_BLOCKED:/,"").slice(0,70)}</em>}
+                  </div>
+                  <div className="planningCardActions">
+                    {item.carouselId&&<Link title="Ouvrir le carousel" href={`/editor/${item.carouselId}`}>↗</Link>}
+                    {item.status==="PLANNED"&&item.carouselId&&<button title="Retirer du planning" onClick={()=>void unschedule({...item,id:item.carouselId,publishedAt:null,postUrl:null,approvedAt:null,date:item.date} as Item)}>×</button>}
+                  </div>
                 </article>)}
               </div>
             })}
@@ -129,7 +154,7 @@ export default function PlanningPage(){
           <p>PERSONA</p><h2>{selected?.name||selected?.personaId||"—"}</h2>
           {selected&&<><dl><div><dt>ID</dt><dd>{selected.personaId}</dd></div><div><dt>Compte</dt><dd>{selected.accountId}</dd></div><div><dt>Timezone</dt><dd>{selected.timezone}</dd></div><div><dt>Warm-up</dt><dd>{selected.warmupStatus}</dd></div><div><dt>Posting</dt><dd>{selected.postingEnabled?"activé":"désactivé"}</dd></div></dl>
           <div className="planningSlots"><b>Créneaux</b>{selected.postingSlots.length?selected.postingSlots.map(slot=><span key={slot}>{slot}</span>):<span>18:00</span>}</div>
-          <div className="planningWeekSummary"><b>Cette semaine</b><span>{payload.days.reduce((n,day)=>n+(selected.byDay[day]?.length||0),0)} contenu(s) planifié(s)</span><span>{selected.backlog.length} approuvé(s) en backlog</span></div></>}
+          <div className="planningWeekSummary"><b>Cette semaine</b><span>{payload.days.reduce((n,day)=>n+(selected.byDay[day]?.length||0),0)} créneau(x)</span><span>{payload.days.flatMap(day=>selected.byDay[day]||[]).filter(item=>item.status==="BLOCKED_CONFIG").length} bloqué(s) config</span><span>{payload.days.flatMap(day=>selected.byDay[day]||[]).filter(item=>item.status==="NEEDS_ASSETS").length} en attente d’assets</span><span>{selected.backlog.length} approuvé(s) à confirmer</span></div></>}
         </aside>
       </section>
     </>}
