@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { applyEditorStructureAction } from "../../../../../lib/editor-structure";
-import { dataBackend } from "../../../../../lib/data-backend";
-import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../../lib/workspace";
+import { applyEditorStructureAction } from "../../../../lib/editor-structure";
+import { dataBackend } from "../../../../lib/data-backend";
+import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 
 export const runtime = "nodejs";
 
