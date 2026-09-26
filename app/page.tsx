@@ -45,39 +45,26 @@ const referenceImages = [
 ];
 
 const rawModels = [
-  {
-    id: "single-image",
-    name: "1× image",
-    format: "Une image pleine page + texte éditorial",
-    slides: "6 slides",
-    style: "Photo dominante, titre fort, composition aérée",
-    layout: "single-image",
-  },
-  {
-    id: "grid-2x2",
-    name: "2×2 images",
-    format: "Quatre images en grille + texte éditorial",
-    slides: "6 slides",
-    style: "Moodboard féminin, deux images en diagonale, texte lisible",
-    layout: "grid-2x2",
-  },
+  { id: "F01_LIFESTYLE_GUIDE", name: "F01 · Lifestyle 3-Stack", format: "Lifestyle guide · 3 stacked photos", slides: "6 slides", style: "Photo-first, human, fast saveable tips", layout: "lifestyle-3stack" },
+  { id: "F02_EDITORIAL_COLLAGE", name: "F02 · Editorial Collage", format: "Asymmetric editorial collage", slides: "6 slides", style: "Editorial, premium, asymmetric image rhythm", layout: "editorial-asym-hero" },
+  { id: "F03_ROUTINE_TIMELINE", name: "F03 · Routine Timeline", format: "Full photo + timed routine steps", slides: "6 slides", style: "Morning, night and day-in-life routines", layout: "routine-timeline" },
+  { id: "F04_AESTHETIC_EDUCATIONAL", name: "F04 · Aesthetic Educational", format: "3-image educational board", slides: "6 slides", style: "Visual education, compact explanations", layout: "three-rect-educational" },
+  { id: "F05_INTERACTIVE_CHECKLIST", name: "F05 · Notes Master List", format: "Notes card over lifestyle photo", slides: "6 slides", style: "Saveable lists and checklists", layout: "interactive-checklist" },
+  { id: "F06_PERSONA_EXPLAINER", name: "F06 · Persona Explainer", format: "Persona-led full-screen explainer", slides: "6 slides", style: "Relatable first-person explanation", layout: "persona-explainer" },
+  { id: "F07_RANKING", name: "F07 · Girly Tier List", format: "Tier ranking", slides: "7 slides", style: "Opinionated ranking with one item per slide", layout: "ranking" },
+  { id: "F08_2X2", name: "F08 · 2×2 Contrast", format: "2×2 visual contrast grid", slides: "6 slides", style: "Before/after, comparisons and contrasts", layout: "grid-2x2" },
 ] as const;
 
 const layoutSpecs = {
-  "single-image": {
-    bestFor: "Une image forte avec texte éditorial lisible",
-    imageZones: ["Une photo verticale pleine page"],
-    textZones: ["Kicker", "Titre principal", "Texte court"],
-    sample: { hook: "a softer kind of glow up", body: "small habits that make your days feel better", cta: "save" },
-  },
-  "grid-2x2": {
-    bestFor: "Moodboard 2×2 avec une idée par slide",
-    imageZones: ["Quatre photos verticales"],
-    textZones: ["Kicker", "Titre éditorial", "Texte court"],
-    sample: { hook: "the reset mood", body: "four little choices for a calmer week", cta: "save" },
-  },
+  "lifestyle-3stack": { bestFor: "Glow-up, habits and lifestyle guides", imageZones: ["Hook: 1 full photo", "Body: 3 stacked photos"], textZones: ["Short headline", "Short support copy"], sample: { hook: "tiny habits that changed my week", body: "simple things I actually kept doing", cta: "save" } },
+  "editorial-asym-hero": { bestFor: "Premium editorial wellness storytelling", imageZones: ["1 hero photo", "2 supporting images"], textZones: ["Editorial title", "Compact body"], sample: { hook: "the quiet reset", body: "what made my routine feel easier", cta: "save" } },
+  "routine-timeline": { bestFor: "Morning, night and day-in-life routines", imageZones: ["1 full-screen action photo per slide"], textZones: ["Time range", "Action", "Optional short support"], sample: { hook: "my low-stress morning", body: "7:10 - 7:25 · slow breakfast", cta: "save" } },
+  "three-rect-educational": { bestFor: "Educational wellness explainers", imageZones: ["2 images on cover", "3 images on body"], textZones: ["Subject", "Category", "2-5 short points"], sample: { hook: "what actually helped", body: "sleep | meals | movement", cta: "save" } },
+  "interactive-checklist": { bestFor: "Saveable lists, groceries and checklists", imageZones: ["One lifestyle background reused"], textZones: ["Category", "5-12 list items"], sample: { hook: "save this for your next reset", body: "protein | berries | greens | oats", cta: "save" } },
+  "persona-explainer": { bestFor: "Relatable persona-led explanations", imageZones: ["One new persona photo per slide"], textZones: ["Mini headline", "2-4 observations"], sample: { hook: "what I noticed when I slowed down", body: "less rushing | better evenings | easier sleep", cta: "save" } },
+  "ranking": { bestFor: "Tier lists and rankings", imageZones: ["Hook pair", "One item image per body slide"], textZones: ["Tier", "Item", "Short reason"], sample: { hook: "ranking habits for calmer mornings", body: "walking · A tier", cta: "comment" } },
+  "grid-2x2": { bestFor: "Before/after and visual comparisons", imageZones: ["Four-image 2×2 grid"], textZones: ["Headline", "Short comparison"], sample: { hook: "before vs after my reset", body: "what changed in my routine", cta: "save" } },
 } as const;
-
 const modelData = rawModels.map((model, index) => ({
   ...model,
   reference: referenceImages[index % referenceImages.length] ?? referenceImages[0],
