@@ -1537,7 +1537,7 @@ export default function Home() {
                   <div className="asset" key={category}>
                     <div className="assetIcon">{category.charAt(0).toUpperCase()}</div>
                     <div className="assetText">
-                      <b>{category.replaceAll("_", " ")}</b>
+                      <b>{displayLabel(category)}</b>
                       <small>Images Drive synchronisées</small>
                     </div>
                     <strong>{count}</strong>
@@ -1698,7 +1698,7 @@ export default function Home() {
                 <label><span>Persona</span><select onChange={(event) => setImagePersonaId(event.target.value)} value={imagePersonaId}>{personas.map((persona) => <option key={persona.id} value={persona.id}>{persona.id} · {persona.name}{persona.ready ? "" : " · MASTER non indexé"}</option>)}</select></label>
                 <label><span>Scène</span><input onChange={(event) => setImageScene(event.target.value)} value={imageScene} /></label>
                 <label><span>Catégorie</span><select onChange={(event) => setImageCategory(event.target.value)} value={imageCategory}><option value="other">Other</option><option value="home">Home</option><option value="fitness">Fitness</option><option value="outdoors">Outdoors</option><option value="self_care">Self care</option><option value="food">Food</option><option value="work_study">Work / Study</option></select></label>
-                <label><span>Référence visuelle</span><select onChange={(event) => setImageReferenceId(event.target.value)} value={imageReferenceId}>{visualReferences.map((reference) => <option key={reference.id} value={reference.id}>{reference.id} · {reference.category.replaceAll("_", " ")}</option>)}</select></label>
+                <label><span>Référence visuelle</span><select onChange={(event) => setImageReferenceId(event.target.value)} value={imageReferenceId}>{visualReferences.map((reference) => <option key={reference.id} value={reference.id}>{reference.id} · {displayLabel(reference.category)}</option>)}</select></label>
                 <label><span>Cadrage</span><input onChange={(event) => setImageFraming(event.target.value)} placeholder={selectedImageReference?.framing || "full body"} value={imageFraming} /></label>
                 <label><span>Tenue</span><input onChange={(event) => setImageOutfit(event.target.value)} placeholder={selectedImageReference?.outfit || "casual neutral"} value={imageOutfit} /></label>
                 <label className="full"><span>Instructions additionnelles</span><textarea onChange={(event) => setImageInstructions(event.target.value)} placeholder="Détails optionnels, sans changer l’identité du MASTER" value={imageInstructions} /></label>
