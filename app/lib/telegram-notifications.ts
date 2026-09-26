@@ -42,7 +42,9 @@ async function notifyReview(chatId: string) {
   let sent = 0;
   for (const carousel of queue) {
     const id = String(carousel.id ?? "");
-    if (!id || await wasSent("TELEGRAM_REVIEW_READY", id)) continue;
+    const version = Number(carousel.current_version ?? 1);
+    const stage = `TELEGRAM_REVIEW_READY_V${version}`;
+    if (!id || await wasSent(stage, id)) continue;
     await sendTelegramMessage(chatId, [
       "🧾 Ready for review",
       String(carousel.topic ?? id),
@@ -50,7 +52,7 @@ async function notifyReview(chatId: string) {
       `Persona: ${carousel.persona_id ?? "-"} · Account: ${carousel.account_id ?? "-"}`,
       `Version: ${carousel.current_version ?? 1}`,
     ].join("\n"), carouselButtons(id));
-    await insertLog("TELEGRAM_REVIEW_READY", id);
+    await insertLog(stage, id, { version });
     sent += 1;
   }
   return sent;

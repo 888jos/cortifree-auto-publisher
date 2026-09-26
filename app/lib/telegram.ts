@@ -81,6 +81,7 @@ export async function setTelegramCommands() {
       { command: "status", description: "CortiFree runtime and queue status" },
       { command: "integrations", description: "Check Telegram, Upload-Post and Google readiness" },
       { command: "review", description: "Show carousels waiting for review" },
+      { command: "planning", description: "Show the next 7 days by persona" },
       { command: "carousel", description: "Open a carousel by ID" },
       { command: "approve", description: "Approve a carousel by ID" },
       { command: "changes", description: "Request targeted changes to a carousel" },
@@ -108,15 +109,44 @@ export async function setTelegramWebhook(origin: string) {
   });
 }
 
-export function carouselButtons(carouselId: string): TelegramReplyMarkup {
+export function carouselButtons(carouselId: string, options: { canPlan?: boolean } = {}): TelegramReplyMarkup {
+  const secondRow: TelegramInlineButton[] = [
+    { text: "✏️ Changes", callback_data: `c:${carouselId}` },
+    ...(options.canPlan ? [{ text: "📅 Plan", callback_data: `p:${carouselId}` }] : []),
+    { text: "📊 Stats", callback_data: `s:${carouselId}` },
+  ];
   return {
     inline_keyboard: [
       [
         { text: "✅ Approve", callback_data: `a:${carouselId}` },
+        { text: "❌ Reject", callback_data: `r:${carouselId}` },
         { text: "🖼 Slides", callback_data: `v:${carouselId}` },
-        { text: "📊 Stats", callback_data: `s:${carouselId}` },
       ],
-      [{ text: "✏️ Changes", callback_data: `c:${carouselId}` }],
+      secondRow,
+    ],
+  };
+}
+
+export function rejectionReasonButtons(carouselId: string): TelegramReplyMarkup {
+  const reasons = [
+    ["COPY_AI", "🤖 Copy trop IA"],
+    ["HOOK_WEAK", "🪝 Hook faible"],
+    ["IMAGES_BAD", "🖼 Mauvaises images"],
+    ["PERSONA_MISMATCH", "👤 Persona incohérent"],
+    ["IMAGES_REPETITIVE", "🔁 Images répétitives"],
+    ["FORMAT_BAD", "📐 Format mauvais"],
+    ["GENERIC", "🫥 Trop générique"],
+    ["CONCEPT_BAD", "🗑 Mauvais concept"],
+  ] as const;
+  return {
+    inline_keyboard: [
+      ...Array.from({ length: Math.ceil(reasons.length / 2) }, (_, index) =>
+        reasons.slice(index * 2, index * 2 + 2).map(([code, text]) => ({
+          text,
+          callback_data: `rr:${code}:${carouselId}`,
+        })),
+      ),
+      [{ text: "↩️ Annuler", callback_data: `x:${carouselId}` }],
     ],
   };
 }

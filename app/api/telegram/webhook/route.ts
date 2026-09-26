@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { dataBackend } from "../../../lib/data-backend";
 import { approveCarousel, planReviewRevision, recordReviewEvent, rejectCarousel } from "../../../lib/human-review";
+import { scheduleCarousel } from "../../../lib/planning";
+import { reviewReasonLabel } from "../../../lib/review-reasons";
 import { enqueueWorkerJob } from "../../../lib/worker-queue";
 import { formatIntegrationHealth, getLocalIntegrationHealth } from "../../../lib/integration-health";
 import {
@@ -11,6 +13,7 @@ import {
 import {
   answerTelegramCallback,
   carouselButtons,
+  rejectionReasonButtons,
   isAllowedTelegramChat,
   isTelegramWebhookRequest,
   sendTelegramMediaGroup,
@@ -134,20 +137,16 @@ async function carouselCard(chatId: string | number, id: string, includeSlides =
     `Persona: ${carousel.persona_id ?? "-"} · Account: ${carousel.account_id ?? "-"}`,
     `Status: ${carousel.status ?? "-"} / ${carousel.review_status ?? "-"}`,
     `Version: ${carousel.current_version ?? 1} · Revisions: ${carousel.revision_count ?? 0}`,
-  ].join("\n"), carouselButtons(id));
+  ].join("\n"), carouselButtons(id, { canPlan: ["APPROVED","SCHEDULED"].includes(String(carousel.status ?? "")) }));
 }
 
 async function approve(chatId: string | number, id: string) {
   const result = await approveCarousel(id, `telegram:${chatId}`);
-  const queued = await enqueueWorkerJob({
-    kind: "SCHEDULE_APPROVED_POST",
-    resourceId: id,
-    idempotencyKey: `schedule-approved:${id}`,
-    payload: { approvedAt: new Date().toISOString(), actor: `telegram:${chatId}` },
-    priority: 150,
-    maxAttempts: 3,
-  });
-  await sendTelegramMessage(chatId, `✅ Approved ${id}\nScheduled: ${result.scheduledFor}\nWorker job: ${queued.job.status}`);
+  await sendTelegramMessage(
+    chatId,
+    `✅ Approved ${id}\nVersion: ${result.approvedVersion}\nAdded to the planning backlog.`,
+    carouselButtons(id, { canPlan: true }),
+  );
 }
 
 async function requestChanges(chatId: string | number, id: string, feedback: string) {
@@ -238,6 +237,34 @@ async function reviewQueue(chatId: string | number) {
   for (const row of queue) await carouselCard(chatId, String(row.id), false);
 }
 
+async function planning(chatId: string | number, personaId?: string) {
+  const filter = personaId ? `&persona_id=eq.${encodeURIComponent(personaId.toUpperCase())}` : "";
+  const rowsList = await rows(
+    `carousels?workspace_id=eq.cortifree&status=in.(APPROVED,SCHEDULED,PUBLISHING,PUBLISHED)&select=id,persona_id,account_id,topic,status,scheduled_for&order=scheduled_for.asc.nullslast,approved_at.asc&limit=100${filter}`,
+  );
+  const backlog = rowsList.filter((row) => String(row.status) === "APPROVED" && !row.scheduled_for);
+  const scheduled = rowsList.filter((row) => Boolean(row.scheduled_for)).slice(0, 20);
+  const lines = scheduled.map((row) => {
+    const when = row.scheduled_for
+      ? new Intl.DateTimeFormat("fr-FR", { timeZone: "America/New_York", weekday: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(String(row.scheduled_for)))
+      : "—";
+    return `• ${when} · ${row.persona_id ?? "-"} · ${row.topic ?? row.id} · ${row.status}`;
+  });
+  return sendTelegramMessage(chatId, [
+    "📅 CortiFree planning",
+    personaId ? `Persona: ${personaId.toUpperCase()}` : "All personas",
+    `Approved backlog: ${backlog.length}`,
+    `Scheduled/publishing shown: ${scheduled.length}`,
+    "",
+    ...lines,
+  ].join("\n"));
+}
+
+async function planNext(chatId: string | number, id: string) {
+  const result = await scheduleCarousel({ carouselId: id, actor: `telegram:${chatId}`, mode: "next" });
+  await sendTelegramMessage(chatId, `📅 Planned ${id}\n${result.scheduledFor}`, carouselButtons(id, { canPlan: true }));
+}
+
 async function top(chatId: string | number) {
   const snapshots = await rows(
     "analytics_snapshots?workspace_id=eq.cortifree&select=carousel_id,profile_username,platform,platform_post_id,views,likes,shares,saves,favorites,performance_score,post_url,captured_at,snapshot_label&order=captured_at.desc&limit=200",
@@ -269,6 +296,7 @@ async function handleText(chatId: string | number, text: string) {
       "/status",
       "/integrations",
       "/review",
+      "/planning [persona]",
       "/carousel <id>",
       "/approve <id>",
       "/changes <id> <feedback>",
@@ -281,6 +309,7 @@ async function handleText(chatId: string | number, text: string) {
   if (command === "/status") return status(chatId);
   if (command === "/integrations") return integrations(chatId);
   if (command === "/review") return reviewQueue(chatId);
+  if (command === "/planning") return planning(chatId, args[0]);
   if (command === "/top") return top(chatId);
   if (command === "/carousel" && args[0]) return carouselCard(chatId, args[0], true);
   if (command === "/approve" && args[0]) return approve(chatId, args[0]);
@@ -299,14 +328,22 @@ async function handleText(chatId: string | number, text: string) {
 async function handleCallback(chatId: string | number, callback: TelegramCallback) {
   const callbackId = callback.id ?? "";
   const data = callback.data ?? "";
-  const separator = data.indexOf(":");
-  const action = separator >= 0 ? data.slice(0, separator) : "";
-  const id = separator >= 0 ? data.slice(separator + 1) : "";
+  const parts = data.split(":");
+  const action = parts[0] ?? "";
+  const id = action === "rr" ? parts.slice(2).join(":") : parts.slice(1).join(":");
   try {
     if (action === "a" && id) await approve(chatId, id);
+    else if (action === "r" && id) await sendTelegramMessage(chatId, `Why reject ${id}?`, rejectionReasonButtons(id));
+    else if (action === "rr" && parts[1] && id) {
+      const reasonCode = parts[1];
+      await rejectCarousel(id, reviewReasonLabel(reasonCode), `telegram:${chatId}`, { reasonCode, action: "ARCHIVE" });
+      await sendTelegramMessage(chatId, `🗑 Rejected ${id}\nReason: ${reviewReasonLabel(reasonCode)}`);
+    }
+    else if (action === "p" && id) await planNext(chatId, id);
     else if (action === "v" && id) await carouselCard(chatId, id, true);
     else if (action === "s" && id) await statsForCarousel(chatId, id);
     else if (action === "c" && id) await sendTelegramMessage(chatId, `Send: /changes ${id} <what you want changed>`);
+    else if (action === "x") await sendTelegramMessage(chatId, "Cancelled.");
     else await sendTelegramMessage(chatId, "Unknown action.");
     if (callbackId) await answerTelegramCallback(callbackId, "Done");
   } catch (error) {

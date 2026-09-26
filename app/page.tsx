@@ -991,7 +991,7 @@ export default function Home() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || `API ${response.status}`);
       setNotice(action === "approve"
-        ? `${openedCarousel.id} approuvé · publication prévue dans la fenêtre NYC.`
+        ? `${openedCarousel.id} approuvé · ajouté au backlog Planning.`
         : action === "reject"
           ? `${openedCarousel.id} rejeté.`
           : `${openedCarousel.id} · correction ciblée envoyée au worker Railway.`);
@@ -1033,6 +1033,8 @@ export default function Home() {
               {menu}
             </button>
           ))}
+          <Link className="templateLabNav" href="/review">Review Queue ↗</Link>
+          <Link className="templateLabNav" href="/planning">Planning ↗</Link>
           <Link className="templateLabNav" href="/templates">Template Lab ↗</Link>
         </nav>}
 
