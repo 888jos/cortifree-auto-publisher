@@ -393,9 +393,14 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
   });
   overlays.push({ input: subjectImage, left: frame.x, top: frame.headlineY ?? frame.y });
 
-  const parts = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
-  const label = (parts.shift() ?? "BENEFITS").toUpperCase();
-  const bullets = parts.slice(0, 5);
+  const rawBody = String(slide.body ?? "").trim();
+  const parts = rawBody.split("|").map((item) => item.trim()).filter(Boolean);
+  const hasExplicitLabel = parts.length > 1;
+  const label = (hasExplicitLabel ? parts.shift() : slide.role || "NOTES").toUpperCase();
+  const bullets = (hasExplicitLabel
+    ? parts
+    : rawBody.split(/(?<=[.!?])\s+|\s*[;•]\s*/).map((item) => item.trim()).filter(Boolean)
+  ).slice(0, 5);
   const labelImage = await rasterText(label, {
     width: frame.eduBodyWidth ?? 390,
     height: 46,
@@ -409,17 +414,19 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
   overlays.push({ input: labelImage, left: frame.eduBodyX ?? 610, top: frame.eduBodyY ?? 170 });
 
   const bulletText = bullets.map((bullet) => `• ${bullet}`).join("\n");
-  const bulletImage = await rasterText(bulletText, {
-    width: frame.eduBodyWidth ?? 390,
-    height: 270,
-    size: frame.bodySize ?? 25,
-    weight: frame.bodyWeight ?? 500,
-    color: frame.bodyColor ?? "#2b2725",
-    align: "left",
-    spacing: 10,
-    fontFamily,
-  });
-  overlays.push({ input: bulletImage, left: frame.eduBodyX ?? 610, top: (frame.eduBodyY ?? 170) + 55 });
+  if (bulletText) {
+    const bulletImage = await rasterText(bulletText, {
+      width: frame.eduBodyWidth ?? 390,
+      height: 270,
+      size: frame.bodySize ?? 25,
+      weight: frame.bodyWeight ?? 500,
+      color: frame.bodyColor ?? "#2b2725",
+      align: "left",
+      spacing: 10,
+      fontFamily,
+    });
+    overlays.push({ input: bulletImage, left: frame.eduBodyX ?? 610, top: (frame.eduBodyY ?? 170) + 55 });
+  }
   return overlays;
 }
 
