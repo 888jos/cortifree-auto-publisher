@@ -1,6 +1,7 @@
 import os from "node:os";
 import { dataBackend } from "../../app/lib/data-backend";
 import { processImageGenerationJob } from "../../app/lib/image-generation";
+import { isPermanentImageGenerationError } from "../image-generation/core";
 import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToConvex } from "../../app/lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../../app/lib/sync/drive";
@@ -388,7 +389,7 @@ async function processImageBatch() {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 2_000);
       const attempts = Number(job.worker_attempts ?? 1);
       const maxAttempts = Number(job.max_attempts ?? 3);
-      const retry = attempts < maxAttempts;
+      const retry = attempts < maxAttempts && !isPermanentImageGenerationError(error);
       const delaySeconds = Math.min(900, 15 * 2 ** Math.max(0, attempts - 1));
       await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
         status: retry ? "RETRY" : "FAILED",
