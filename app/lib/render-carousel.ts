@@ -65,7 +65,7 @@ type GeneratedSlide = {
 
 type Frame = {
   x: number; y: number; width: number; height?: number; fit?: "cover" | "contain"; cropX?: number; cropY?: number; zoom?: number;
-  mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "editorial-asym-hero" | "interactive-checklist" | "ranking" | "lifestyle-3stack";
+  mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "editorial-asym-hero" | "interactive-checklist" | "persona-explainer" | "ranking" | "lifestyle-3stack";
 };
 type Geometry = {
   canvas?: { width: number; height: number };
