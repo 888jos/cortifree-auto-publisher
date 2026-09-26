@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { nextAccountPostingTime } from "../app/lib/planning.js";
 import { REVIEW_REASONS, reviewReasonLabel } from "../app/lib/review-reasons.js";
 import { carouselButtons, rejectionReasonButtons } from "../app/lib/telegram.js";
@@ -45,5 +47,22 @@ describe("review planning workflow", () => {
     const reject = rejectionReasonButtons("CF_TEST").inline_keyboard.flat();
     assert.ok(reject.some((button) => button.callback_data === "rr:COPY_AI:CF_TEST"));
     assert.ok(reject.every((button) => !button.callback_data || button.callback_data.length <= 64));
+  });
+
+  it("keeps approval separate from planning and publishing", async () => {
+    const approveRoute = await fs.readFile(path.join(process.cwd(), "app/api/review/approve/route.ts"), "utf8");
+    const publishing = await fs.readFile(path.join(process.cwd(), "src/autonomy/publishing.ts"), "utf8");
+    assert.doesNotMatch(approveRoute, /SCHEDULE_APPROVED_POST/);
+    assert.match(publishing, /status=eq\.SCHEDULED&review_status=eq\.SCHEDULED/);
+    assert.doesNotMatch(publishing, /status=eq\.APPROVED&review_status=eq\.APPROVED/);
+  });
+
+  it("ships dedicated Review and Planning workspaces", async () => {
+    const review = await fs.readFile(path.join(process.cwd(), "app/review/page.tsx"), "utf8");
+    const planning = await fs.readFile(path.join(process.cwd(), "app/planning/page.tsx"), "utf8");
+    assert.match(review, /Refuser définitivement/);
+    assert.match(review, /Refuser \+ demander une correction/);
+    assert.match(planning, /BACKLOG APPROUVÉ/);
+    assert.match(planning, /Prochain créneau/);
   });
 });
