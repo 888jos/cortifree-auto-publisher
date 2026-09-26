@@ -3,7 +3,6 @@
 import { useEffect,useMemo,useRef,useState } from "react";
 import "./editor.css";
 import { canonicalLayoutFor } from "../../lib/canonical-layout";
-// @ts-expect-error legacy geometry module is intentionally shared with the browser editor
 import { getSlideGeometry } from "../../lib/layout-geometry.js";
 type Frame={x:number;y:number;width:number;height:number;cropX?:number;cropY?:number;zoom?:number;fit?:string};
 type Override={headline?:string;body?:string;assetIds?:Array<string|number>;text?:Record<string,any>;image?:Record<string,any>;imageSlots?:Frame[]};
