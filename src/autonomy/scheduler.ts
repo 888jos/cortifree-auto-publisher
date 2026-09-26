@@ -121,9 +121,12 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
   ]);
   const batchId = input.batchId?.trim() || `E2E_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
   const limit = Math.max(1, Math.min(20, input.limit ?? 20));
+  // Acceptance is an offline QA sample, not a publishing run. Include every
+  // configured persona (even when its account is intentionally disabled for
+  // posting) so a 16-item sample really means one carousel per persona.
   const accounts = allAccounts
-    .filter((account) => account.enabled && !['PAUSED', 'ERROR'].includes(account.warmup_status))
-    .filter((account, index, source) => source.findIndex((candidate) => candidate.persona_id === account.persona_id) === index);
+    .filter((account, index, source) => source.findIndex((candidate) => candidate.persona_id === account.persona_id) === index)
+    .sort((left, right) => left.persona_id.localeCompare(right.persona_id, undefined, { numeric: true }));
   if (!accounts.length) return { batchId, requested: limit, created: 0, ideas: [] };
   const historyRows = await rows('carousel_ideas?order=created_at.desc&limit=2000');
   const history: SelectionHistory[] = historyRows.map((row) => ({
@@ -134,40 +137,59 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
   }));
   const formatCycle = ['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2'];
   const report: AnyRow[] = [];
+  const plannedRows: AnyRow[] = [];
+  const acceptanceHistory: SelectionHistory[] = [];
   for (let index = 0; index < limit; index += 1) {
     const account = accounts[index % accounts.length]!;
-    const formatId = formatCycle[index % formatCycle.length]!;
     let picked: ReturnType<typeof selectEditorial> | null = null;
     let selectedSeed = '';
-    for (let attempt = 0; attempt < 20 && !picked; attempt += 1) {
-      selectedSeed = crypto.createHash('sha1').update(`${batchId}:${account.id}:${attempt}`).digest('hex');
-      try {
-        picked = selectEditorial({
-          seed: selectedSeed, accountId: account.id, personaId: account.persona_id,
-          pillarIds: pillarIds(account), formatIds: [formatId], topics, hooks, ctas, history,
-          accountTopicCooldownDays: autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14),
-          accountHookCooldownDays: autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7),
-          networkTopicCooldownHours: autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48),
-          networkHookCooldownHours: autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48),
-        });
-      } catch { /* try the next deterministic seed */ }
+    let requestedFormatId = formatCycle[index % formatCycle.length]!;
+    let selectedFormatId = requestedFormatId;
+    for (let formatOffset = 0; formatOffset < formatCycle.length && !picked; formatOffset += 1) {
+      const formatId = formatCycle[(index + formatOffset) % formatCycle.length]!;
+      for (let attempt = 0; attempt < 40 && !picked; attempt += 1) {
+        selectedSeed = crypto.createHash('sha1').update(`${batchId}:${account.id}:${formatId}:${attempt}`).digest('hex');
+        try {
+          // First preserve normal production cooldowns. If the historical pool
+          // is exhausted, relax only old-history cooldowns while retaining
+          // uniqueness inside this acceptance batch.
+          const selectionHistory = attempt < 20 ? [...history, ...acceptanceHistory] : acceptanceHistory;
+          picked = selectEditorial({
+            seed: selectedSeed, accountId: account.id, personaId: account.persona_id,
+            pillarIds: pillarIds(account), formatIds: [formatId], topics, hooks, ctas, history: selectionHistory,
+            accountTopicCooldownDays: attempt < 20 ? autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14) : 0,
+            accountHookCooldownDays: attempt < 20 ? autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7) : 0,
+            networkTopicCooldownHours: attempt < 20 ? autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48) : 0,
+            networkHookCooldownHours: attempt < 20 ? autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48) : 0,
+          });
+          if (picked) selectedFormatId = formatId;
+        } catch { /* try another seed or the next compatible format */ }
+      }
     }
     if (!picked) {
-      report.push({ account_id: account.id, persona_id: account.persona_id, format_id: formatId, status: 'NO_ELIGIBLE_EDITORIAL' });
-      continue;
+      throw new Error(`Acceptance sample incomplete: no eligible editorial for ${account.persona_id} after testing F01-F08`);
     }
-    const id = `CF_E2E_IDEA_${batchId}_${String(index + 1).padStart(2, "0")}_${account.persona_id}_${formatId.slice(0, 3)}`.replace(/[^A-Z0-9_]/gi, '').slice(0, 120);
+    const id = `CF_E2E_IDEA_${batchId}_${String(index + 1).padStart(2, "0")}_${account.persona_id}_${selectedFormatId.slice(0, 3)}`.replace(/[^A-Z0-9_]/gi, '').slice(0, 120);
     const row = {
       id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
-      pillar_id: picked.topic.pillar_id, content_type: formatId, topic_id: picked.topic.topic_id,
+      pillar_id: picked.topic.pillar_id, content_type: selectedFormatId, topic_id: picked.topic.topic_id,
       topic: picked.topic.topic, angle: picked.topic.angle, hook_id: picked.hook.hook_id,
       hook_formula: picked.hook.formula, final_hook: picked.finalHook, cta_id: picked.cta.cta_id,
       cta_text: picked.cta.text, combo_key: picked.comboKey, strategy: strategy(index), status: 'QUEUED',
       seed: selectedSeed, acceptance_batch_id: batchId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
-    await write('carousel_ideas?on_conflict=id', row);
-    history.push(row as SelectionHistory);
-    report.push({ id, account_id: account.id, persona_id: account.persona_id, format_id: formatId, status: 'QUEUED' });
+    plannedRows.push(row);
+    acceptanceHistory.push(row as SelectionHistory);
+    report.push({
+      id,
+      account_id: account.id,
+      persona_id: account.persona_id,
+      requested_format_id: requestedFormatId,
+      format_id: selectedFormatId,
+      format_fallback: selectedFormatId !== requestedFormatId,
+      status: 'QUEUED',
+    });
   }
+  for (const row of plannedRows) await write('carousel_ideas?on_conflict=id', row);
   return { batchId, requested: limit, created: report.filter((item) => item.status === 'QUEUED').length, ideas: report };
 }
