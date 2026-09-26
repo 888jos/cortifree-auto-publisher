@@ -37,6 +37,13 @@ describe("business orchestration v1", () => {
     assert.ok(parsed.filters.some((filter) => filter.field === "rejected_at" && filter.op === "is_null"));
   });
 
+  it("keeps ideas recoverable when OpenAI is not configured", async () => {
+    const processor = await fs.readFile(path.join(process.cwd(), "src/autonomy/processor.ts"), "utf8");
+    assert.match(processor, /status=in\.\(QUEUED,BLOCKED_CONFIG\)/);
+    assert.match(processor, /status: 'BLOCKED_CONFIG'/);
+    assert.match(processor, /GENERATION_BLOCKED:OPENAI_API_KEY is missing/);
+  });
+
   it("keeps OpenAI behind asset preflight in autonomous processing", async () => {
     const processor = await fs.readFile(path.join(process.cwd(), "src/autonomy/processor.ts"), "utf8");
     const preflightAt = processor.indexOf("checkGenerationAssetReadiness");
