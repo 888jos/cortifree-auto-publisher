@@ -95,21 +95,28 @@ export async function runScheduler() {
       let picked: ReturnType<typeof selectEditorial> | null = null;
       let selectedSeed = '';
 
-      for (let attempt = 0; attempt < 20 && !picked; attempt += 1) {
+      for (let attempt = 0; attempt < 30 && !picked; attempt += 1) {
         selectedSeed = crypto.createHash('sha1').update(`${slotId}:${attempt}`).digest('hex');
-        const topicPool = preferredTopicId && attempt < 14
+
+        // Preserve the calendar intent first. When its topic/pillar/persona
+        // eligibility is internally inconsistent, relax in controlled stages:
+        // exact topic -> same pillar -> any configured account pillar.
+        const topicPool = preferredTopicId && attempt < 10
           ? topics.filter((topic) => topic.topic_id === preferredTopicId)
           : topics;
-        const hookPool = preferredHookId && attempt < 8
+        const hookPool = preferredHookId && attempt < 6
           ? hooks.filter((hook) => hook.hook_id === preferredHookId)
           : hooks;
-        if (!topicPool.length || !hookPool.length) continue;
+        const allowedPillars = preferredPillarId && attempt < 18
+          ? [preferredPillarId]
+          : pillarIds(account);
+        if (!topicPool.length || !hookPool.length || !allowedPillars.length) continue;
         try {
           picked = selectEditorial({
             seed: selectedSeed,
             accountId: account.id,
             personaId: account.persona_id,
-            pillarIds: preferredPillarId ? [preferredPillarId] : pillarIds(account),
+            pillarIds: allowedPillars,
             formatIds: formatIds(account),
             topics: topicPool,
             hooks: hookPool,
@@ -125,8 +132,8 @@ export async function runScheduler() {
             strategy: slotStrategy,
           });
         } catch {
-          // Preserve the calendar's topic/hook first, then progressively relax
-          // only the incompatible dimension while keeping cooldowns intact.
+          // Next deterministic attempt progressively relaxes stale calendar
+          // constraints, never the account's configured editorial universe.
         }
       }
 
