@@ -26,6 +26,7 @@ export default defineSchema({
   content_ctas: cortiFreeTable(),
   content_claim_rules: cortiFreeTable(),
   content_sources: cortiFreeTable(),
+  content_health_sources: cortiFreeTable(),
   autonomy_rules: cortiFreeTable(),
   template_specs: cortiFreeTable(),
   carousel_ideas: cortiFreeTable(),
