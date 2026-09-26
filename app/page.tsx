@@ -287,6 +287,11 @@ type CalendarEntry = { id: string; account_id: string; account_name: string; per
 type CalendarAccount = { id: string; name: string; persona_id: string; timezone: string; enabled: boolean; posting_enabled: boolean; daily_target: number; slots: string[]; entries: CalendarEntry[] };
 type CalendarData = { source: string; accounts: CalendarAccount[]; dailyTotals: Array<{ date: string; total: number; byStatus: Record<string, number> }>; summary: { accountCount: number; postsPerDay: number; averagePostsPerDay: number; maxPostsPerDay: number; totalSlots: number; phaseCounts: Record<string, number> } };
 
+function displayLabel(value: unknown, fallback = "uncategorized") {
+  const text = typeof value === "string" ? value.trim() : "";
+  return (text || fallback).replaceAll("_", " ");
+}
+
 function useReferenceFallback(event: React.SyntheticEvent<HTMLImageElement>, seed: string, category = "self care") {
   const image = event.currentTarget;
   if (image.dataset.fallback === "true") return;
@@ -1524,7 +1529,7 @@ export default function Home() {
               <div className="assetFilters">
                 <label><span>Recherche</span><input onChange={(event) => setAssetQuery(event.target.value)} placeholder="full body mirror casual bedroom" type="search" value={assetQuery} /></label>
                 {assetTab === "Visual References" && (
-                  <label><span>Catégorie</span><select onChange={(event) => setReferenceCategory(event.target.value)} value={referenceCategory}><option value="all">Toutes</option>{[...new Set(visualReferences.map((reference) => reference.category))].map((category) => <option key={category} value={category}>{category.replaceAll("_", " ")}</option>)}</select></label>
+                  <label><span>Catégorie</span><select onChange={(event) => setReferenceCategory(event.target.value)} value={referenceCategory}><option value="all">Toutes</option>{[...new Set(visualReferences.map((reference) => reference.category))].map((category) => <option key={category} value={category}>{displayLabel(category)}</option>)}</select></label>
                 )}
               </div>
               {assetTab !== "Visual References" && (assetTab === "All Assets" || assetTab === "Stock") && <div className="assetList">
@@ -1548,8 +1553,8 @@ export default function Home() {
                     <figure key={asset.id}>
                       <img alt={asset.filename} loading="lazy" src={asset.public_url} />
                       <figcaption>
-                        <b>{asset.source_type === "persona_master" ? "MASTER · " : ""}{(asset.metadata?.asset_name || asset.subcategory).replaceAll("_", " ")}</b>
-                        <span>{asset.persona_id ? asset.persona_id + " · " : ""}{asset.category.replaceAll("_", " ")} · {asset.orientation} · {asset.framing}</span>
+                        <b>{asset.source_type === "persona_master" ? "MASTER · " : ""}{displayLabel(asset.metadata?.asset_name || asset.subcategory, asset.filename)}</b>
+                        <span>{asset.persona_id ? asset.persona_id + " · " : ""}{displayLabel(asset.category)} · {displayLabel(asset.orientation, "unknown orientation")} · {displayLabel(asset.framing, "unknown framing")}</span>
                         {asset.visual_description && <small className="assetSemanticDescription">{asset.visual_description}</small>}
                       </figcaption>
                     </figure>
@@ -1562,7 +1567,7 @@ export default function Home() {
                   {filteredVisualReferences.map((reference) => (
                     <article key={reference.id}>
                       {reference.thumbnail_url ? <img alt={reference.id} loading="lazy" referrerPolicy="no-referrer" src={reference.thumbnail_url} /> : <div className="referencePlaceholder">Référence URL</div>}
-                      <div><span>{reference.category.replaceAll("_", " ")}</span><h3>{reference.id}</h3><p>{reference.pose || reference.environment}</p><small>{reference.framing} · {reference.lighting}</small><a href={reference.source_url ?? "#"} rel="noreferrer" target="_blank">Source Pinterest</a></div>
+                      <div><span>{displayLabel(reference.category)}</span><h3>{reference.id}</h3><p>{reference.pose || reference.environment}</p><small>{reference.framing} · {reference.lighting}</small><a href={reference.source_url ?? "#"} rel="noreferrer" target="_blank">Source Pinterest</a></div>
                     </article>
                   ))}
                 </div>
