@@ -1,5 +1,6 @@
 import { dataBackend } from "../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
+import { isBrowserRenderableAssetUrl } from "../../lib/asset-public-url";
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
       return accumulator;
     }, {})).map(([category, count]) => ({ category, count }));
     const previewLimit = editor ? 1000 : 200;
-    const previews = rows.filter((asset) => asset.public_url).slice(0, previewLimit);
+    const previews = rows.filter((asset) => isBrowserRenderableAssetUrl(asset.public_url)).slice(0, previewLimit);
     if (audit) {
       const stock = rows.filter((asset) => asset.source_type === "stock");
       const visualMetadataMissing = stock.filter((asset) => !String(asset.scene ?? "").trim() || !Array.isArray(asset.good_for) || asset.good_for.length === 0).length;
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
           stock_metadata_missing_scene_or_good_for: visualMetadataMissing,
           stock_observable_tagged: observableTagged,
           stock_observable_tagging_schema: "observable_v2",
+          invalid_browser_asset_urls: rows.filter((asset) => asset.public_url && !isBrowserRenderableAssetUrl(asset.public_url)).length,
         },
         audit: rows.map(({ id, category, subcategory, scene, good_for, filename, orientation, framing, activity, mood, colors, use_count, source_type, persona_id, visual_description, visible_objects, visible_actions, setting, people_visibility, body_parts_visible, composition, camera_angle, lighting, dominant_colors, text_in_image, specific_details, visual_tagging_schema, visual_review_status, visual_reviewed_at, metadata }) => ({ id, category, subcategory, scene, good_for, filename, orientation, framing, activity, mood, colors, use_count, source_type, persona_id, visual_description, visible_objects, visible_actions, setting, people_visibility, body_parts_visible, composition, camera_angle, lighting, dominant_colors, text_in_image, specific_details, visual_tagging_schema, visual_review_status, visual_reviewed_at, metadata })),
       });

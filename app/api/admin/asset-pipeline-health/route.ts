@@ -1,6 +1,7 @@
 import { dataBackend } from "../../../lib/data-backend";
 import { readSheetObjects } from "../../../lib/google/sheets";
 import { CORTIFREE_WORKSPACE_ID } from "../../../lib/workspace";
+import { isBrowserRenderableAssetUrl } from "../../../lib/asset-public-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +81,7 @@ export async function GET() {
 
     const stockV2 = stock.filter((row) => text(row.visual_tagging_schema).toLowerCase() === "observable_v2" && text(row.visual_review_status).toUpperCase() === "IMAGE_INSPECTED_V2");
     const stockSynced = stock.filter((row) => text(row.sync_status).toUpperCase() === "SYNCED" && Boolean(row.synced_at));
-    const brokenUrls = assets.filter((row) => truthy(row.enabled) && !text(row.public_url)).map((row) => ({ id: row.id, source_type: row.source_type, filename: row.filename }));
+    const brokenUrls = assets.filter((row) => truthy(row.enabled) && !isBrowserRenderableAssetUrl(row.public_url)).map((row) => ({ id: row.id, source_type: row.source_type, filename: row.filename, public_url: row.public_url ?? null }));
     const generatedBroken = generated.filter((row) => truthy(row.enabled) && (!text(row.persona_id) || !text(row.public_url))).map((row) => ({ id: row.id, persona_id: row.persona_id, public_url: Boolean(row.public_url) }));
 
     const status = missingStock.length || missingRefs.length || missingMasters.length || duplicateMasters.length || brokenUrls.length
