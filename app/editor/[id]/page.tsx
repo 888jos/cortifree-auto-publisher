@@ -55,6 +55,7 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  function checkpoint(){setHistory(h=>[...h.slice(-49),{overrides:structuredClone(overrides),editorState:structuredClone(editorState)}]);setFuture([])}
  function markChanged(){revision.current+=1;setDirty(true);setSaveState("unsaved");setRenderOutdated(true)}
  function updateLayerFlags(target:LayerTarget,next:Partial<LayerFlags>){checkpoint();const id=layerId(target);setEditorState(state=>{const slideLayers=state.layers?.[key]||{};return {...state,layers:{...(state.layers||{}),[key]:{...slideLayers,[id]:{...(slideLayers[id]||{}),...next}}}}});markChanged()}
+ function toggleSnap(){checkpoint();setEditorState(state=>({...state,snap:state.snap===false}));markChanged()}
  function setOv(next:Override,live=false){if(isLocked(selection))return;if(!live)checkpoint();setOverrides(o=>({...o,[key]:{...(o[key]||{}),...next}}));markChanged()}
  function textPatch(next:any,live=false){if(typeof selection==="number"||isLocked(selection))return;setOv({text:{...(ov.text||{}),...next}},live)}
  function slotPatch(index:number,next:Partial<Frame>,live=false){if(isLocked(index))return;const arr=slots.map(x=>({...x}));arr[index]={...arr[index]!,...next};setOv({imageSlots:arr},live)}
