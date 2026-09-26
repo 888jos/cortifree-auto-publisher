@@ -3,3 +3,5 @@
 .ce-ranking-wash{position:absolute;inset:0;background:#fffdf9;z-index:0;pointer-events:none}
 .ce-canvas.layout-three-rect-educational .ce-image-frame,.ce-canvas.layout-ranking .ce-image-frame,.ce-canvas.layout-editorial-asym-hero .ce-image-frame{border-radius:12px}
 .ce-canvas.layout-interactive-checklist .ce-text,.ce-canvas.layout-ranking .ce-text,.ce-canvas.layout-three-rect-educational .ce-text,.ce-canvas.layout-editorial-asym-hero .ce-text{color:#2b2725}
+
+.ce-canvas.layout-persona-explainer::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 38%,rgba(18,16,15,.42) 72%,rgba(18,16,15,.78) 100%);z-index:2;pointer-events:none}.ce-canvas.layout-persona-explainer .ce-text{z-index:3;color:#fffaf8}
