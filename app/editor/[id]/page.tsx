@@ -2,6 +2,7 @@
 // Carousel Studio v2: canonical layer editor for production carousels.
 import { useEffect,useMemo,useRef,useState } from "react";
 import "./editor.css";
+import { canonicalLayoutFor } from "../../lib/canonical-layout";
 type Frame={x:number;y:number;width:number;height:number;cropX?:number;cropY?:number;zoom?:number;fit?:string};
 type Override={headline?:string;body?:string;assetIds?:Array<string|number>;text?:Record<string,any>;image?:Record<string,any>;imageSlots?:Frame[]};
 type Asset={id:string|number;public_url:string;filename:string;source_type?:string;persona_id?:string|null};
@@ -21,7 +22,7 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  const [dirty,setDirty]=useState(false),[busy,setBusy]=useState(""),[scene,setScene]=useState(""),[assetSearch,setAssetSearch]=useState(""),drag=useRef<any>(null);
  useEffect(()=>{params.then(x=>setId(x.id))},[params]);
  useEffect(()=>{if(!id)return;Promise.all([fetch("/api/carousels/"+id,{cache:"no-store"}).then(r=>r.json()),fetch("/api/assets",{cache:"no-store"}).then(r=>r.json()),fetch("/api/personas",{cache:"no-store"}).then(r=>r.json()),fetch("/api/visual-references",{cache:"no-store"}).then(r=>r.json())]).then(([c,a,p,v])=>{setCarousel(c.carousel);setSlides(c.slides||[]);setAssets(a.previews||[]);setPersonas(p.personas||[]);setRefs(v.references||[]);setOverrides(c.carousel?.spec?.editor_overrides||{})})},[id]);
- const generated=carousel?.spec?.generated_slides||[],slide=slides[active]||{},gen=generated[active]||{},key=String(gen.position||slide.position||active+1),ov=overrides[key]||{},layout=carousel?.spec?.model_id||slide.template_id||"single-image",isHook=active===0||String(gen.role||"").toUpperCase()==="HOOK";
+ const generated=carousel?.spec?.generated_slides||[],slide=slides[active]||{},gen=generated[active]||{},key=String(gen.position||slide.position||active+1),ov=overrides[key]||{},layout=canonicalLayoutFor(carousel?.content_type||carousel?.spec?.carousel_type,carousel?.spec?.model_id||slide.template_id||"single-image"),isHook=active===0||String(gen.role||"").toUpperCase()==="HOOK";
  const baseText=slide.render_metadata?.geometry?.text||{},text={...baseText,...(ov.text||{})},headline=ov.headline??gen.headline??slide.headline??"",body=ov.body??gen.body??slide.body??"";
  const originalIds=(slide.render_metadata?.asset_ids||[slide.asset_id]).filter(Boolean),assetIds=ov.assetIds||originalIds,slots=ov.imageSlots||defaultSlots(layout,isHook,assetIds.length);
  const slotAssets=assetIds.map((aid:any)=>assets.find(a=>String(a.id)===String(aid)));
