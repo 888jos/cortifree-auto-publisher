@@ -63,8 +63,8 @@ export function applyEditorStructureAction(spec: Record<string, any>, action: St
       layerState: source.layerState ? clone(source.layerState) : undefined,
     });
   } else {
-    if (slides.length <= 4) throw new Error("EDITOR_STRUCTURE_MIN_SLIDES");
     if (isProtectedStructureIndex(slides, action.index)) throw new Error("EDITOR_STRUCTURE_PROTECTED_SOURCE");
+    if (slides.length <= 4) throw new Error("EDITOR_STRUCTURE_MIN_SLIDES");
     if (!entries[action.index]) throw new Error("EDITOR_STRUCTURE_SOURCE_NOT_FOUND");
     entries.splice(action.index, 1);
   }
