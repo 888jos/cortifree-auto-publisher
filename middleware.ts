@@ -4,10 +4,13 @@ import { createServerClient } from "@supabase/ssr";
 const publicPaths = new Set([
   "/login",
   "/auth/callback",
+  "/api/auth/login",
+  "/api/auth/logout",
   // These server-to-server routes perform their own secret verification.
   "/api/admin/recover-modelark-orphans",
   "/api/admin/integrations-status",
   "/api/telegram/webhook",
+  "/api/integrations/telegram/webhook",
   "/api/telegram/setup",
 ]);
 
