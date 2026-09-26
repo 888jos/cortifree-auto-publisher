@@ -54,3 +54,77 @@
 @media(max-width:1280px){.ce-shell{grid-template-columns:126px minmax(430px,1fr) 350px}.ce-top{padding-inline:12px}.ce-top button{padding:8px}.ce-last-saved,.ce-titleblock small{display:none}.ce-props{padding:14px}}
 
 .ce-inline-text{display:block;min-height:1em;outline:none;white-space:pre-wrap;word-break:break-word}.ce-inline-text[contenteditable="true"]{cursor:text}
+
+
+/* Carousel Studio v6 — hierarchy, fit canvas, contextual inspector */
+.ce-shell{grid-template-columns:164px minmax(520px,1fr) 350px}
+.ce-top{gap:8px;padding:9px 16px}
+.ce-titleblock{min-width:0;max-width:360px}
+.ce-titleblock strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ce-top-spacer{flex:1}
+.ce-save-cluster{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.ce-render-button{display:flex;min-width:178px;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 13px!important;line-height:1.05}
+.ce-render-button small{font-size:8px;font-weight:600;opacity:.72}
+.ce-render-button.stale{box-shadow:0 0 0 3px #e9dfc9}
+.ce-more{position:relative}
+.ce-more>summary{display:grid;width:38px;height:36px;place-items:center;border:1px solid var(--ce-line);border-radius:10px;background:#fff;color:#5f6c64;cursor:pointer;font-weight:800;list-style:none}
+.ce-more>summary::-webkit-details-marker{display:none}
+.ce-more[open]>summary{border-color:#9ab197;background:var(--ce-sage-soft);color:var(--ce-sage-dark)}
+.ce-more-menu{position:absolute;right:0;top:43px;z-index:80;display:flex;width:205px;flex-direction:column;gap:4px;padding:7px;border:1px solid var(--ce-line);border-radius:12px;background:#fff;box-shadow:0 18px 50px rgba(32,55,38,.16)}
+.ce-more-menu button{width:100%;text-align:left;box-shadow:none}
+.ce-slides{padding:15px 10px}
+.ce-stale-thumb{left:6px!important;right:auto!important;bottom:6px!important;top:auto!important;width:auto!important;height:auto!important;padding:3px 5px!important;border-radius:999px!important;background:#fff4dcdd!important;color:#8e6626!important;font-size:7px!important;font-weight:800!important}
+.ce-work{justify-content:flex-start;overflow:auto;padding:18px 24px 20px}
+.ce-contextbar{width:min(620px,100%);justify-content:space-between;margin-bottom:8px}
+.ce-context-meta{display:flex;align-items:center;gap:4px;color:#6f7c73;font-size:10px}
+.ce-context-meta strong{color:#34443a;font-size:11px}
+.ce-context-tools{display:flex;align-items:center;gap:6px;margin-left:auto}
+.ce-health-shortcut{border:1px solid #e4c995!important;background:#fff8e9!important;color:#8b6429!important;font-weight:750!important}
+.ce-health-shortcut.error{border-color:#e1b8b8!important;background:#fff0ef!important;color:#995050!important}
+.ce-zoom-control{display:flex!important;align-items:center;gap:5px;color:#879189!important;font-size:9px!important;font-weight:650!important}
+.ce-zoom-control select{height:27px!important;min-width:66px!important;padding:3px 7px!important;border:1px solid #d8e1d7!important;border-radius:999px!important;background:#fff!important;color:#526158!important}
+.ce-canvas{width:auto;height:auto!important;aspect-ratio:4/5;max-width:none;flex:none;transition:width .16s ease;background:#e5eae3}
+.ce-canvas.has-missing{background:linear-gradient(135deg,#e7ece5,#dce3da)}
+.ce-empty-slot-label{display:flex!important;position:static!important;flex-direction:column;align-items:center;gap:3px;padding:8px 12px!important;border:1px solid #b9c7b6;border-radius:10px;background:#f8fbf6dd!important;color:#52635a!important;box-shadow:0 4px 18px rgba(44,66,49,.06);pointer-events:none}
+.ce-empty-slot-label b{font-size:11px}.ce-empty-slot-label small{font-size:8px;color:#89958c}
+.ce-safe-area{inset:3.4%;border-color:rgba(67,93,72,.16)}
+.ce-props{padding:16px 15px}
+.ce-layer-details{margin-bottom:12px;border-bottom:1px solid var(--ce-line);padding-bottom:10px}
+.ce-layer-details>summary,.ce-advanced>summary,.ce-asset-info>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none}
+.ce-layer-details>summary::-webkit-details-marker,.ce-advanced>summary::-webkit-details-marker,.ce-asset-info>summary::-webkit-details-marker{display:none}
+.ce-layer-details>summary{padding:7px 2px;color:#526158;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.ce-layer-details>summary:after,.ce-advanced>summary:after,.ce-asset-info>summary:after{content:"⌄";color:#96a198;font-size:11px;transition:transform .15s}
+.ce-layer-details[open]>summary:after,.ce-advanced[open]>summary:after,.ce-asset-info[open]>summary:after{transform:rotate(180deg)}
+.ce-layer-details>summary small{margin-left:auto;color:#9aa59d;font-size:8px;font-weight:600;text-transform:none;letter-spacing:0}
+.ce-layer-details .ce-layerlist{margin-top:6px;margin-bottom:7px;padding-bottom:0;border-bottom:0}
+.ce-layer-details .ce-layer-actions{margin-bottom:0}
+.ce-advanced,.ce-asset-info{border-top:1px solid #e5eae3;border-bottom:1px solid #e5eae3;padding:8px 0}
+.ce-advanced>summary,.ce-asset-info>summary{color:#718078;font-size:9px;font-weight:750}
+.ce-advanced>.ce-row{margin-top:8px}
+.ce-asset-info .ce-provenance{margin-top:8px}
+.ce-assets{grid-template-columns:repeat(2,minmax(0,1fr));max-height:430px;gap:9px}
+.ce-assets button{min-height:142px}
+.ce-assets img{height:142px}
+.ce-assets button span{font-size:8px}
+.ce-assets button small{font-size:8px}
+.ce-finding>div em{display:block;margin-top:4px;color:#6c8d70;font-size:8px;font-style:normal;font-weight:800}
+.ce-finding.error>div em{color:#a65353}
+.ce-diagnostics{gap:11px}
+.ce-diagnostic-group{gap:6px}
+.ce-health-summary div{padding:8px 4px}
+.ce-preview-wrap{width:min(660px,95%)}
+.ce-preview-image,.ce-preview-head,.ce-preview-warning{width:min(620px,100%)}
+@media(max-width:1280px){
+ .ce-shell{grid-template-columns:148px minmax(470px,1fr) 330px}
+ .ce-titleblock{max-width:270px}
+ .ce-top{padding-inline:12px}
+ .ce-render-button{min-width:158px}
+}
+@media(max-width:1080px){
+ .ce-shell{grid-template-columns:104px minmax(390px,1fr) 300px}
+ .ce-titleblock small,.ce-save-cluster .ce-last-saved{display:none}
+ .ce-top{gap:5px}
+ .ce-top button{padding:8px 9px}
+ .ce-render-button{min-width:142px}
+ .ce-contextbar{width:min(560px,100%)}
+}
