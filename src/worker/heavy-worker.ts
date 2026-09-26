@@ -214,7 +214,7 @@ async function runAutonomy() {
 async function runAcceptanceSample(payload: Row) {
   const sample = await createAcceptanceSample({
     batchId: payload.batch_id ? String(payload.batch_id) : undefined,
-    limit: payload.limit ? Number(payload.limit) : 16,
+    limit: payload.limit ? Number(payload.limit) : 20,
   });
   const drafts = await processQueuedIdeas(sample.created, { acceptanceBatchId: sample.batchId });
   return { ...sample, drafts };
