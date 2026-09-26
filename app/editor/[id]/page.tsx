@@ -57,21 +57,111 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  function commitInline(kind:"headline"|"body",event:React.FocusEvent<HTMLDivElement>){const value=event.currentTarget.innerText.replace(/\n{3,}/g,"\n\n").trim();const current=kind==="headline"?String(headline):String(body);if(value!==current)setOv(kind==="headline"?{headline:value}:{body:value});setEditingText(null)}
  async function generate(){if(selectedSlot===null)return;const persona=personas.find(p=>p.id===carousel.persona_id)||personas[0],ref=refs[0];if(!persona?.master||!ref){setBusy("Missing persona/reference");return}setBusy("Generating persona image…");const cr=await fetch("/api/image-generation/jobs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({persona_id:persona.id,master_asset_id:persona.master.id,visual_reference_id:ref.id,carousel_id:id,slide_id:"slide_"+key,category:"self_care",scene:scene||"natural candid lifestyle photo matching the selected carousel image slot",framing:"portrait"})});const cj=await cr.json();if(!cj.job?.id){setBusy(cj.error||"Generation failed");return}const rr=await fetch("/api/image-generation/jobs/"+cj.job.id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"run"})});const out=await rr.json();if(out.asset?.id){const generatedAsset:Asset={...out.asset,public_url:out.asset.public_url||out.asset.url,source_type:"persona_generated",persona_id:persona.id};setAssets(a=>[generatedAsset,...a.filter(x=>String(x.id)!==String(generatedAsset.id))]);chooseAsset(selectedSlot,generatedAsset.id);setBusy("Generated & inserted")}else setBusy(out.error||"Generation failed")}
  if(!carousel)return <main className="ce-loading">Loading Carousel Studio…</main>;
- const filtered=assets.filter(a=>!assetSearch||[a.filename,a.source_type,a.persona_id].join(" ").toLowerCase().includes(assetSearch.toLowerCase())).slice(0,160);
- return <main className="ce-shell" tabIndex={-1} onKeyDown={e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?redo():undo()}}}>
-  <header className="ce-top"><a href="/">← Carrousels</a><strong>Carousel Studio · {carousel.content_type}</strong><button disabled={!history.length} onClick={undo}>↶</button><button disabled={!future.length} onClick={redo}>↷</button><span>{dirty?"Unsaved":"Saved"}</span><button onClick={()=>save()}>Save</button><button className="primary" onClick={()=>save(true)}>Save & render</button></header>
-  <aside className="ce-slides">{generated.map((s:any,i:number)=><button key={s.position} className={i===active?"active":""} onClick={()=>{setActive(i);setSelection("headline")}}><span>{s.position}</span><img src={slides[i]?.rendered_url||carousel.spec?.rendered_slides?.[i]?.url||""}/></button>)}</aside>
-  <section className="ce-work"><div ref={canvasRef} className={"ce-canvas layout-"+layout}>
-   {layout==="interactive-checklist"&&!isHook&&<div className="ce-checklist-panel"/>}
-   {layout==="ranking"&&<div className="ce-ranking-wash"/>}
-   {slotAssets.map((asset:Asset|undefined,i:number)=>asset&&<div key={i} className={"ce-image-frame "+(selection===i?"sel":"")} style={{left:slots[i]!.x*canvasScale,top:slots[i]!.y*canvasScale,width:slots[i]!.width*canvasScale,height:slots[i]!.height*canvasScale}} onClick={()=>setSelection(i)} onPointerDown={e=>{setSelection(i);down(e,"move")}} onPointerMove={move} onPointerUp={()=>drag.current=null}><img draggable={false} src={asset.public_url} style={{transform:`scale(${slots[i]!.zoom||1})`,objectPosition:`${slots[i]!.cropX??50}% ${slots[i]!.cropY??50}%`}}/>{selection===i&&<i className="ce-handle" onPointerDown={e=>down(e,"resize")} onPointerMove={move}/>}</div>)}
-   <div className={"ce-text "+(selection==="headline"?"sel":"")} onClick={()=>setSelection("headline")} onPointerDown={e=>down(e,"move")} onPointerMove={move} onPointerUp={()=>drag.current=null} style={{left:Number(text.headlineX??text.x??90)*canvasScale,top:Number(text.headlineY??text.y??700)*canvasScale,width:Number(text.width||850)*canvasScale,fontSize:Number(text.headlineSize||54)*canvasScale,color:text.editorHeadlineColor||text.headlineColor||"#fff",fontFamily:text.fontFamily||"TikTok Sans",textAlign:text.align||"left",fontWeight:text.headlineWeight||700}}>{headline}{selection==="headline"&&<i className="ce-handle" onPointerDown={e=>down(e,"resize")} onPointerMove={move}/>}</div>
-   {body&&<div className={"ce-text body "+(selection==="body"?"sel":"")} onClick={()=>setSelection("body")} onPointerDown={e=>down(e,"move")} onPointerMove={move} onPointerUp={()=>drag.current=null} style={{left:Number(text.bodyX??text.x??90)*canvasScale,top:Number(text.bodyY||900)*canvasScale,width:Number(text.width||850)*canvasScale,fontSize:Number(text.bodySize||28)*canvasScale,color:text.editorBodyColor||text.bodyColor||"#fff",fontFamily:text.fontFamily||"TikTok Sans",textAlign:text.align||"left",fontWeight:text.bodyWeight||500}}>{body}{selection==="body"&&<i className="ce-handle" onPointerDown={e=>down(e,"resize")} onPointerMove={move}/>}</div>}
-  </div><div className="ce-status">{busy}</div></section>
-  <aside className="ce-props"><div className="ce-layerlist"><b>Layers</b><button className={selection==="headline"?"active":""} onClick={()=>setSelection("headline")}>T · Title</button>{body&&<button className={selection==="body"?"active":""} onClick={()=>setSelection("body")}>T · Body</button>}{slots.map((_,i)=><button className={selection===i?"active":""} key={i} onClick={()=>setSelection(i)}>▧ · Image {i+1}</button>)}</div>
-   {typeof selection!=="number"?<div className="ce-panel"><label>Text<textarea value={selection==="headline"?headline:body} onChange={e=>setOv(selection==="headline"?{headline:e.target.value}:{body:e.target.value})}/></label><label>Font<select value={text.fontFamily||"TikTok Sans"} onChange={e=>textPatch({fontFamily:e.target.value})}>{FONTS.map(x=><option key={x}>{x}</option>)}</select></label><div className="ce-row"><label>Size<input type="number" value={selection==="headline"?text.headlineSize||54:text.bodySize||28} onChange={e=>textPatch(selection==="headline"?{headlineSize:+e.target.value}:{bodySize:+e.target.value})}/></label><label>Color<input type="color" value={(selection==="headline"?text.editorHeadlineColor||text.headlineColor:text.editorBodyColor||text.bodyColor)||"#ffffff"} onChange={e=>textPatch(selection==="headline"?{editorHeadlineColor:e.target.value,headlineColor:e.target.value}:{editorBodyColor:e.target.value,bodyColor:e.target.value})}/></label></div><label>Align<select value={text.align||"left"} onChange={e=>textPatch({align:e.target.value})}><option>left</option><option>center</option><option>right</option></select></label><div className="ce-row"><label>X<input type="number" value={selection==="headline"?(text.headlineX??text.x??90):(text.bodyX??text.x??90)} onChange={e=>textPatch(selection==="headline"?{headlineX:+e.target.value}:{bodyX:+e.target.value})}/></label><label>Y<input type="number" value={selection==="headline"?(text.headlineY??text.y??700):(text.bodyY??900)} onChange={e=>textPatch(selection==="headline"?{headlineY:+e.target.value}:{bodyY:+e.target.value})}/></label></div><div className="ce-row"><label>Width<input type="number" value={text.width??850} onChange={e=>textPatch({width:+e.target.value})}/></label><label>Weight<input type="number" min="100" max="900" step="100" value={selection==="headline"?text.headlineWeight||700:text.bodyWeight||500} onChange={e=>textPatch(selection==="headline"?{headlineWeight:+e.target.value}:{bodyWeight:+e.target.value})}/></label></div></div>:
-   <div className="ce-panel"><h3>Image {selection+1}</h3><div className="ce-row"><label>X<input type="number" value={selectedFrame?.x||0} onChange={e=>slotPatch(selection,{x:+e.target.value})}/></label><label>Y<input type="number" value={selectedFrame?.y||0} onChange={e=>slotPatch(selection,{y:+e.target.value})}/></label></div><div className="ce-row"><label>Width<input type="number" value={selectedFrame?.width||0} onChange={e=>slotPatch(selection,{width:+e.target.value})}/></label><label>Height<input type="number" value={selectedFrame?.height||0} onChange={e=>slotPatch(selection,{height:+e.target.value})}/></label></div><label>Zoom<input type="range" min="1" max="4" step=".05" value={selectedFrame?.zoom||1} onChange={e=>slotPatch(selection,{zoom:+e.target.value})}/></label><div className="ce-row"><label>Crop X<input type="range" min="0" max="100" value={selectedFrame?.cropX??50} onChange={e=>slotPatch(selection,{cropX:+e.target.value})}/></label><label>Crop Y<input type="range" min="0" max="100" value={selectedFrame?.cropY??50} onChange={e=>slotPatch(selection,{cropY:+e.target.value})}/></label></div><h3>Replace</h3><input placeholder="Search assets…" value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}/><div className="ce-assets">{filtered.map(a=><button key={a.id} title={a.filename} onClick={()=>chooseAsset(selection,a.id)}><img src={a.public_url}/></button>)}</div><h3>Generate with {personas.find(p=>p.id===carousel.persona_id)?.name||carousel.persona_id}</h3><textarea value={scene} onChange={e=>setScene(e.target.value)} placeholder="Scene: mirror selfie after skincare…"/><button className="primary wide" onClick={generate}>Generate & insert here</button></div>}
-   <button className="reset" onClick={()=>{checkpoint();setOverrides(o=>{const n={...o};delete n[key];return n});setDirty(true)}}>Reset slide to template</button>
+ const filtered=assets.filter(a=>(assetFilter==="all"||a.source_type===assetFilter)&&(!assetSearch||[a.filename,a.source_type,a.persona_id,a.category,a.subcategory,a.scene].join(" ").toLowerCase().includes(assetSearch.toLowerCase()))).slice(0,240);
+ const saveLabel=saveState==="saving"?"Saving…":saveState==="unsaved"?"Unsaved":saveState==="error"?"Save failed":"Saved";
+ const activeHealth=diagnostics[active]||{level:"ok",issues:[]};
+ return <main className="ce-shell" tabIndex={-1} onKeyDown={e=>{
+   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?redo():undo()}
+   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();void save()}
+   if(e.key==="Escape"){setEditingText(null);setPreviewMode(false);setDiagnoseMode(false)}
+ }}>
+  <header className="ce-top">
+   <a href="/">← Carrousels</a>
+   <div className="ce-titleblock"><strong>{carousel.topic||carousel.content_type||"Untitled carousel"}</strong><small>{carousel.content_type} · {layout}</small></div>
+   <div className="ce-history-actions"><button disabled={!history.length} onClick={undo} title="Undo">↶</button><button disabled={!future.length} onClick={redo} title="Redo">↷</button></div>
+   <span className={"ce-save-state "+saveState}>{saveLabel}</span>
+   {renderOutdated&&<span className="ce-outdated">Render outdated</span>}
+   <button className={previewMode?"active":""} onClick={()=>{setPreviewMode(v=>!v);setDiagnoseMode(false)}}>Preview</button>
+   <button className={(diagnoseMode?"active ":"")+"ce-diagnose-button"} onClick={()=>{setDiagnoseMode(v=>!v);setPreviewMode(false)}}>Diagnose {blockingCount>0?<b>{blockingCount}</b>:warningCount>0?<em>{warningCount}</em>:<i>✓</i>}</button>
+   <button onClick={()=>void save()}>Save now</button>
+   <button className="primary" onClick={()=>{if(blockingCount){setDiagnoseMode(true);setPreviewMode(false);setBusy(blockingCount+" blocking issue"+(blockingCount>1?"s":"")+" before render")}else void save(true)}}>Render</button>
+  </header>
+
+  <aside className="ce-slides">
+   <div className="ce-sidebar-label">Slides <span>{generated.length}</span></div>
+   {generated.map((s:any,i:number)=>{
+    const health=diagnostics[i]||{level:"ok",issues:[]};
+    const ids=assignedIds(i),fallback=assets.find(a=>String(a.id)===String(ids[0]))?.public_url;
+    const thumb=slides[i]?.rendered_url||carousel.spec?.rendered_slides?.[i]?.url||fallback||"";
+    return <button key={s.position??i} className={i===active?"active":""} onClick={()=>{setActive(i);setSelection("headline");setEditingText(null);setPreviewMode(false)}}>
+      <div className="ce-thumb-wrap">{thumb?<img src={thumb} alt={"Slide "+(i+1)}/>:<div className="ce-thumb-empty">No render</div>}<span className={"ce-health "+health.level}>{health.level==="ok"?"✓":health.level==="error"?"!":"⚠"}</span></div>
+      <div className="ce-slide-meta"><b>{String(s.position??i+1).padStart(2,"0")}</b><span>{String(s.role||"slide").toLowerCase()}</span></div>
+    </button>
+   })}
+  </aside>
+
+  <section className="ce-work">
+   {previewMode?
+    <div className="ce-preview-wrap">
+     <div className="ce-preview-head"><strong>Final renderer · slide {active+1}/{generated.length}</strong><span>{renderOutdated?"Needs render":"Latest render"}</span></div>
+     {finalRenderUrl?<img className="ce-preview-image" src={finalRenderUrl} alt={"Final render slide "+(active+1)}/>:<div className="ce-preview-empty"><b>No final render yet</b><span>Render the carousel to compare the exact PNG output.</span></div>}
+     {renderOutdated&&<div className="ce-preview-warning">Your editor changes are newer than this PNG.</div>}
+    </div>:
+    <>
+     <div className="ce-contextbar">
+      <span>Slide {active+1}</span><span>{String(gen.role||"slide")}</span><span>{layout}</span>
+      <span className={"ce-active-health "+activeHealth.level}>{activeHealth.level==="ok"?"Ready":activeHealth.issues.length+" issue"+(activeHealth.issues.length>1?"s":"")}</span>
+      <span className="ce-tip">Double-click text to edit inline</span>
+     </div>
+     <div ref={canvasRef} className={"ce-canvas layout-"+layout}>
+      <div className="ce-safe-area"/>
+      {layout==="interactive-checklist"&&!isHook&&<div className="ce-checklist-panel"/>}
+      {layout==="ranking"&&<div className="ce-ranking-wash"/>}
+      {slots.map((frame:Frame,i:number)=>{
+       const asset=slotAssets[i];
+       return <div key={i} className={"ce-image-frame "+(selection===i?"sel ":"")+(asset?"":"ce-missing-slot")} style={{left:frame.x*canvasScale,top:frame.y*canvasScale,width:frame.width*canvasScale,height:frame.height*canvasScale}} onClick={()=>setSelection(i)} onPointerDown={e=>{setSelection(i);down(e,"move",i)}} onPointerMove={move} onPointerUp={()=>drag.current=null}>
+        {asset?<img draggable={false} src={asset.public_url} style={{transform:`scale(${frame.zoom||1})`,objectPosition:`${frame.cropX??50}% ${frame.cropY??50}%`}}/>:<span>+ image</span>}
+        {selection===i&&<i className="ce-handle" onPointerDown={e=>down(e,"resize",i)} onPointerMove={move}/>}
+       </div>
+      })}
+      <div contentEditable={editingText==="headline"} suppressContentEditableWarning className={"ce-text "+(selection==="headline"?"sel ":"")+(editingText==="headline"?"editing":"")} onClick={()=>setSelection("headline")} onDoubleClick={e=>{e.stopPropagation();setSelection("headline");setEditingText("headline")}} onBlur={e=>commitInline("headline",e)} onPointerDown={e=>{if(editingText!=="headline")down(e,"move","headline");else e.stopPropagation()}} onPointerMove={move} onPointerUp={()=>drag.current=null} style={{left:Number(text.headlineX??text.x??90)*canvasScale,top:Number(text.headlineY??text.y??700)*canvasScale,width:Number(text.width||850)*canvasScale,fontSize:Number(text.headlineSize||54)*canvasScale,color:text.editorHeadlineColor||text.headlineColor||"#fff",fontFamily:text.fontFamily||"TikTok Sans",textAlign:text.align||"left",fontWeight:text.headlineWeight||700}}>{headline}{selection==="headline"&&editingText!=="headline"&&<i className="ce-handle" onPointerDown={e=>down(e,"resize","headline")} onPointerMove={move}/>}</div>
+      {body&&<div contentEditable={editingText==="body"} suppressContentEditableWarning className={"ce-text body "+(selection==="body"?"sel ":"")+(editingText==="body"?"editing":"")} onClick={()=>setSelection("body")} onDoubleClick={e=>{e.stopPropagation();setSelection("body");setEditingText("body")}} onBlur={e=>commitInline("body",e)} onPointerDown={e=>{if(editingText!=="body")down(e,"move","body");else e.stopPropagation()}} onPointerMove={move} onPointerUp={()=>drag.current=null} style={{left:Number(text.bodyX??text.x??90)*canvasScale,top:Number(text.bodyY||900)*canvasScale,width:Number(text.width||850)*canvasScale,fontSize:Number(text.bodySize||28)*canvasScale,color:text.editorBodyColor||text.bodyColor||"#fff",fontFamily:text.fontFamily||"TikTok Sans",textAlign:text.align||"left",fontWeight:text.bodyWeight||500}}>{body}{selection==="body"&&editingText!=="body"&&<i className="ce-handle" onPointerDown={e=>down(e,"resize","body")} onPointerMove={move}/>}</div>}
+     </div>
+    </>
+   }
+   <div className="ce-status">{busy}</div>
+  </section>
+
+  <aside className="ce-props">
+   {diagnoseMode?
+    <div className="ce-diagnostics">
+     <div className="ce-diagnostic-head"><h2>Carousel health</h2><button onClick={()=>setDiagnoseMode(false)}>×</button></div>
+     <div className="ce-health-summary"><div><b>{blockingCount}</b><span>blocking</span></div><div><b>{warningCount}</b><span>warnings</span></div><div><b>{diagnostics.filter((d:any)=>d.level==="ok").length}</b><span>ready slides</span></div></div>
+     {blockingCount===0&&warningCount===0&&<div className="ce-all-good"><b>Ready to render</b><span>No structural or asset issues detected.</span></div>}
+     {diagnostics.map((d:any,i:number)=>d.issues.length?<div className="ce-diagnostic-group" key={i}><h3>Slide {i+1} · {String(generated[i]?.role||"slide")}</h3>{d.issues.map((issue:any,j:number)=><button key={j} className={"ce-finding "+issue.level} onClick={()=>{setActive(i);setSelection(issue.selection??"headline");setDiagnoseMode(false);setPreviewMode(false)}}><span>{issue.level==="error"?"!":"⚠"}</span><div><b>{issue.label}</b>{issue.detail&&<small>{issue.detail}</small>}</div></button>)}</div>:null)}
+    </div>:
+    <>
+     <div className="ce-layerlist"><b>Layers</b><button className={selection==="headline"?"active":""} onClick={()=>setSelection("headline")}>T · Title</button>{body&&<button className={selection==="body"?"active":""} onClick={()=>setSelection("body")}>T · Body</button>}{slots.map((_,i)=><button className={selection===i?"active":""} key={i} onClick={()=>setSelection(i)}>▧ · Image {i+1}</button>)}</div>
+     {typeof selection!=="number"?
+      <div className="ce-panel">
+       <div className="ce-panel-heading"><div><b>{selection==="headline"?"Title":"Body"}</b><span>Content & design</span></div><button onClick={()=>setEditingText(selection)}>Edit inline</button></div>
+       <label>Text<textarea value={selection==="headline"?headline:body} onChange={e=>setOv(selection==="headline"?{headline:e.target.value}:{body:e.target.value})}/><small className={(selection==="headline"?headline.length:body.length)>(selection==="headline"?90:280)?"over":""}>{selection==="headline"?headline.length:body.length}/{selection==="headline"?90:280}</small></label>
+       <label>Font<select value={text.fontFamily||"TikTok Sans"} onChange={e=>textPatch({fontFamily:e.target.value})}>{FONTS.map(x=><option key={x}>{x}</option>)}</select></label>
+       <div className="ce-row"><label>Size<input type="number" value={selection==="headline"?text.headlineSize||54:text.bodySize||28} onChange={e=>textPatch(selection==="headline"?{headlineSize:+e.target.value}:{bodySize:+e.target.value})}/></label><label>Color<input type="color" value={(selection==="headline"?text.editorHeadlineColor||text.headlineColor:text.editorBodyColor||text.bodyColor)||"#ffffff"} onChange={e=>textPatch(selection==="headline"?{editorHeadlineColor:e.target.value,headlineColor:e.target.value}:{editorBodyColor:e.target.value,bodyColor:e.target.value})}/></label></div>
+       <label>Align<select value={text.align||"left"} onChange={e=>textPatch({align:e.target.value})}><option>left</option><option>center</option><option>right</option></select></label>
+       <div className="ce-row"><label>X<input type="number" value={selection==="headline"?(text.headlineX??text.x??90):(text.bodyX??text.x??90)} onChange={e=>textPatch(selection==="headline"?{headlineX:+e.target.value}:{bodyX:+e.target.value})}/></label><label>Y<input type="number" value={selection==="headline"?(text.headlineY??text.y??700):(text.bodyY??900)} onChange={e=>textPatch(selection==="headline"?{headlineY:+e.target.value}:{bodyY:+e.target.value})}/></label></div>
+       <div className="ce-row"><label>Width<input type="number" value={text.width??850} onChange={e=>textPatch({width:+e.target.value})}/></label><label>Weight<input type="number" min="100" max="900" step="100" value={selection==="headline"?text.headlineWeight||700:text.bodyWeight||500} onChange={e=>textPatch(selection==="headline"?{headlineWeight:+e.target.value}:{bodyWeight:+e.target.value})}/></label></div>
+      </div>:
+      <div className="ce-panel">
+       <div className="ce-panel-heading"><div><b>Image {selection+1}</b><span>Crop, source & replacement</span></div></div>
+       {selectedAsset?<div className="ce-selected-asset"><img src={selectedAsset.public_url}/><div><b>{selectedAsset.filename}</b><span>{selectedAsset.source_type||"unknown"}{selectedAsset.persona_id?" · "+selectedAsset.persona_id:""}</span><small>{selectedAsset.scene||selectedAsset.category||"No scene metadata"}</small></div></div>:<div className="ce-selected-asset missing"><b>No image assigned</b><span>Choose an asset below. Silent stock fallback is not allowed.</span></div>}
+       {selectedAsset&&<div className="ce-provenance"><span><b>Source</b>{selectedAsset.source_type||"—"}</span><span><b>Persona</b>{selectedAsset.persona_id||"—"}</span><span><b>Uses</b>{selectedAsset.use_count??0}</span><span><b>Drive</b>{selectedAsset.drive_file_id?"linked":"—"}</span>{selectedAsset.metadata?.generation_job_id&&<span className="wide-meta"><b>Generation job</b>{String(selectedAsset.metadata.generation_job_id)}</span>}</div>}
+       <div className="ce-row"><label>X<input type="number" value={selectedFrame?.x||0} onChange={e=>slotPatch(selection,{x:+e.target.value})}/></label><label>Y<input type="number" value={selectedFrame?.y||0} onChange={e=>slotPatch(selection,{y:+e.target.value})}/></label></div>
+       <div className="ce-row"><label>Width<input type="number" value={selectedFrame?.width||0} onChange={e=>slotPatch(selection,{width:+e.target.value})}/></label><label>Height<input type="number" value={selectedFrame?.height||0} onChange={e=>slotPatch(selection,{height:+e.target.value})}/></label></div>
+       <label>Zoom<input type="range" min="1" max="4" step=".05" value={selectedFrame?.zoom||1} onChange={e=>slotPatch(selection,{zoom:+e.target.value})}/></label>
+       <div className="ce-row"><label>Crop X<input type="range" min="0" max="100" value={selectedFrame?.cropX??50} onChange={e=>slotPatch(selection,{cropX:+e.target.value})}/></label><label>Crop Y<input type="range" min="0" max="100" value={selectedFrame?.cropY??50} onChange={e=>slotPatch(selection,{cropY:+e.target.value})}/></label></div>
+       <div className="ce-asset-heading"><h3>Replace</h3><small>{filtered.length} shown / {assets.length}</small></div>
+       <input placeholder="Search filename, persona, scene…" value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}/>
+       <div className="ce-asset-filters">{([["all","All"],["persona_generated","Persona"],["stock","Stock"],["app_screenshot","App"]] as const).map(([value,label])=><button key={value} className={assetFilter===value?"active":""} onClick={()=>setAssetFilter(value)}>{label}</button>)}</div>
+       <div className="ce-assets">{filtered.map(a=><button className={String(a.id)===String(selectedAsset?.id)?"active":""} key={a.id} title={a.filename+" · "+(a.scene||a.source_type||"")} onClick={()=>chooseAsset(selection,a.id)}><img src={a.public_url}/><span>{a.persona_id||a.source_type?.replace("_generated","")||"asset"}</span></button>)}</div>
+       <h3>Generate with {personas.find(p=>p.id===carousel.persona_id)?.name||carousel.persona_id}</h3>
+       <textarea value={scene} onChange={e=>setScene(e.target.value)} placeholder="Scene: mirror selfie after skincare…"/>
+       <button className="primary wide" onClick={generate}>Generate & insert here</button>
+      </div>
+     }
+     <button className="reset" onClick={()=>{checkpoint();setOverrides(o=>{const n={...o};delete n[key];return n});markChanged()}}>Reset slide to template</button>
+    </>
+   }
   </aside>
  </main>
 }
