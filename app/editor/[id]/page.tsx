@@ -29,6 +29,7 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  const [dirty,setDirty]=useState(false),[saveState,setSaveState]=useState<"saved"|"saving"|"unsaved"|"error">("saved"),[busy,setBusy]=useState(""),[scene,setScene]=useState(""),[assetSearch,setAssetSearch]=useState(""),[assetFilter,setAssetFilter]=useState<"all"|"persona_generated"|"stock"|"app_screenshot">("all"),[previewMode,setPreviewMode]=useState(false),[diagnoseMode,setDiagnoseMode]=useState(false),[historyMode,setHistoryMode]=useState(false),[versions,setVersions]=useState<VersionItem[]>([]),[editingText,setEditingText]=useState<"headline"|"body"|null>(null),[renderOutdated,setRenderOutdated]=useState(false),[structureBusy,setStructureBusy]=useState(false),[guides,setGuides]=useState<{x?:number;y?:number}>({}),[clipboard,setClipboard]=useState<ClipboardItem|null>(null),[slideDragIndex,setSlideDragIndex]=useState<number|null>(null),[canvasScale,setCanvasScale]=useState(.5),drag=useRef<any>(null),canvasRef=useRef<HTMLDivElement>(null),revision=useRef(0);
  useEffect(()=>{params.then(x=>setId(x.id))},[params]);
  useEffect(()=>{if(!id)return;Promise.all([fetch("/api/carousels/"+id,{cache:"no-store"}).then(r=>r.json()),fetch("/api/assets?editor=1",{cache:"no-store"}).then(r=>r.json()),fetch("/api/personas",{cache:"no-store"}).then(r=>r.json()),fetch("/api/visual-references",{cache:"no-store"}).then(r=>r.json())]).then(([c,a,p,v])=>{setCarousel(c.carousel);setSlides(c.slides||[]);setAssets(a.previews||[]);setPersonas(p.personas||[]);setRefs(v.references||[]);setOverrides(c.carousel?.spec?.editor_overrides||{});setEditorState(c.carousel?.spec?.editor_state||{snap:true,layers:{}});setDirty(false);setSaveState("saved");setRenderOutdated(Boolean(c.carousel?.spec?.editor_structure_dirty))})},[id]);
+ useEffect(()=>{if(id)void loadVersions()},[id]);
  useEffect(()=>{if(!carousel||previewMode)return;const el=canvasRef.current;if(!el)return;const sync=()=>setCanvasScale(el.getBoundingClientRect().width/1080||.5);sync();const observer=new ResizeObserver(sync);observer.observe(el);return()=>observer.disconnect()},[carousel,previewMode]);
  useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{if(!dirty)return;event.preventDefault();event.returnValue=""};window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn)},[dirty]);
  useEffect(()=>{if(!dirty||!carousel||!id||structureBusy)return;const timer=window.setTimeout(()=>{void save(false,true)},900);return()=>window.clearTimeout(timer)},[overrides,editorState,dirty,id,carousel,structureBusy]);
@@ -82,9 +83,12 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  const saveLabel=saveState==="saving"?"Saving…":saveState==="unsaved"?"Unsaved":saveState==="error"?"Save failed":"Saved";
  const activeHealth=diagnostics[active]||{level:"ok",issues:[]};
  return <main className="ce-shell" tabIndex={-1} onKeyDown={e=>{
-   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?redo():undo()}
-   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();void save()}
-   if(e.key==="Escape"){setEditingText(null);setPreviewMode(false);setDiagnoseMode(false)}
+   const target=e.target as HTMLElement,typing=Boolean(editingText)||["INPUT","TEXTAREA","SELECT"].includes(target.tagName)||target.isContentEditable;
+   if(!typing&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?redo():undo()}
+   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();void saveNow()}
+   if(!typing&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="c"){e.preventDefault();copySelected()}
+   if(!typing&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="v"){e.preventDefault();pasteSelected()}
+   if(e.key==="Escape"){setEditingText(null);setPreviewMode(false);setDiagnoseMode(false);setHistoryMode(false);setGuides({})}
  }}>
   <header className="ce-top">
    <a href="/">← Carrousels</a>
@@ -92,9 +96,10 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
    <div className="ce-history-actions"><button disabled={!history.length} onClick={undo} title="Undo">↶</button><button disabled={!future.length} onClick={redo} title="Redo">↷</button></div>
    <span className={"ce-save-state "+saveState}>{saveLabel}</span>
    {renderOutdated&&<span className="ce-outdated">Render outdated</span>}
-   <button className={previewMode?"active":""} onClick={()=>{setPreviewMode(v=>!v);setDiagnoseMode(false)}}>Preview</button>
-   <button className={(diagnoseMode?"active ":"")+"ce-diagnose-button"} onClick={()=>{setDiagnoseMode(v=>!v);setPreviewMode(false)}}>Diagnose {blockingCount>0?<b>{blockingCount}</b>:warningCount>0?<em>{warningCount}</em>:<i>✓</i>}</button>
-   <button onClick={()=>void save()}>Save now</button>
+   <button className={previewMode?"active":""} onClick={()=>{setPreviewMode(v=>!v);setDiagnoseMode(false);setHistoryMode(false)}}>Preview</button>
+   <button className={(diagnoseMode?"active ":"")+"ce-diagnose-button"} onClick={()=>{setDiagnoseMode(v=>!v);setPreviewMode(false);setHistoryMode(false)}}>Diagnose {blockingCount>0?<b>{blockingCount}</b>:warningCount>0?<em>{warningCount}</em>:<i>✓</i>}</button>
+   <button className={historyMode?"active":""} onClick={()=>{void loadVersions();setHistoryMode(v=>!v);setPreviewMode(false);setDiagnoseMode(false)}}>History</button>
+   <button onClick={()=>void saveNow()}>Save now</button>
    <button className="primary" onClick={()=>{if(blockingCount){setDiagnoseMode(true);setPreviewMode(false);setBusy(blockingCount+" blocking issue"+(blockingCount>1?"s":"")+" before render")}else void save(true)}}>Render</button>
   </header>
 
