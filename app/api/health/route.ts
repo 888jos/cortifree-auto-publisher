@@ -2,6 +2,8 @@ import { backendConfigured as isBackendConfigured, backendMode, getBackendCounts
 import { googleServiceAccountConfigured, googleServiceAccountIdentity } from "../../lib/google/auth";
 import { CORTIFREE_SHEET_ID, readSheetRange } from "../../lib/google/sheets";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
+import { isAdminRequest } from "../../lib/admin-auth";
+import { releaseIdentity } from "../../lib/release";
 
 function hostname(value?: string) {
   if (!value) return null;
@@ -13,6 +15,7 @@ function hostname(value?: string) {
 }
 
 export async function GET(request: Request) {
+  const isAdmin = isAdminRequest(request);
   const backendConfigured = isBackendConfigured();
   const expectedHost = (process.env.CORTIFREE_CANONICAL_HOST || "cortifree-auto-publisher.vercel.app").toLowerCase();
   const deployedHost = hostname(process.env.VERCEL_PROJECT_PRODUCTION_URL) ?? hostname(process.env.NEXT_PUBLIC_APP_URL);
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
   );
   const googleSyncConfigured = googleServiceAccountConfigured();
   let googleReadProbe: Record<string, unknown> = { ok: false, skipped: true };
-  if (googleSyncConfigured) {
+  if (isAdmin && googleSyncConfigured) {
     try {
       const values = await readSheetRange("00_INDEX", "A1:B2");
       googleReadProbe = { ok: true, rows: values.length, columns: values[0]?.length ?? 0 };
@@ -69,22 +72,29 @@ export async function GET(request: Request) {
         checks: {},
       };
 
+  const publicStatus = {
+    ok,
+    service: "cortifree-auto-publisher",
+    workspace: "cortifree",
+    backend: backendMode(),
+    backendConfigured,
+    backendLive,
+    backendDataReady,
+    editorialReady,
+    googleSyncConfigured,
+    dryRun: process.env.DRY_RUN !== "false",
+    productionReady: production.ready,
+    productionBlockers: production.blockers,
+    productionWarnings: production.warnings,
+    release: releaseIdentity(),
+  };
   return Response.json(
-    {
-      ok,
-      p0Ready,
-      service: "cortifree-auto-publisher",
-      workspace: "cortifree",
-      backend: backendMode(),
-      backendConfigured,
-      backendLive,
-      backendDataReady,
+    isAdmin ? {
+      ...publicStatus,
       backendPing,
       backendError,
       backendDataError,
       counts,
-      editorialReady,
-      googleSyncConfigured,
       googleServiceAccount: googleServiceAccountIdentity(),
       googleSheetId: CORTIFREE_SHEET_ID,
       googleReadProbe,
@@ -93,12 +103,9 @@ export async function GET(request: Request) {
       domainIsolationOk,
       expectedHost,
       deployedHost,
-      dryRun: process.env.DRY_RUN !== "false",
-      productionReady: production.ready,
-      productionBlockers: production.blockers,
-      productionWarnings: production.warnings,
       productionChecks: production.checks,
-    },
+      p0Ready,
+    } : publicStatus,
     { status: ok ? 200 : 503 },
   );
 }
