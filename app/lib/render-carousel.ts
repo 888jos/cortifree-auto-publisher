@@ -1284,7 +1284,12 @@ export async function renderCarousel(input: {
               const alreadyHasAppScreenshot = selected.some((match) => match.asset.source_type === "app_screenshot");
               const supportSlide = needsAppScreenshot && !alreadyHasAppScreenshot
                 ? slide
-                : { ...withoutAppScreenshotDirective(slide), assetType: "stock" };
+                : {
+                    ...withoutAppScreenshotDirective(slide),
+                    position: Math.max(2, slide.position),
+                    role: "SUPPORT",
+                    assetType: "stock",
+                  };
               const next = chooseAssets({
                 assets,
                 carouselType: input.carouselType,
