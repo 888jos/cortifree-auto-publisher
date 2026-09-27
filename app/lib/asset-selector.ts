@@ -417,10 +417,19 @@ export function chooseAssets(options: {
       const textPenalty = visibleText.length && !intent.desired_objects.includes("laptop") ? 5 : 0;
       const personaHook = hookNeedsPersona && asset.source_type === "persona_generated";
       const broadDomain = personaHook ? broadHookPersonaDomainMatch(slide, asset) : { compatible: true, matched: false };
+      const intendedScene = String(slide.visualIntent || slide.assetQuery || "").trim().toLowerCase();
+      const generatedScene = String(asset.scene || asset.activity || asset.visual_description || "").trim().toLowerCase();
+      // A ModelArk repair asset is generated from this exact slide intent.
+      // Treat that exact-scene provenance as stronger evidence than sparse
+      // observable tags inherited from the Pinterest reference.
+      const exactGeneratedSceneMatch = asset.source_type === "persona_generated"
+        && intendedScene.length >= 24
+        && (generatedScene === intendedScene || generatedScene.startsWith(intendedScene));
       let score = personaHook
         ? semanticScore * 12 + actionScore * 8 + objectScore * 6 + settingScore * 4 + compositionScore * 4 + detailScore * 2 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + Math.min(8, legacyQueryScore) + (broadDomain.matched ? 24 : 0) - textPenalty
         : semanticScore * 35 + actionScore * 20 + objectScore * 15 + settingScore * 12 + compositionScore * 6 + detailScore * 5 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + legacyQueryScore + personaSceneScore - textPenalty;
       if (officialAppScreenshot && asset.source_type === "app_screenshot") score += 100;
+      if (exactGeneratedSceneMatch) score += 60;
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
@@ -443,6 +452,7 @@ export function chooseAssets(options: {
         lightingScore ? "lighting" : "",
         detailScore ? "specific_details" : "",
         legacyQueryMatches.length ? "legacy_visual_text" : "",
+        exactGeneratedSceneMatch ? "generated_exact_scene" : "",
       ].filter(Boolean);
       return { asset, score, matchedTerms: matchedObjects.concat(matchedActions), matchedDimensions, matchedObjects, matchedActions, matchedSettings, matchedCompositions, semanticScore, categoryBonus, descriptionScore: semanticScore, objectScore, actionScore, settingScore, compositionScore, repetitionPenalty };
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
