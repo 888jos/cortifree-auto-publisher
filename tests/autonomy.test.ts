@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fillHook, selectEditorial } from '../src/autonomy/selection.js';
 import { personaIdFromFolder } from '../src/personas/identity.js';
+import { autonomyRuleValue } from '../src/runtime/config.js';
 
 const topic = {
   topic_id: 'TOPIC_0001',
@@ -34,6 +35,11 @@ describe('autonomy selection', () => {
     assert.equal(personaIdFromFolder('AVA'), 'P06');
     assert.equal(personaIdFromFolder('emma'), 'P01');
     assert.throws(() => personaIdFromFolder('UNKNOWN'), /Unknown persona/);
+  });
+
+  it('parses locale-style decimal autonomy values from the canonical Sheet mirror', () => {
+    assert.equal(autonomyRuleValue([{ key: 'proven_weight', value: '0,7', active: true }], 'proven_weight', 1), 0.7);
+    assert.equal(autonomyRuleValue([{ key: 'account_topic_cooldown_days', value: '14', active: true }], 'account_topic_cooldown_days', 1), 14);
   });
 
   it('fills every supported hook placeholder', () => {

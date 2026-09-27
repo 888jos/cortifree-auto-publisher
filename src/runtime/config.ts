@@ -117,7 +117,9 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
 
 export function autonomyRuleValue(rules: AnyRow[], key: string, fallback: number): number {
   const row = rules.find((item) => String(item.key) === key && item.active !== false);
-  const value = Number(row?.value);
+  const raw = row?.value;
+  const normalized = typeof raw === "string" ? raw.trim().replace(",", ".") : raw;
+  const value = Number(normalized);
   return Number.isFinite(value) ? value : fallback;
 }
 
