@@ -40,6 +40,13 @@ function isGenerationConfigBlockedMessage(message: string) {
   return /GENERATION_BLOCKED:(?:OPENAI_API_KEY is missing|AI_GENERATION_ENABLED=false)/.test(message);
 }
 
+export function preferredHookForFormat(contentType: string, value: unknown) {
+  const candidate = String(value ?? '').trim();
+  if (!candidate || candidate.length > 72) return undefined;
+  if (contentType === 'F03_ROUTINE_TIMELINE' || contentType === 'F07_RANKING') return undefined;
+  return candidate;
+}
+
 function ctaModeFromIdea(idea: Row): 'none' | 'soft' | 'save' | 'comment' | 'follow' {
   const text = String(idea.cta_text ?? '').toLowerCase();
   if (/follow/.test(text)) return 'follow';
@@ -139,12 +146,9 @@ export async function processQueuedIdeas(
         references: [],
         recentCarousels: await getRecentCarousels(10),
         requestedSlideCount,
-        // Routine Timeline needs the model to write a compact routine title.
-        // Feeding the generic editorial hook verbatim can exceed the carousel
-        // schema and produces unnatural 90+ character cover titles.
-        preferredHook: contentType === 'F03_ROUTINE_TIMELINE'
-          ? undefined
-          : String(idea.final_hook || idea.hook_formula || ''),
+        // Pin only hooks that fit the canonical mobile cover. Routine and
+        // ranking formats must generate their own format-specific cover title.
+        preferredHook: preferredHookForFormat(contentType, idea.final_hook || idea.hook_formula),
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
         accountId,
