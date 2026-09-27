@@ -375,9 +375,13 @@ export function chooseAssets(options: {
             return true;
           }))
         .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
-    const unused = compatible.filter((asset) => !used.has(asset.id));
-    const distinct = unused;
-    if (!distinct.length) throw new Error(`ASSET_DIVERSITY_EXHAUSTED:slide_${slide.position}:used_${used.size}`);
+    // A sparse metadata index must not turn a viable render into a failed
+    // carousel. Prefer hard-compatible assets, then the broader eligible pool,
+    // then reuse the best ranked asset only once the fresh pool is exhausted.
+    const eligible = compatible.length ? compatible : usableRequested;
+    const unused = eligible.filter((asset) => !used.has(asset.id));
+    const distinct = unused.length ? unused : eligible;
+    if (!distinct.length) throw new Error(`ASSET_POOL_EMPTY:slide_${slide.position}`);
     const candidates = distinct.map((asset) => {
       const haystack = assetText(asset);
       const visualDescription = `${visualField(asset, "visual_description") ?? ""} ${visualField(asset, "specific_details") ?? ""}`;
