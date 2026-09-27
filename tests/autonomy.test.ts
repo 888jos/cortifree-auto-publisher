@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fillHook, selectEditorial } from '../src/autonomy/selection.js';
-import { preferredHookForFormat } from '../src/autonomy/processor.js';
+import { isRetryableGenerationFailure, preferredHookForFormat } from '../src/autonomy/processor.js';
 import { personaIdFromFolder } from '../src/personas/identity.js';
 import { autonomyRuleValue } from '../src/runtime/config.js';
 
@@ -48,6 +48,14 @@ describe('autonomy selection', () => {
     assert.equal(preferredHookForFormat('F06_PERSONA_EXPLAINER', 'x'.repeat(73)), undefined);
     assert.equal(preferredHookForFormat('F03_ROUTINE_TIMELINE', 'short routine hook'), undefined);
     assert.equal(preferredHookForFormat('F07_RANKING', 'short ranking hook'), undefined);
+  });
+
+  it('retries only bounded repairable generation failures', () => {
+    assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:Unsafe health claim: medical treatment or diagnosis claim'), true);
+    assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:[{"code":"too_big"}]'), true);
+    assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:Too few concrete behaviors or details; Copy has no creator point of view'), true);
+    assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:OPENAI_API_KEY is missing'), false);
+    assert.equal(isRetryableGenerationFailure('Unknown database failure'), false);
   });
 
   it('fills every supported hook placeholder', () => {
