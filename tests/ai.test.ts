@@ -68,6 +68,15 @@ describe("CortiFree AI schemas and generation", () => {
     assert.ok(issues.some((issue) => issue.code === "HEALTH_CLAIM" && issue.severity === "major"));
   });
 
+  it("does not mistake ordinary 'treating' language or safety disclaimers for medical claims", () => {
+    const safe = validSpec();
+    safe.hook = "I stopped treating my commute like a full-time job";
+    safe.slides[0]!.headline = safe.hook;
+    safe.slides[1]!.body = "This is general wellness context, not a diagnosis.";
+    const issues = validateCarouselSpec(safe, { slideCount: 7, language: "en", layout: "single-image" });
+    assert.equal(issues.some((issue) => issue.code === "HEALTH_CLAIM"), false);
+  });
+
   it("requires the selected canonical renderer layout", () => {
     const spec = validSpec();
     spec.slides.forEach((slide) => { slide.layout = "grid-2x2"; });
