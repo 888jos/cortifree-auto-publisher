@@ -106,7 +106,7 @@ export async function processQueuedIdeas(
 
     const contentType = String(idea.content_type);
     const layout = layoutFor(contentType);
-    const carouselId = `CF_AUTO_${id.replace(/^CF_IDEA_/, '').replace(/[^A-Z0-9_]/gi, '').slice(0, 72)}`;
+    const carouselId = `CF_AUTO_${id.replace(/^CF_IDEA_/i, '').replace(/[^A-Z0-9_]/gi, '').toUpperCase().slice(0, 72)}`;
     try {
       const existingCarousel = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&limit=1`))[0];
       if (existingCarousel) {

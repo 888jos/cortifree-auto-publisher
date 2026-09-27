@@ -3,18 +3,22 @@ import { scoreGenericity } from "./genericity";
 
 export type ValidationIssue = { code: string; message: string; slidePosition?: number; severity: "minor" | "major" };
 
-const unsafeHealthPatterns = [
-  /\blowers? cortisol by\s*\d+/i,
-  /\breduce[sd]? cortisol by\s*\d+/i,
-  /\bbalance[sd]?\s+(?:your\s+)?hormones?\b/i,
-  /\bfix(?:es|ed)?\s+(?:your\s+)?(?:cortisol|hormones?)\b/i,
-  /\b(?:cure[sd]?|treat(?:s|ed|ing)?|diagnos(?:e[sd]?|ing))\b.{0,60}\b(?:insomnia|anxiety|burnout|acne|cortisol|hormones?|panic attacks?|sleep disorder|fatigue)\b/i,
-  /\b(?:insomnia|anxiety|burnout|acne|cortisol|hormones?|panic attacks?|sleep disorder|fatigue)\b.{0,60}\b(?:cure[sd]?|treat(?:s|ed|ing)?|diagnos(?:e[sd]?|ing))\b/i,
-  /\bguarantee[sd]?\b|\bclinically proven\b/i,
-  /\b\d+(?:\.\d+)?%\b/i,
-  /\bstud(?:y|ies)\s+(?:show|prove)\b/i,
-  /\byou (?:definitely |clearly |probably )?(?:have|must have)\s+(?:high|low)\s+cortisol\b/i,
-];
+const unsafeHealthRules = [
+  { pattern: /\blowers? cortisol by\s*\d+/i, reason: "quantified cortisol reduction claim" },
+  { pattern: /\breduce[sd]? cortisol by\s*\d+/i, reason: "quantified cortisol reduction claim" },
+  { pattern: /\bbalance[sd]?\s+(?:your\s+)?hormones?\b/i, reason: "broad hormone-balancing promise" },
+  { pattern: /\bfix(?:es|ed)?\s+(?:your\s+)?(?:cortisol|hormones?)\b/i, reason: "cortisol or hormone fix promise" },
+  { pattern: /\b(?:cure[sd]?|treat(?:s|ed|ing)?|diagnos(?:e[sd]?|ing))\b.{0,60}\b(?:insomnia|anxiety|burnout|acne|cortisol|hormones?|panic attacks?|sleep disorder|fatigue)\b/i, reason: "medical treatment or diagnosis claim" },
+  { pattern: /\b(?:insomnia|anxiety|burnout|acne|cortisol|hormones?|panic attacks?|sleep disorder|fatigue)\b.{0,60}\b(?:cure[sd]?|treat(?:s|ed|ing)?|diagnos(?:e[sd]?|ing))\b/i, reason: "medical treatment or diagnosis claim" },
+  { pattern: /\bguarantee[sd]?\b|\bclinically proven\b/i, reason: "guaranteed or clinically-proven outcome" },
+  { pattern: /\b\d+(?:\.\d+)?%\b/i, reason: "unsupported percentage claim" },
+  { pattern: /\bstud(?:y|ies)\s+(?:show|prove)\b/i, reason: "unsourced study claim" },
+  { pattern: /\byou (?:definitely |clearly |probably )?(?:have|must have)\s+(?:high|low)\s+cortisol\b/i, reason: "cortisol diagnosis from symptoms or appearance" },
+] as const;
+
+function unsafeHealthReason(text: string) {
+  return unsafeHealthRules.find((rule) => rule.pattern.test(text))?.reason ?? null;
+}
 
 const layoutAliases: Record<string, string> = {
   "cover-hero": "hero",
@@ -123,11 +127,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
     if (/placeholder|lorem ipsum|what to (show|say)|asset à choisir/i.test(normalized)) issues.push({ code: "PLACEHOLDER", message: "Placeholder copy detected", slidePosition: slide.position, severity: "major" });
-    if (unsafeHealthPatterns.some((pattern) => pattern.test(normalized))) issues.push({ code: "HEALTH_CLAIM", message: "Unsafe or unsupported health claim", slidePosition: slide.position, severity: "major" });
+    const slideHealthReason = unsafeHealthReason(normalized);
+    if (slideHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${slideHealthReason}`, slidePosition: slide.position, severity: "major" });
   });
 
   const allCopy = `${spec.title} ${spec.topic} ${spec.angle} ${spec.hook} ${spec.caption}`;
-  if (unsafeHealthPatterns.some((pattern) => pattern.test(allCopy))) issues.push({ code: "HEALTH_CLAIM", message: "Unsafe or unsupported health claim", severity: "major" });
+  const topLevelHealthReason = unsafeHealthReason(allCopy);
+  if (topLevelHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${topLevelHealthReason}`, severity: "major" });
   if (spec.slides[0]?.role !== "HOOK") issues.push({ code: "HOOK_ROLE", message: "First slide must be HOOK", slidePosition: 1, severity: "major" });
   if (!new Set(["CTA", "TAKEAWAY"]).has(spec.slides.at(-1)?.role ?? "")) issues.push({ code: "FINAL_ROLE", message: "Final slide must be CTA or TAKEAWAY", severity: "minor" });
   const genericity = scoreGenericity(spec);
