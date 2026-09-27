@@ -67,6 +67,35 @@ describe('persona image infrastructure', () => {
     assert.equal(selectAssetOrGeneration({ assets: [], personaId: 'P02', category: 'home', visualIntent: 'morning window' }).action, 'generate');
   });
 
+  it('trusts an exact-scene persona repair asset even when inherited reference tags are sparse', () => {
+    const scene = 'Nora taking a relaxed neighborhood walk after class with sneakers and tote';
+    const exactRepair: JitSelectableAsset = {
+      id: 'repair-1', filename: 'NORA_OUTDOORS_004.jpg', category: 'outdoors', subcategory: 'walk',
+      orientation: 'portrait', framing: 'full_body', activity: scene, mood: 'natural',
+      colors: [], tags: ['outdoors'], public_url: 'https://example.com/repair.jpg',
+      use_count: 0, last_used_at: null, source_type: 'persona_generated', persona_id: 'P04',
+      scene, visual_description: scene,
+      visible_objects: [], visible_actions: [], setting: 'outdoors',
+      people_visibility: 'full_person', composition: 'person_activity_scene',
+      visual_tagging_schema: 'generated_from_reference_v1',
+      visual_review_status: 'GENERATED_PERSONA',
+      visual_reviewed_at: new Date().toISOString(),
+      metadata: { generated_visual_metadata: true, generation_job_id: 'job-1' },
+    };
+    const result = chooseAssets({
+      assets: [exactRepair],
+      carouselType: 'F04_AESTHETIC_EDUCATIONAL',
+      personaId: 'P04',
+      slides: [{
+        position: 4, role: 'TIP', headline: 'TAKE THE LONG WAY', body: 'BENEFITS | walk for 5–10 minutes',
+        assetQuery: scene, visualIntent: scene, assetType: 'persona',
+      }],
+    });
+    assert.equal(result[0]?.asset.id, 'repair-1');
+    assert.ok(result[0]?.matchedDimensions?.includes('generated_exact_scene'));
+    assert.ok((result[0]?.score ?? 0) >= (result[0]?.threshold ?? 38));
+  });
+
   it('keeps MASTER identity separate from visual-reference instructions', () => {
     const prompt = buildImagePrompt(persona, reference, {
       persona_id: 'P02', master_asset_id: 'master-1', visual_reference_id: reference.id,
