@@ -43,6 +43,10 @@ function isGenerationConfigBlockedMessage(message: string) {
 export function isRetryableGenerationFailure(message: string) {
   return /GENERATION_BLOCKED:Unsafe health claim:/i.test(message)
     || /GENERATION_BLOCKED:\s*\[/i.test(message)
+    || /GENERATION_BLOCKED:Expected\s+\d+\s+slides/i.test(message)
+    || /GENERATION_BLOCKED:Expected language\s+/i.test(message)
+    || /Slide positions must be consecutive/i.test(message)
+    || /Slide must use\s+/i.test(message)
     || /Too few concrete behaviors or details/i.test(message)
     || /Copy has no creator point of view/i.test(message);
 }
