@@ -58,6 +58,12 @@ describe("canonical carousel formats", () => {
     assert.doesNotMatch(draftPipeline, /autoScheduleApproved|runScheduler|refreshPublishStatuses/);
   });
 
+  it("scopes generation and draft rerenders to the CortiFree workspace", () => {
+    const processor = readFileSync(new URL("../src/autonomy/processor.ts", import.meta.url), "utf8");
+    assert.match(processor, /carousel_ideas\?workspace_id=eq\.cortifree&status=eq\.QUEUED/);
+    assert.match(processor, /carousels\?workspace_id=eq\.cortifree&status=eq\.DRAFT/);
+  });
+
   it("keeps login and both Telegram webhook URLs outside session middleware", () => {
     const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
     assert.match(middleware, /"\/login"/);
