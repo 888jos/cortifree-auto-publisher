@@ -1225,7 +1225,9 @@ export async function renderCarousel(input: {
   }
 
   function primarySelectionSlide(slide: GeneratedSlide): GeneratedSlide {
-    const normalized = multiImageLayout ? withoutAppScreenshotDirective(slide) : slide;
+    const normalized = (multiImageLayout || input.layout === "grid-2x2")
+      ? withoutAppScreenshotDirective(slide)
+      : slide;
     return normalized.assetType === "generated"
       ? { ...normalized, assetType: "persona" }
       : normalized;
@@ -1308,18 +1310,39 @@ export async function renderCarousel(input: {
         break;
       }
 
-      const usedGridAssets = new Set<string>([matches[0]!.asset.id]);
+      const primaryGridMatch = matches[0]!;
+      const screenshotSlide = input.slides.find((slide) => requiresOfficialAppScreenshot(slide));
+      let secondaryGridMatch: AssetMatch;
+      if (screenshotSlide) {
+        secondaryGridMatch = chooseAssets({
+          assets,
+          carouselType: input.carouselType,
+          personaId: input.personaId,
+          excludedAssetIds: new Set([String(primaryGridMatch.asset.id)]),
+          slides: [{ ...screenshotSlide, assetType: "stock" }],
+        })[0]!;
+      } else {
+        const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
+        secondaryGridMatch = chooseAssets({
+          assets: personaAssets,
+          carouselType: input.carouselType,
+          personaId: input.personaId,
+          personaOnly: true,
+          excludedAssetIds: new Set([String(primaryGridMatch.asset.id)]),
+          slides: [{
+            ...withoutAppScreenshotDirective(input.slides[1] ?? input.slides[0]!),
+            assetType: "persona",
+          }],
+        })[0]!;
+      }
       gridMatches = input.slides.map((slide, index) => {
         const locked = lockedMatchesForSlide(slide, index);
-        if (index === 0 || slide.role.toUpperCase() === "HOOK") return locked.length ? [locked[0]!] : [matches[0]!];
+        if (index === 0 || slide.role.toUpperCase() === "HOOK") return locked.length ? [locked[0]!] : [primaryGridMatch];
         if (locked.length >= 4) return locked.slice(0, 4);
         if (locked.length >= 2) return [locked[0]!, locked[1]!, locked[1]!, locked[0]!];
-        const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
-        const selected = chooseAssets({ assets: personaAssets, carouselType: input.carouselType, personaId: input.personaId, personaOnly: true, excludedAssetIds: usedGridAssets, slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }] });
-        selected.forEach((match) => usedGridAssets.add(match.asset.id));
-        // Keep the established 2x2 editorial pattern, but each source image
-        // appears only on its own tile pair and never on a later slide.
-        return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
+        // F08 deliberately reuses one persona image and one official app
+        // screen as the only two sources, repeated diagonally.
+        return [primaryGridMatch, secondaryGridMatch, secondaryGridMatch, primaryGridMatch];
       });
       break;
     } catch (error) {
@@ -1521,14 +1544,32 @@ export async function renderCarouselRevision(input: {
           const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
           if (input.layout === "grid-2x2" && !isHook) {
             const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
-            const matches = chooseAssets({
+            const personaMatch = chooseAssets({
               assets: personaAssets,
               carouselType: input.carouselType,
               personaId: input.personaId,
-              personaOnly: true,
-              slides: [{ ...slide, assetType: "persona" }, { ...slide, assetType: "persona" }],
-            });
-            slideMatches = [matches[0]!, matches[1]!, matches[1]!, matches[0]!];
+              slides: [{ ...withoutAppScreenshotDirective(slide), assetType: "persona" }],
+            })[0]!;
+            if (requiresOfficialAppScreenshot(slide)) {
+              const appMatch = chooseAssets({
+                assets,
+                carouselType: input.carouselType,
+                personaId: input.personaId,
+                excludedAssetIds: new Set([String(personaMatch.asset.id)]),
+                slides: [{ ...slide, assetType: "stock" }],
+              })[0]!;
+              slideMatches = [personaMatch, appMatch, appMatch, personaMatch];
+            } else {
+              const secondPersona = chooseAssets({
+                assets: personaAssets,
+                carouselType: input.carouselType,
+                personaId: input.personaId,
+                personaOnly: true,
+                excludedAssetIds: new Set([String(personaMatch.asset.id)]),
+                slides: [{ ...withoutAppScreenshotDirective(slide), assetType: "persona" }],
+              })[0]!;
+              slideMatches = [personaMatch, secondPersona, secondPersona, personaMatch];
+            }
           } else if (input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero") {
             const used = new Set<string>();
             slideMatches = [];
