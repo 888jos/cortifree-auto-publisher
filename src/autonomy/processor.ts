@@ -40,6 +40,13 @@ function isGenerationConfigBlockedMessage(message: string) {
   return /GENERATION_BLOCKED:(?:OPENAI_API_KEY is missing|AI_GENERATION_ENABLED=false)/.test(message);
 }
 
+export function isRetryableGenerationFailure(message: string) {
+  return /GENERATION_BLOCKED:Unsafe health claim:/i.test(message)
+    || /GENERATION_BLOCKED:\s*\[/i.test(message)
+    || /Too few concrete behaviors or details/i.test(message)
+    || /Copy has no creator point of view/i.test(message);
+}
+
 export function preferredHookForFormat(contentType: string, value: unknown) {
   const candidate = String(value ?? '').trim();
   if (!candidate || candidate.length > 72) return undefined;
@@ -136,7 +143,13 @@ export async function processQueuedIdeas(
         continue;
       }
 
-      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, { status: 'GENERATING', started_at: new Date().toISOString(), last_error: null });
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        status: 'GENERATING',
+        generation_attempts: Number(idea.generation_attempts ?? 0) + 1,
+        started_at: new Date().toISOString(),
+        finished_at: null,
+        last_error: null,
+      });
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
         layout,
@@ -221,6 +234,57 @@ export async function processQueuedIdeas(
       await updateContentSlot(idea.slot_id, { status: 'FAILED' });
       report.push({ id, status: 'FAILED', error: message });
     }
+  }
+  return report;
+}
+
+export async function resumeRetryableFailedIdeas(limit = 50) {
+  const ideas = await rows(
+    `carousel_ideas?workspace_id=eq.cortifree&status=eq.FAILED&acceptance_batch_id=is.null&generation_attempts=lt.3&order=updated_at.asc&limit=${limit}`,
+  );
+  const report: Row[] = [];
+
+  for (const idea of ideas) {
+    const id = String(idea.id ?? '').trim();
+    if (!id) continue;
+    const message = String(idea.last_error ?? '');
+    if (!isRetryableGenerationFailure(message)) {
+      report.push({ id, status: 'FAILED', action: 'NON_RETRYABLE', error: message });
+      continue;
+    }
+
+    const slotId = String(idea.slot_id ?? '').trim();
+    if (slotId && !idea.carousel_id) {
+      const slot = (await rows(
+        `content_slots?id=eq.${encodeURIComponent(slotId)}&workspace_id=eq.cortifree&select=id,scheduled_for&limit=1`,
+      ))[0];
+      const scheduledAt = Date.parse(String(slot?.scheduled_for ?? ''));
+      if (slot && Number.isFinite(scheduledAt) && scheduledAt <= Date.now()) {
+        await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+          status: 'EXPIRED_SLOT',
+          last_error: 'SLOT_MISSED_AFTER_RETRYABLE_GENERATION_FAILURE',
+          finished_at: new Date().toISOString(),
+        });
+        await updateContentSlot(slotId, { status: 'MISSED' });
+        report.push({ id, status: 'EXPIRED_SLOT', slot_id: slotId });
+        continue;
+      }
+    }
+
+    await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+      status: 'QUEUED',
+      render_status: null,
+      last_error: null,
+      started_at: null,
+      finished_at: null,
+    });
+    await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
+    report.push({
+      id,
+      status: 'QUEUED',
+      action: 'RETRY_GENERATION',
+      generation_attempts: Number(idea.generation_attempts ?? 0),
+    });
   }
   return report;
 }

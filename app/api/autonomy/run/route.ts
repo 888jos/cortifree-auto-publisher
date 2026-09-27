@@ -1,5 +1,5 @@
 import { runScheduler } from '../../../../src/autonomy/scheduler';
-import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, retryPendingRenders } from '../../../../src/autonomy/processor';
+import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from '../../../../src/autonomy/processor';
 import { refillPersonaCaches, processPendingImageJobs } from '../../../../src/autonomy/image-cache';
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from '../../../../src/autonomy/performance';
 import { autoScheduleApproved } from '../../../../src/autonomy/publishing';
@@ -45,6 +45,7 @@ export async function GET(request:Request){
   await stage('imageJobs',processPendingImageJobs);
   await stage('assetRecovery',resumeAssetBlockedIdeas);
   await stage('configRecovery',resumeConfigBlockedIdeas);
+  await stage('failedGenerationRecovery',resumeRetryableFailedIdeas);
   await stage('scheduler',runScheduler);
   await stage('drafts',processQueuedIdeas);
   await stage('rerenders',retryPendingRenders);
