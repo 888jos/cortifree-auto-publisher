@@ -110,6 +110,16 @@ async function heartbeat() {
   if (!response.ok) throw new Error(`heartbeat failed: ${await response.text()}`);
 }
 
+function startHeartbeatLoop() {
+  const timer = setInterval(() => {
+    void heartbeat().catch((error) => {
+      console.error("[worker] HEARTBEAT FAILED", errorMessage(error));
+    });
+  }, 30_000);
+  timer.unref();
+  return timer;
+}
+
 function due(nextAttemptAt: unknown) {
   const at = Date.parse(String(nextAttemptAt ?? ""));
   return !Number.isFinite(at) || at <= Date.now();
@@ -469,8 +479,8 @@ async function main() {
   console.log("[worker] integrations", getLocalIntegrationHealth());
   assertWorkerConfiguration();
   await startupBackendCheck();
+  startHeartbeatLoop();
 
-  let lastHeartbeat = Date.now();
   let lastRecovery = Date.now();
   let lastOpsRefresh = 0;
   let consecutiveLoopFailures = 0;
@@ -478,10 +488,6 @@ async function main() {
   while (true) {
     try {
       const now = Date.now();
-      if (now - lastHeartbeat > 30_000) {
-        await heartbeat();
-        lastHeartbeat = now;
-      }
       if (now - lastRecovery > 5 * 60_000) {
         await recoverStaleJobs();
         lastRecovery = now;

@@ -64,6 +64,15 @@ describe("canonical carousel formats", () => {
     assert.match(processor, /carousels\?workspace_id=eq\.cortifree&status=eq\.DRAFT/);
   });
 
+  it("keeps worker heartbeats alive during long-running jobs", () => {
+    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
+    assert.match(worker, /function startHeartbeatLoop\(\)/);
+    assert.match(worker, /setInterval\(\(\) =>/);
+    assert.match(worker, /HEARTBEAT FAILED/);
+    assert.match(worker, /startHeartbeatLoop\(\);/);
+    assert.doesNotMatch(worker, /let lastHeartbeat = Date\.now\(\)/);
+  });
+
   it("keeps login and both Telegram webhook URLs outside session middleware", () => {
     const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
     assert.match(middleware, /"\/login"/);
