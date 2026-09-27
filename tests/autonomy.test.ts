@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fillHook, selectEditorial } from '../src/autonomy/selection.js';
+import { preferredHookForFormat } from '../src/autonomy/processor.js';
 import { personaIdFromFolder } from '../src/personas/identity.js';
 import { autonomyRuleValue } from '../src/runtime/config.js';
 
@@ -40,6 +41,13 @@ describe('autonomy selection', () => {
   it('parses locale-style decimal autonomy values from the canonical Sheet mirror', () => {
     assert.equal(autonomyRuleValue([{ key: 'proven_weight', value: '0,7', active: true }], 'proven_weight', 1), 0.7);
     assert.equal(autonomyRuleValue([{ key: 'account_topic_cooldown_days', value: '14', active: true }], 'account_topic_cooldown_days', 1), 14);
+  });
+
+  it('pins only format-safe preferred hooks', () => {
+    assert.equal(preferredHookForFormat('F06_PERSONA_EXPLAINER', 'short creator hook'), 'short creator hook');
+    assert.equal(preferredHookForFormat('F06_PERSONA_EXPLAINER', 'x'.repeat(73)), undefined);
+    assert.equal(preferredHookForFormat('F03_ROUTINE_TIMELINE', 'short routine hook'), undefined);
+    assert.equal(preferredHookForFormat('F07_RANKING', 'short ranking hook'), undefined);
   });
 
   it('fills every supported hook placeholder', () => {
