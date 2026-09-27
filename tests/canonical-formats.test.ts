@@ -47,6 +47,17 @@ describe("canonical carousel formats", () => {
     assert.doesNotMatch(page, /carouselType:\s*currentType\.id/);
   });
 
+  it("keeps the draft worker path isolated from publishing", () => {
+    const queue = readFileSync(new URL("../app/lib/worker-queue.ts", import.meta.url), "utf8");
+    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
+    assert.match(queue, /"DRAFT_PIPELINE"/);
+    assert.match(worker, /job\.kind === "DRAFT_PIPELINE"/);
+    const draftPipeline = worker.match(/async function runDraftPipeline[\s\S]*?\n}\n\nasync function runAcceptanceSample/)?.[0] ?? "";
+    assert.match(draftPipeline, /processQueuedIdeas/);
+    assert.match(draftPipeline, /retryPendingRenders/);
+    assert.doesNotMatch(draftPipeline, /autoScheduleApproved|runScheduler|refreshPublishStatuses/);
+  });
+
   it("keeps login and both Telegram webhook URLs outside session middleware", () => {
     const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
     assert.match(middleware, /"\/login"/);
