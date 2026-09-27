@@ -6,6 +6,7 @@ const publicPaths = new Set([
   "/auth/callback",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/health",
   // These server-to-server routes perform their own secret verification.
   "/api/admin/recover-modelark-orphans",
   "/api/admin/integrations-status",
