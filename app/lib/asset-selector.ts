@@ -58,14 +58,17 @@ export type VisualIntent = {
   avoid: string[];
 };
 
-const AUTO_THRESHOLD = 60;
-const CRITICAL_THRESHOLD = 65;
-const PERSONA_HOOK_THRESHOLD = 42;
-const PERSONA_THRESHOLD = 45;
-const STOCK_HOOK_THRESHOLD = 52;
+// The library is deliberately diverse, while a portion of its metadata is
+// still sparse. Score candidates to rank them, but do not reject an otherwise
+// safe render over a few missing tags.
+const AUTO_THRESHOLD = 40;
+const CRITICAL_THRESHOLD = 44;
+const PERSONA_HOOK_THRESHOLD = 36;
+const PERSONA_THRESHOLD = 38;
+const STOCK_HOOK_THRESHOLD = 40;
 // Hard constraints have already removed incompatible candidates. This fallback
 // keeps a genuinely matching, sparsely described image usable during migration.
-const EXPLICIT_FALLBACK_THRESHOLD = 40;
+const EXPLICIT_FALLBACK_THRESHOLD = 28;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
 const VISUAL_QA_EXCLUDED_FILENAMES = new Set(["MAYA_SELFCARE_001.jpg"]);
@@ -457,8 +460,11 @@ export function chooseAssets(options: {
                 ? CRITICAL_THRESHOLD
                 : AUTO_THRESHOLD;
     const selectedCandidate = candidates.find((candidate) => candidate.score >= threshold);
-    const fallbackCandidate = !selectedCandidate && !criticalSlide(slide)
-      ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)
+    // For non-persona slides, a safe eligible candidate is preferable to a
+    // dead-end. The chosen low-confidence image remains fully observable in
+    // the render metadata via thresholdBypassed.
+    const fallbackCandidate = !selectedCandidate && !officialAppScreenshot && !hookNeedsPersona && slide.assetType !== "persona"
+      ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD) ?? candidates[0]
       : undefined;
     const selected = selectedCandidate ?? fallbackCandidate;
     if (!selected) {
@@ -472,9 +478,9 @@ export function chooseAssets(options: {
       ...selected,
       score: Number(selected.score.toFixed(2)),
       candidatePoolSize: compatible.length,
-      fallbackPath: selectedCandidate ? "primary" : "explicit_noncritical_fallback",
+      fallbackPath: selectedCandidate ? "primary" : "best_eligible_fallback",
       threshold,
-      thresholdBypassed: false,
+      thresholdBypassed: !selectedCandidate,
       visualIntent: intent,
       matchedDimensions: selected.matchedDimensions,
       matchedSettings: selected.matchedSettings,

@@ -135,5 +135,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
 
 export function assertValidCarouselSpec(spec: CarouselSpec, expected: { slideCount: number; language: "en" | "fr"; layout: string }): void {
   const issues = validateCarouselSpec(spec, expected);
-  if (issues.length) throw new DeterministicValidationError(issues);
+  // Template polish is review feedback, not a reason to throw away usable
+  // generation. Only safety, invalid JSON structure, duplicate/placeholder
+  // content and similarly material issues block the queue.
+  const blockers = issues.filter((issue) => issue.severity === "major");
+  if (blockers.length) throw new DeterministicValidationError(blockers);
 }

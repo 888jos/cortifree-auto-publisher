@@ -77,13 +77,14 @@ export async function generateCarousel(
     let spec: CarouselSpec | null = null;
     let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
     let lastValidationError: unknown;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
+        const repairIssues = lastValidationError instanceof Error ? lastValidationError.message : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}${attempt === 2 ? "\n\nCORRECTION PASS: The previous draft failed strict validation. Use neutral lifestyle language only; remove every causal cortisol/hormone claim, percentage, diagnosis, treatment claim, placeholder, and duplicate." : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.` : ""}`,
           input: buildGeneratorInput(input),
           maxOutputTokens: 3_200,
         });
@@ -98,7 +99,7 @@ export async function generateCarousel(
         break;
       } catch (error) {
         lastValidationError = error;
-        if (attempt === 2) throw error;
+        if (attempt === 3) throw error;
       }
     }
     if (!spec) throw lastValidationError ?? new Error("OpenAI returned no usable carousel");
@@ -107,7 +108,11 @@ export async function generateCarousel(
     let qa: CarouselReview | null = null;
     if (config.OPENAI_QA_ENABLED && shouldRunQA(config.OPENAI_QA_SAMPLE_RATE, dependencies.random)) {
       qa = await reviewCarouselDraft(spec, { carouselId: context.carouselId, expectedSlideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-      if (!qa.approved && !qa.correctedSpec) throw new Error("AI QA rejected the generated draft");
+      // AI QA is advisory. Deterministic safety/structure checks above decide
+      // whether a draft can proceed; editorial preferences belong in review.
+      if (!qa.approved && !qa.correctedSpec) {
+        return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: `AI QA review required: ${qa.issues.map((issue) => issue.message).slice(0, 2).join("; ")}`, qa };
+      }
       if (qa.correctedSpec) {
         assertValidCarouselSpec(qa.correctedSpec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         return { spec: pinPreferredHook(qa.correctedSpec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
