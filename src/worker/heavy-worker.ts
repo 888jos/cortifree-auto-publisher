@@ -87,7 +87,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "ACCEPTANCE_SAMPLE", "PERSONA_CACHE_REFILL", "SCHEDULER_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "DRAFT_PIPELINE", "ACCEPTANCE_SAMPLE", "PERSONA_CACHE_REFILL", "SCHEDULER_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: {
         hostname: os.hostname(),
@@ -216,6 +216,33 @@ async function runAutonomy() {
   return result;
 }
 
+async function runDraftPipeline(payload: Row) {
+  const limit = Math.max(1, Math.min(100, Number(payload.limit ?? 32)));
+  const result: Record<string, unknown> = { startedAt: new Date().toISOString(), limit };
+  const errors: Record<string, string> = {};
+  async function stage<T>(name: string, run: () => Promise<T>) {
+    try {
+      result[name] = await run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors[name] = message;
+      result[`${name}Error`] = message;
+    }
+  }
+
+  // Deliberately generation/render only. No scheduler, analytics, approval,
+  // scheduling or publishing stage belongs in this job.
+  await stage("assetRecovery", () => resumeAssetBlockedIdeas(limit));
+  await stage("configRecovery", () => resumeConfigBlockedIdeas(limit));
+  await stage("drafts", () => processQueuedIdeas(limit));
+  await stage("rerenders", () => retryPendingRenders(limit));
+
+  result.finishedAt = new Date().toISOString();
+  result.errors = errors;
+  if (Object.keys(errors).length) throw new Error(`DRAFT_PIPELINE_STAGES_FAILED:${JSON.stringify(errors)}`);
+  return result;
+}
+
 async function runAcceptanceSample(payload: Row) {
   const sample = await createAcceptanceSample({
     batchId: payload.batch_id ? String(payload.batch_id) : undefined,
@@ -328,6 +355,7 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "PERSONA_ASSET_ARCHIVE") return syncPersonaGeneratedAssetsToDrive({ execute: Boolean(job.payload?.execute) });
   if (job.kind === "MODELARK_ORPHAN_RECOVERY") return runModelArkOrphanRecovery(job.payload ?? {});
   if (job.kind === "AUTONOMY_RUN") return runAutonomy();
+  if (job.kind === "DRAFT_PIPELINE") return runDraftPipeline(job.payload ?? {});
   if (job.kind === "ACCEPTANCE_SAMPLE") return runAcceptanceSample(job.payload ?? {});
   if (job.kind === "PERSONA_CACHE_REFILL") return refillPersonaCaches({ personaIds: Array.isArray(job.payload?.persona_ids) ? job.payload.persona_ids.map(String) : undefined });
   if (job.kind === "SCHEDULER_RUN") return runScheduler();
