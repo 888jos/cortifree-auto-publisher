@@ -137,6 +137,32 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(invalidCopy.source, "fallback");
   });
 
+  it("gives health-specific rewrite instructions after a deterministic health rejection", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.AI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_QA_ENABLED = "false";
+    const unsafe = validSpec();
+    unsafe.slides[2]!.body = "This breathing habit treats anxiety.";
+    const seenInstructions: string[] = [];
+    let calls = 0;
+    const result = await generateCarousel(baseInput, {
+      monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+      structuredRequest: async (options) => {
+        seenInstructions.push(options.instructions);
+        calls += 1;
+        return {
+          data: calls === 1 ? unsafe : validSpec(),
+          usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 },
+        };
+      },
+    });
+    assert.equal(result.source, "openai");
+    assert.equal(calls, 2);
+    assert.doesNotMatch(seenInstructions[0] ?? "", /HEALTH-SAFETY REWRITE/);
+    assert.match(seenInstructions[1] ?? "", /HEALTH-SAFETY REWRITE/);
+    assert.match(seenInstructions[1] ?? "", /pause cue/);
+  });
+
   it("retries retryable failures with exponential retry boundaries", async () => {
     let calls = 0;
     const result = await withRetry(async () => {
