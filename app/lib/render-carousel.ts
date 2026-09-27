@@ -1282,7 +1282,15 @@ export async function renderCarousel(input: {
               const alreadyHasAppScreenshot = selected.some((match) => match.asset.source_type === "app_screenshot");
               const supportSlide = needsAppScreenshot && !alreadyHasAppScreenshot
                 ? slide
-                : { ...withoutAppScreenshotDirective(slide), assetType: "stock" };
+                : {
+                    ...withoutAppScreenshotDirective(slide),
+                    // Cover support images are not the identity hero. Treat
+                    // them as ordinary support slots so position=1 does not
+                    // force the persona-only hook pool or hook threshold.
+                    position: Math.max(2, slide.position),
+                    role: "SUPPORT",
+                    assetType: "stock",
+                  };
               const next = chooseAssets({
                 assets,
                 carouselType: input.carouselType,
