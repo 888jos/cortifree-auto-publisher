@@ -4,14 +4,16 @@ import { scoreGenericity } from "./genericity";
 export type ValidationIssue = { code: string; message: string; slidePosition?: number; severity: "minor" | "major" };
 
 const unsafeHealthPatterns = [
-  /lowers? cortisol by\s*\d+/i,
-  /reduce[sd]? cortisol by\s*\d+/i,
-  /balance[sd]? (your )?hormones?/i,
-  /fix(es|ed)? (your )?(cortisol|hormones?)/i,
-  /cure[sd]?|treats?|diagnos(e|is)/i,
-  /guarantee[sd]?|clinically proven/i,
+  /\blowers? cortisol by\s*\d+/i,
+  /\breduce[sd]? cortisol by\s*\d+/i,
+  /\bbalance[sd]?\s+(?:your\s+)?hormones?\b/i,
+  /\bfix(?:es|ed)?\s+(?:your\s+)?(?:cortisol|hormones?)\b/i,
+  /\b(?:cure[sd]?|treat(?:s|ed|ing)?|diagnos(?:e[sd]?|ing))\b.{0,60}\b(?:insomnia|anxiety|burnout|acne|cortisol|hormones?|panic attacks?|sleep disorder|fatigue)\b/i,
+  /\b(?:insomnia|anxiety|burnout|acne|cortisol|hormones?|panic attacks?|sleep disorder|fatigue)\b.{0,60}\b(?:cure[sd]?|treat(?:s|ed|ing)?|diagnos(?:e[sd]?|ing))\b/i,
+  /\bguarantee[sd]?\b|\bclinically proven\b/i,
   /\b\d+(?:\.\d+)?%\b/i,
-  /stud(?:y|ies) (?:show|prove)/i,
+  /\bstud(?:y|ies)\s+(?:show|prove)\b/i,
+  /\byou (?:definitely |clearly |probably )?(?:have|must have)\s+(?:high|low)\s+cortisol\b/i,
 ];
 
 const layoutAliases: Record<string, string> = {
