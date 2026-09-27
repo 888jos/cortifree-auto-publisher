@@ -1,7 +1,7 @@
 import sharp, { type OverlayOptions } from "sharp";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { chooseAssets, loadSelectableAssets, type AssetMatch } from "./asset-selector";
+import { chooseAssets, loadSelectableAssets, requiresOfficialAppScreenshot, type AssetMatch } from "./asset-selector";
 import { getSlideGeometry } from "./layout-geometry.js";
 import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
@@ -1208,12 +1208,34 @@ export async function renderCarousel(input: {
     const asset = ranked[0];
     return asset ? { asset, score: 0, matchedTerms: [], fallbackPath: "rerender_support_fallback", thresholdBypassed: true } as AssetMatch : null;
   }
+  const multiImageLayout = input.layout === "three-rect-educational"
+    || input.layout === "editorial-asym-hero"
+    || input.layout === "editorial-collage"
+    || input.layout === "ranking"
+    || input.layout === "lifestyle-3stack";
+
+  function withoutAppScreenshotDirective(slide: GeneratedSlide): GeneratedSlide {
+    if (!requiresOfficialAppScreenshot(slide)) return slide;
+    const fallbackIntent = `${slide.headline}. ${slide.body}`.trim();
+    return {
+      ...slide,
+      assetQuery: fallbackIntent,
+      visualIntent: fallbackIntent,
+    };
+  }
+
+  function primarySelectionSlide(slide: GeneratedSlide): GeneratedSlide {
+    const normalized = multiImageLayout ? withoutAppScreenshotDirective(slide) : slide;
+    return normalized.assetType === "generated"
+      ? { ...normalized, assetType: "persona" }
+      : normalized;
+  }
+
   let gridMatches: AssetMatch[][] = [];
   for (let attempt = 0; attempt <= Math.max(2, input.slides.length); attempt += 1) {
     try {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
-      const multiImageLayout = input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero" || input.layout === "editorial-collage" || input.layout === "ranking" || input.layout === "lifestyle-3stack";
       const selectionSlides = input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides;
       const matches = selectionSlides.map((slide, selectionIndex) => {
         const actualIndex = input.layout === "grid-2x2" ? 0 : selectionIndex;
@@ -1224,7 +1246,7 @@ export async function renderCarousel(input: {
           carouselType: input.carouselType,
           personaId: input.personaId,
           excludedAssetIds: recentHookAssetIds,
-          slides: [slide],
+          slides: [primarySelectionSlide(slide)],
         })[0]!;
       });
       if (input.layout === "interactive-checklist") {
@@ -1256,12 +1278,17 @@ export async function renderCarousel(input: {
           selected.forEach((match) => usedCarouselAssets.add(String(match.asset.id)));
           while (selected.length < desiredCount) {
             try {
+              const needsAppScreenshot = requiresOfficialAppScreenshot(slide);
+              const alreadyHasAppScreenshot = selected.some((match) => match.asset.source_type === "app_screenshot");
+              const supportSlide = needsAppScreenshot && !alreadyHasAppScreenshot
+                ? slide
+                : { ...withoutAppScreenshotDirective(slide), assetType: "stock" };
               const next = chooseAssets({
                 assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
                 excludedAssetIds: usedCarouselAssets,
-                slides: [{ ...slide, assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
+                slides: [supportSlide],
               })[0]!;
               selected.push(next);
               usedCarouselAssets.add(String(next.asset.id));

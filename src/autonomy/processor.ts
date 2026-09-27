@@ -139,7 +139,12 @@ export async function processQueuedIdeas(
         references: [],
         recentCarousels: await getRecentCarousels(10),
         requestedSlideCount,
-        preferredHook: String(idea.final_hook || idea.hook_formula || ''),
+        // Routine Timeline needs the model to write a compact routine title.
+        // Feeding the generic editorial hook verbatim can exceed the carousel
+        // schema and produces unnatural 90+ character cover titles.
+        preferredHook: contentType === 'F03_ROUTINE_TIMELINE'
+          ? undefined
+          : String(idea.final_hook || idea.hook_formula || ''),
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
         accountId,
