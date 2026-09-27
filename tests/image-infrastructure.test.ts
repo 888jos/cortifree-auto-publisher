@@ -110,6 +110,12 @@ describe('persona image infrastructure', () => {
     assert.match(prompt, /full body/);
   });
 
+  it('upserts generated asset metadata by canonical path', async () => {
+    const source = await fs.readFile(new URL('../app/lib/image-generation.ts', import.meta.url), 'utf8');
+    assert.match(source, /assets\?on_conflict=path/);
+    assert.match(source, /resolution=merge-duplicates,return=representation/);
+  });
+
   it('retries transient failures only and stops after success', async () => {
     let attempts = 0;
     const result = await withImageRetry(async () => {
