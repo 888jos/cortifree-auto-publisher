@@ -55,6 +55,11 @@ describe("business orchestration v1", () => {
     assert.match(processor, /CONFIG_STILL_BLOCKED/);
     assert.match(processor, /CONFIG_RECOVERED/);
     assert.match(processor, /SLOT_MISSED_WHILE_CONFIG_BLOCKED/);
+    const queryAt = processor.indexOf("status=eq.BLOCKED_CONFIG");
+    const expireAt = processor.indexOf("SLOT_MISSED_WHILE_CONFIG_BLOCKED", queryAt);
+    const stillBlockedAt = processor.indexOf("action: 'CONFIG_STILL_BLOCKED'", queryAt);
+    assert.ok(queryAt >= 0 && expireAt > queryAt);
+    assert.ok(stillBlockedAt > expireAt, "expired blocked slots must be handled before returning CONFIG_STILL_BLOCKED");
   });
 
   it("keeps OpenAI behind asset preflight in autonomous processing", async () => {
