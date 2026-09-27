@@ -63,6 +63,16 @@ type GeneratedSlide = {
   assetType?: string;
 };
 
+function withoutAppScreenshotDirective(slide: GeneratedSlide): GeneratedSlide {
+  if (!requiresOfficialAppScreenshot(slide)) return slide;
+  const fallbackIntent = `${slide.headline}. ${slide.body}`.trim();
+  return {
+    ...slide,
+    assetQuery: fallbackIntent,
+    visualIntent: fallbackIntent,
+  };
+}
+
 type Frame = {
   x: number; y: number; width: number; height?: number; fit?: "cover" | "contain"; cropX?: number; cropY?: number; zoom?: number;
   mode?: "single" | "routine-timeline" | "three-rect-educational" | "grid-2x2" | "editorial-collage" | "editorial-asym-hero" | "interactive-checklist" | "persona-explainer" | "ranking" | "lifestyle-3stack";
@@ -1213,16 +1223,6 @@ export async function renderCarousel(input: {
     || input.layout === "editorial-collage"
     || input.layout === "ranking"
     || input.layout === "lifestyle-3stack";
-
-  function withoutAppScreenshotDirective(slide: GeneratedSlide): GeneratedSlide {
-    if (!requiresOfficialAppScreenshot(slide)) return slide;
-    const fallbackIntent = `${slide.headline}. ${slide.body}`.trim();
-    return {
-      ...slide,
-      assetQuery: fallbackIntent,
-      visualIntent: fallbackIntent,
-    };
-  }
 
   function primarySelectionSlide(slide: GeneratedSlide): GeneratedSlide {
     const normalized = (multiImageLayout || input.layout === "grid-2x2")
