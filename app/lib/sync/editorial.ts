@@ -69,24 +69,6 @@ function healthSource(row: Row): Row {
   };
 }
 
-function autonomyRule(row: Row): Row {
-  const valueType = String(row.type ?? "string").trim().toLowerCase();
-  const value = valueType === "number" || valueType === "ratio"
-    ? decimal(row.value)
-    : valueType === "boolean"
-      ? bool(row.value)
-      : row.value;
-  return {
-    rule_id: row.rule_id,
-    key: row.key,
-    value,
-    value_type: valueType,
-    description: row.description,
-    domain: row.domain,
-    active: bool(row.active, true),
-  };
-}
-
 function account(row: Row): Row {
   return {
     account_id: row.account_id,
