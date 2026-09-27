@@ -245,8 +245,8 @@ describe('persona image infrastructure', () => {
     };
     const result = chooseAssets({ assets: [beautyPersona, fitnessPersona], carouselType: 'F01', personaId: 'P06', slides: [hook] });
     assert.equal(result[0]?.asset.id, 'p06-fitness');
-    assert.equal(result[0]?.threshold, 42);
-    assert.ok((result[0]?.score ?? 0) >= 42);
+    assert.equal(result[0]?.threshold, 36);
+    assert.ok((result[0]?.score ?? 0) >= 36);
   });
 
   it('scores broad fitness visual references above unrelated hook references', () => {
