@@ -69,6 +69,22 @@ export type RuntimeEditorial = {
   autonomyRules: AnyRow[];
 };
 
+export async function loadRuntimeAutonomyRules(limit = 200): Promise<AnyRow[]> {
+  if (!backendConfigured()) return [];
+  try {
+    const direct = await loadRuntimeRows("autonomy_rules", limit);
+    if (direct.length) return direct;
+  } catch {
+    // Older Supabase schemas keep secondary editorial config in editorial_records.
+  }
+  const response = await dataBackend(
+    `editorial_records?kind=eq.autonomy_rules&active=eq.true&select=data&limit=${limit}`,
+  );
+  if (!response.ok) return [];
+  const records = await response.json() as Array<{ data?: AnyRow }>;
+  return records.map((row) => row.data ?? {}).filter((row) => Object.keys(row).length > 0);
+}
+
 export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
   if (backendConfigured()) {
     const [topics, hooks, ctas] = await Promise.all([
@@ -80,7 +96,7 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
       // Autonomy rules are optional in Supabase's editorial mirror. Selection
       // has safe defaults, so a missing optional table must not mask the real
       // canonical-context/account readiness error.
-      const autonomyRules = await loadRuntimeRows("autonomy_rules", 200).catch(() => []);
+      const autonomyRules = await loadRuntimeAutonomyRules(200);
       return {
         topics: topics as unknown as EditorialTopic[],
         hooks: hooks as unknown as EditorialHook[],

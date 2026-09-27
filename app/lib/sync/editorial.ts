@@ -5,11 +5,68 @@ type Row = Record<string, unknown>;
 type Mapping = { sheet: string; range: string; table: string; key: string; transform?: (row: Row) => Row };
 
 const split = (value: unknown) => String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
+function decimal(value: unknown, fallback = 0) {
+  const normalized = typeof value === "string" ? value.trim().replace(",", ".") : value;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function bool(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (["true", "1", "yes"].includes(normalized)) return true;
+  if (["false", "0", "no"].includes(normalized)) return false;
+  return fallback;
+}
+
 function mix(value: unknown) {
   return Object.fromEntries(split(value).map((entry) => {
     const [key, raw] = entry.split(":").map((part) => part.trim());
-    return [key, Number(raw)];
+    return [key, decimal(raw)];
   }).filter(([key, value]) => key && Number.isFinite(value)));
+}
+
+function pillar(row: Row): Row {
+  return {
+    pillar_id: row.pillar_id,
+    name: row.name,
+    purpose: row.purpose,
+    keywords: row.keywords,
+    visual_bucket: row.visual_bucket,
+    preferred_formats: row.preferred_formats,
+    persona_ids: row.persona_ids,
+    weight: decimal(row.weight, 1),
+    active: bool(row.active, true),
+  };
+}
+
+function claimRule(row: Row): Row {
+  return {
+    rule_id: row.rule_id,
+    topic: row.topic,
+    risk_level: row.risk_level,
+    claim_type: row.claim_type,
+    allowed_wording: row.allowed_wording,
+    avoid_wording: row.avoid_wording,
+    example_safe: row.example_safe,
+    requires_source: bool(row.requires_source),
+    source_ids: split(row.source_ids),
+    active: bool(row.active, true),
+  };
+}
+
+function healthSource(row: Row): Row {
+  return {
+    source_id: row.source_id,
+    topic: row.topic,
+    organization: row.organization,
+    title: row.title,
+    url: row.url,
+    evidence_level: row.evidence_level,
+    allowed_claims: row.allowed_claim_scope ?? row.allowed_claims,
+    last_reviewed: row.last_reviewed,
+    active: bool(row.active, true),
+  };
 }
 
 function account(row: Row): Row {
@@ -72,13 +129,12 @@ const mappings: Mapping[] = [
   { sheet: "01_PERSONAS", range: "A1:X40", table: "content_personas", key: "persona_id", transform: persona },
   { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
-  { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id" },
+  { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id", transform: pillar },
   { sheet: "05_TOPICS_ANGLES", range: "A1:O1000", table: "content_topics", key: "topic_id" },
   { sheet: "06_HOOKS", range: "A1:M500", table: "content_hooks", key: "hook_id" },
   { sheet: "07_CTAS", range: "A1:H100", table: "content_ctas", key: "cta_id" },
-  { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id" },
-  { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id" },
-  { sheet: "13_TEMPLATE_SPECS", range: "A1:J100", table: "content_template_specs", key: "template_id" },
+  { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id", transform: claimRule },
+  { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id", transform: healthSource },
   ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id" }] : []),
 ];
 
@@ -127,6 +183,51 @@ function isoSheetTime(value: unknown) {
   const raw = String(value ?? "").trim();
   const match = raw.match(/^(\d{1,2}):(\d{2})/);
   return match ? `${match[1]!.padStart(2, "0")}:${match[2]}` : raw;
+}
+
+async function syncSheetRecordKind(input: {
+  sheet: string;
+  range: string;
+  kind: string;
+  key: string;
+  title?: string;
+}) {
+  if (backendMode() !== "supabase") return 0;
+  const source = await readSheetObjects(input.sheet, input.range);
+  const syncedAt = new Date().toISOString();
+  const records = source.flatMap((sourceRow, index) => {
+    const key = String(sourceRow[input.key] ?? "").trim();
+    if (!key) return [];
+    const active = bool(sourceRow.active, true);
+    return [{
+      kind: input.kind,
+      key,
+      title: String(sourceRow[input.title ?? input.key] ?? key),
+      data: sourceRow,
+      active,
+      source: "google_sheet",
+      source_sheet: input.sheet,
+      source_row: index + 2,
+      source_updated_at: syncedAt,
+      synced_at: syncedAt,
+    }];
+  });
+  if (!records.length) throw new Error(`Refusing to replace ${input.kind} with an empty Sheet read`);
+  await upsert("editorial_records", "kind,key", records);
+
+  const existingResponse = await dataBackend(`editorial_records?kind=eq.${encodeURIComponent(input.kind)}&select=key&limit=5000`);
+  if (!existingResponse.ok) throw new Error(`Cannot reconcile ${input.kind}: ${await existingResponse.text()}`);
+  const existing = await existingResponse.json() as Array<{ key?: unknown }>;
+  const currentKeys = new Set(records.map((row) => row.key));
+  const staleKeys = existing.map((row) => String(row.key ?? "")).filter((key) => key && !currentKeys.has(key));
+  for (const key of staleKeys) {
+    const response = await dataBackend(`editorial_records?kind=eq.${encodeURIComponent(input.kind)}&key=eq.${encodeURIComponent(key)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: false, synced_at: syncedAt }),
+    });
+    if (!response.ok) throw new Error(`Cannot deactivate stale ${input.kind} record ${key}: ${await response.text()}`);
+  }
+  return records.length;
 }
 
 async function syncCanonicalCalendar() {
@@ -178,20 +279,28 @@ export async function syncEditorialSheetToConvex() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
-    if (backendMode() === "supabase" && !new Set(["accounts", "content_personas", "content_topics", "content_hooks", "content_ctas", "content_formats"]).has(mapping.table)) {
-      counts[mapping.table] = 0;
-      continue;
-    }
     const source = await readSheetObjects(mapping.sheet, mapping.range);
     const rows = source
       .filter((row) => row[mapping.key] !== null && row[mapping.key] !== undefined && String(row[mapping.key]).trim())
       .map((row) => mapping.transform ? mapping.transform(row) : row);
     counts[mapping.table] = await upsert(mapping.table, mapping.key, rows);
   }
+
+  const recordMirrors = [
+    { sheet: "04_CONTENT_PILLARS", range: "A1:I40", kind: "pillars", key: "pillar_id", title: "name" },
+    { sheet: "09_CLAIMS_RULES", range: "A1:L100", kind: "claim_rules", key: "rule_id", title: "topic" },
+    { sheet: "09_HEALTH_SOURCES", range: "A1:I100", kind: "health_sources", key: "source_id", title: "title" },
+    { sheet: "12_AUTONOMY_RULES", range: "A1:G100", kind: "autonomy_rules", key: "rule_id", title: "key" },
+    { sheet: "13_TEMPLATE_SPECS", range: "A1:H100", kind: "template_specs", key: "format_id", title: "format_id" },
+  ];
+  for (const mirror of recordMirrors) {
+    counts[`editorial_${mirror.kind}`] = await syncSheetRecordKind(mirror);
+  }
+
   counts.content_calendar = await syncCanonicalCalendar();
 
   const derivedConfig: Row[] = [
-    { key: "PERSONA_COUNT", value: counts.personas ?? 0, value_type: "number", description: "Derived from synced persona rows", source: "derived", active: true },
+    { key: "PERSONA_COUNT", value: counts.content_personas ?? 0, value_type: "number", description: "Derived from synced persona rows", source: "derived", active: true },
     { key: "ACCOUNT_COUNT", value: counts.accounts ?? 0, value_type: "number", description: "Derived from synced account rows", source: "derived", active: true },
     { key: "FORMAT_COUNT", value: counts.content_formats ?? 0, value_type: "number", description: "Derived from synced format rows", source: "derived", active: true },
     { key: "CONTENT_PILLAR_COUNT", value: counts.content_pillars ?? 0, value_type: "number", description: "Derived from synced pillar rows", source: "derived", active: true },
@@ -199,9 +308,9 @@ export async function syncEditorialSheetToConvex() {
     { key: "HOOK_COUNT", value: counts.content_hooks ?? 0, value_type: "number", description: "Derived from synced hook rows", source: "derived", active: true },
     { key: "CTA_COUNT", value: counts.content_ctas ?? 0, value_type: "number", description: "Derived from synced CTA rows", source: "derived", active: true },
     { key: "CLAIM_RULE_COUNT", value: counts.content_claim_rules ?? 0, value_type: "number", description: "Derived from synced claim-rule rows", source: "derived", active: true },
-    { key: "HEALTH_SOURCE_COUNT", value: counts.content_sources ?? 0, value_type: "number", description: "Derived from synced health-source rows", source: "derived", active: true },
-    { key: "AUTONOMY_RULE_COUNT", value: counts.autonomy_rules ?? 0, value_type: "number", description: "Derived from synced autonomy-rule rows", source: "derived", active: true },
-    { key: "TEMPLATE_SPEC_COUNT", value: counts.template_specs ?? 0, value_type: "number", description: "Derived from synced template rows", source: "derived", active: true },
+    { key: "HEALTH_SOURCE_COUNT", value: counts.content_health_sources ?? 0, value_type: "number", description: "Derived from synced health-source rows", source: "derived", active: true },
+    { key: "AUTONOMY_RULE_COUNT", value: counts.editorial_autonomy_rules ?? 0, value_type: "number", description: "Derived from synced autonomy-rule rows", source: "derived", active: true },
+    { key: "TEMPLATE_SPEC_COUNT", value: counts.editorial_template_specs ?? 0, value_type: "number", description: "Derived from synced template rows", source: "derived", active: true },
     { key: "RUNTIME_TRUTH", value: backendMode() === "supabase" ? "SUPABASE" : "CONVEX", value_type: "enum", description: "Autonomous runtime reads the configured Supabase editorial mirror", source: "system", active: true },
     { key: "GOOGLE_SYNC_MODE", value: "CLOUD_API", value_type: "enum", description: "Google Sheet and Drive sync through cloud APIs", source: "system", active: true },
     { key: "JSON_RUNTIME_FALLBACK_DEFAULT", value: false, value_type: "boolean", description: "JSON fallback is emergency-only and opt-in", source: "system", active: true },

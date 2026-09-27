@@ -1,6 +1,6 @@
 import { backendConfigured, backendMode, dataBackend, getBackendCounts, getBackendPing } from "../../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../../app/lib/google/auth";
-import { loadRuntimeAccounts, loadRuntimeRows } from "../runtime/config";
+import { loadRuntimeAccounts, loadRuntimeAutonomyRules } from "../runtime/config";
 import { acceptanceGateStatus } from "./acceptance";
 
 type Row = Record<string, unknown>;
@@ -120,7 +120,7 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
     warnings.push("IMAGE_GENERATION_DISABLED");
   }
 
-  const autonomyRules = await loadRuntimeRows("autonomy_rules", 200).catch(() => []);
+  const autonomyRules = await loadRuntimeAutonomyRules(200);
   const minCacheRow = autonomyRules.find((row) => String(row.key) === "persona_cache_min" && row.active !== false);
   const minCache = Math.max(1, Number(minCacheRow?.value ?? 12));
   const cacheByPersona: Record<string, number> = {};
