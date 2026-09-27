@@ -126,7 +126,11 @@ async function uploadGeneratedAsset(options: {
     scene: options.scene, pose: options.reference.pose, outfit: options.reference.outfit, environment: options.reference.environment,
     good_for: options.reference.good_for, enabled: true,
   };
-  const insert = await dataBackend("assets", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
+  const insert = await dataBackend("assets?on_conflict=path", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify(row),
+  });
   if (!insert.ok) throw new Error("Asset index failed: " + (await insert.text()).slice(0, 500));
   const asset = (await insert.json() as Array<{ id: string | number }>)[0];
   if (!asset) throw new Error("Asset index returned no row");
