@@ -298,12 +298,11 @@ export async function resumeAssetBlockedIdeas(limit = 50) {
 
 export async function resumeConfigBlockedIdeas(limit = 200) {
   const configBlock = generationConfigBlockReason();
-  if (configBlock) return [{ action: 'CONFIG_STILL_BLOCKED', reason: configBlock }];
-
   const ideas = await rows(
     `carousel_ideas?workspace_id=eq.cortifree&status=eq.BLOCKED_CONFIG&order=updated_at.asc&limit=${limit}`,
   );
   const report: Row[] = [];
+
   for (const idea of ideas) {
     const id = String(idea.id ?? '').trim();
     if (!id) continue;
@@ -325,6 +324,11 @@ export async function resumeConfigBlockedIdeas(limit = 200) {
       }
     }
 
+    if (configBlock) {
+      report.push({ id, status: 'BLOCKED_CONFIG', action: 'CONFIG_STILL_BLOCKED', reason: configBlock });
+      continue;
+    }
+
     await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
       status: 'QUEUED',
       last_error: null,
@@ -333,6 +337,10 @@ export async function resumeConfigBlockedIdeas(limit = 200) {
     });
     await updateContentSlot(idea.slot_id, { status: 'QUEUED' });
     report.push({ id, status: 'QUEUED', action: 'CONFIG_RECOVERED' });
+  }
+
+  if (configBlock && report.length === 0) {
+    return [{ action: 'CONFIG_STILL_BLOCKED', reason: configBlock }];
   }
   return report;
 }
