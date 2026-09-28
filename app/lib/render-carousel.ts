@@ -361,7 +361,7 @@ async function roundedPhoto(bytes: Buffer, width: number, height: number, radius
 async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
-  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+  const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Inter Tight";
   const overlays: OverlayOptions[] = [];
   const isCover = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
 
@@ -721,12 +721,12 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       left: frame.routineKickerX ?? 78,
       top: frame.routineKickerY ?? 96,
       width: frame.routineKickerWidth ?? 430,
-      height: 38,
-      size: frame.routineKickerSize ?? 20,
-      weight: 700,
+      height: 70,
+      size: frame.routineKickerSize ?? 44,
+      weight: 400,
       align: "center",
-      fontFamily,
-      spacing: 3,
+      fontFamily: "TikTok Sans",
+      spacing: 2,
     });
     const lines = wrapHook(routineCoverTitle(slide), 2, 2).join("\n");
     await pushShadowed(lines, {
@@ -734,8 +734,8 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       top: frame.headlineY ?? frame.y,
       width: frame.width,
       height: 240,
-      size: frame.hookSize ?? 64,
-      weight: 700,
+      size: frame.hookSize ?? 76,
+      weight: 800,
       align: "center",
       fontFamily: hookFontFamily,
     });
@@ -745,9 +745,9 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
         top: frame.routineContextY ?? frame.bodyY ?? 365,
         width: Math.min(frame.width, 520),
         height: 90,
-        size: frame.bodySize ?? 26,
+        size: frame.bodySize ?? 32,
         weight: 600,
-        align: "left",
+        align: "center",
         fontFamily,
       });
     }
@@ -789,8 +789,8 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       top: frame.routineTimeY ?? 110,
       width: frame.routineTimeWidth ?? 300,
       height: 58,
-      size: frame.routineTimeSize ?? 30,
-      weight: 700,
+      size: frame.routineTimeSize ?? 28,
+      weight: 600,
       align: "center",
       fontFamily,
     });
@@ -801,8 +801,8 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     top: frame.headlineY ?? frame.y,
     width: frame.width,
     height: 170,
-    size: frame.headlineSize ?? 36,
-    weight: 700,
+    size: frame.headlineSize ?? 30,
+    weight: 600,
     align: "center",
     fontFamily,
   });
@@ -813,8 +813,8 @@ async function routineTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
       top: frame.bodyY ?? 715,
       width: frame.width,
       height: 120,
-      size: frame.bodySize ?? 26,
-      weight: 500,
+      size: frame.bodySize ?? 20,
+      weight: 400,
       align: "center",
       fontFamily,
     });
