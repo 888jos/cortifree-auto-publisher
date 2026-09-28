@@ -33,12 +33,12 @@ type CarouselStructuredRequest = (options: {
   maxOutputTokens?: number;
 }) => Promise<StructuredResult<CarouselSpec>>;
 
-function pinPreferredHook(spec: CarouselSpec, preferredHook?: string): CarouselSpec {
-  if (!preferredHook) return spec;
+function applyManualPreferredHook(spec: CarouselSpec, input: CarouselGeneratorInput): CarouselSpec {
+  if (!input.preferredHook || input.requireCanonicalContext) return spec;
   return carouselSpecSchema.parse({
     ...spec,
-    hook: preferredHook,
-    slides: spec.slides.map((slide, index) => index === 0 ? { ...slide, headline: preferredHook } : slide),
+    hook: input.preferredHook,
+    slides: spec.slides.map((slide, index) => index === 0 ? { ...slide, headline: input.preferredHook! } : slide),
   });
 }
 
@@ -106,19 +106,22 @@ export async function generateCarousel(
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: true });
 
     let qa: CarouselReview | null = null;
-    if (config.OPENAI_QA_ENABLED && shouldRunQA(config.OPENAI_QA_SAMPLE_RATE, dependencies.random)) {
+    if (config.OPENAI_QA_ENABLED && (input.requireCanonicalContext || shouldRunQA(config.OPENAI_QA_SAMPLE_RATE, dependencies.random))) {
       qa = await reviewCarouselDraft(spec, { carouselId: context.carouselId, expectedSlideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
       // AI QA is advisory. Deterministic safety/structure checks above decide
       // whether a draft can proceed; editorial preferences belong in review.
       if (!qa.approved && !qa.correctedSpec) {
-        return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: `AI QA review required: ${qa.issues.map((issue) => issue.message).slice(0, 2).join("; ")}`, qa };
+        if (input.requireCanonicalContext) {
+          throw new CanonicalGenerationBlockedError(`AI_QA_REJECTED:${qa.issues.map((issue) => issue.message).slice(0, 3).join("; ")}`);
+        }
+        return { spec: applyManualPreferredHook(spec, input), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: `AI QA review required: ${qa.issues.map((issue) => issue.message).slice(0, 2).join("; ")}`, qa };
       }
       if (qa.correctedSpec) {
         assertValidCarouselSpec(qa.correctedSpec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        return { spec: pinPreferredHook(qa.correctedSpec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+        return { spec: applyManualPreferredHook(qa.correctedSpec, input), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
       }
     }
-    return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+    return { spec: applyManualPreferredHook(spec, input), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
   } catch (error) {
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
     if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError(error instanceof Error ? error.message : "OpenAI request failed");
