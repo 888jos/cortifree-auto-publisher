@@ -256,9 +256,13 @@ async function runDraftPipeline(payload: Row) {
 }
 
 async function runAcceptanceSample(payload: Row) {
+  const requestedFormatIds = Array.isArray(payload.format_ids)
+    ? payload.format_ids.map(String).filter(Boolean)
+    : undefined;
   const sample = await createAcceptanceSample({
     batchId: payload.batch_id ? String(payload.batch_id) : undefined,
-    limit: payload.limit ? Number(payload.limit) : 20,
+    limit: payload.limit ? Number(payload.limit) : requestedFormatIds?.length,
+    formatIds: requestedFormatIds,
   });
   const drafts = await processQueuedIdeas(sample.created, { acceptanceBatchId: sample.batchId });
   return { ...sample, drafts };

@@ -193,13 +193,20 @@ export async function runScheduler() {
   };
 }
 
-export async function createAcceptanceSample(input: { batchId?: string; limit?: number } = {}) {
+export async function createAcceptanceSample(input: { batchId?: string; limit?: number; formatIds?: string[] } = {}) {
   const [{ topics, hooks, ctas, autonomyRules }, allAccounts] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
   ]);
   const batchId = input.batchId?.trim() || `E2E_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
-  const limit = Math.max(1, Math.min(20, input.limit ?? 20));
+  const defaultFormatCycle = ['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2'];
+  const requestedFormatIds = [...new Set((input.formatIds ?? [])
+    .map((value) => String(value).trim())
+    .filter((value) => defaultFormatCycle.includes(value)))];
+  const formatCycle = requestedFormatIds.length ? requestedFormatIds : defaultFormatCycle;
+  const strictRequestedFormats = requestedFormatIds.length > 0;
+  const defaultLimit = strictRequestedFormats ? requestedFormatIds.length : 20;
+  const limit = Math.max(1, Math.min(20, input.limit ?? defaultLimit));
   // Acceptance is an offline QA sample, not a publishing run. Include every
   // configured persona (even when its account is intentionally disabled for
   // posting) so a 16-item sample really means one carousel per persona.
@@ -214,7 +221,6 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
     visual_ref_id: row.visual_ref_id ? String(row.visual_ref_id) : undefined, combo_key: row.combo_key ? String(row.combo_key) : undefined,
     created_at: row.created_at ? String(row.created_at) : undefined,
   }));
-  const formatCycle = ['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2'];
   const report: AnyRow[] = [];
   const plannedRows: AnyRow[] = [];
   const acceptanceHistory: SelectionHistory[] = [];
@@ -224,7 +230,8 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
     let selectedSeed = '';
     let requestedFormatId = formatCycle[index % formatCycle.length]!;
     let selectedFormatId = requestedFormatId;
-    for (let formatOffset = 0; formatOffset < formatCycle.length && !picked; formatOffset += 1) {
+    const formatAttempts = strictRequestedFormats ? 1 : formatCycle.length;
+    for (let formatOffset = 0; formatOffset < formatAttempts && !picked; formatOffset += 1) {
       const formatId = formatCycle[(index + formatOffset) % formatCycle.length]!;
       for (let attempt = 0; attempt < 40 && !picked; attempt += 1) {
         selectedSeed = crypto.createHash('sha1').update(`${batchId}:${account.id}:${formatId}:${attempt}`).digest('hex');
@@ -246,7 +253,7 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
       }
     }
     if (!picked) {
-      throw new Error(`Acceptance sample incomplete: no eligible editorial for ${account.persona_id} after testing F01-F08`);
+      throw new Error(`Acceptance sample incomplete: no eligible editorial for ${account.persona_id} in requested format ${requestedFormatId}`);
     }
     const id = `CF_E2E_IDEA_${batchId}_${String(index + 1).padStart(2, "0")}_${account.persona_id}_${selectedFormatId.slice(0, 3)}`.replace(/[^A-Z0-9_]/gi, '').slice(0, 120);
     const row = {

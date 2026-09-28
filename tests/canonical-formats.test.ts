@@ -80,6 +80,15 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.width, 930);
   });
 
+  it("supports targeted acceptance batches without falling through to unrelated formats", () => {
+    const scheduler = readFileSync(new URL("../src/autonomy/scheduler.ts", import.meta.url), "utf8");
+    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
+    assert.match(scheduler, /formatIds\?: string\[\]/);
+    assert.match(scheduler, /strictRequestedFormats \? 1 : formatCycle\.length/);
+    assert.match(worker, /payload\.format_ids/);
+    assert.match(worker, /formatIds: requestedFormatIds/);
+  });
+
   it("gives F06 its own persona explainer geometry instead of single-image fallback", () => {
     const geometry = getSlideGeometry(
       { layout: "persona-explainer", position: 2, role: "TIP", headline: "What I noticed", body: "Less rushing | Better evenings" },
