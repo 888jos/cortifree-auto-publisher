@@ -30,37 +30,38 @@ const textFrames = {
 function routineTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 90, y: 360, width: 900, align: "center",
-      headlineY: 360, bodyY: 650,
-      headlineSize: 92, bodySize: 34, hookSize: 92,
-      headlineWeight: 800, bodyWeight: 650,
-      maxHeadlineLines: 2, maxBodyLines: 1,
-      routineKickerX: 220, routineKickerY: 295, routineKickerWidth: 640, routineKickerSize: 28,
-      routineContextY: 650,
+      x: 92, y: 330, width: 896, align: "center",
+      headlineY: 330, bodyY: 605,
+      headlineSize: 76, bodySize: 32, hookSize: 76,
+      headlineWeight: 800, bodyWeight: 600,
+      maxHeadlineLines: 3, maxBodyLines: 1,
+      routineKickerX: 230, routineKickerY: 270, routineKickerWidth: 620, routineKickerSize: 44,
+      routineContextY: 605,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
-      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+      hookFontFamily: typography.hookFontFamily ?? "Inter Tight",
     };
   }
   if (isFinal) {
     return {
-      x: 140, y: 420, width: 800, align: "center",
-      headlineY: 420, bodyY: 580,
-      headlineSize: 52, bodySize: 28, hookSize: 52,
-      headlineWeight: 700, bodyWeight: 500,
-      maxHeadlineLines: 3, maxBodyLines: 3,
+      x: 120, y: 390, width: 840, align: "center",
+      headlineY: 390, bodyY: 535,
+      headlineSize: 34, bodySize: 20, hookSize: 34,
+      headlineWeight: 600, bodyWeight: 400,
+      maxHeadlineLines: 2, maxBodyLines: 2,
+      routineTimeX: 120, routineTimeY: 340, routineTimeWidth: 560, routineTimeSize: 28,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
-      hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+      hookFontFamily: typography.hookFontFamily ?? "Inter Tight",
     };
   }
   return {
-    x: 140, y: 355, width: 620, align: "center",
-    headlineY: 355, bodyY: 455,
-    headlineSize: 36, bodySize: 24, hookSize: 36,
-    headlineWeight: 700, bodyWeight: 550,
-    maxHeadlineLines: 2, maxBodyLines: 3,
-    routineTimeX: 140, routineTimeY: 300, routineTimeWidth: 620, routineTimeSize: 31,
+    x: 120, y: 355, width: 560, align: "center",
+    headlineY: 355, bodyY: 435,
+    headlineSize: 30, bodySize: 20, hookSize: 30,
+    headlineWeight: 600, bodyWeight: 400,
+    maxHeadlineLines: 2, maxBodyLines: 2,
+    routineTimeX: 120, routineTimeY: 305, routineTimeWidth: 560, routineTimeSize: 28,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
-    hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+    hookFontFamily: typography.hookFontFamily ?? "Inter Tight",
   };
 }
 
@@ -245,8 +246,8 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
       text: {
         ...routineTextFrame(isCover, isFinal, typography),
         headlineColor: "#fffaf8",
-        bodyColor: "#fffaf8",
-        accentColor: "#fffaf8",
+        bodyColor: "#f5f5f5",
+        accentColor: "#fff27a",
       },
       overlay: { color: "#0b0b0b", opacity: 0 },
       chrome: {
