@@ -71,6 +71,14 @@ export function hookNoveltyIssue(input: CarouselGeneratorInput, hook: string) {
   return null;
 }
 
+function assertHookNovelty(input: CarouselGeneratorInput, spec: CarouselSpec) {
+  const candidates = [spec.hook, spec.slides[0]?.headline].filter((value): value is string => Boolean(value));
+  for (const hook of candidates) {
+    const issue = hookNoveltyIssue(input, hook);
+    if (issue) throw new Error(issue);
+  }
+}
+
 function applyManualPreferredHook(spec: CarouselSpec, input: CarouselGeneratorInput): CarouselSpec {
   if (!input.preferredHook || input.requireCanonicalContext) return spec;
   return carouselSpecSchema.parse({
@@ -133,8 +141,7 @@ export async function generateCarousel(
         };
         const candidate = carouselSpecSchema.parse(result.data);
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        const noveltyIssue = hookNoveltyIssue(input, candidate.hook);
-        if (noveltyIssue) throw new Error(noveltyIssue);
+        assertHookNovelty(input, candidate);
         spec = candidate;
         break;
       } catch (error) {
@@ -158,6 +165,7 @@ export async function generateCarousel(
       }
       if (qa.correctedSpec) {
         assertValidCarouselSpec(qa.correctedSpec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+        assertHookNovelty(input, qa.correctedSpec);
         return { spec: applyManualPreferredHook(qa.correctedSpec, input), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
       }
     }
