@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { dataBackend } from "../data-backend";
-import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeFormats, loadRuntimePersonaConfigs } from "../../../src/runtime/config";
+import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeFormats, loadRuntimePersonaConfigs, personaEditorialVoice } from "../../../src/runtime/config";
 import { selectEditorial, type SelectionHistory } from "../../../src/autonomy/selection";
 import type { EditorialContext } from "../ai/types";
 
@@ -115,9 +115,7 @@ export async function resolveCanonicalEditorialContext(input: {
   const goldenExampleIds = input.references.map((reference) => reference.id).filter(Boolean);
   if (!goldenExampleIds.length) goldenExampleIds.push(`FORMAT_${input.formatId}`);
 
-  const personaVoice = String((persona as Row).content && typeof (persona as Row).content === "object"
-    ? ((persona as Row).content as Row).voice ?? ""
-    : (persona as Row).voice ?? "");
+  const personaVoice = personaEditorialVoice(persona as never);
 
   const mode = input.brandIntegration?.mode ?? "EDITORIAL_ONLY";
   const brandRequired = input.brandIntegration?.required ?? mode !== "EDITORIAL_ONLY";
