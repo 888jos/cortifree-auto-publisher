@@ -6,7 +6,7 @@ import {
   normalizeUploadPostResults,
 } from '../../app/lib/upload-post';
 import { loadRuntimeEditorial, autonomyRuleValue } from '../runtime/config';
-import { fillHook, type EditorialHook, type EditorialTopic } from './selection';
+import { type EditorialHook, type EditorialTopic } from './selection';
 
 type Row = Record<string, unknown>;
 type Platform = 'tiktok' | 'instagram';
@@ -248,7 +248,11 @@ export async function queueWinnerVariants() {
   const count = autonomyRuleValue(autonomyRules, 'winner_variants_to_queue', 3);
   const winners = (await rows('carousels?is_winner=eq.true&order=winner_at.desc&limit=20')).slice(0,20);
   const runtimeTopics = topics as unknown as EditorialTopic[];
-  const runtimeHooks = (hooks as unknown as EditorialHook[]).filter((hook) => hook.active !== false);
+  const runtimeHooks = (hooks as unknown as EditorialHook[]).filter((hook) =>
+    hook.active !== false
+    && String(hook.runtime_use ?? '').toUpperCase() !== 'STYLE_REFERENCE'
+    && String(hook.hook_family ?? '').toLowerCase() !== 'style_reference'
+  );
   const queued: Row[] = [];
   for (const winner of winners) {
     const existing = await rows(`carousel_ideas?source_winner_id=eq.${encodeURIComponent(String(winner.id))}&limit=20`);
@@ -272,8 +276,8 @@ export async function queueWinnerVariants() {
         topic: topic.topic,
         angle: `${topic.angle} — winner variation`,
         hook_id: hook.hook_id,
-        hook_formula: hook.formula,
-        final_hook: fillHook(hook.formula, topic),
+        hook_formula: hook.formula ?? null,
+        final_hook: null,
         cta_id: null,
         cta_text: 'Save this for later.',
         strategy: 'WINNER_VARIANT',
