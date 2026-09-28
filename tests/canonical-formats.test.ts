@@ -17,6 +17,27 @@ describe("canonical carousel formats", () => {
     assert.equal(canonicalLayoutFor("F08_2X2"), "grid-2x2");
   });
 
+  it("enforces F03 routine hierarchy with small body copy and dominant hook", () => {
+    const cover = getSlideGeometry(
+      { layout: "routine-timeline", position: 1, role: "HOOK", headline: "morning routine", body: "6:00 - 7:15" },
+      true,
+      false,
+      {},
+    );
+    const body = getSlideGeometry(
+      { layout: "routine-timeline", position: 2, role: "TIP", headline: "6:00 - 6:10 · wake up", body: "" },
+      false,
+      false,
+      {},
+    );
+    assert.equal(cover.text.hookSize, 76);
+    assert.equal(cover.text.headlineWeight, 800);
+    assert.equal(body.text.routineTimeSize, 28);
+    assert.equal(body.text.headlineSize, 30);
+    assert.equal(body.text.bodySize, 20);
+    assert.equal(body.text.maxBodyLines, 2);
+  });
+
   it("gives F06 its own persona explainer geometry instead of single-image fallback", () => {
     const geometry = getSlideGeometry(
       { layout: "persona-explainer", position: 2, role: "TIP", headline: "What I noticed", body: "Less rushing | Better evenings" },
