@@ -161,6 +161,19 @@ export function autonomyRuleValue(rules: AnyRow[], key: string, fallback: number
 
 const splitPipe = (value: unknown) => String(value ?? "").split("|").map((x) => x.trim()).filter(Boolean);
 
+export function personaEditorialVoice(persona: PersonaConfig) {
+  const editorial = persona.editorial;
+  return [
+    persona.content.voice,
+    editorial ? `persona weight: ${editorial.copy_persona_weight}` : "",
+    editorial ? `slang level: ${editorial.slang_level}/10` : "",
+    editorial ? `punctuation: ${editorial.punctuation_profile}` : "",
+    editorial ? `voice markers: ${editorial.voice_markers}` : "",
+    editorial ? `may invent only: ${editorial.allowed_invented_details}` : "",
+    editorial ? `avoid: ${editorial.avoid_voice}` : "",
+  ].filter(Boolean).join(" | ");
+}
+
 export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
   if (backendConfigured()) {
     const [live, metadata] = await Promise.all([
