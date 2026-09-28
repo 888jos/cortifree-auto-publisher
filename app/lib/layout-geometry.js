@@ -199,10 +199,10 @@ function personaExplainerTextFrame(isCover, isFinal, typography) {
 function rankingTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 120, y: 120, width: 840, align: "center",
-      headlineY: 120, bodyY: 305,
-      headlineSize: 68, bodySize: 29, hookSize: 68,
-      headlineWeight: 800, bodyWeight: 500,
+      x: 90, y: 120, width: 900, align: "center",
+      headlineY: 120, bodyY: 285,
+      headlineSize: 62, bodySize: 36, hookSize: 62,
+      headlineWeight: 700, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 2,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
@@ -220,12 +220,12 @@ function rankingTextFrame(isCover, isFinal, typography) {
     };
   }
   return {
-    x: 100, y: 335, width: 880, align: "center",
-    headlineY: 335, bodyY: 505,
-    headlineSize: 42, bodySize: 27, hookSize: 42,
+    x: 75, y: 300, width: 930, align: "center",
+    headlineY: 300, bodyY: 430,
+    headlineSize: 42, bodySize: 28, hookSize: 42,
     headlineWeight: 800, bodyWeight: 500,
-    maxHeadlineLines: 2, maxBodyLines: 7,
-    rankingScoreX: 100, rankingScoreY: 105, rankingScoreWidth: 880, rankingScoreSize: 94,
+    maxHeadlineLines: 2, maxBodyLines: 6,
+    rankingScoreX: 75, rankingScoreY: 105, rankingScoreWidth: 930, rankingScoreSize: 68,
     rankingKickerX: 100, rankingKickerY: 72, rankingKickerWidth: 880, rankingKickerSize: 18,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
