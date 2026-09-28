@@ -163,8 +163,12 @@ const splitPipe = (value: unknown) => String(value ?? "").split("|").map((x) => 
 
 export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
   if (backendConfigured()) {
-    const live = await loadRuntimeRows("personas", 100);
-    const parsed = live.map((row) => personaConfigSchema.safeParse({
+    const [live, metadata] = await Promise.all([
+      loadRuntimeRows("personas", 100),
+      loadEditorialRecordData("personas", 100),
+    ]);
+    const merged = mergeByKey(live, metadata, "persona_id");
+    const parsed = merged.map((row) => personaConfigSchema.safeParse({
       id: row.persona_id ?? row.id,
       name: row.name,
       age: Number(row.age),
@@ -183,6 +187,14 @@ export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
         voice: row.voice,
         cta_style: row.cta_style,
         medical_guardrails: splitPipe(row.medical_guardrails),
+      },
+      editorial: {
+        copy_persona_weight: String(row.copy_persona_weight ?? "MEDIUM"),
+        slang_level: Number(row.slang_level ?? 7),
+        punctuation_profile: String(row.punctuation_profile ?? "natural varied punctuation"),
+        voice_markers: String(row.voice_markers ?? "specific, conversational, friend-to-friend"),
+        allowed_invented_details: String(row.allowed_invented_details ?? "small plausible ephemeral lifestyle details"),
+        avoid_voice: String(row.avoid_voice ?? "corporate, coachy, medical claims"),
       },
     })).flatMap((result) => result.success ? [result.data] : []);
     if (parsed.length) return parsed;
