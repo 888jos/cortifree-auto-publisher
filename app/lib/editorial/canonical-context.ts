@@ -121,7 +121,7 @@ export async function resolveCanonicalEditorialContext(input: {
 
   const mode = input.brandIntegration?.mode ?? "EDITORIAL_ONLY";
   const brandRequired = input.brandIntegration?.required ?? mode !== "EDITORIAL_ONLY";
-  const screenshotRequired = input.brandIntegration?.screenshotRequired ?? mode === "APP_INTEGRATED" || mode === "PRODUCT_LED";
+  const screenshotRequired = input.brandIntegration?.screenshotRequired ?? (mode === "APP_INTEGRATED" || mode === "PRODUCT_LED");
 
   const context: EditorialContext = {
     search_query: `${primaryKeyword} ${secondaryKeywords[0] ?? "wellness routine"}`.trim(),
