@@ -23,9 +23,17 @@ export const recentCarouselSchema = z.object({
 export const editorialContextSchema = z.object({
   search_query: z.string(), primary_keyword: z.string(), secondary_keywords: z.array(z.string()),
   language_profile: z.string(), language_version: z.string(), trend_terms: z.array(z.string()), persona_voice: z.string(),
-  golden_example_ids: z.array(z.string()), concept_id: z.string().optional(), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
+  golden_example_ids: z.array(z.string()), concept_id: z.string().optional(), angle_family: z.string().optional(),
+  hook_family: z.string().optional(),
+  hook_references: z.array(z.object({
+    id: z.string(), text: z.string().min(1).max(180), human_status: z.string().optional(), version: z.string().optional(),
+  })).max(8).optional(),
+  topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
   account_id: z.string(), persona_id: z.string(),
-  brand_integration: z.object({ required: z.boolean(), mention: z.string(), screenshot_required: z.boolean() }),
+  brand_integration: z.object({
+    mode: z.enum(["EDITORIAL_ONLY", "SOFT_BRAND", "APP_INTEGRATED", "PRODUCT_LED"]).optional(),
+    required: z.boolean(), mention: z.string(), screenshot_required: z.boolean(),
+  }),
 });
 export const healthGuardrailsSchema = z.object({
   sources: z.array(z.object({
