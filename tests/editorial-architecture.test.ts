@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { FORMAT_CONTRACTS, formatContractFor } from "../app/lib/format-contracts.js";
 import { CAROUSEL_GENERATOR_INSTRUCTIONS } from "../app/lib/ai/prompts.js";
+import { hookNoveltyIssue } from "../app/lib/ai/carousel-generator.js";
 import { carouselSpecSchema } from "../app/lib/ai/schemas.js";
 import { validateCarouselSpec } from "../app/lib/ai/validation.js";
 import { appScreenBlockReason } from "../src/autonomy/preflight.js";
@@ -188,6 +189,46 @@ describe("Editorial P0 architecture", () => {
     });
     const issues = validateCarouselSpec(spec, { slideCount: 4, language: "en", layout: "interactive-checklist" });
     assert.ok(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS"));
+  });
+
+  it("blocks reference-seed copying and recent-hook paraphrases", () => {
+    const input = {
+      carouselType: "F01_LIFESTYLE_GUIDE",
+      layout: "lifestyle-3stack",
+      language: "en",
+      market: "US",
+      references: [],
+      recentCarousels: [{ id: "RECENT_1", topic: "routine", angle: "routine", hook: "my current little get it together habits" }],
+      requestedSlideCount: 6,
+      ctaMode: "none",
+      editorialContext: {
+        search_query: "routine",
+        primary_keyword: "routine",
+        secondary_keywords: [],
+        language_profile: "GENZ_GIRLY_US",
+        language_version: "genz-girly-us-v2",
+        trend_terms: [],
+        persona_voice: "casual",
+        golden_example_ids: [],
+        topic_id: "TOPIC_1",
+        hook_id: "HOOK_1",
+        format_id: "F01_LIFESTYLE_GUIDE",
+        account_id: "CF_EN_01",
+        persona_id: "P01",
+        hook_references: [{ id: "REF_01_01", text: "little things i've been doing lately to feel more put together..." }],
+        brand_integration: { mode: "EDITORIAL_ONLY", required: false, mention: "CortiFree", screenshot_required: false },
+      },
+    } as const;
+
+    assert.match(
+      String(hookNoveltyIssue(input as never, "little things i've been doing lately to feel more put together")),
+      /HOOK_TOO_SIMILAR_TO_REFERENCE/
+    );
+    assert.match(
+      String(hookNoveltyIssue(input as never, "my current little get it together habits")),
+      /HOOK_TOO_SIMILAR_TO_RECENT/
+    );
+    assert.equal(hookNoveltyIssue(input as never, "why my 8am coffee makes rushed mornings feel even messier"), null);
   });
 
   it("does not globally force CortiFree integration in the writer prompt", () => {
