@@ -118,9 +118,9 @@ function editorialAsymTextFrame(isCover, isFinal, typography) {
 function checklistTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 95, y: 690, width: 850, align: "center",
-      headlineY: 690, bodyY: 930,
-      headlineSize: 54, bodySize: 26, hookSize: 54,
+      x: 95, y: 650, width: 890, align: "center",
+      headlineY: 650, bodyY: 930,
+      headlineSize: 50, bodySize: 26, hookSize: 50,
       headlineWeight: 700, bodyWeight: 500,
       maxHeadlineLines: 4, maxBodyLines: 1,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
@@ -128,13 +128,13 @@ function checklistTextFrame(isCover, isFinal, typography) {
     };
   }
   return {
-    x: 165, y: 300, width: 750, align: "left",
-    headlineY: 300, bodyY: 410,
-    headlineSize: 34, bodySize: 29, hookSize: 34,
-    headlineWeight: 700, bodyWeight: 500,
-    maxHeadlineLines: 1, maxBodyLines: 12,
-    checklistPanelX: 115, checklistPanelY: 235, checklistPanelWidth: 850, checklistPanelHeight: 930,
-    checklistChoicesX: 165, checklistChoicesY: 405, checklistChoicesWidth: 750, checklistChoiceGap: 72,
+    x: 187, y: 330, width: 706, align: "left",
+    headlineY: 330, bodyY: 435,
+    headlineSize: 40, bodySize: 29, hookSize: 40,
+    headlineWeight: 700, bodyWeight: 400,
+    maxHeadlineLines: 1, maxBodyLines: 8,
+    checklistPanelX: 151, checklistPanelY: 205, checklistPanelWidth: 778, checklistPanelHeight: 940,
+    checklistChoicesX: 187, checklistChoicesY: 440, checklistChoicesWidth: 706, checklistChoiceGap: 72,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "TikTok Sans",
   };
@@ -200,10 +200,10 @@ function personaExplainerTextFrame(isCover, isFinal, typography) {
 function rankingTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 120, y: 120, width: 840, align: "center",
-      headlineY: 120, bodyY: 305,
-      headlineSize: 68, bodySize: 29, hookSize: 68,
-      headlineWeight: 800, bodyWeight: 500,
+      x: 90, y: 120, width: 900, align: "center",
+      headlineY: 120, bodyY: 285,
+      headlineSize: 62, bodySize: 36, hookSize: 62,
+      headlineWeight: 700, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 2,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
@@ -221,12 +221,12 @@ function rankingTextFrame(isCover, isFinal, typography) {
     };
   }
   return {
-    x: 100, y: 335, width: 880, align: "center",
-    headlineY: 335, bodyY: 505,
-    headlineSize: 42, bodySize: 27, hookSize: 42,
+    x: 75, y: 300, width: 930, align: "center",
+    headlineY: 300, bodyY: 430,
+    headlineSize: 42, bodySize: 28, hookSize: 42,
     headlineWeight: 800, bodyWeight: 500,
-    maxHeadlineLines: 2, maxBodyLines: 7,
-    rankingScoreX: 100, rankingScoreY: 105, rankingScoreWidth: 880, rankingScoreSize: 94,
+    maxHeadlineLines: 2, maxBodyLines: 6,
+    rankingScoreX: 75, rankingScoreY: 105, rankingScoreWidth: 930, rankingScoreSize: 68,
     rankingKickerX: 100, rankingKickerY: 72, rankingKickerWidth: 880, rankingKickerSize: 18,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
