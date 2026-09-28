@@ -38,6 +38,48 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.maxBodyLines, 2);
   });
 
+  it("keeps F05 as a compact Notes-style checklist with readable mobile type", () => {
+    const cover = getSlideGeometry(
+      { layout: "interactive-checklist", position: 1, role: "HOOK", headline: "i thought this was normal", body: "" },
+      true,
+      false,
+      {},
+    );
+    const body = getSlideGeometry(
+      { layout: "interactive-checklist", position: 2, role: "TIP", headline: "Morning", body: "sunlight | protein breakfast | 10 min walk" },
+      false,
+      false,
+      {},
+    );
+    assert.equal(cover.text.hookSize, 50);
+    assert.equal(body.text.headlineSize, 40);
+    assert.equal(body.text.bodySize, 29);
+    assert.equal(body.text.maxBodyLines, 8);
+    assert.equal(body.text.checklistPanelWidth, 778);
+    assert.equal(body.text.checklistPanelHeight, 940);
+  });
+
+  it("keeps F07 tier slides compact, bold and horizontally composed", () => {
+    const cover = getSlideGeometry(
+      { layout: "ranking", position: 1, role: "HOOK", headline: "sleep habits tier list", body: "backed by evidence" },
+      true,
+      false,
+      {},
+    );
+    const body = getSlideGeometry(
+      { layout: "ranking", position: 2, role: "TIP", headline: "S · CONSISTENT SLEEP", body: "Strong practical evidence." },
+      false,
+      false,
+      {},
+    );
+    assert.equal(cover.text.hookSize, 62);
+    assert.equal(cover.text.bodySize, 36);
+    assert.equal(body.text.rankingScoreSize, 68);
+    assert.equal(body.text.headlineSize, 42);
+    assert.equal(body.text.bodySize, 28);
+    assert.equal(body.text.width, 930);
+  });
+
   it("gives F06 its own persona explainer geometry instead of single-image fallback", () => {
     const geometry = getSlideGeometry(
       { layout: "persona-explainer", position: 2, role: "TIP", headline: "What I noticed", body: "Less rushing | Better evenings" },
