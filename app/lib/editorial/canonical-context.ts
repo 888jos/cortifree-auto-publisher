@@ -71,7 +71,7 @@ export async function resolveCanonicalEditorialContext(input: {
 
   const { topics, hooks, ctas } = editorial;
   const account = accounts.find((row) => row.id === input.accountId) as unknown as Row | undefined;
-  const persona = personas.find((row) => row.id === input.personaId) as unknown as Row | undefined;
+  const persona = personas.find((row) => row.id === input.personaId);
 
   if (!account) throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:account ${input.accountId}`);
   if (!persona) throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:persona ${input.personaId}`);
@@ -115,7 +115,7 @@ export async function resolveCanonicalEditorialContext(input: {
   const goldenExampleIds = input.references.map((reference) => reference.id).filter(Boolean);
   if (!goldenExampleIds.length) goldenExampleIds.push(`FORMAT_${input.formatId}`);
 
-  const personaVoice = personaEditorialVoice(persona as never);
+  const personaVoice = personaEditorialVoice(persona);
 
   const mode = input.brandIntegration?.mode ?? "EDITORIAL_ONLY";
   const brandRequired = input.brandIntegration?.required ?? mode !== "EDITORIAL_ONLY";
