@@ -534,12 +534,23 @@ function checklistChoices(slide: GeneratedSlide) {
     .split(/\s*(?:\||\n|;)\s*/)
     .map((item) => item.replace(/^[□☐○◯✓✔•\-–—]\s*/, "").trim())
     .filter(Boolean)
-    .slice(0, 12);
+    .slice(0, 8);
 }
 
 async function checklistPanel(width: number, height: number) {
   return Buffer.from(
-    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${width}" height="${height}" rx="30" ry="30" fill="#ffffff" fill-opacity="0.98"/></svg>`,
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="15" flood-color="#000000" flood-opacity="0.12"/></filter></defs>
+      <rect x="0" y="0" width="${width}" height="${height}" rx="28" ry="28" fill="#ffffff" filter="url(#shadow)"/>
+      <g fill="none" stroke="#F5A800" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M52 70 L38 84 L52 98"/>
+        <path d="M${width - 104} 72 L${width - 104} 96 M${width - 116} 84 L${width - 92} 84"/>
+        <circle cx="${width - 48}" cy="84" r="3" fill="#F5A800" stroke="none"/>
+        <circle cx="${width - 36}" cy="84" r="3" fill="#F5A800" stroke="none"/>
+        <circle cx="${width - 24}" cy="84" r="3" fill="#F5A800" stroke="none"/>
+      </g>
+      <text x="66" y="94" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="500" fill="#F5A800">Notes</text>
+    </svg>`,
   );
 }
 
@@ -550,8 +561,10 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
   const overlays: OverlayOptions[] = [];
 
   if (isHook) {
-    const hook = wrap(slide.headline, 32, frame.maxHeadlineLines ?? 4).join("\n");
-    const shadow = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 54, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
+    const rawHook = slide.headline.trim();
+    const hookText = /^["“”].*["“”]$/.test(rawHook) ? rawHook : `“${rawHook.replace(/^["“”]|["“”]$/g, "")}”`;
+    const hook = wrap(hookText, 30, frame.maxHeadlineLines ?? 4).join("\n");
+    const shadow = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 50, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
     const foreground = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 54, weight: 700, color: "#ffffff", align: "center", spacing: 1, fontFamily });
     overlays.push({ input: shadow, left: frame.x + 3, top: (frame.headlineY ?? frame.y) + 3 });
     overlays.push({ input: foreground, left: frame.x, top: frame.headlineY ?? frame.y });
@@ -560,7 +573,7 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
 
   const category = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 26, 1).join("\n");
   const categoryImage = await rasterText(category, {
-    width: frame.width, height: 58, size: frame.headlineSize ?? 34, weight: 700,
+    width: frame.width, height: 58, size: frame.headlineSize ?? 40, weight: 700,
     color: "#282828", align: "left", spacing: 0, fontFamily,
   });
   overlays.push({ input: categoryImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
@@ -569,16 +582,16 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
   const startX = frame.bodyX ?? frame.checklistChoicesX ?? 165;
   const startY = frame.bodyY ?? frame.checklistChoicesY ?? 405;
   const choiceWidth = frame.checklistChoicesWidth ?? 750;
-  const gap = choices.length >= 11 ? 63 : choices.length >= 9 ? 69 : 76;
-  const fontSize = choices.length >= 11 ? 25 : choices.length >= 9 ? 27 : 29;
+  const gap = choices.length >= 8 ? 68 : choices.length >= 7 ? 72 : 76;
+  const fontSize = 29;
   for (const [index, choice] of choices.entries()) {
     const circle = Buffer.from(
-      `<svg width="38" height="38" xmlns="http://www.w3.org/2000/svg"><circle cx="19" cy="19" r="14.5" fill="none" stroke="#c5c5c5" stroke-width="2.5"/></svg>`,
+      `<svg width="38" height="38" xmlns="http://www.w3.org/2000/svg"><circle cx="19" cy="19" r="14.5" fill="none" stroke="#c7c7cc" stroke-width="2.2"/></svg>`,
     );
     overlays.push({ input: circle, left: startX, top: startY + index * gap });
     const label = wrap(choice, 38, 1).join("\n");
     const labelImage = await rasterText(label, {
-      width: choiceWidth - 58, height: 48, size: fontSize, weight: 450,
+      width: choiceWidth - 58, height: 48, size: fontSize, weight: 400,
       color: "#3b3b3b", align: "left", spacing: 0, fontFamily,
     });
     overlays.push({ input: labelImage, left: startX + 56, top: startY + index * gap + 1 });
@@ -589,13 +602,13 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
 function rankingCopyParts(slide: GeneratedSlide) {
   const source = String(slide.headline ?? "").trim();
   const rating = source.match(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/i);
-  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*(SS\+|[SABCDF][+-]?)\b/i);
-  const prefixTier = source.match(/^(SS\+|[SABCDF][+-]?)\s*[·•|—–:\-]/i);
+  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*(SS|[SABCDF][+-]?)\b/i);
+  const prefixTier = source.match(/^(SS|[SABCDF][+-]?)\s*[·•|—–:\-]/i);
   const score = rating ? `${rating[1]}/10` : (explicitTier?.[1] ?? prefixTier?.[1] ?? "").toUpperCase();
   const item = source
     .replace(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/gi, "")
-    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*(?:SS\+|[SABCDF][+-]?)\b/gi, "")
-    .replace(/^(?:SS\+|[SABCDF][+-]?)\s*[·•|—–:\-]\s*/i, "")
+    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*(?:SS|[SABCDF][+-]?)\b/gi, "")
+    .replace(/^(?:SS|[SABCDF][+-]?)\s*[·•|—–:\-]\s*/i, "")
     .replace(/^[\s·•|—–:\-]+|[\s·•|—–:\-]+$/g, "")
     .trim();
   return { score, item: item || source };
@@ -648,7 +661,7 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   const { score, item } = rankingCopyParts(slide);
   const tierLabel = score ? `${score} TIER` : "TIER";
   const tierImage = await rasterText(tierLabel, {
-    width: frame.rankingScoreWidth ?? 880, height: 125, size: frame.rankingScoreSize ?? 94, weight: 800,
+    width: frame.rankingScoreWidth ?? 930, height: 100, size: frame.rankingScoreSize ?? 68, weight: 850,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
   });
   overlays.push({ input: tierImage, left: frame.rankingScoreX ?? 100, top: frame.rankingScoreY ?? 105 });
@@ -664,7 +677,7 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
     const reason = paragraphs.map((p) => wrap(p, 58, 3).join("\n")).join("\n\n");
     const reasonImage = await rasterText(reason, {
-      width: frame.width, height: 285, size: frame.bodySize ?? 27, weight: 500,
+      width: frame.width, height: 300, size: frame.bodySize ?? 28, weight: 500,
       color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });
     overlays.push({ input: reasonImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 505 });
@@ -1056,11 +1069,11 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
     const tier = rankingCopyParts(slide).score.toUpperCase();
     const tierWash: Record<string, string> = {
-      F: "#fff1f3", D: "#fff3ec", C: "#fff8df", B: "#eef8ef",
-      A: "#eef3ff", S: "#f5efff", "SS+": "#fff8e9",
+      F: "#FCE7E7", D: "#FDEBE5", C: "#FFF0E2", B: "#FFF8DD",
+      A: "#EDF4FF", S: "#EAF7EC", SS: "#F5EFFF",
     };
-    const wash = isHook || isFinal ? "#fffdf9" : (tierWash[tier] ?? "#fffdf9");
-    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><rect width="1080" height="1350" fill="${wash}"/></svg>`), left: 0, top: 0 });
+    const wash = isHook || isFinal ? "#ffffff" : (tierWash[tier] ?? "#ffffff");
+    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="g" cx="50%" cy="50%" r="72%"><stop offset="0%" stop-color="#ffffff"/><stop offset="72%" stop-color="#ffffff"/><stop offset="100%" stop-color="${wash}"/></radialGradient></defs><rect width="1080" height="1350" fill="url(#g)"/></svg>`), left: 0, top: 0 });
     if (isHook && matches.length >= 2) {
       const placements = [
         { left: 70, top: 650, width: 450, height: 420 },
@@ -1074,15 +1087,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
           : await roundedPhoto(imageBytes, place.width, place.height, 24);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
-    } else {
-      const imageBytes = await selectedAssetBytes(matches[0]!);
-      const basePlace = { left: 330, top: 900, width: 420, height: 300 };
-      const place = editorSlot(geometry, 0, basePlace);
-      const fitted = geometry.imageSlots?.[0]
-        ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
-        : await roundedPhoto(imageBytes, place.width, place.height, 24);
-      composites.push({ input: fitted, left: place.left, top: place.top });
     }
+    // Body and final tier slides are intentionally text-first. No decorative image by default.
     averageLuminance = 235;
   } else {
     const match = matches[0]!;
@@ -1252,8 +1258,40 @@ export async function renderCarousel(input: {
         })[0]!;
       });
       if (input.layout === "interactive-checklist") {
-        const shared = matches[0]!;
-        gridMatches = input.slides.map(() => [shared]);
+        const usedChecklistAssets = new Set<string>();
+        gridMatches = input.slides.map((slide, index) => {
+          const locked = lockedMatchesForSlide(slide, index)[0];
+          if (locked) {
+            usedChecklistAssets.add(String(locked.asset.id));
+            return [locked];
+          }
+          const category = generationCategory(slide);
+          const preferPersona = category === "self_care"
+            || category === "fitness"
+            || category === "outdoors"
+            || (category === "home" && index % 2 === 0);
+          const preferredSlide = { ...slide, assetType: preferPersona ? "persona" : "stock" };
+          let selected: AssetMatch;
+          try {
+            selected = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
+              slides: [preferredSlide],
+            })[0]!;
+          } catch {
+            selected = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
+              slides: [slide],
+            })[0]!;
+          }
+          usedChecklistAssets.add(String(selected.asset.id));
+          return [selected];
+        });
         break;
       }
       if (input.layout !== "grid-2x2" && !multiImageLayout) {
