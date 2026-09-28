@@ -46,12 +46,16 @@ export type EditorialContext = {
   persona_voice: string;
   golden_example_ids: string[];
   concept_id?: string;
+  angle_family?: string;
+  hook_family?: string;
+  hook_references?: Array<{ id: string; text: string; human_status?: string; version?: string }>;
   topic_id: string;
   hook_id: string;
   format_id: string;
   account_id: string;
   persona_id: string;
   brand_integration: {
+    mode?: "EDITORIAL_ONLY" | "SOFT_BRAND" | "APP_INTEGRATED" | "PRODUCT_LED";
     required: boolean;
     mention: string;
     screenshot_required: boolean;
