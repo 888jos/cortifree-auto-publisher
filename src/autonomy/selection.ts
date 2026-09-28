@@ -66,6 +66,9 @@ const includesToken = (value: unknown, token: string) => {
 };
 const daysSince = (iso?: string) => iso ? (Date.now() - Date.parse(iso)) / 86_400_000 : Number.POSITIVE_INFINITY;
 const hoursSince = (iso?: string) => iso ? (Date.now() - Date.parse(iso)) / 3_600_000 : Number.POSITIVE_INFINITY;
+function recentNetwork(history: SelectionHistory[], field: keyof SelectionHistory, value: string, hours: number) {
+  return history.some((row) => String(row[field] ?? "") === value && hoursSince(row.created_at) < hours);
+}
 
 function unit(seed: string) {
   const digest = crypto.createHash("sha256").update(seed).digest();
@@ -124,7 +127,7 @@ export function selectEditorial(input: {
   const {
     seed, accountId, personaId, pillarIds, formatIds, topics, hooks, ctas, history,
     accountTopicCooldownDays = 14, accountHookCooldownDays = 7,
-    networkTopicCooldownHours = 48,
+    networkTopicCooldownHours = 48, networkHookCooldownHours = 48,
     pillarWeights = {}, formatWeights = {}, learningWeights, strategy = "PROVEN",
   } = input;
 
@@ -133,7 +136,8 @@ export function selectEditorial(input: {
     pillarIds.includes(topic.pillar_id) &&
     includesToken(topic.eligible_personas, personaId) &&
     formatIds.some((format) => includesToken(topic.eligible_formats, format)) &&
-    !recentForAccount(history, accountId, "topic_id", topic.topic_id, Number(topic.cooldown_days ?? accountTopicCooldownDays))
+    !recentForAccount(history, accountId, "topic_id", topic.topic_id, Number(topic.cooldown_days ?? accountTopicCooldownDays)) &&
+    !recentNetwork(history, "topic_id", topic.topic_id, networkTopicCooldownHours)
   );
 
   const topic = weightedPick(
@@ -162,7 +166,8 @@ export function selectEditorial(input: {
     includesToken(hook.compatible_formats, formatId) &&
     (includesToken(hook.compatible_pillars, topic.pillar_id) || split(hook.compatible_pillars).includes("all")) &&
     includesToken(hook.persona_fit, personaId) &&
-    !recentForAccount(history, accountId, "hook_id", hook.hook_id, Number(hook.cooldown_days ?? accountHookCooldownDays))
+    !recentForAccount(history, accountId, "hook_id", hook.hook_id, Number(hook.cooldown_days ?? accountHookCooldownDays)) &&
+    !recentNetwork(history, "hook_id", hook.hook_id, networkHookCooldownHours)
   );
 
   const hook = weightedPick(
