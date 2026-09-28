@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { fillHook, selectEditorial } from '../src/autonomy/selection.js';
+import { selectEditorial } from '../src/autonomy/selection.js';
 import { isRetryableGenerationFailure, preferredHookForFormat } from '../src/autonomy/processor.js';
 import { personaIdFromFolder } from '../src/personas/identity.js';
 import { autonomyRuleValue } from '../src/runtime/config.js';
@@ -57,12 +57,6 @@ describe('autonomy selection', () => {
     assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:Too few concrete behaviors or details; Copy has no creator point of view'), true);
     assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:OPENAI_API_KEY is missing'), false);
     assert.equal(isRetryableGenerationFailure('Unknown database failure'), false);
-  });
-
-  it('fills every supported hook placeholder', () => {
-    const text = fillHook(hook.formula, topic, { time_period: '7-day', goal: 'calm mornings', routine: 'morning routine' });
-    assert.equal(text, 'My 7-day reset for calm mornings: morning routine');
-    assert.doesNotMatch(text, /\{[^}]+\}/);
   });
 
   it('selects a compatible canonical topic, hook, format and CTA', () => {

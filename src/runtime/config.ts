@@ -13,6 +13,36 @@ export async function loadRuntimeRows(table: string, limit = 5000): Promise<AnyR
   return await response.json() as AnyRow[];
 }
 
+async function loadEditorialRecordData(kind: string, limit = 5000): Promise<AnyRow[]> {
+  if (!backendConfigured()) return [];
+  const response = await dataBackend(
+    `editorial_records?kind=eq.${encodeURIComponent(kind)}&active=eq.true&select=data&limit=${limit}`,
+  );
+  if (!response.ok) return [];
+  const records = await response.json() as Array<{ data?: AnyRow }>;
+  return records.map((record) => record.data ?? {}).filter((row) => Object.keys(row).length > 0);
+}
+
+function mergeByKey(base: AnyRow[], metadata: AnyRow[], key: string) {
+  const metadataByKey = new Map(
+    metadata
+      .map((row) => [String(row[key] ?? "").trim(), row] as const)
+      .filter(([value]) => value.length > 0),
+  );
+  return base.map((row) => {
+    const id = String(row[key] ?? "").trim();
+    return id && metadataByKey.has(id) ? { ...row, ...metadataByKey.get(id)! } : row;
+  });
+}
+
+export async function loadRuntimeFormats(limit = 200): Promise<AnyRow[]> {
+  const [formats, metadata] = await Promise.all([
+    loadRuntimeRows("content_formats", limit),
+    loadEditorialRecordData("formats", limit),
+  ]);
+  return mergeByKey(formats, metadata, "format_id");
+}
+
 export function normalizeBackendDatetime(value: unknown): string | undefined {
   if (value === null || value === undefined || value === "") return undefined;
   const parsed = new Date(String(value));
@@ -87,20 +117,25 @@ export async function loadRuntimeAutonomyRules(limit = 200): Promise<AnyRow[]> {
 
 export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
   if (backendConfigured()) {
-    const [topics, hooks, ctas] = await Promise.all([
+    const [topics, hooks, ctas, topicMetadata, hookMetadata, ctaMetadata] = await Promise.all([
       loadRuntimeRows("content_topics"),
       loadRuntimeRows("content_hooks"),
       loadRuntimeRows("content_ctas"),
+      loadEditorialRecordData("topics"),
+      loadEditorialRecordData("hooks"),
+      loadEditorialRecordData("ctas"),
     ]);
     if (topics.length && hooks.length && ctas.length) {
-      // Autonomy rules are optional in Supabase's editorial mirror. Selection
-      // has safe defaults, so a missing optional table must not mask the real
-      // canonical-context/account readiness error.
+      // Extended Sheet fields live in editorial_records so the stable core
+      // tables do not need a schema migration for every editorial metadata key.
+      const mergedTopics = mergeByKey(topics, topicMetadata, "topic_id");
+      const mergedHooks = mergeByKey(hooks, hookMetadata, "hook_id");
+      const mergedCtas = mergeByKey(ctas, ctaMetadata, "cta_id");
       const autonomyRules = await loadRuntimeAutonomyRules(200);
       return {
-        topics: topics as unknown as EditorialTopic[],
-        hooks: hooks as unknown as EditorialHook[],
-        ctas: ctas as unknown as EditorialCta[],
+        topics: mergedTopics as unknown as EditorialTopic[],
+        hooks: mergedHooks as unknown as EditorialHook[],
+        ctas: mergedCtas as unknown as EditorialCta[],
         autonomyRules,
       };
     }
@@ -126,10 +161,27 @@ export function autonomyRuleValue(rules: AnyRow[], key: string, fallback: number
 
 const splitPipe = (value: unknown) => String(value ?? "").split("|").map((x) => x.trim()).filter(Boolean);
 
+export function personaEditorialVoice(persona: PersonaConfig) {
+  const editorial = persona.editorial;
+  return [
+    persona.content.voice,
+    editorial ? `persona weight: ${editorial.copy_persona_weight}` : "",
+    editorial ? `slang level: ${editorial.slang_level}/10` : "",
+    editorial ? `punctuation: ${editorial.punctuation_profile}` : "",
+    editorial ? `voice markers: ${editorial.voice_markers}` : "",
+    editorial ? `may invent only: ${editorial.allowed_invented_details}` : "",
+    editorial ? `avoid: ${editorial.avoid_voice}` : "",
+  ].filter(Boolean).join(" | ");
+}
+
 export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
   if (backendConfigured()) {
-    const live = await loadRuntimeRows("personas", 100);
-    const parsed = live.map((row) => personaConfigSchema.safeParse({
+    const [live, metadata] = await Promise.all([
+      loadRuntimeRows("personas", 100),
+      loadEditorialRecordData("personas", 100),
+    ]);
+    const merged = mergeByKey(live, metadata, "persona_id");
+    const parsed = merged.map((row) => personaConfigSchema.safeParse({
       id: row.persona_id ?? row.id,
       name: row.name,
       age: Number(row.age),
@@ -148,6 +200,14 @@ export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
         voice: row.voice,
         cta_style: row.cta_style,
         medical_guardrails: splitPipe(row.medical_guardrails),
+      },
+      editorial: {
+        copy_persona_weight: String(row.copy_persona_weight ?? "MEDIUM"),
+        slang_level: Number(row.slang_level ?? 7),
+        punctuation_profile: String(row.punctuation_profile ?? "natural varied punctuation"),
+        voice_markers: String(row.voice_markers ?? "specific, conversational, friend-to-friend"),
+        allowed_invented_details: String(row.allowed_invented_details ?? "small plausible ephemeral lifestyle details"),
+        avoid_voice: String(row.avoid_voice ?? "corporate, coachy, medical claims"),
       },
     })).flatMap((result) => result.success ? [result.data] : []);
     if (parsed.length) return parsed;

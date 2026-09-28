@@ -40,7 +40,86 @@ function pillar(row: Row): Row {
   };
 }
 
+function formatRow(row: Row): Row {
+  return {
+    format_id: row.format_id,
+    name: row.name,
+    objective: row.objective,
+    min_slides: Number(row.min_slides ?? 5),
+    max_slides: Number(row.max_slides ?? 8),
+    slide_structure: [row.hook_structure, row.body_structure].filter(Boolean).join(" || "),
+    hook_family: row.allowed_concepts ?? null,
+    cta_type: null,
+    image_strategy: row.image_strategy,
+    preferred_template_family: null,
+    eligible_pillars: null,
+    cooldown_days: Number(row.cooldown_days ?? 5),
+    weight: decimal(row.weight, 0),
+    active: bool(row.active, true),
+  };
+}
+
+function topicRow(row: Row): Row {
+  return {
+    topic_id: row.topic_id,
+    pillar_id: row.pillar_id,
+    topic: row.topic,
+    angle: row.angle,
+    target_problem: row.target_problem,
+    target_emotion: row.target_emotion,
+    eligible_formats: row.eligible_formats,
+    eligible_personas: row.eligible_personas,
+    season: row.season,
+    priority: row.priority,
+    weight: decimal(row.weight, 1),
+    cooldown_days: Number(row.cooldown_days ?? 14),
+    use_count: Number(row.use_count ?? 0),
+    last_used_at: row.last_used_at || null,
+    active: bool(row.active, true),
+  };
+}
+
+function hookVariables(formula: unknown) {
+  return Array.from(new Set(
+    Array.from(String(formula ?? "").matchAll(/\{([a-z_]+)\}/gi)).map((match) => match[1]!)
+  ));
+}
+
+function hookRow(row: Row): Row {
+  return {
+    hook_id: row.hook_id,
+    hook_family: row.hook_family,
+    formula: row.formula,
+    required_variables: hookVariables(row.formula),
+    optional_variables: [],
+    emotion: row.emotion,
+    intensity: row.intensity,
+    compatible_formats: row.compatible_formats,
+    compatible_pillars: row.compatible_pillars,
+    persona_fit: row.persona_fit,
+    weight: decimal(row.weight, 1),
+    cooldown_days: Number(row.cooldown_days ?? 7),
+    use_count: Number(row.use_count ?? 0),
+    last_used_at: row.last_used_at || null,
+    active: bool(row.active, true),
+  };
+}
+
+function ctaRow(row: Row): Row {
+  return {
+    cta_id: row.cta_id,
+    cta_family: row.cta_family,
+    text: row.text,
+    intent: row.intent,
+    compatible_formats: row.compatible_formats,
+    weight: decimal(row.weight, 1),
+    cooldown_days: Number(row.cooldown_days ?? 3),
+    active: bool(row.active, true),
+  };
+}
+
 function claimRule(row: Row): Row {
+  const runtimeReady = String(row.runtime_status ?? "READY").toUpperCase() === "READY";
   return {
     rule_id: row.rule_id,
     topic: row.topic,
@@ -51,7 +130,7 @@ function claimRule(row: Row): Row {
     example_safe: row.example_safe,
     requires_source: bool(row.requires_source),
     source_ids: split(row.source_ids),
-    active: bool(row.active, true),
+    active: bool(row.active, true) && runtimeReady,
   };
 }
 
@@ -80,8 +159,8 @@ function account(row: Row): Row {
     language: row.language || "en",
     market: row.market || "US",
     timezone: row.timezone || "America/New_York",
-    active: row.active,
-    enabled: row.active,
+    active: bool(row.active, true),
+    enabled: bool(row.active, true),
     weight: Number(row.weight ?? 1),
     status: row.status ?? row.warmup_status ?? "CREATED",
     warmup_status: row.warmup_status || "CREATED",
@@ -91,11 +170,11 @@ function account(row: Row): Row {
     secondary_pillar_ids: split(row.secondary_pillar_ids),
     pillar_mix: mix(row.pillar_mix),
     format_mix: mix(row.format_mix),
-    posting_enabled: row.posting_enabled,
+    posting_enabled: bool(row.posting_enabled),
     daily_target: Number(row.daily_target ?? 1),
     posts_per_day: Number(row.daily_target ?? 1),
     posting_slots: split(row.posting_slots),
-    promo_ratio: Number(row.promo_ratio ?? 0.08),
+    promo_ratio: decimal(row.promo_ratio, 0.08),
     ready_buffer_days: Number(row.ready_buffer_days ?? 3),
     workspace_id: row.workspace_id ?? "cortifree",
   };
@@ -105,7 +184,7 @@ function persona(row: Row): Row {
   return {
     persona_id: row.persona_id,
     name: row.name ?? row.display_name ?? row.display_name_candidate,
-    age: row.age,
+    age: Number(row.age),
     background: row.background,
     skin: row.skin,
     hair: row.hair,
@@ -122,46 +201,66 @@ function persona(row: Row): Row {
     voice: row.voice,
     cta_style: row.cta_style,
     medical_guardrails: row.medical_guardrails,
+    persona_drive_folder_id: row.persona_drive_folder_id,
+    config_drive_file_id: row.config_drive_file_id,
+    active: bool(row.active, true),
+    weight: decimal(row.weight, 1),
+    workspace_id: row.workspace_id ?? "cortifree",
   };
 }
 
 const mappings: Mapping[] = [
-  { sheet: "01_PERSONAS", range: "A1:X40", table: "content_personas", key: "persona_id", transform: persona },
-  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
-  { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
+  { sheet: "01_PERSONAS", range: "A1:AD40", table: "content_personas", key: "persona_id", transform: persona },
+  { sheet: "02_ACCOUNTS", range: "A1:AC40", table: "accounts", key: "account_id", transform: account },
+  { sheet: "03_FORMATS", range: "A1:P40", table: "content_formats", key: "format_id", transform: formatRow },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id", transform: pillar },
-  { sheet: "05_TOPICS_ANGLES", range: "A1:O1000", table: "content_topics", key: "topic_id" },
-  { sheet: "06_HOOKS", range: "A1:M500", table: "content_hooks", key: "hook_id" },
-  { sheet: "07_CTAS", range: "A1:H100", table: "content_ctas", key: "cta_id" },
-  { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id", transform: claimRule },
+  { sheet: "05_TOPICS_ANGLES", range: "A1:Q1000", table: "content_topics", key: "topic_id", transform: topicRow },
+  { sheet: "06_HOOKS", range: "A1:Q500", table: "content_hooks", key: "hook_id", transform: hookRow },
+  { sheet: "07_CTAS", range: "A1:J100", table: "content_ctas", key: "cta_id", transform: ctaRow },
+  { sheet: "09_CLAIMS_RULES", range: "A1:M100", table: "content_claim_rules", key: "rule_id", transform: claimRule },
   { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id", transform: healthSource },
-  ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id" }] : []),
+  ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET
+    ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id" }]
+    : []),
 ];
 
 async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
   const supabaseRuntime = backendMode() === "supabase";
-  const tableHasNoWorkspaceColumn = new Set(["accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs", "editorial_records"]).has(table);
-  let payload = rows.map((row) => {
+  const tableHasNoWorkspaceColumn = new Set([
+    "accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas",
+    "content_formats", "content_pillars", "content_claim_rules", "content_health_sources",
+    "content_template_specs", "editorial_records",
+  ]).has(table);
+
+  const payload = rows.map((row) => {
     const normalized = supabaseRuntime
       ? Object.fromEntries(Object.entries(row).map(([field, value]) => [field, value === "" ? null : value]))
       : row;
-    return { ...normalized, ...(supabaseRuntime && tableHasNoWorkspaceColumn ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
+    return {
+      ...normalized,
+      ...(supabaseRuntime && tableHasNoWorkspaceColumn
+        ? {}
+        : supabaseRuntime
+          ? { workspace_id: "cortifree" }
+          : { id: row.id ?? row[key], workspace_id: "cortifree" }),
+    };
   });
+
   const conflictKey = table === "accounts" ? "account_id" : (supabaseRuntime ? key : "id");
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const response = await dataBackend(`${table}?on_conflict=${conflictKey}`, {
-      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(payload),
-    });
-    if (response.ok) return payload.length;
-    const errorText = await response.text();
-    const missingColumn = errorText.match(/Could not find the '([^']+)' column/);
-    if (!missingColumn || !payload.some((row) => Object.prototype.hasOwnProperty.call(row, missingColumn[1]))) {
-      throw new Error(`Sheet sync failed for ${table}: ${errorText}`);
-    }
-    payload = payload.map((row) => { const copy: Row = { ...row }; delete copy[missingColumn[1]]; return copy; });
+  const response = await dataBackend(`${table}?on_conflict=${conflictKey}`, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(payload),
+  });
+  if (response.ok) return payload.length;
+
+  const errorText = await response.text();
+  const missingColumn = errorText.match(/Could not find the '([^']+)' column/);
+  if (missingColumn) {
+    throw new Error(`Sheet sync schema mismatch for ${table}: missing required column ${missingColumn[1]}. Refusing silent field deletion.`);
   }
-  throw new Error(`Sheet sync failed for ${table}: too many schema compatibility retries`);
+  throw new Error(`Sheet sync failed for ${table}: ${errorText}`);
 }
 
 function isoSheetDate(value: unknown) {
@@ -275,7 +374,7 @@ async function syncCanonicalCalendar() {
   return calendarRows.length;
 }
 
-export async function syncEditorialSheetToConvex() {
+export async function syncEditorialSheetToBackend() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
@@ -287,11 +386,22 @@ export async function syncEditorialSheetToConvex() {
   }
 
   const recordMirrors = [
+    { sheet: "01_PERSONAS", range: "A1:AD40", kind: "personas", key: "persona_id", title: "name" },
+    { sheet: "02_ACCOUNTS", range: "A1:AC40", kind: "accounts", key: "account_id", title: "account_id" },
+    { sheet: "03_FORMATS", range: "A1:P40", kind: "formats", key: "format_id", title: "name" },
     { sheet: "04_CONTENT_PILLARS", range: "A1:I40", kind: "pillars", key: "pillar_id", title: "name" },
-    { sheet: "09_CLAIMS_RULES", range: "A1:L100", kind: "claim_rules", key: "rule_id", title: "topic" },
+    { sheet: "05_TOPICS_ANGLES", range: "A1:Q1000", kind: "topics", key: "topic_id", title: "topic" },
+    { sheet: "06_HOOKS", range: "A1:Q500", kind: "hooks", key: "hook_id", title: "hook_family" },
+    { sheet: "07_CTAS", range: "A1:J100", kind: "ctas", key: "cta_id", title: "cta_family" },
+    { sheet: "09_CLAIMS_RULES", range: "A1:M100", kind: "claim_rules", key: "rule_id", title: "topic" },
     { sheet: "09_HEALTH_SOURCES", range: "A1:I100", kind: "health_sources", key: "source_id", title: "title" },
     { sheet: "12_AUTONOMY_RULES", range: "A1:G100", kind: "autonomy_rules", key: "rule_id", title: "key" },
-    { sheet: "13_TEMPLATE_SPECS", range: "A1:H100", kind: "template_specs", key: "format_id", title: "format_id" },
+    { sheet: "13_TEMPLATE_SPECS", range: "A1:P100", kind: "template_specs", key: "format_id", title: "format_id" },
+    { sheet: "16_PROFILE_PICTURES", range: "A1:M40", kind: "profile_pictures", key: "persona_id", title: "name" },
+    { sheet: "17_BRAND_INTEGRATIONS", range: "A1:N100", kind: "brand_integrations", key: "integration_id", title: "integration_type" },
+    { sheet: "18_CORTIFREE_COPY_BANK", range: "A1:K200", kind: "copy_bank", key: "copy_id", title: "scenario" },
+    { sheet: "19_APP_SCREEN_LIBRARY", range: "A1:K100", kind: "app_screens", key: "screen_id", title: "category" },
+    { sheet: "20_GOLDEN_CAROUSELS", range: "A1:V100", kind: "golden_carousels", key: "golden_id", title: "topic" },
   ];
   for (const mirror of recordMirrors) {
     counts[`editorial_${mirror.kind}`] = await syncSheetRecordKind(mirror);
@@ -336,3 +446,6 @@ export async function syncEditorialSheetToConvex() {
   if (!logResponse.ok) throw new Error(`Sync log write failed: ${await logResponse.text()}`);
   return log;
 }
+
+/** @deprecated Use syncEditorialSheetToBackend. */
+export const syncEditorialSheetToConvex = syncEditorialSheetToBackend;

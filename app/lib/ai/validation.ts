@@ -1,5 +1,6 @@
 import type { CarouselSpec } from "./schemas";
 import { scoreGenericity } from "./genericity";
+import { formatContractForLayout } from "../format-contracts";
 
 export type ValidationIssue = { code: string; message: string; slidePosition?: number; severity: "minor" | "major" };
 
@@ -18,6 +19,23 @@ const unsafeHealthRules = [
 
 function unsafeHealthReason(text: string) {
   return unsafeHealthRules.find((rule) => rule.pattern.test(text))?.reason ?? null;
+}
+
+const prohibitedAiPatterns = [
+  /\bi thought\b.{0,80}\bbut (?:actually|really)\b/i,
+  /\bi (?:didn['’]t|did not) need\b.{0,80}\bi needed\b/i,
+  /\bit['’]s not about\b.{0,80}\bit['’]s about\b/i,
+  /\bbecome (?:the )?best version of yourself\b/i,
+  /\btransform your life\b/i,
+  /\bwellness journey\b/i,
+] as const;
+
+function prohibitedAiPattern(text: string) {
+  return prohibitedAiPatterns.find((pattern) => pattern.test(text)) ?? null;
+}
+
+function hasPlaceholderLeak(text: string) {
+  return /\{\{?[^}]+\}\}?|\$\{[^}]+\}|\[(?:goal|topic|problem|routine|result|n|time_period)\]/i.test(text);
 }
 
 const layoutAliases: Record<string, string> = {
@@ -47,6 +65,7 @@ export class DeterministicValidationError extends Error {
 
 export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount: number; language: "en" | "fr"; layout: string }): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  const contract = formatContractForLayout(expected.layout);
   if (spec.slides.length !== expected.slideCount) issues.push({ code: "SLIDE_COUNT", message: `Expected ${expected.slideCount} slides`, severity: "major" });
   if (spec.language !== expected.language) issues.push({ code: "LANGUAGE", message: `Expected language ${expected.language}`, severity: "major" });
 
@@ -56,7 +75,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (canonicalLayout(slide.layout) !== canonicalLayout(expected.layout)) {
       issues.push({ code: "LAYOUT", message: `Slide must use ${expected.layout}`, slidePosition: slide.position, severity: "minor" });
     }
-    if (slide.headline.length > 72) issues.push({ code: "HEADLINE_LENGTH", message: "Headline is too long for mobile", slidePosition: slide.position, severity: "minor" });
+    if (slide.headline.length > (contract?.hook.maxChars ?? 90)) issues.push({ code: "HEADLINE_LENGTH", message: "Headline exceeds the selected format contract", slidePosition: slide.position, severity: "minor" });
     if (slide.body.length > 220) issues.push({ code: "BODY_LENGTH", message: "Body is too long for mobile", slidePosition: slide.position, severity: "minor" });
     if (expected.layout === "routine-timeline") {
       const role = slide.role.toUpperCase();
@@ -65,7 +84,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       const hasRangePrefix = new RegExp(`^(?:${time})\\s*(?:-|–|—|→)\\s*(?:${time})\\s*(?:[·•|:]|\\s)`, "i").test(slide.headline.trim());
       if (isRoutineStep && !hasRangePrefix) issues.push({ code: "ROUTINE_TIME_RANGE", message: "Routine step must start with a start-end time range", slidePosition: slide.position, severity: "minor" });
       if (isRoutineStep && slide.headline.length > 72) issues.push({ code: "ROUTINE_ACTION_LENGTH", message: "Routine time + action is too long for the compact photo overlay", slidePosition: slide.position, severity: "minor" });
-      if (isRoutineStep && slide.body.length > 90) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support copy must stay to a few short factual lines", slidePosition: slide.position, severity: "minor" });
+      if (isRoutineStep && slide.body.length > 110) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support copy must stay to a few short factual lines", slidePosition: slide.position, severity: "minor" });
       if (index === 0 && slide.body.length > 32) issues.push({ code: "ROUTINE_COVER_RANGE", message: "Routine cover body should contain only the overall time range", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "three-rect-educational") {
@@ -73,7 +92,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       const parts = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
       const allowedLabels = new Set(["BENEFITS", "HOW TO", "WHY IT HELPS", "WHAT TO USE", "MISTAKES"]);
       if (isCover) {
-        if (slide.headline.length > 72) issues.push({ code: "EDU_COVER_TITLE_LENGTH", message: "F04 cover title is too long for the centered title card", slidePosition: slide.position, severity: "minor" });
+        if (slide.headline.length > 80) issues.push({ code: "EDU_COVER_TITLE_LENGTH", message: "F04 cover title is too long for the centered title card", slidePosition: slide.position, severity: "minor" });
         if (slide.body.length > 24 || parts.length > 1) issues.push({ code: "EDU_COVER_COPY", message: "F04 cover must contain only a tiny decorative accent, never a bullet block", slidePosition: slide.position, severity: "minor" });
       } else {
         const label = parts[0] ?? "";
@@ -103,7 +122,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (expected.layout === "lifestyle-3stack") {
       const isCover = index === 0;
       if (isCover) {
-        if (slide.headline.trim().split(/\s+/).length > 9) issues.push({ code: "LIFESTYLE_COVER_LENGTH", message: "F01 cover hook must stay short and native-looking", slidePosition: slide.position, severity: "minor" });
+        if (slide.headline.trim().split(/\s+/).length > 14 || slide.headline.length > 90) issues.push({ code: "LIFESTYLE_COVER_LENGTH", message: "F01 cover hook must fit the 5-14 word / 90 char contract", slidePosition: slide.position, severity: "minor" });
         if (slide.body.length > 42) issues.push({ code: "LIFESTYLE_COVER_BODY", message: "F01 cover context must stay tiny", slidePosition: slide.position, severity: "minor" });
       } else {
         const words = slide.body.trim().split(/\s+/).filter(Boolean).length;
@@ -117,7 +136,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (expected.layout === "interactive-checklist") {
       const isNotesBody = index > 0;
       const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
-      if (isNotesBody && (choices.length < 5 || choices.length > 12)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body must contain 5-12 list items", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && choices.length !== 5) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body must contain exactly 5 list items", slidePosition: slide.position, severity: "minor" });
       if (isNotesBody && choices.some((choice) => choice.length > 34)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes list items must stay very short", slidePosition: slide.position, severity: "minor" });
       if (isNotesBody && (slide.headline.trim().split(/\s+/).length > 3 || slide.headline.length > 28)) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "F05 Notes category must be a short 1-3 word label", slidePosition: slide.position, severity: "minor" });
       if (isNotesBody && /\?|because|parce que|pourquoi/i.test(slide.body)) issues.push({ code: "CHECKLIST_EXPLAINER_COPY", message: "F05 Notes body should be a plain master list, not questions or explanations", slidePosition: slide.position, severity: "minor" });
@@ -126,16 +145,25 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
-    if (/placeholder|lorem ipsum|what to (show|say)|asset à choisir/i.test(normalized)) issues.push({ code: "PLACEHOLDER", message: "Placeholder copy detected", slidePosition: slide.position, severity: "major" });
+    if (/placeholder|lorem ipsum|what to (show|say)|asset à choisir/i.test(normalized) || hasPlaceholderLeak(`${slide.headline} ${slide.body}`)) {
+      issues.push({ code: "PLACEHOLDER", message: "Placeholder or planning token detected", slidePosition: slide.position, severity: "major" });
+    }
+    const aiPattern = prohibitedAiPattern(`${slide.headline} ${slide.body}`);
+    if (aiPattern) issues.push({ code: "PROHIBITED_AI_PATTERN", message: "Overused AI/copywriting pattern detected", slidePosition: slide.position, severity: "major" });
     const slideHealthReason = unsafeHealthReason(normalized);
     if (slideHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${slideHealthReason}`, slidePosition: slide.position, severity: "major" });
   });
 
   const allCopy = `${spec.title} ${spec.topic} ${spec.angle} ${spec.hook} ${spec.caption}`;
+  if (hasPlaceholderLeak(allCopy)) issues.push({ code: "PLACEHOLDER", message: "Placeholder or planning token detected in top-level copy", severity: "major" });
+  const topLevelAiPattern = prohibitedAiPattern(allCopy);
+  if (topLevelAiPattern) issues.push({ code: "PROHIBITED_AI_PATTERN", message: "Overused AI/copywriting pattern detected in top-level copy", severity: "major" });
   const topLevelHealthReason = unsafeHealthReason(allCopy);
   if (topLevelHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${topLevelHealthReason}`, severity: "major" });
   if (spec.slides[0]?.role !== "HOOK") issues.push({ code: "HOOK_ROLE", message: "First slide must be HOOK", slidePosition: 1, severity: "major" });
-  if (!new Set(["CTA", "TAKEAWAY"]).has(spec.slides.at(-1)?.role ?? "")) issues.push({ code: "FINAL_ROLE", message: "Final slide must be CTA or TAKEAWAY", severity: "minor" });
+  if (expected.layout !== "routine-timeline" && !new Set(["CTA", "TAKEAWAY"]).has(spec.slides.at(-1)?.role ?? "")) {
+    issues.push({ code: "FINAL_ROLE", message: "Final slide must be CTA or TAKEAWAY", severity: "minor" });
+  }
   const genericity = scoreGenericity(spec);
   if (genericity.score >= 3) issues.push({ code: "GENERICITY", message: genericity.issues.map((issue) => issue.message).join("; "), severity: "major" });
   return issues;

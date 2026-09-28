@@ -17,6 +17,7 @@ export type AssetPreflight = {
   personaAssets: number;
   reviewedStock: number;
   appScreens: number;
+  requiresAppScreen: boolean;
   reasons: string[];
 };
 
@@ -26,16 +27,24 @@ export function minimumPersonaAssets(formatId: string, slideCount: number) {
   return Math.min(4, Math.max(1, slideCount));
 }
 
+export function appScreenBlockReason(requiresAppScreen: boolean, appScreens: number) {
+  return requiresAppScreen && appScreens < 1 ? "APP_SCREEN:0/1" : null;
+}
+
 export async function checkGenerationAssetReadiness(input: {
   personaId: string;
   formatId: string;
   slideCount: number;
+  requiresAppScreen?: boolean;
 }): Promise<AssetPreflight> {
   const requiredPersonaAssets = minimumPersonaAssets(input.formatId, input.slideCount);
+  const requiresAppScreen = input.requiresAppScreen === true;
   const [persona, stock, appScreens] = await Promise.all([
     rows(`assets?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(input.personaId)}&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&select=id&limit=100`),
     rows("assets?workspace_id=eq.cortifree&source_type=eq.stock&enabled=eq.true&public_url=not.is.null&select=id,visual_tagging_schema,visual_review_status,visual_reviewed_at&limit=1000"),
-    rows("assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&enabled=eq.true&public_url=not.is.null&select=id&limit=100"),
+    requiresAppScreen
+      ? rows("assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&enabled=eq.true&public_url=not.is.null&select=id&limit=100")
+      : Promise.resolve([]),
   ]);
   const reviewedStock = stock.filter((row) => {
     const schema = String(row.visual_tagging_schema ?? "").toLowerCase();
@@ -47,7 +56,8 @@ export async function checkGenerationAssetReadiness(input: {
   const reasons: string[] = [];
   if (persona.length < requiredPersonaAssets) reasons.push(`PERSONA_CACHE:${persona.length}/${requiredPersonaAssets}`);
   if (reviewedStock < 12) reasons.push(`REVIEWED_STOCK:${reviewedStock}/12`);
-  if (appScreens.length < 1) reasons.push("APP_SCREEN:0/1");
+  const appScreenReason = appScreenBlockReason(requiresAppScreen, appScreens.length);
+  if (appScreenReason) reasons.push(appScreenReason);
   return {
     ready: reasons.length === 0,
     personaId: input.personaId,
@@ -56,6 +66,7 @@ export async function checkGenerationAssetReadiness(input: {
     personaAssets: persona.length,
     reviewedStock,
     appScreens: appScreens.length,
+    requiresAppScreen,
     reasons,
   };
 }

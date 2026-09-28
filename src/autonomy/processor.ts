@@ -5,7 +5,7 @@ import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carouse
 import { renderCarousel } from '../../app/lib/render-carousel';
 import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
-import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
+import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeFormats, loadRuntimePersonaConfigs, loadRuntimeRows, personaEditorialVoice } from '../runtime/config';
 import { assertCarouselHasCompleteRender } from '../../app/lib/human-review';
 import { loadHealthGuardrails } from './health-context';
 import { checkGenerationAssetReadiness, requestPreflightRefill } from './preflight';
@@ -28,6 +28,31 @@ function slideCountFor(contentType: string, formats: Row[]) {
   const row = formats.find((item) => String(item.format_id) === contentType);
   const min = Number(row?.min_slides ?? 6), max = Number(row?.max_slides ?? 7);
   return Math.max(4, Math.min(12, Math.round((min + max) / 2)));
+}
+
+function boolish(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', '1', 'yes'].includes(normalized)) return true;
+  if (['false', '0', 'no', ''].includes(normalized)) return false;
+  return fallback;
+}
+
+function hookReferencesFor(formatId: string, hooks: Array<Record<string, unknown>>) {
+  return hooks
+    .filter((hook) =>
+      hook.active !== false
+      && String(hook.runtime_use ?? '').toUpperCase() === 'STYLE_REFERENCE'
+      && String(hook.compatible_formats ?? '').split('|').map((item) => item.trim()).includes(formatId)
+      && String(hook.formula ?? '').trim().length > 0
+    )
+    .slice(0, 6)
+    .map((hook) => ({
+      id: String(hook.hook_id ?? ''),
+      text: String(hook.formula ?? '').trim(),
+      human_status: hook.human_status ? String(hook.human_status) : undefined,
+      version: hook.version === null || hook.version === undefined ? undefined : String(hook.version),
+    }));
 }
 export function generationConfigBlockReason() {
   const config = getAIConfig();
@@ -70,14 +95,16 @@ export async function processQueuedIdeas(
   limit = Math.max(1, Math.min(24, Number(process.env.AUTONOMY_MAX_DRAFTS_PER_RUN ?? 16))),
   options: { acceptanceBatchId?: string } = {},
 ) {
-  const [accounts, personas, formats, healthGuardrails] = await Promise.all([
+  const [accounts, personas, formats, editorial, healthGuardrails] = await Promise.all([
     loadRuntimeAccounts(),
     loadRuntimePersonaConfigs(),
-    loadRuntimeRows("content_formats", 100),
+    loadRuntimeFormats(100),
+    loadRuntimeEditorial(),
     loadHealthGuardrails(),
   ]);
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
   const personaNames = new Map(personas.map((persona) => [persona.id, persona.name]));
+  const personaVoices = new Map(personas.map((persona) => [persona.id, personaEditorialVoice(persona)]));
   const acceptanceFilter = options.acceptanceBatchId ? `&acceptance_batch_id=eq.${encodeURIComponent(options.acceptanceBatchId)}` : "";
   const ideas = (await rows(`carousel_ideas?workspace_id=eq.cortifree&status=eq.QUEUED${acceptanceFilter}&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
@@ -92,10 +119,12 @@ export async function processQueuedIdeas(
       continue;
     }
     const linkedSlotId = String(idea.slot_id ?? "").trim();
+    let linkedSlot: Row | undefined;
     if (linkedSlotId) {
       const slot = (await rows(
-        `content_slots?id=eq.${encodeURIComponent(linkedSlotId)}&workspace_id=eq.cortifree&select=id,status,scheduled_for&limit=1`,
+        `content_slots?id=eq.${encodeURIComponent(linkedSlotId)}&workspace_id=eq.cortifree&select=id,status,scheduled_for,metadata,format_id&limit=1`,
       ))[0];
+      linkedSlot = slot;
       const slotAt = Date.parse(String(slot?.scheduled_for ?? ""));
       if (slot && Number.isFinite(slotAt) && slotAt <= Date.now() && !idea.carousel_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
@@ -123,7 +152,31 @@ export async function processQueuedIdeas(
     }
 
     const contentType = String(idea.content_type);
+    const formatRow = formats.find((item) => String(item.format_id) === contentType);
+    if (!formatRow || formatRow.active === false || formatRow.generation_enabled === false) {
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        status: 'BLOCKED_FORMAT',
+        last_error: `FORMAT_DISABLED:${contentType}`,
+        finished_at: new Date().toISOString(),
+      });
+      await updateContentSlot(idea.slot_id, { status: 'BLOCKED_FORMAT' });
+      report.push({ id, status: 'BLOCKED_FORMAT', format_id: contentType });
+      continue;
+    }
     const layout = layoutFor(contentType);
+    const slotMetadata = linkedSlot?.metadata && typeof linkedSlot.metadata === 'object'
+      ? linkedSlot.metadata as Row
+      : {};
+    const brandRequired = boolish(idea.brand_required ?? slotMetadata.brand_required);
+    const screenshotRequired = boolish(idea.app_screen_required ?? slotMetadata.app_screen_required);
+    const integrationType = String(idea.integration_type ?? slotMetadata.integration_type ?? '').toUpperCase();
+    const topicDefinition = editorial.topics.find((topic) => topic.topic_id === String(idea.topic_id ?? ''));
+    const hookDefinition = editorial.hooks.find((hook) => hook.hook_id === String(idea.hook_id ?? ''));
+    const brandMode = !brandRequired
+      ? 'EDITORIAL_ONLY'
+      : screenshotRequired
+        ? (integrationType === 'PRODUCT_LED' ? 'PRODUCT_LED' : 'APP_INTEGRATED')
+        : 'SOFT_BRAND';
     const carouselId = `CF_AUTO_${id.replace(/^CF_IDEA_/i, '').replace(/[^A-Z0-9_]/gi, '').toUpperCase().slice(0, 72)}`;
     try {
       const existingCarousel = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&limit=1`))[0];
@@ -135,7 +188,12 @@ export async function processQueuedIdeas(
       }
 
       const requestedSlideCount = slideCountFor(contentType, formats);
-      const preflight = await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount });
+      const preflight = await checkGenerationAssetReadiness({
+        personaId,
+        formatId: contentType,
+        slideCount: requestedSlideCount,
+        requiresAppScreen: screenshotRequired,
+      });
       if (!preflight.ready) {
         const reason = `ASSET_PREFLIGHT:${preflight.reasons.join(',')}`;
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
@@ -163,9 +221,8 @@ export async function processQueuedIdeas(
         references: [],
         recentCarousels: await getRecentCarousels(10),
         requestedSlideCount,
-        // Pin only hooks that fit the canonical mobile cover. Routine and
-        // ranking formats must generate their own format-specific cover title.
-        preferredHook: preferredHookForFormat(contentType, idea.final_hook || idea.hook_formula),
+        // Autonomous V2 generation never pins final_hook/hook_formula copy.
+        // Those fields are legacy planning/provenance only; the writer creates the final hook.
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
         accountId,
@@ -177,10 +234,23 @@ export async function processQueuedIdeas(
         editorialContext: {
           search_query: `${String(idea.topic ?? '')} ${String(idea.angle ?? '')}`.trim(),
           primary_keyword: String(idea.topic ?? ''), secondary_keywords: [], language_profile: 'GENZ_GIRLY_US',
-          language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
-          golden_example_ids: [], concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
-          format_id: contentType, account_id: accountId, persona_id: personaId,
-          brand_integration: { required: true, mention: 'CortiFree', screenshot_required: true },
+          language_version: 'genz-girly-us-v2', trend_terms: [], persona_voice: String(personaVoices.get(personaId) ?? personaNames.get(personaId) ?? personaId),
+          golden_example_ids: [],
+          concept_id: idea.concept_id ? String(idea.concept_id) : undefined,
+          angle_family: topicDefinition?.angle_family ? String(topicDefinition.angle_family) : undefined,
+          hook_family: hookDefinition?.hook_family ? String(hookDefinition.hook_family) : undefined,
+          hook_references: hookReferencesFor(contentType, editorial.hooks as unknown as Array<Record<string, unknown>>),
+          topic_id: String(idea.topic_id || ''),
+          hook_id: String(idea.hook_id || ''),
+          format_id: contentType,
+          account_id: accountId,
+          persona_id: personaId,
+          brand_integration: {
+            mode: brandMode,
+            required: brandRequired,
+            mention: 'CortiFree',
+            screenshot_required: screenshotRequired,
+          },
         },
         requireCanonicalContext: true,
       });
@@ -217,7 +287,12 @@ export async function processQueuedIdeas(
       });
       if (assetBlocked) {
         await updateContentSlot(idea.slot_id, { status: 'NEEDS_ASSETS', carousel_id: carouselId });
-        await requestPreflightRefill(await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount })).catch(() => []);
+        await requestPreflightRefill(await checkGenerationAssetReadiness({
+          personaId,
+          formatId: contentType,
+          slideCount: requestedSlideCount,
+          requiresAppScreen: screenshotRequired,
+        })).catch(() => []);
       } else if (renderError) {
         await updateContentSlot(idea.slot_id, { status: 'DRAFT', carousel_id: carouselId });
       }
@@ -349,6 +424,7 @@ export async function resumeAssetBlockedIdeas(limit = 50) {
       personaId,
       formatId,
       slideCount: slideCountFor(formatId, formats),
+      requiresAppScreen: boolish(idea.app_screen_required),
     });
     if (!preflight.ready) {
       report.push({ id, status: 'NEEDS_ASSETS', reasons: preflight.reasons });

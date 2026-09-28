@@ -8,6 +8,14 @@ export const personaConfigSchema = z.object({
   physical: z.object({ skin: z.string(), hair: z.string(), eyes: z.string(), face: z.string(), build: z.string() }), situation: z.string(), visual_style: z.string(), signature_scene: z.string(),
   image_generation: z.object({ master_prompt: z.string(), identity_reference_prompt: z.string(), negative_prompt: z.string() }),
   content: z.object({ primary_topics: z.array(z.string()).min(1), voice: z.string(), cta_style: z.string(), medical_guardrails: z.array(z.string()).min(1) }),
+  editorial: z.object({
+    copy_persona_weight: z.string().default("MEDIUM"),
+    slang_level: z.number().min(0).max(10).default(7),
+    punctuation_profile: z.string().default("natural varied punctuation"),
+    voice_markers: z.string().default("specific, conversational, friend-to-friend"),
+    allowed_invented_details: z.string().default("small plausible ephemeral lifestyle details"),
+    avoid_voice: z.string().default("corporate, coachy, medical claims"),
+  }).optional(),
   archetype: z.object({ preferred_categories: z.array(z.string()).default([]), outfit_families: z.array(z.string()).default([]), environments: z.array(z.string()).default([]), scene_weights: z.record(z.string(), z.number().min(0).max(1)).default({}) }).optional()
 });
 export type PersonaConfig = z.infer<typeof personaConfigSchema>;
