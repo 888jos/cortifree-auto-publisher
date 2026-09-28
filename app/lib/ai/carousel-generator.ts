@@ -33,6 +33,44 @@ type CarouselStructuredRequest = (options: {
   maxOutputTokens?: number;
 }) => Promise<StructuredResult<CarouselSpec>>;
 
+function normalizedHookTokens(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[“”"'’‘….,!?♡()+\-–—/:;]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function hookSimilarity(a: string, b: string) {
+  const left = new Set(normalizedHookTokens(a));
+  const right = new Set(normalizedHookTokens(b));
+  if (!left.size || !right.size) return 0;
+  let intersection = 0;
+  for (const token of left) if (right.has(token)) intersection += 1;
+  const union = new Set([...left, ...right]).size;
+  return union ? intersection / union : 0;
+}
+
+export function hookNoveltyIssue(input: CarouselGeneratorInput, hook: string) {
+  const normalized = normalizedHookTokens(hook).join(" ");
+  const references = input.editorialContext?.hook_references ?? [];
+  for (const reference of references) {
+    const referenceNormalized = normalizedHookTokens(reference.text).join(" ");
+    if (normalized === referenceNormalized || hookSimilarity(hook, reference.text) >= 0.82) {
+      return `HOOK_TOO_SIMILAR_TO_REFERENCE:${reference.id}`;
+    }
+  }
+  for (const recent of input.recentCarousels) {
+    if (!recent.hook) continue;
+    const recentNormalized = normalizedHookTokens(recent.hook).join(" ");
+    if (normalized === recentNormalized || hookSimilarity(hook, recent.hook) >= 0.78) {
+      return `HOOK_TOO_SIMILAR_TO_RECENT:${recent.id}`;
+    }
+  }
+  return null;
+}
+
 function applyManualPreferredHook(spec: CarouselSpec, input: CarouselGeneratorInput): CarouselSpec {
   if (!input.preferredHook || input.requireCanonicalContext) return spec;
   return carouselSpecSchema.parse({
@@ -95,6 +133,8 @@ export async function generateCarousel(
         };
         const candidate = carouselSpecSchema.parse(result.data);
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+        const noveltyIssue = hookNoveltyIssue(input, candidate.hook);
+        if (noveltyIssue) throw new Error(noveltyIssue);
         spec = candidate;
         break;
       } catch (error) {
