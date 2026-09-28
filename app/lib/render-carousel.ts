@@ -1074,9 +1074,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
           : await roundedPhoto(imageBytes, place.width, place.height, 24);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
-    } else if (isFinal) {
-      // Tier body slides are intentionally text-first. No decorative image by default.
     }
+    // Body and final tier slides are intentionally text-first. No decorative image by default.
     averageLuminance = 235;
   } else {
     const match = matches[0]!;
