@@ -589,13 +589,13 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
 function rankingCopyParts(slide: GeneratedSlide) {
   const source = String(slide.headline ?? "").trim();
   const rating = source.match(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/i);
-  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*(SS\+|[SABCDF][+-]?)\b/i);
-  const prefixTier = source.match(/^(SS\+|[SABCDF][+-]?)\s*[·•|—–:\-]/i);
+  const explicitTier = source.match(/\b(?:tier|grade|rank)\s*[:\-]?\s*(SS|[SABCDF][+-]?)\b/i);
+  const prefixTier = source.match(/^(SS|[SABCDF][+-]?)\s*[·•|—–:\-]/i);
   const score = rating ? `${rating[1]}/10` : (explicitTier?.[1] ?? prefixTier?.[1] ?? "").toUpperCase();
   const item = source
     .replace(/\b(10(?:\.0)?|[0-9](?:\.\d)?)\s*\/\s*10\b/gi, "")
-    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*(?:SS\+|[SABCDF][+-]?)\b/gi, "")
-    .replace(/^(?:SS\+|[SABCDF][+-]?)\s*[·•|—–:\-]\s*/i, "")
+    .replace(/\b(?:tier|grade|rank)\s*[:\-]?\s*(?:SS|[SABCDF][+-]?)\b/gi, "")
+    .replace(/^(?:SS|[SABCDF][+-]?)\s*[·•|—–:\-]\s*/i, "")
     .replace(/^[\s·•|—–:\-]+|[\s·•|—–:\-]+$/g, "")
     .trim();
   return { score, item: item || source };
@@ -648,7 +648,7 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
   const { score, item } = rankingCopyParts(slide);
   const tierLabel = score ? `${score} TIER` : "TIER";
   const tierImage = await rasterText(tierLabel, {
-    width: frame.rankingScoreWidth ?? 880, height: 125, size: frame.rankingScoreSize ?? 94, weight: 800,
+    width: frame.rankingScoreWidth ?? 930, height: 100, size: frame.rankingScoreSize ?? 68, weight: 850,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
   });
   overlays.push({ input: tierImage, left: frame.rankingScoreX ?? 100, top: frame.rankingScoreY ?? 105 });
@@ -664,7 +664,7 @@ async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geometry): P
     const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
     const reason = paragraphs.map((p) => wrap(p, 58, 3).join("\n")).join("\n\n");
     const reasonImage = await rasterText(reason, {
-      width: frame.width, height: 285, size: frame.bodySize ?? 27, weight: 500,
+      width: frame.width, height: 300, size: frame.bodySize ?? 28, weight: 500,
       color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });
     overlays.push({ input: reasonImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 505 });
@@ -1056,11 +1056,11 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
     const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
     const tier = rankingCopyParts(slide).score.toUpperCase();
     const tierWash: Record<string, string> = {
-      F: "#fff1f3", D: "#fff3ec", C: "#fff8df", B: "#eef8ef",
-      A: "#eef3ff", S: "#f5efff", "SS+": "#fff8e9",
+      F: "#FCE7E7", D: "#FDEBE5", C: "#FFF0E2", B: "#FFF8DD",
+      A: "#EDF4FF", S: "#EAF7EC", SS: "#F5EFFF",
     };
-    const wash = isHook || isFinal ? "#fffdf9" : (tierWash[tier] ?? "#fffdf9");
-    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><rect width="1080" height="1350" fill="${wash}"/></svg>`), left: 0, top: 0 });
+    const wash = isHook || isFinal ? "#ffffff" : (tierWash[tier] ?? "#ffffff");
+    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="g" cx="50%" cy="50%" r="72%"><stop offset="0%" stop-color="#ffffff"/><stop offset="72%" stop-color="#ffffff"/><stop offset="100%" stop-color="${wash}"/></radialGradient></defs><rect width="1080" height="1350" fill="url(#g)"/></svg>`), left: 0, top: 0 });
     if (isHook && matches.length >= 2) {
       const placements = [
         { left: 70, top: 650, width: 450, height: 420 },
@@ -1074,14 +1074,8 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
           : await roundedPhoto(imageBytes, place.width, place.height, 24);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
-    } else {
-      const imageBytes = await selectedAssetBytes(matches[0]!);
-      const basePlace = { left: 330, top: 900, width: 420, height: 300 };
-      const place = editorSlot(geometry, 0, basePlace);
-      const fitted = geometry.imageSlots?.[0]
-        ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
-        : await roundedPhoto(imageBytes, place.width, place.height, 24);
-      composites.push({ input: fitted, left: place.left, top: place.top });
+    } else if (isFinal) {
+      // Tier body slides are intentionally text-first. No decorative image by default.
     }
     averageLuminance = 235;
   } else {
