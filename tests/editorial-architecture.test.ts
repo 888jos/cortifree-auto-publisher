@@ -100,7 +100,7 @@ describe("Editorial P0 architecture", () => {
         },
         {
           position: 2,
-          role: "TAKEAWAY",
+          role: "TIP",
           layout: "lifestyle-3stack",
           headline: "eat before coffee",
           body: "Greek yogurt + berries works for me on rushed mornings.",
@@ -108,9 +108,29 @@ describe("Editorial P0 architecture", () => {
           assetType: "stock",
           assetQuery: "breakfast yogurt berries",
         },
+        {
+          position: 3,
+          role: "TIP",
+          layout: "lifestyle-3stack",
+          headline: "phone stays away",
+          body: "I leave it charging while I get dressed so I don't lose twenty minutes scrolling.",
+          visualIntent: "Exactly three views of the same habit: top charging phone, middle getting dressed, bottom phone detail.",
+          assetType: "stock",
+          assetQuery: "phone charging morning routine",
+        },
+        {
+          position: 4,
+          role: "TAKEAWAY",
+          layout: "lifestyle-3stack",
+          headline: "keep it easy",
+          body: "If it takes a perfect morning to work, i'm probably not keeping it.",
+          visualIntent: "Exactly three views of the same behavior: top simple routine, middle candid morning, bottom everyday detail.",
+          assetType: "stock",
+          assetQuery: "simple realistic morning routine",
+        },
       ],
     });
-    const issues = validateCarouselSpec(spec, { slideCount: 2, language: "en", layout: "lifestyle-3stack" });
+    const issues = validateCarouselSpec(spec, { slideCount: 4, language: "en", layout: "lifestyle-3stack" });
     assert.equal(issues.some((issue) => issue.code === "LIFESTYLE_COVER_LENGTH"), false);
   });
 
@@ -136,7 +156,7 @@ describe("Editorial P0 architecture", () => {
         },
         {
           position: 2,
-          role: "TAKEAWAY",
+          role: "CHECKLIST",
           layout: "interactive-checklist",
           headline: "Protein",
           body: "eggs | yogurt | tofu | salmon | chicken | lentils",
@@ -144,9 +164,29 @@ describe("Editorial P0 architecture", () => {
           assetType: "stock",
           assetQuery: "same background",
         },
+        {
+          position: 3,
+          role: "CHECKLIST",
+          layout: "interactive-checklist",
+          headline: "Fruit",
+          body: "berries | kiwi | orange | banana | apple",
+          visualIntent: "Reuse the same background photo",
+          assetType: "stock",
+          assetQuery: "same background",
+        },
+        {
+          position: 4,
+          role: "TAKEAWAY",
+          layout: "interactive-checklist",
+          headline: "Extras",
+          body: "chia | cinnamon | nuts | honey | granola",
+          visualIntent: "Reuse the same background photo",
+          assetType: "stock",
+          assetQuery: "same background",
+        },
       ],
     });
-    const issues = validateCarouselSpec(spec, { slideCount: 2, language: "en", layout: "interactive-checklist" });
+    const issues = validateCarouselSpec(spec, { slideCount: 4, language: "en", layout: "interactive-checklist" });
     assert.ok(issues.some((issue) => issue.code === "CHECKLIST_OPTIONS"));
   });
 
