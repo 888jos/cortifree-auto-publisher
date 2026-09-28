@@ -118,10 +118,12 @@ export async function processQueuedIdeas(
       continue;
     }
     const linkedSlotId = String(idea.slot_id ?? "").trim();
+    let linkedSlot: Row | undefined;
     if (linkedSlotId) {
       const slot = (await rows(
-        `content_slots?id=eq.${encodeURIComponent(linkedSlotId)}&workspace_id=eq.cortifree&select=id,status,scheduled_for&limit=1`,
+        `content_slots?id=eq.${encodeURIComponent(linkedSlotId)}&workspace_id=eq.cortifree&select=id,status,scheduled_for,metadata,format_id&limit=1`,
       ))[0];
+      linkedSlot = slot;
       const slotAt = Date.parse(String(slot?.scheduled_for ?? ""));
       if (slot && Number.isFinite(slotAt) && slotAt <= Date.now() && !idea.carousel_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
@@ -161,9 +163,14 @@ export async function processQueuedIdeas(
       continue;
     }
     const layout = layoutFor(contentType);
-    const brandRequired = boolish(idea.brand_required);
-    const screenshotRequired = boolish(idea.app_screen_required);
-    const integrationType = String(idea.integration_type ?? '').toUpperCase();
+    const slotMetadata = linkedSlot?.metadata && typeof linkedSlot.metadata === 'object'
+      ? linkedSlot.metadata as Row
+      : {};
+    const brandRequired = boolish(idea.brand_required ?? slotMetadata.brand_required);
+    const screenshotRequired = boolish(idea.app_screen_required ?? slotMetadata.app_screen_required);
+    const integrationType = String(idea.integration_type ?? slotMetadata.integration_type ?? '').toUpperCase();
+    const topicDefinition = editorial.topics.find((topic) => topic.topic_id === String(idea.topic_id ?? ''));
+    const hookDefinition = editorial.hooks.find((hook) => hook.hook_id === String(idea.hook_id ?? ''));
     const brandMode = !brandRequired
       ? 'EDITORIAL_ONLY'
       : screenshotRequired
@@ -229,8 +236,8 @@ export async function processQueuedIdeas(
           language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
           golden_example_ids: [],
           concept_id: idea.concept_id ? String(idea.concept_id) : undefined,
-          angle_family: idea.angle_family ? String(idea.angle_family) : undefined,
-          hook_family: idea.hook_family ? String(idea.hook_family) : undefined,
+          angle_family: topicDefinition?.angle_family ? String(topicDefinition.angle_family) : undefined,
+          hook_family: hookDefinition?.hook_family ? String(hookDefinition.hook_family) : undefined,
           hook_references: hookReferencesFor(contentType, editorial.hooks as unknown as Array<Record<string, unknown>>),
           topic_id: String(idea.topic_id || ''),
           hook_id: String(idea.hook_id || ''),
