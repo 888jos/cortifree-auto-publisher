@@ -9,7 +9,7 @@ const topics: Record<CarouselGeneratorInput["carouselType"], { en: string; fr: s
   F05_INTERACTIVE_CHECKLIST: { en: "a quick self-check for your routine", fr: "un mini check de ta routine" },
   F06_PERSONA_EXPLAINER: { en: "what I noticed when I changed my routine", fr: "ce que j’ai remarqué en changeant ma routine" },
   F07_RANKING: { en: "ranking the habits I would actually keep", fr: "je classe les habitudes que je garderais vraiment" },
-  F08_2X2: { en: "what I stopped vs what I do now", fr: "ce que j’ai arrêté vs ce que je fais maintenant" },
+  F08_2X2: { en: "four low-stress habits worth keeping", fr: "quatre habitudes low-stress à garder" },
 };
 
 const enSteps = [
@@ -166,21 +166,21 @@ function createF01LifestyleFallback(input: CarouselGeneratorInput): CarouselSpec
 function createF05NotesFallback(input: CarouselGeneratorInput): CarouselSpec {
   const fr = input.language === "fr";
   const categories = fr ? [
-    ["Protéines", "œufs | poulet | saumon | sardines | tofu | tempeh | lentilles | yaourt grec"],
-    ["Lipides", "huile d’olive | avocat | noix | graines de chia | graines de courge | tahini | olives"],
-    ["Glucides", "pommes de terre | patate douce | riz | quinoa | sarrasin | avoine | pain au levain"],
-    ["Fruits", "myrtilles | mûres | kiwi | orange | citron | banane | pomme | grenade"],
-    ["Légumes", "salade | brocoli | épinards | champignons | aubergine | courgette | bok choy | carottes"],
-    ["Condiments", "kimchi | miso | gingembre | curcuma | basilic | menthe | persil | vinaigre de cidre"],
-    ["Boissons", "eau minérale | eau pétillante | thé vert | infusion | kéfir | kombucha"],
+    ["Protéines", "œufs | poulet | saumon | tofu | yaourt grec"],
+    ["Lipides", "huile d’olive | avocat | noix | graines de chia | tahini"],
+    ["Glucides", "pommes de terre | patate douce | riz | avoine | pain au levain"],
+    ["Fruits", "myrtilles | kiwi | orange | banane | pomme"],
+    ["Légumes", "salade | brocoli | champignons | courgette | carottes"],
+    ["Condiments", "kimchi | miso | gingembre | basilic | menthe"],
+    ["Boissons", "eau minérale | eau pétillante | thé vert | infusion | kéfir"],
   ] : [
-    ["Protein", "eggs | chicken | salmon | sardines | tofu | tempeh | lentils | greek yogurt"],
-    ["Fats", "olive oil | avocado | walnuts | chia seeds | pumpkin seeds | tahini | olives"],
-    ["Carbs", "potatoes | sweet potato | rice | quinoa | buckwheat | oats | sourdough"],
-    ["Fruit", "blueberries | blackberries | kiwi | orange | lemon | banana | apple | pomegranate"],
-    ["Vegetables", "leafy greens | broccoli | spinach | mushrooms | eggplant | zucchini | bok choy | carrots"],
-    ["Condiments", "kimchi | miso | ginger | turmeric | basil | mint | parsley | apple cider vinegar"],
-    ["Drinks", "mineral water | sparkling water | green tea | herbal tea | kefir | kombucha"],
+    ["Protein", "eggs | chicken | salmon | tofu | greek yogurt"],
+    ["Fats", "olive oil | avocado | walnuts | chia seeds | tahini"],
+    ["Carbs", "potatoes | sweet potato | rice | oats | sourdough"],
+    ["Fruit", "blueberries | kiwi | orange | banana | apple"],
+    ["Vegetables", "leafy greens | broccoli | mushrooms | zucchini | carrots"],
+    ["Condiments", "kimchi | miso | ginger | basil | mint"],
+    ["Drinks", "mineral water | sparkling water | green tea | herbal tea | kefir"],
   ];
   const hook = input.preferredHook ?? (fr ? "« je veux mieux manger mais je sais pas par où commencer… »" : "“I want to eat better but I don’t know where to start…”");
   const slides = Array.from({ length: input.requestedSlideCount }, (_, index) => {
