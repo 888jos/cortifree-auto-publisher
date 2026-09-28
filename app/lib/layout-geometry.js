@@ -117,9 +117,9 @@ function editorialAsymTextFrame(isCover, isFinal, typography) {
 function checklistTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 95, y: 690, width: 850, align: "center",
-      headlineY: 690, bodyY: 930,
-      headlineSize: 54, bodySize: 26, hookSize: 54,
+      x: 95, y: 650, width: 890, align: "center",
+      headlineY: 650, bodyY: 930,
+      headlineSize: 50, bodySize: 26, hookSize: 50,
       headlineWeight: 700, bodyWeight: 500,
       maxHeadlineLines: 4, maxBodyLines: 1,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
@@ -127,13 +127,13 @@ function checklistTextFrame(isCover, isFinal, typography) {
     };
   }
   return {
-    x: 165, y: 300, width: 750, align: "left",
-    headlineY: 300, bodyY: 410,
-    headlineSize: 34, bodySize: 29, hookSize: 34,
-    headlineWeight: 700, bodyWeight: 500,
-    maxHeadlineLines: 1, maxBodyLines: 12,
-    checklistPanelX: 115, checklistPanelY: 235, checklistPanelWidth: 850, checklistPanelHeight: 930,
-    checklistChoicesX: 165, checklistChoicesY: 405, checklistChoicesWidth: 750, checklistChoiceGap: 72,
+    x: 187, y: 330, width: 706, align: "left",
+    headlineY: 330, bodyY: 435,
+    headlineSize: 40, bodySize: 29, hookSize: 40,
+    headlineWeight: 700, bodyWeight: 400,
+    maxHeadlineLines: 1, maxBodyLines: 8,
+    checklistPanelX: 151, checklistPanelY: 205, checklistPanelWidth: 778, checklistPanelHeight: 940,
+    checklistChoicesX: 187, checklistChoicesY: 440, checklistChoicesWidth: 706, checklistChoiceGap: 72,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "TikTok Sans",
   };

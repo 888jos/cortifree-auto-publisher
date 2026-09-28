@@ -534,12 +534,27 @@ function checklistChoices(slide: GeneratedSlide) {
     .split(/\s*(?:\||\n|;)\s*/)
     .map((item) => item.replace(/^[□☐○◯✓✔•\-–—]\s*/, "").trim())
     .filter(Boolean)
-    .slice(0, 12);
+    .slice(0, 8);
 }
 
 async function checklistPanel(width: number, height: number) {
   return Buffer.from(
-    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${width}" height="${height}" rx="30" ry="30" fill="#ffffff" fill-opacity="0.98"/></svg>`,
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="8" stdDeviation="15" flood-color="#000000" flood-opacity="0.12"/>
+        </filter>
+      </defs>
+      <rect x="0" y="0" width="${width}" height="${height}" rx="28" ry="28" fill="#ffffff" filter="url(#shadow)"/>
+      <g fill="none" stroke="#F5A800" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M52 70 L38 84 L52 98"/>
+        <path d="M${width - 104} 72 L${width - 104} 96 M${width - 116} 84 L${width - 92} 84"/>
+        <circle cx="${width - 48}" cy="84" r="3" fill="#F5A800" stroke="none"/>
+        <circle cx="${width - 36}" cy="84" r="3" fill="#F5A800" stroke="none"/>
+        <circle cx="${width - 24}" cy="84" r="3" fill="#F5A800" stroke="none"/>
+      </g>
+      <text x="66" y="94" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="500" fill="#F5A800">Notes</text>
+    </svg>`,
   );
 }
 
@@ -550,8 +565,10 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
   const overlays: OverlayOptions[] = [];
 
   if (isHook) {
-    const hook = wrap(slide.headline, 32, frame.maxHeadlineLines ?? 4).join("\n");
-    const shadow = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 54, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
+    const rawHook = slide.headline.trim();
+    const hookText = /^["“”].*["“”]$/.test(rawHook) ? rawHook : `“${rawHook.replace(/^["“”]|["“”]$/g, "")}”`;
+    const hook = wrap(hookText, 30, frame.maxHeadlineLines ?? 4).join("\n");
+    const shadow = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 50, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
     const foreground = await rasterText(hook, { width: frame.width, height: 280, size: frame.hookSize ?? 54, weight: 700, color: "#ffffff", align: "center", spacing: 1, fontFamily });
     overlays.push({ input: shadow, left: frame.x + 3, top: (frame.headlineY ?? frame.y) + 3 });
     overlays.push({ input: foreground, left: frame.x, top: frame.headlineY ?? frame.y });
@@ -560,7 +577,7 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
 
   const category = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 26, 1).join("\n");
   const categoryImage = await rasterText(category, {
-    width: frame.width, height: 58, size: frame.headlineSize ?? 34, weight: 700,
+    width: frame.width, height: 58, size: frame.headlineSize ?? 40, weight: 700,
     color: "#282828", align: "left", spacing: 0, fontFamily,
   });
   overlays.push({ input: categoryImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
@@ -573,12 +590,12 @@ async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry):
   const fontSize = choices.length >= 11 ? 25 : choices.length >= 9 ? 27 : 29;
   for (const [index, choice] of choices.entries()) {
     const circle = Buffer.from(
-      `<svg width="38" height="38" xmlns="http://www.w3.org/2000/svg"><circle cx="19" cy="19" r="14.5" fill="none" stroke="#c5c5c5" stroke-width="2.5"/></svg>`,
+      `<svg width="38" height="38" xmlns="http://www.w3.org/2000/svg"><circle cx="19" cy="19" r="14.5" fill="none" stroke="#c7c7cc" stroke-width="2.2"/></svg>`,
     );
     overlays.push({ input: circle, left: startX, top: startY + index * gap });
     const label = wrap(choice, 38, 1).join("\n");
     const labelImage = await rasterText(label, {
-      width: choiceWidth - 58, height: 48, size: fontSize, weight: 450,
+      width: choiceWidth - 58, height: 48, size: fontSize, weight: 400,
       color: "#3b3b3b", align: "left", spacing: 0, fontFamily,
     });
     overlays.push({ input: labelImage, left: startX + 56, top: startY + index * gap + 1 });
@@ -1252,8 +1269,43 @@ export async function renderCarousel(input: {
         })[0]!;
       });
       if (input.layout === "interactive-checklist") {
-        const shared = matches[0]!;
-        gridMatches = input.slides.map(() => [shared]);
+        const usedChecklistAssets = new Set<string>();
+        gridMatches = input.slides.map((slide, index) => {
+          const locked = lockedMatchesForSlide(slide, index)[0];
+          if (locked) {
+            usedChecklistAssets.add(String(locked.asset.id));
+            return [locked];
+          }
+          const category = generationCategory(slide);
+          const preferPersona = category === "self_care"
+            || category === "fitness"
+            || category === "outdoors"
+            || (category === "home" && index % 2 === 0);
+          const preferredSlide = {
+            ...slide,
+            assetType: preferPersona ? "persona" : "stock",
+          };
+          let selected: AssetMatch;
+          try {
+            selected = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
+              slides: [preferredSlide],
+            })[0]!;
+          } catch {
+            selected = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
+              slides: [slide],
+            })[0]!;
+          }
+          usedChecklistAssets.add(String(selected.asset.id));
+          return [selected];
+        });
         break;
       }
       if (input.layout !== "grid-2x2" && !multiImageLayout) {
