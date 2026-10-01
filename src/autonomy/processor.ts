@@ -5,7 +5,7 @@ import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carouse
 import { renderCarousel } from '../../app/lib/render-carousel';
 import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
-import { loadRuntimeAccounts, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
+import { loadRuntimeAccounts, loadRuntimeGoldenExamples, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
 import { assertCarouselHasCompleteRender } from '../../app/lib/human-review';
 import { loadHealthGuardrails } from './health-context';
 import { checkGenerationAssetReadiness, requestPreflightRefill } from './preflight';
@@ -154,6 +154,7 @@ export async function processQueuedIdeas(
         finished_at: null,
         last_error: null,
       });
+      const goldenExamples = await loadRuntimeGoldenExamples(contentType, String(idea.pillar_id ?? ''), 3);
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
         layout,
@@ -163,22 +164,24 @@ export async function processQueuedIdeas(
         references: [],
         recentCarousels: await getRecentCarousels(10),
         requestedSlideCount,
-        // Pin only hooks that fit the canonical mobile cover. Routine and
-        // ranking formats must generate their own format-specific cover title.
-        preferredHook: preferredHookForFormat(contentType, idea.final_hook || idea.hook_formula),
+        // Autonomous V2 deliberately leaves the hook open. It is generated
+        // together with the concept/body from territory + golden creative memory.
+        preferredHook: undefined,
         ctaMode: ctaModeFromIdea(idea),
         bypassMonthlyCap: false,
         accountId,
         personaId,
         topicId: String(idea.topic_id || ''),
-        hookId: String(idea.hook_id || ''),
+        hookId: String(idea.hook_id || 'DYNAMIC'),
         formatId: contentType,
         healthGuardrails,
         editorialContext: {
           search_query: `${String(idea.topic ?? '')} ${String(idea.angle ?? '')}`.trim(),
           primary_keyword: String(idea.topic ?? ''), secondary_keywords: [], language_profile: 'GENZ_GIRLY_US',
           language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
-          golden_example_ids: [], concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || ''),
+          golden_example_ids: goldenExamples.map((example) => example.id),
+          golden_examples: goldenExamples,
+          concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || 'DYNAMIC'),
           format_id: contentType, account_id: accountId, persona_id: personaId,
           brand_integration: { required: true, mention: 'CortiFree', screenshot_required: true },
         },
@@ -186,6 +189,11 @@ export async function processQueuedIdeas(
       });
       const result = await generateCarousel(input, {}, { carouselId });
       if (result.source !== 'openai') throw new Error(result.warning ?? 'Autonomous generation requires a successful AI draft');
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        hook_id: 'DYNAMIC',
+        hook_formula: null,
+        final_hook: result.spec.hook,
+      });
       const saved = await saveGeneratedCarousel({ id: carouselId, input, result, accountId, personaId });
       await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
         pillar_id: idea.pillar_id ?? null, topic_id: idea.topic_id ?? null, hook_id: idea.hook_id ?? null,
