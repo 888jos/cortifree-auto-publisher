@@ -79,7 +79,8 @@ export async function runScheduler() {
     for (const [index, slot] of demand.entries()) {
       const slotId = String(slot.id);
       const slotStrategy = String(slot.strategy ?? strategy(index));
-      const preferredTopicId = String(slot.topic_id ?? '').trim();
+      const rawPreferredTopicId = String(slot.topic_id ?? '').trim();
+      const preferredTopicId = /^T_/.test(rawPreferredTopicId) ? rawPreferredTopicId : '';
       const preferredPillarId = String(slot.pillar_id ?? '').trim();
       let picked: ReturnType<typeof selectEditorial> | null = null;
       let selectedSeed = '';
