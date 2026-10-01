@@ -3,6 +3,7 @@ import { dataBackend } from "../data-backend";
 import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs } from "../../../src/runtime/config";
 import { selectEditorial, type SelectionHistory } from "../../../src/autonomy/selection";
 import type { EditorialContext } from "../ai/types";
+import { ACTIVE_FORMAT_IDS } from "../../../src/content/formats";
 
 type Row = Record<string, unknown>;
 
@@ -47,6 +48,9 @@ export async function resolveCanonicalEditorialContext(input: {
   preferredHook: string;
   editorialContext: EditorialContext;
 }> {
+  if (!(ACTIVE_FORMAT_IDS as readonly string[]).includes(input.formatId)) {
+    throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:format ${input.formatId} is legacy-only or inactive`);
+  }
   if (input.language !== "en" || input.market.toUpperCase() !== "US") {
     throw new Error("CANONICAL_CONTEXT_UNAVAILABLE:GENZ_GIRLY_US currently requires US English");
   }
