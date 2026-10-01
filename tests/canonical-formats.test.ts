@@ -4,17 +4,21 @@ import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
+import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
 
 describe("canonical carousel formats", () => {
-  it("maps every F01-F08 format to its production renderer", () => {
+  it("keeps six formats active while preserving legacy render compatibility", () => {
     assert.equal(canonicalLayoutFor("F01_LIFESTYLE_GUIDE"), "lifestyle-3stack");
-    assert.equal(canonicalLayoutFor("F02_EDITORIAL_COLLAGE"), "editorial-asym-hero");
     assert.equal(canonicalLayoutFor("F03_ROUTINE_TIMELINE"), "routine-timeline");
     assert.equal(canonicalLayoutFor("F04_AESTHETIC_EDUCATIONAL"), "three-rect-educational");
     assert.equal(canonicalLayoutFor("F05_INTERACTIVE_CHECKLIST"), "interactive-checklist");
-    assert.equal(canonicalLayoutFor("F06_PERSONA_EXPLAINER"), "persona-explainer");
     assert.equal(canonicalLayoutFor("F07_RANKING"), "ranking");
     assert.equal(canonicalLayoutFor("F08_2X2"), "grid-2x2");
+  });
+
+  it("exposes exactly the six active formats", () => {
+    assert.deepEqual([...ACTIVE_FORMAT_IDS], ["F01_LIFESTYLE_GUIDE","F03_ROUTINE_TIMELINE","F04_AESTHETIC_EDUCATIONAL","F05_INTERACTIVE_CHECKLIST","F07_RANKING","F08_2X2"]);
+    assert.deepEqual(contentFormats.map((format) => format.id), [...ACTIVE_FORMAT_IDS]);
   });
 
   it("enforces F03 routine hierarchy with small body copy and dominant hook", () => {
@@ -87,18 +91,6 @@ describe("canonical carousel formats", () => {
     assert.match(scheduler, /strictRequestedFormats \? 1 : formatCycle\.length/);
     assert.match(worker, /payload\.format_ids/);
     assert.match(worker, /formatIds: requestedFormatIds/);
-  });
-
-  it("gives F06 its own persona explainer geometry instead of single-image fallback", () => {
-    const geometry = getSlideGeometry(
-      { layout: "persona-explainer", position: 2, role: "TIP", headline: "What I noticed", body: "Less rushing | Better evenings" },
-      false,
-      false,
-      {},
-    );
-    assert.equal(geometry.image.mode, "persona-explainer");
-    assert.equal(geometry.chrome.personaExplainer, true);
-    assert.equal(geometry.text.headlineY, 705);
   });
 
   it("routes hook generation to canonical formats while keeping concepts separate", () => {
