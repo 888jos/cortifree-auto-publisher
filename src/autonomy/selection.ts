@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { learningMultiplier, type LearningWeights } from './learning';
 
+export const DYNAMIC_HOOK_ID = 'DYNAMIC';
+
 export type EditorialTopic = {
   topic_id: string; pillar_id: string; topic: string; angle: string; target_problem?: string | null;
   target_emotion?: string | null; eligible_formats: string; eligible_personas: string; weight?: number | null;
@@ -24,7 +26,6 @@ const includesToken = (value: unknown, token: string) => {
   return values.includes('all') || values.includes('ALL') || values.includes(token);
 };
 const daysSince = (iso?: string) => iso ? (Date.now() - Date.parse(iso)) / 86_400_000 : Number.POSITIVE_INFINITY;
-const hoursSince = (iso?: string) => iso ? (Date.now() - Date.parse(iso)) / 3_600_000 : Number.POSITIVE_INFINITY;
 
 function unit(seed: string) {
   const digest = crypto.createHash('sha256').update(seed).digest();
@@ -39,15 +40,16 @@ function weightedPick<T>(items: T[], getWeight: (item: T) => number, seed: strin
     cursor -= weights[i];
     if (cursor <= 0) return items[i];
   }
-  return items[items.length - 1];
+  return items[items.length - 1]!;
 }
 function recentForAccount(history: SelectionHistory[], accountId: string, field: keyof SelectionHistory, value: string, days: number) {
   return history.some((row) => row.account_id === accountId && String(row[field] ?? '') === value && daysSince(row.created_at) < days);
 }
-function recentNetwork(history: SelectionHistory[], field: keyof SelectionHistory, value: string, hours: number) {
-  return history.some((row) => String(row[field] ?? '') === value && hoursSince(row.created_at) < hours);
-}
 
+/**
+ * Legacy helper kept only so archived data/tests can still be interpreted.
+ * Production selection no longer interpolates hook formulas.
+ */
 export function fillHook(formula: string, topic: EditorialTopic, vars: Record<string, string> = {}) {
   const defaults: Record<string, string> = {
     topic: topic.topic,
@@ -61,6 +63,20 @@ export function fillHook(formula: string, topic: EditorialTopic, vars: Record<st
   const out = formula.replace(/\{([a-z_]+)\}/gi, (_, key: string) => defaults[key] ?? vars[key] ?? '');
   if (/\{[^}]+\}/.test(out)) throw new Error(`Unresolved hook placeholder: ${out}`);
   return out;
+}
+
+function dynamicHook(): EditorialHook {
+  return {
+    hook_id: DYNAMIC_HOOK_ID,
+    hook_family: 'dynamic',
+    formula: '',
+    compatible_formats: 'all',
+    compatible_pillars: 'all',
+    persona_fit: 'ALL',
+    weight: 1,
+    cooldown_days: 0,
+    active: true,
+  };
 }
 
 export function selectEditorial(input: {
@@ -83,18 +99,20 @@ export function selectEditorial(input: {
   strategy?: string;
 }) {
   const {
-    seed, accountId, personaId, pillarIds, formatIds, topics, hooks, ctas, history,
-    accountTopicCooldownDays = 14, accountHookCooldownDays = 7,
-    networkTopicCooldownHours = 48, networkHookCooldownHours = 48,
+    seed, accountId, personaId, pillarIds, formatIds, topics, ctas, history,
+    accountTopicCooldownDays = 7,
     pillarWeights = {}, formatWeights = {}, learningWeights, strategy = 'PROVEN',
   } = input;
+
+  // A territory is deliberately broad and may be used by different accounts on
+  // the same day. Diversity is enforced by per-account territory cooldowns,
+  // recent generated copy, and the model/QA layer, not a network-wide territory lock.
   const eligibleTopics = topics.filter((topic) =>
     topic.active !== false &&
     pillarIds.includes(topic.pillar_id) &&
     includesToken(topic.eligible_personas, personaId) &&
     formatIds.some((format) => includesToken(topic.eligible_formats, format)) &&
-    !recentForAccount(history, accountId, 'topic_id', topic.topic_id, Number(topic.cooldown_days ?? accountTopicCooldownDays)) &&
-    !recentNetwork(history, 'topic_id', topic.topic_id, networkTopicCooldownHours)
+    !recentForAccount(history, accountId, 'topic_id', topic.topic_id, Number(topic.cooldown_days ?? accountTopicCooldownDays))
   );
   const topic = weightedPick(
     eligibleTopics,
@@ -102,8 +120,9 @@ export function selectEditorial(input: {
       * Math.max(0.05, Number(pillarWeights[x.pillar_id] ?? 1))
       * learningMultiplier(learningWeights?.topic, x.topic_id, strategy)
       * learningMultiplier(learningWeights?.pillar, x.pillar_id, strategy),
-    `${seed}:topic`,
+    `${seed}:territory`,
   );
+
   const compatibleFormats = formatIds.filter((id) => includesToken(topic.eligible_formats, id));
   const formatId = compatibleFormats.length
     ? weightedPick(
@@ -115,25 +134,13 @@ export function selectEditorial(input: {
     : undefined;
   if (!formatId) throw new Error(`No compatible format for ${topic.topic_id}`);
 
-  const eligibleHooks = hooks.filter((hook) =>
-    hook.active !== false &&
-    includesToken(hook.compatible_formats, formatId) &&
-    (includesToken(hook.compatible_pillars, topic.pillar_id) || split(hook.compatible_pillars).includes('all')) &&
-    includesToken(hook.persona_fit, personaId) &&
-    !recentForAccount(history, accountId, 'hook_id', hook.hook_id, Number(hook.cooldown_days ?? accountHookCooldownDays))
-  );
-  const hook = weightedPick(
-    eligibleHooks,
-    (x) => Number(x.weight ?? 1) * learningMultiplier(learningWeights?.hook, x.hook_id, strategy),
-    `${seed}:hook`,
-  );
-  const finalHook = fillHook(hook.formula, topic);
-  if (recentNetwork(history, 'final_hook', finalHook, networkHookCooldownHours)) {
-    throw new Error(`Network hook cooldown collision: ${finalHook}`);
-  }
-
   const eligibleCtas = ctas.filter((cta) => cta.active !== false && includesToken(cta.compatible_formats, formatId));
-  const cta = weightedPick(eligibleCtas.length ? eligibleCtas : ctas.filter((x) => x.active !== false), (x) => Number(x.weight ?? 1), `${seed}:cta`);
-  const comboKey = crypto.createHash('sha1').update([topic.topic_id, hook.hook_id, formatId, cta.cta_id].join('|')).digest('hex').slice(0, 16);
-  return { topic, hook, finalHook, cta, formatId, comboKey };
+  const fallbackCtas = ctas.filter((cta) => cta.active !== false);
+  const cta = weightedPick(eligibleCtas.length ? eligibleCtas : fallbackCtas, (x) => Number(x.weight ?? 1), `${seed}:cta`);
+  const hook = dynamicHook();
+  const comboKey = crypto.createHash('sha1').update([topic.topic_id, formatId, cta.cta_id].join('|')).digest('hex').slice(0, 16);
+
+  // finalHook stays empty here on purpose. The generator creates it together
+  // with the concept/body so the hook is coherent instead of formula-filled.
+  return { topic, hook, finalHook: '', cta, formatId, comboKey };
 }
