@@ -111,14 +111,14 @@ export async function generateCarousel(
       // AI QA is advisory. Deterministic safety/structure checks above decide
       // whether a draft can proceed; editorial preferences belong in review.
       if (!qa.approved && !qa.correctedSpec) {
-        return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: `AI QA review required: ${qa.issues.map((issue) => issue.message).slice(0, 2).join("; ")}`, qa };
+        return { spec: pinPreferredHook(spec, input.carouselType === "F07_RANKING" ? undefined : input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: `AI QA review required: ${qa.issues.map((issue) => issue.message).slice(0, 2).join("; ")}`, qa };
       }
       if (qa.correctedSpec) {
         assertValidCarouselSpec(qa.correctedSpec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        return { spec: pinPreferredHook(qa.correctedSpec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+        return { spec: pinPreferredHook(qa.correctedSpec, input.carouselType === "F07_RANKING" ? undefined : input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
       }
     }
-    return { spec: pinPreferredHook(spec, input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+    return { spec: pinPreferredHook(spec, input.carouselType === "F07_RANKING" ? undefined : input.preferredHook), source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
   } catch (error) {
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
     if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError(error instanceof Error ? error.message : "OpenAI request failed");
