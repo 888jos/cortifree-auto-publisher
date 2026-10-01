@@ -123,10 +123,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (expected.layout === "interactive-checklist") {
       const isNotesBody = index > 0;
       const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
-      if (isNotesBody && (choices.length < 5 || choices.length > 12)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body must contain 5-12 list items", slidePosition: slide.position, severity: "minor" });
-      if (isNotesBody && choices.some((choice) => choice.length > 34)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes list items must stay very short", slidePosition: slide.position, severity: "minor" });
-      if (isNotesBody && (slide.headline.trim().split(/\s+/).length > 3 || slide.headline.length > 28)) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "F05 Notes category must be a short 1-3 word label", slidePosition: slide.position, severity: "minor" });
-      if (isNotesBody && /\?|because|parce que|pourquoi/i.test(slide.body)) issues.push({ code: "CHECKLIST_EXPLAINER_COPY", message: "F05 Notes body should be a plain master list, not questions or explanations", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && (choices.length < 4 || choices.length > 6)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body should contain roughly 4-6 useful list items", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && choices.some((choice) => choice.length > 96)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes item is too long for a readable two-line checklist row", slidePosition: slide.position, severity: "minor" });
+      const f05Headline = slide.headline.trim().replace(/[.!?]+$/, "");
+      const f05Words = f05Headline.split(/\s+/).filter(Boolean);
+      const f05BareCategories = new Set(["notifications","notification","check-in","checkin","focus","morning","mornings","breaks","break","apps","limits","app limits","phone parking","stress","sleep","routine","routines"]);
+      if (isNotesBody && f05Words.length <= 2 && f05BareCategories.has(f05Headline.toLowerCase())) issues.push({ code: "CHECKLIST_BARE_CATEGORY", message: "F05 Note title must express an action or complete takeaway, not a bare category label", slidePosition: slide.position, severity: "major" });
+      if (isNotesBody && slide.headline.length > 58) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "F05 Note title is too long for a clean sentence-case heading", slidePosition: slide.position, severity: "minor" });
       if (index === 0 && slide.body.length > 48) issues.push({ code: "CHECKLIST_COVER_BODY", message: "F05 cover should remain photo-first with almost no secondary copy", slidePosition: slide.position, severity: "minor" });
     }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
