@@ -118,7 +118,9 @@ export async function resolveCanonicalEditorialContext(input: {
     golden_example_ids: goldenExampleIds,
     topic_id: topic.topic_id, hook_id: hook.hook_id, format_id: input.formatId,
     account_id: input.accountId, persona_id: input.personaId,
-    brand_integration: input.formatId === "F07_RANKING"\n      ? { required: false, mention: "", screenshot_required: false }\n      : { required: true, mention: "CortiFree", screenshot_required: true },
+    brand_integration: input.formatId === "F07_RANKING"
+      ? { required: false, mention: "", screenshot_required: false }
+      : { required: true, mention: "CortiFree", screenshot_required: true },
   };
   return { topicId: topic.topic_id, hookId: hook.hook_id, formatId: input.formatId, personaId: input.personaId, accountId: input.accountId, preferredHook: canonicalHook, editorialContext: context };
 }
