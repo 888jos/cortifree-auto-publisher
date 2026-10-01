@@ -1,6 +1,6 @@
 import { hookLibrary } from "../hook-library.js";
 
-export type HookLayout = "lifestyle-3stack" | "editorial-asym-hero" | "routine-timeline" | "three-rect-educational" | "interactive-checklist" | "persona-explainer" | "ranking" | "grid-2x2";
+export type HookLayout = "lifestyle-3stack" | "routine-timeline" | "three-rect-educational" | "interactive-checklist" | "ranking" | "grid-2x2";
 export type HookGenerationPlan = {
   conceptType: string;
   formatId: string;
@@ -57,17 +57,15 @@ export function getHookGenerationPlan(hook: { category: string; text: string }):
   else if (/before|after|vs\.?|versus/.test(text) && !/morning after|night after/.test(text)) formatId = "F08_2X2";
   else if (category === "Morning & night" || /morning routine|night routine|day in my life|day-in-my-life/.test(text)) formatId = "F03_ROUTINE_TIMELINE";
   else if (category === "Weekly & seasonal reset" || /checklist|grocery|foods|things to eat|shopping list|save this list/.test(text)) formatId = "F05_INTERACTIVE_CHECKLIST";
-  else if (/pov|what i noticed|why i|signs|i stopped|i started|things i stopped|things i started/.test(text)) formatId = "F06_PERSONA_EXPLAINER";
+  else if (/pov|what i noticed|why i|signs|i stopped|i started|things i stopped|things i started/.test(text)) formatId = "F01_LIFESTYLE_GUIDE";
   else if (category === "Hormones & cortisol" || /cortisol|hormone|why this happens|explained|science/.test(text)) formatId = "F04_AESTHETIC_EDUCATIONAL";
-  else if (/editorial|guide|reset guide/.test(text)) formatId = "F02_EDITORIAL_COLLAGE";
+  else if (/editorial|guide|reset guide/.test(text)) formatId = "F01_LIFESTYLE_GUIDE";
 
   const layoutByFormat: Record<string, HookLayout> = {
     F01_LIFESTYLE_GUIDE: "lifestyle-3stack",
-    F02_EDITORIAL_COLLAGE: "editorial-asym-hero",
     F03_ROUTINE_TIMELINE: "routine-timeline",
     F04_AESTHETIC_EDUCATIONAL: "three-rect-educational",
     F05_INTERACTIVE_CHECKLIST: "interactive-checklist",
-    F06_PERSONA_EXPLAINER: "persona-explainer",
     F07_RANKING: "ranking",
     F08_2X2: "grid-2x2",
   };

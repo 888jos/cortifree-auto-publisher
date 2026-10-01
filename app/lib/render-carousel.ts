@@ -13,6 +13,7 @@ import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferen
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 import { downloadDriveFile } from "./google/drive";
 import { canonicalLayoutFor } from "./canonical-layout";
+import { typographyForCarousel } from "./carousel-typography";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -29,16 +30,6 @@ const FONT_FILES: Record<string, string> = {
   Archivo: "archivo",
   Urbanist: "urbanist",
 };
-const ROTATING_BODY_FONTS = Object.keys(FONT_FILES);
-function typographyForCarousel(carouselId: string) {
-  const hash = [...carouselId].reduce((sum, character) => ((sum * 31) + character.charCodeAt(0)) >>> 0, 7);
-  const bodyIndex = hash % ROTATING_BODY_FONTS.length;
-  const bodyFontFamily = ROTATING_BODY_FONTS[bodyIndex] ?? "TikTok Sans";
-  const hookFontFamily = bodyFontFamily === "Bricolage Grotesque"
-    ? "TikTok Sans"
-    : "Bricolage Grotesque";
-  return { hookFontFamily, bodyFontFamily, hookSize: 44, titleSize: 52, bodySize: 28, maxDistinctSizes: 3 };
-}
 function resolveFontPath(family = "TikTok Sans", weight = 500) {
   const slug = FONT_FILES[family] ?? FONT_FILES["TikTok Sans"];
   const exact = path.join(FONT_ROOT, `${slug}-${weight}.ttf`);

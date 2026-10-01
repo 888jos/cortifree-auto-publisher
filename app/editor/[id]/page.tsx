@@ -4,6 +4,7 @@ import { useEffect,useMemo,useRef,useState } from "react";
 import "./editor.css";
 import { canonicalLayoutFor } from "../../lib/canonical-layout";
 import { getSlideGeometry } from "../../lib/layout-geometry.js";
+import { typographyForCarousel } from "../../lib/carousel-typography";
 type Frame={x:number;y:number;width:number;height:number;cropX?:number;cropY?:number;zoom?:number;fit?:string};
 type Override={headline?:string;body?:string;assetIds?:Array<string|number>;text?:Record<string,any>;image?:Record<string,any>;imageSlots?:Frame[]};
 type Asset={id:string|number;public_url:string;filename:string;source_type?:string;persona_id?:string|null;category?:string;subcategory?:string;scene?:string;use_count?:number;last_used_at?:string|null;drive_file_id?:string|null;visual_description?:string;visible_objects?:unknown;visible_actions?:unknown;setting?:string;activity?:string;mood?:string;good_for?:unknown;tags?:unknown;metadata?:Record<string,unknown>|null};
@@ -16,11 +17,9 @@ type ClipboardItem={kind:"text";source:"headline"|"body";content:string;props:Re
 const FONTS=["TikTok Sans","Instrument Sans","Manrope","Inter Tight","DM Sans","Plus Jakarta Sans","Space Grotesk","Bricolage Grotesque","Archivo","Urbanist"];
 const FORMAT_MODELS=[
  {id:"F01_LIFESTYLE_GUIDE",name:"Lifestyle guide",description:"Conseils lifestyle en séquence visuelle",layout:"lifestyle-3stack"},
- {id:"F02_EDITORIAL_COLLAGE",name:"Editorial collage",description:"Composition éditoriale et asymétrique",layout:"editorial-asym-hero"},
  {id:"F03_ROUTINE_TIMELINE",name:"Routine timeline",description:"Routine claire, étape par étape",layout:"routine-timeline"},
  {id:"F04_AESTHETIC_EDUCATIONAL",name:"Aesthetic educational",description:"Pédagogie visuelle en trois blocs",layout:"three-rect-educational"},
  {id:"F05_INTERACTIVE_CHECKLIST",name:"Interactive checklist",description:"Checklist simple et actionnable",layout:"interactive-checklist"},
- {id:"F06_PERSONA_EXPLAINER",name:"Persona explainer",description:"Une personne, une idée forte",layout:"persona-explainer"},
  {id:"F07_RANKING",name:"Ranking",description:"Classement natif et très lisible",layout:"ranking"},
  {id:"F08_2X2",name:"2 × 2",description:"Comparaison en grille de quatre",layout:"grid-2x2"},
  {id:"scratch",name:"Scratch",description:"Canvas libre sans modèle imposé",layout:"scratch"},
@@ -53,7 +52,7 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
  const slide=slides[active]||{},gen=generated[active]||{},key=String(gen.position||slide.position||active+1),ov=overrides[key]||{},selectedTemplate=editorState.template_id||carousel?.content_type||carousel?.spec?.format_id||carousel?.spec?.carousel_type||"scratch",layout=selectedTemplate==="scratch"?"scratch":canonicalLayoutFor(selectedTemplate,carousel?.spec?.model_id||slide.template_id||"single-image"),isHook=active===0||String(gen.role||"").toUpperCase()==="HOOK";
  const isRoutineCtaFinal=layout==="routine-timeline"&&active===generated.length-1&&["CTA","TAKEAWAY"].includes(String(gen.role||"").toUpperCase());
  const isVisualFinal=active===generated.length-1&&(layout!=="routine-timeline"||isRoutineCtaFinal);
- const canonicalGeometry=getSlideGeometry({...gen,layout},isHook,isVisualFinal,{});
+ const canonicalGeometry=getSlideGeometry({...gen,layout},isHook,isVisualFinal,typographyForCarousel(id));
  const renderedFallback=renderedAt(active);
  const storedGeometry=slide.render_metadata?.geometry||renderedFallback?.geometry;
  const storedIsCanonical=storedGeometry&&String(slide.template_id||carousel?.spec?.model_id||carousel?.spec?.layout||layout)===layout;
