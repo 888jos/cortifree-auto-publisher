@@ -349,6 +349,21 @@ async function roundedPhoto(bytes: Buffer, width: number, height: number, radius
   return sharp(resized).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
 }
 
+function fitEducationalHeadline(value: string, width: number, preferredSize: number) {
+  const text = value.replace(/^\d+[.)]\s*/, "").trim();
+  const estimateCapacity = (size: number) => Math.max(8, Math.floor(width / (size * 0.56)));
+  for (let size = preferredSize; size >= 42; size -= 2) {
+    if (text.length <= estimateCapacity(size)) return { text, size, lines: 1 };
+  }
+  for (let size = Math.min(preferredSize, 54); size >= 40; size -= 2) {
+    const wrapped = wrap(text, estimateCapacity(size), 2);
+    if (wrapped.length <= 2 && !wrapped.some((line) => line.endsWith("…"))) {
+      return { text: wrapped.join("\n"), size, lines: wrapped.length };
+    }
+  }
+  return { text: wrap(text, estimateCapacity(40), 2).join("\n"), size: 40, lines: 2 };
+}
+
 async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
@@ -383,11 +398,11 @@ async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry:
     return overlays;
   }
 
-  const subject = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 18, 2).join("\n");
-  const subjectImage = await rasterText(subject, {
+  const fittedSubject = fitEducationalHeadline(slide.headline, frame.width, frame.headlineSize ?? 58);
+  const subjectImage = await rasterText(fittedSubject.text, {
     width: frame.width,
-    height: 150,
-    size: frame.headlineSize ?? 58,
+    height: fittedSubject.lines === 1 ? 90 : 150,
+    size: fittedSubject.size,
     weight: frame.headlineWeight ?? 800,
     color: frame.headlineColor ?? "#2b2725",
     align: "center",

@@ -78,7 +78,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       } else {
         const label = parts[0] ?? "";
         const bullets = parts.slice(1);
-        if (slide.headline.length > 28) issues.push({ code: "EDU_SUBJECT_LENGTH", message: "F04 subject title must stay short", slidePosition: slide.position, severity: "minor" });
+        if (slide.headline.length > 46) issues.push({ code: "EDU_SUBJECT_LENGTH", message: "F04 action headline is too long for a clean one- or two-line display", slidePosition: slide.position, severity: "minor" });
+        const f04Headline = slide.headline.trim().replace(/[.!?]+$/, "");
+        const f04Words = f04Headline.split(/\s+/).filter(Boolean);
+        const f04BareCategories = new Set(["notifications", "focus", "morning", "mornings", "meals", "meal", "stress", "sleep", "energy", "phone", "phones", "hydration", "movement", "breakfast", "routine", "routines"]);
+        if (f04Words.length === 1 && f04BareCategories.has(f04Headline.toLowerCase())) {
+          issues.push({ code: "EDU_BARE_CATEGORY", message: "F04 large headline must express an action or complete takeaway, not a bare category label", slidePosition: slide.position, severity: "major" });
+        }
         if (!allowedLabels.has(label.toUpperCase())) issues.push({ code: "EDU_SECTION_LABEL", message: "F04 body must start with one allowed educational section label", slidePosition: slide.position, severity: "minor" });
         if (bullets.length < 3 || bullets.length > 5) issues.push({ code: "EDU_BULLET_COUNT", message: "F04 body must contain 3-5 short bullets", slidePosition: slide.position, severity: "minor" });
         if (bullets.some((bullet) => bullet.length > 52)) issues.push({ code: "EDU_BULLET_LENGTH", message: "F04 bullets must stay short and saveable", slidePosition: slide.position, severity: "minor" });
