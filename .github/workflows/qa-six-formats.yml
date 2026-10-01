@@ -7,25 +7,25 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATA_BACKEND: supabase
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL_PRIMARY: ${{ vars.OPENAI_MODEL_PRIMARY || 'gpt-5.6-luna' }}
+      OPENAI_MODEL_QA: ${{ vars.OPENAI_MODEL_QA || 'gpt-5.6-terra' }}
+      IMAGE_GENERATION_ENABLED: "false"
+      ALLOW_RUNTIME_JSON_FALLBACK: "false"
+      DRY_RUN: "true"
+      AUTONOMY_AUTO_APPROVE: "false"
+      AUTONOMY_AUTO_PUBLISH: "false"
     steps:
-      - name: Generate one carousel per active format
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="https://cortifree-auto-publisher.vercel.app/api/ai/carousel/generate"
-          generate () {
-            FORMAT="$1"; LAYOUT="$2"; SLIDES="$3"; PERSONA="$4"; ACCOUNT="$5"
-            ID="CF_QA_${FORMAT%%_*}_$(date +%s%N | cut -b1-13)"
-            echo "=== $FORMAT / $ID ==="
-            PAYLOAD=$(jq -nc --arg type "$FORMAT" --arg layout "$LAYOUT" --arg id "$ID" --arg persona "$PERSONA" --arg account "$ACCOUNT" --argjson slides "$SLIDES" '{id:$id,carouselType:$type,layout:$layout,persona:$persona,language:"en",market:"US",references:[],recentCarousels:[],requestedSlideCount:$slides,ctaMode:"none",accountId:$account,personaId:"P01",requireAI:true}')
-            curl --fail-with-body -sS -X POST "$BASE" -H "content-type: application/json" --data "$PAYLOAD" | tee "/tmp/$FORMAT.json"
-            echo
-          }
-          generate F01_LIFESTYLE_GUIDE lifestyle-3stack 7 Emma CF_EN_01
-          generate F03_ROUTINE_TIMELINE routine-timeline 7 Emma CF_EN_01
-          generate F04_AESTHETIC_EDUCATIONAL three-rect-educational 7 Emma CF_EN_01
-          generate F05_INTERACTIVE_CHECKLIST interactive-checklist 7 Emma CF_EN_01
-          generate F07_RANKING ranking 7 Emma CF_EN_01
-          generate F08_2X2 grid-2x2 7 Emma CF_EN_01
-
-# trigger
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate one real draft per active format
+        run: npx tsx scripts/qa-six-formats.ts
