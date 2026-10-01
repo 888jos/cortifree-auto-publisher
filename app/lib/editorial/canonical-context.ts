@@ -49,7 +49,7 @@ export async function resolveCanonicalEditorialContext(input: {
   preferredHook: string;
   editorialContext: EditorialContext;
 }> {
-  if (!(ACTIVE_FORMAT_IDS as readonly string[]).includes(input.formatId)) {
+  if (!ACTIVE_FORMAT_IDS.some((formatId) => formatId === input.formatId)) {
     throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:format ${input.formatId} is legacy-only or inactive`);
   }
   if (!(ACTIVE_FORMAT_IDS as readonly string[]).includes(input.formatId)) {\n    throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:format ${input.formatId} is legacy-only or inactive`);\n  }\n  if (input.language !== "en" || input.market.toUpperCase() !== "US") {
