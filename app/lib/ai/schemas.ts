@@ -23,7 +23,12 @@ export const recentCarouselSchema = z.object({
 export const editorialContextSchema = z.object({
   search_query: z.string(), primary_keyword: z.string(), secondary_keywords: z.array(z.string()),
   language_profile: z.string(), language_version: z.string(), trend_terms: z.array(z.string()), persona_voice: z.string(),
-  golden_example_ids: z.array(z.string()), concept_id: z.string().optional(), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
+  golden_example_ids: z.array(z.string()),
+  golden_examples: z.array(z.object({
+    id: z.string(), formatId: z.string(), pillarId: z.string(), topic: z.string(), hook: z.string(),
+    slides: z.array(z.string()).max(12), toneNotes: z.string(), whyItWorks: z.string(), visualDirection: z.string(),
+  })).max(3).optional(),
+  concept_id: z.string().optional(), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
   account_id: z.string(), persona_id: z.string(),
   brand_integration: z.object({ required: z.boolean(), mention: z.string(), screenshot_required: z.boolean() }),
 });
