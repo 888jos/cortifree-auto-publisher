@@ -99,7 +99,6 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       const wordCount = slide.body.trim().split(/\s+/).filter(Boolean).length;
       if (isBodyRankingSlide && wordCount > 45) issues.push({ code: "RANKING_BODY_LENGTH", message: "F07 explanation should be one or two plain-English sentences", slidePosition: slide.position, severity: "minor" });
       if (isBodyRankingSlide && /\d+(?:\.\d+)?\s*\/\s*10/.test(slide.headline)) issues.push({ code: "RANKING_NUMERIC_SCORE", message: "F07 uses tier labels, not X/10 scores", slidePosition: slide.position, severity: "minor" });
-      if (isBodyRankingSlide && slide.decorativeAccent) issues.push({ code: "RANKING_DECORATION", message: "F07 tier slides must not contain decorative accents", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "lifestyle-3stack") {
       const isCover = index === 0;
