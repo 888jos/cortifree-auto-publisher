@@ -4,7 +4,6 @@ import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs } 
 import { selectEditorial, type SelectionHistory } from "../../../src/autonomy/selection";
 import type { EditorialContext } from "../ai/types";
 import { ACTIVE_FORMAT_IDS } from "../../../src/content/formats";
-import { ACTIVE_FORMAT_IDS } from "../../../src/content/formats";
 
 type Row = Record<string, unknown>;
 
