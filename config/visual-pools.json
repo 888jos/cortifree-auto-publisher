@@ -1,0 +1,82 @@
+{
+  "version": "2026-10-01-stabilization-v1",
+  "policy": {
+    "accounts": 16,
+    "visual_pools": 8,
+    "automatic_asset_status": [
+      "GOOD"
+    ],
+    "review_status": "manual_only",
+    "quarantine_status": "never_select",
+    "recycle_assets": true,
+    "physical_copy_assets": false,
+    "canonical_key": "drive_file_id"
+  },
+  "pools": [
+    {
+      "id": "VP01_AVA",
+      "personas": [
+        "AVA"
+      ],
+      "primary": "AVA"
+    },
+    {
+      "id": "VP02_JADE",
+      "personas": [
+        "JADE"
+      ],
+      "primary": "JADE"
+    },
+    {
+      "id": "VP03_HANA",
+      "personas": [
+        "HANA"
+      ],
+      "primary": "HANA"
+    },
+    {
+      "id": "VP04_ZOEY_LILY",
+      "personas": [
+        "ZOEY",
+        "LILY"
+      ],
+      "primary": "ZOEY"
+    },
+    {
+      "id": "VP05_CHLOE_MAYA",
+      "personas": [
+        "CHLOE",
+        "MAYA"
+      ],
+      "primary": "CHLOE"
+    },
+    {
+      "id": "VP06_GRACE_OLIVIA",
+      "personas": [
+        "GRACE",
+        "OLIVIA"
+      ],
+      "primary": "GRACE"
+    },
+    {
+      "id": "VP07_NORA_EMMA",
+      "personas": [
+        "NORA",
+        "EMMA"
+      ],
+      "primary": "EMMA"
+    },
+    {
+      "id": "VP08_DARK_BRUNETTE",
+      "personas": [
+        "CAMILA",
+        "ELIANA",
+        "ISABELA",
+        "SOFIA",
+        "MIA"
+      ],
+      "primary": "CAMILA",
+      "notes": "Shared lifestyle pool only. Keep identity-sensitive close portraits tied to source persona until enough validated shared assets exist."
+    }
+  ]
+}
