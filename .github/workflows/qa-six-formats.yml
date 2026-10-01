@@ -27,3 +27,5 @@ jobs:
           generate F05_INTERACTIVE_CHECKLIST interactive-checklist 7 Emma CF_EN_01
           generate F07_RANKING ranking 7 Emma CF_EN_01
           generate F08_2X2 grid-2x2 7 Emma CF_EN_01
+
+# trigger
