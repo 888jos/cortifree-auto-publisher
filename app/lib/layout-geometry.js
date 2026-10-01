@@ -130,9 +130,9 @@ function checklistTextFrame(isCover, isFinal, typography) {
   return {
     x: 187, y: 330, width: 706, align: "left",
     headlineY: 330, bodyY: 435,
-    headlineSize: 40, bodySize: 29, hookSize: 40,
+    headlineSize: 38, bodySize: 23, hookSize: 50,
     headlineWeight: 700, bodyWeight: 400,
-    maxHeadlineLines: 1, maxBodyLines: 8,
+    maxHeadlineLines: 2, maxBodyLines: 6,
     checklistPanelX: 151, checklistPanelY: 205, checklistPanelWidth: 778, checklistPanelHeight: 940,
     checklistChoicesX: 187, checklistChoicesY: 440, checklistChoicesWidth: 706, checklistChoiceGap: 72,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",

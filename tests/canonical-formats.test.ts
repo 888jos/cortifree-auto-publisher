@@ -50,15 +50,15 @@ describe("canonical carousel formats", () => {
       {},
     );
     const body = getSlideGeometry(
-      { layout: "interactive-checklist", position: 2, role: "TIP", headline: "Morning", body: "sunlight | protein breakfast | 10 min walk" },
+      { layout: "interactive-checklist", position: 2, role: "TIP", headline: "Make mornings feel less rushed", body: "wait before checking messages | do one thing for yourself first | leave enough time to eat | keep the first part simple" },
       false,
       false,
       {},
     );
     assert.equal(cover.text.hookSize, 50);
-    assert.equal(body.text.headlineSize, 40);
-    assert.equal(body.text.bodySize, 29);
-    assert.equal(body.text.maxBodyLines, 8);
+    assert.equal(body.text.headlineSize, 38);
+    assert.equal(body.text.bodySize, 23);
+    assert.equal(body.text.maxBodyLines, 6);
     assert.equal(body.text.checklistPanelWidth, 778);
     assert.equal(body.text.checklistPanelHeight, 940);
   });

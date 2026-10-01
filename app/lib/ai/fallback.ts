@@ -165,43 +165,35 @@ function createF01LifestyleFallback(input: CarouselGeneratorInput): CarouselSpec
 
 function createF05NotesFallback(input: CarouselGeneratorInput): CarouselSpec {
   const fr = input.language === "fr";
-  const categories = fr ? [
-    ["Protéines", "œufs | poulet | saumon | sardines | tofu | tempeh | lentilles | yaourt grec"],
-    ["Lipides", "huile d’olive | avocat | noix | graines de chia | graines de courge | tahini | olives"],
-    ["Glucides", "pommes de terre | patate douce | riz | quinoa | sarrasin | avoine | pain au levain"],
-    ["Fruits", "myrtilles | mûres | kiwi | orange | citron | banane | pomme | grenade"],
-    ["Légumes", "salade | brocoli | épinards | champignons | aubergine | courgette | bok choy | carottes"],
-    ["Condiments", "kimchi | miso | gingembre | curcuma | basilic | menthe | persil | vinaigre de cidre"],
-    ["Boissons", "eau minérale | eau pétillante | thé vert | infusion | kéfir | kombucha"],
+  const notes = fr ? [
+    ["Rends ton téléphone moins exigeant", "coupe les notifications auxquelles tu ne réagis jamais | éloigne les apps qui te happent sans raison | garde des moments où tu ne vérifies rien | laisse les personnes importantes te joindre sans laisser tout le monde t'interrompre | remarque quelles apps te laissent plus vidée qu'avant"],
+    ["Rends tes matins moins pressés", "attends un peu avant d'ouvrir messages ou réseaux | fais une chose pour toi avant de laisser la journée devenir bruyante | décide ce qui mérite vraiment ton attention ce matin | laisse-toi le temps de manger sans tout faire en même temps | garde un début de journée assez simple pour le répéter"],
+    ["Prends de vraies pauses", "éloigne-toi de l'écran au lieu de passer à une autre app | choisis quelque chose qui change vraiment ton état plutôt que ce que tu regardes | sors, étire-toi, mange ou parle à quelqu'un quelques minutes | accorde-toi un moment sans chercher à le rendre productif | reviens quand tu te sens vraiment prête à te concentrer"],
   ] : [
-    ["Protein", "eggs | chicken | salmon | sardines | tofu | tempeh | lentils | greek yogurt"],
-    ["Fats", "olive oil | avocado | walnuts | chia seeds | pumpkin seeds | tahini | olives"],
-    ["Carbs", "potatoes | sweet potato | rice | quinoa | buckwheat | oats | sourdough"],
-    ["Fruit", "blueberries | blackberries | kiwi | orange | lemon | banana | apple | pomegranate"],
-    ["Vegetables", "leafy greens | broccoli | spinach | mushrooms | eggplant | zucchini | bok choy | carrots"],
-    ["Condiments", "kimchi | miso | ginger | turmeric | basil | mint | parsley | apple cider vinegar"],
-    ["Drinks", "mineral water | sparkling water | green tea | herbal tea | kefir | kombucha"],
+    ["Make your phone less demanding", "turn off notifications you never act on | keep distracting apps out of immediate reach | give yourself parts of the day without checking anything | make important people easy to reach without letting everyone interrupt you | notice which apps leave you more drained than before you opened them"],
+    ["Make mornings feel less rushed", "wait a little before checking messages or social media | do one thing for yourself before letting the day get noisy | decide what actually needs your attention this morning | leave enough time to eat instead of doing everything at once | keep the first part of your morning simple enough to repeat"],
+    ["Take breaks that feel like breaks", "step away from the screen instead of switching to another app | choose something that changes how you feel, not just what you're looking at | go outside, stretch, eat, shower or talk to someone for a few minutes | give yourself a moment without trying to make it productive | come back when you actually feel ready to focus again"],
   ];
-  const hook = input.preferredHook ?? (fr ? "« je veux mieux manger mais je sais pas par où commencer… »" : "“I want to eat better but I don’t know where to start…”");
+  const hook = input.preferredHook ?? (fr ? "« mon téléphone prenait beaucoup trop de place dans mes journées »" : "“my phone was taking up way too much of my day”");
   const slides = Array.from({ length: input.requestedSlideCount }, (_, index) => {
     if (index === 0) return {
       position: 1, role: "HOOK" as const, layout: input.layout, headline: hook, body: "",
-      visualIntent: "One candid full-screen grocery or everyday wellness lifestyle photo with a person naturally choosing food; phone-camera realism; this exact photo is the shared background for all following slides; no text or UI inside image.",
-      assetType: "stock" as const, assetQuery: "woman grocery shopping healthy food candid supermarket phone photo",
+      visualIntent: "One candid full-screen everyday lifestyle photo matching the carousel topic; natural phone-camera realism, useful negative space for the hook, no text or UI inside image.",
+      assetType: "stock" as const, assetQuery: "woman calm daily routine candid lifestyle natural light phone photo",
     };
-    const copy = categories[(index - 1) % categories.length]!;
+    const copy = notes[(index - 1) % notes.length]!;
     return {
       position: index + 1, role: "CHECKLIST" as const, layout: input.layout, headline: copy[0], body: copy[1],
-      visualIntent: "Reuse the exact same carousel cover lifestyle photo as background. Renderer adds the white Notes-style list card programmatically; do not generate text, circles, card or UI in the image.",
-      assetType: "stock" as const, assetQuery: "same carousel cover lifestyle background",
+      visualIntent: `One contextual candid lifestyle photo supporting this Note: ${copy[0]}. Natural phone-camera realism; no text, circles, card or UI inside image.`,
+      assetType: "stock" as const, assetQuery: `${copy[0]} woman daily routine candid lifestyle natural light`,
     };
   });
   return {
-    title: fr ? "liste wellness à sauvegarder" : "saveable wellness list",
+    title: fr ? "notes simples à garder" : "notes worth keeping",
     topic: topics.F05_INTERACTIVE_CHECKLIST[input.language],
-    angle: fr ? "Une master list simple à sauvegarder, organisée par catégories." : "A simple category-based master list made to save.",
+    angle: fr ? "Des Notes utiles avec de vrais conseils concrets, pas une liste de réglages." : "Useful Notes with real practical advice, not device-setting fragments.",
     hook, language: input.language,
-    caption: fr ? "La liste simple à garder sous la main. ♡" : "The simple list to keep handy. ♡",
+    caption: fr ? "Des trucs simples qui m'aident vraiment au quotidien." : "Simple things that actually help in real life.",
     ctaType: input.ctaMode, slides,
   };
 }
