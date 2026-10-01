@@ -50,7 +50,7 @@ describe("canonical carousel formats", () => {
       {},
     );
     const body = getSlideGeometry(
-      { layout: "interactive-checklist", position: 2, role: "TIP", headline: "Morning", body: "sunlight | protein breakfast | 10 min walk" },
+      { layout: "interactive-checklist", position: 2, role: "TIP", headline: "Make mornings feel less rushed", body: "wait before checking messages | do one thing for yourself first | leave enough time to eat | keep the first part simple" },
       false,
       false,
       {},
