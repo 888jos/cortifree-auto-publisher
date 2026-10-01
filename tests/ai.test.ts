@@ -229,10 +229,10 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(checklist.slides[0]?.body, "");
     assert.ok(checklist.slides.slice(1).every((slide) => {
       const choices = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
-      return choices.length >= 5 && choices.length <= 12;
+      return choices.length >= 4 && choices.length <= 6;
     }));
     assert.ok(checklist.slides.slice(1).every((slide) => slide.role === "CHECKLIST"));
-    assert.ok(checklist.slides.slice(1).every((slide) => slide.headline.trim().split(/\s+/).length <= 3));
+    assert.ok(checklist.slides.slice(1).every((slide) => slide.headline.trim().split(/\s+/).length >= 3));
     const issues = validateCarouselSpec(checklist, { slideCount: 8, language: "en", layout: "interactive-checklist" });
     assert.equal(issues.some((issue) => issue.code.startsWith("CHECKLIST_") || issue.code === "LAYOUT"), false);
   });
