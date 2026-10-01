@@ -71,7 +71,42 @@ const STOCK_HOOK_THRESHOLD = 40;
 const EXPLICIT_FALLBACK_THRESHOLD = 28;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
-const VISUAL_QA_EXCLUDED_FILENAMES = new Set(["MAYA_SELFCARE_001.jpg"]);
+const VISUAL_QA_EXCLUDED_FILENAMES = new Set([
+  "AVA_OTHER_001.jpg",
+  "ZOEY_OTHER_001.jpg",
+  "LILY_OUTDOORS_003.jpg",
+  "GRACE_OUTDOORS_003.jpg",
+  "OLIVIA_OUTDOORS_002.jpg",
+  "MAYA_SELFCARE_001.jpg",
+  "MAYA_SELFCARE_002.jpg",
+  "JADE_NIGHT_COZY_001.jpg",
+  "f30e10fc-3bd9-450c-bde8-5691249e1367.jpeg",
+]);
+
+const PERSONA_VISUAL_POOLS: Record<string, readonly string[]> = {
+  P01: ["P01", "P04"],
+  P02: ["P02", "P06", "P11"],
+  P03: ["P03", "P07"],
+  P04: ["P01", "P04"],
+  P05: ["P05", "P16"],
+  P06: ["P02", "P06", "P11"],
+  P07: ["P03", "P07"],
+  P08: ["P08", "P14", "P15"],
+  P09: ["P09", "P12"],
+  P10: ["P10"],
+  P11: ["P02", "P06", "P11"],
+  P12: ["P09", "P12"],
+  P13: ["P13"],
+  P14: ["P08", "P14", "P15"],
+  P15: ["P08", "P14", "P15"],
+  P16: ["P05", "P16"],
+};
+
+function personaPoolAllows(assetPersonaId?: string | null, requestedPersonaId?: string) {
+  if (!requestedPersonaId) return true;
+  if (!assetPersonaId) return false;
+  return (PERSONA_VISUAL_POOLS[requestedPersonaId] ?? [requestedPersonaId]).includes(assetPersonaId);
+}
 
 const stopWords = new Set(["the", "and", "with", "this", "that", "your", "for", "from", "into", "one", "clear", "everyday", "lifestyle", "image", "photo", "slide", "natural"]);
 function terms(value: string) {
@@ -336,7 +371,7 @@ export function chooseAssets(options: {
       && (
         asset.source_type === "app_screenshot"
         || isCanonicalReviewedStock(asset)
-        || (asset.source_type === "persona_generated" && (!options.personaId || asset.persona_id === options.personaId))
+        || (asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId))
       )
     );
     const constraint = sceneConstraint(slide);
@@ -345,7 +380,7 @@ export function chooseAssets(options: {
     const requested = officialAppScreenshot
       ? finalUse.filter((asset) => asset.source_type === "app_screenshot")
       : hookNeedsPersona || slide.assetType === "persona"
-        ? finalUse.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === options.personaId)
+        ? finalUse.filter((asset) => asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId))
         : slide.assetType === "stock" || slide.assetType === "text_only"
           ? finalUse.filter((asset) => asset.source_type === "stock")
           : finalUse;
@@ -535,7 +570,7 @@ export function selectAssetOrGeneration(options: {
     return { asset, score: Number(value.toFixed(2)), matchedTerms };
   };
   const persona = options.assets
-    .filter((asset) => asset.persona_id === options.personaId && asset.source_type === "persona_generated")
+    .filter((asset) => asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId))
     .map(score).sort((a, b) => b.score - a.score)[0];
   if (persona && persona.score >= minimumScore) return { action: "reuse_persona", match: persona };
   const stock = options.assets.filter((asset) => asset.source_type === "stock").map(score).sort((a, b) => b.score - a.score)[0];
