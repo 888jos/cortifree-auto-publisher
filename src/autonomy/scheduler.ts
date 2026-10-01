@@ -153,8 +153,8 @@ export async function runScheduler() {
       };
       await write('carousel_ideas?on_conflict=id', row);
       await claimContentSlot(slotId, id, picked.formatId);
-      history.push(row as SelectionHistory);
-      networkHistory.push(row as SelectionHistory);
+      history.push(row as unknown as SelectionHistory);
+      networkHistory.push(row as unknown as SelectionHistory);
       created += 1;
     }
 
@@ -185,7 +185,7 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
   const defaultFormatCycle = [...ACTIVE_FORMAT_IDS];
   const requestedFormatIds = [...new Set((input.formatIds ?? [])
     .map((value) => String(value).trim())
-    .filter((value) => defaultFormatCycle.includes(value)))];
+    .filter((value) => ACTIVE_FORMAT_SET.has(value)))];
   const formatCycle = requestedFormatIds.length ? requestedFormatIds : defaultFormatCycle;
   const strictRequestedFormats = requestedFormatIds.length > 0;
   const defaultLimit = strictRequestedFormats ? requestedFormatIds.length : 20;
@@ -245,7 +245,7 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
       seed: selectedSeed, acceptance_batch_id: batchId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
     plannedRows.push(row);
-    acceptanceHistory.push(row as SelectionHistory);
+    acceptanceHistory.push(row as unknown as SelectionHistory);
     report.push({
       id,
       account_id: account.id,
