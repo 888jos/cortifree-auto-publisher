@@ -36,6 +36,17 @@ export type ReferenceMetadata = {
   slides?: ReferenceSlideBlueprint[];
 };
 export type RecentCarousel = { id: string; topic: string; angle: string; hook?: string };
+export type GoldenExampleReference = {
+  id: string;
+  formatId: string;
+  pillarId: string;
+  topic: string;
+  hook: string;
+  slides: string[];
+  toneNotes: string;
+  whyItWorks: string;
+  visualDirection: string;
+};
 export type EditorialContext = {
   search_query: string;
   primary_keyword: string;
@@ -45,6 +56,7 @@ export type EditorialContext = {
   trend_terms: string[];
   persona_voice: string;
   golden_example_ids: string[];
+  golden_examples?: GoldenExampleReference[];
   concept_id?: string;
   topic_id: string;
   hook_id: string;
