@@ -91,13 +91,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (slide.body.length > 150) issues.push({ code: "EDITORIAL_BODY_LENGTH", message: "Editorial support copy is too long for the fixed lower-left zone", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "ranking") {
-      const isBodyRankingSlide = index > 0 && index < spec.slides.length - 1;
-      const tierMatch = slide.headline.trim().match(/^(SS\+|[FDCBAS])\s*[·•|—–:\-]\s*(.+)$/i);
-      if (index === 0 && !/tier\s*list/i.test(slide.headline)) issues.push({ code: "RANKING_COVER", message: "F07 cover should clearly say TIER LIST", slidePosition: slide.position, severity: "minor" });
-      if (isBodyRankingSlide && !tierMatch) issues.push({ code: "RANKING_TIER", message: "F07 body headline must be TIER · ITEM using F, D, C, B, A, S or SS+", slidePosition: slide.position, severity: "minor" });
-      if (isBodyRankingSlide && slide.headline.length > 58) issues.push({ code: "RANKING_HEADLINE_LENGTH", message: "Tier-list item title is too long for the centered layout", slidePosition: slide.position, severity: "minor" });
+      const role = slide.role.toUpperCase();
+      const isBodyRankingSlide = index > 0 && role !== "CTA" && role !== "TAKEAWAY";
+      const tierMatch = slide.headline.trim().match(/^(SS\+|[FDCBAS])(?:\s+TIER)?\s*[·•|—–:\-]\s*(.+)$/i);
+      if (isBodyRankingSlide && !tierMatch) issues.push({ code: "RANKING_TIER", message: "F07 body headline must identify both a tier and a concrete item", slidePosition: slide.position, severity: "minor" });
+      if (isBodyRankingSlide && slide.headline.length > 64) issues.push({ code: "RANKING_HEADLINE_LENGTH", message: "F07 item label is too long", slidePosition: slide.position, severity: "minor" });
       const wordCount = slide.body.trim().split(/\s+/).filter(Boolean).length;
-      if (isBodyRankingSlide && (wordCount < 18 || wordCount > 58)) issues.push({ code: "RANKING_BODY_LENGTH", message: "Tier-list explanation should stay around 18-58 words", slidePosition: slide.position, severity: "minor" });
+      if (isBodyRankingSlide && wordCount > 45) issues.push({ code: "RANKING_BODY_LENGTH", message: "F07 explanation should be one or two plain-English sentences", slidePosition: slide.position, severity: "minor" });
       if (isBodyRankingSlide && /\d+(?:\.\d+)?\s*\/\s*10/.test(slide.headline)) issues.push({ code: "RANKING_NUMERIC_SCORE", message: "F07 uses tier labels, not X/10 scores", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "lifestyle-3stack") {

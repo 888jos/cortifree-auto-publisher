@@ -257,7 +257,7 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code.startsWith("LIFESTYLE_") || issue.code === "LAYOUT"), false);
   });
 
-  it("produces a canonical F07 girly tier-list fallback", () => {
+  it("produces a canonical F07 meaning-first tier-list fallback", () => {
     const rankingInput: CarouselGeneratorInput = {
       ...baseInput,
       carouselType: "F07_RANKING",
@@ -270,7 +270,7 @@ describe("CortiFree AI schemas and generation", () => {
     assert.match(ranking.slides[0]?.headline ?? "", /TIER LIST/i);
     assert.ok(ranking.slides.slice(1, -1).every((slide) => /^(SS\+|[FDCBAS])\s*[·•|—–:\-]/i.test(slide.headline)));
     assert.ok(ranking.slides.slice(1, -1).every((slide) => !/\d+(?:\.\d+)?\/10/.test(slide.headline)));
-    assert.match(ranking.slides.at(-1)?.headline ?? "", /reset/i);
+    assert.doesNotMatch(ranking.slides.at(-1)?.headline ?? "", /reset|CortiFree/i);
     const issues = validateCarouselSpec(ranking, { slideCount: 9, language: "en", layout: "ranking" });
     assert.equal(issues.some((issue) => issue.code.startsWith("RANKING_") || issue.code === "LAYOUT"), false);
   });
