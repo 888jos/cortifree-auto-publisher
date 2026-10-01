@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { dataBackend } from "../data-backend";
-import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs } from "../../../src/runtime/config";
+import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeGoldenExamples, loadRuntimePersonaConfigs } from "../../../src/runtime/config";
 import { selectEditorial, type SelectionHistory } from "../../../src/autonomy/selection";
 import type { EditorialContext } from "../ai/types";
 import { ACTIVE_FORMAT_IDS } from "../../../src/content/formats";
@@ -45,7 +45,7 @@ export async function resolveCanonicalEditorialContext(input: {
   formatId: string;
   personaId: string;
   accountId: string;
-  preferredHook: string;
+  preferredHook?: string;
   editorialContext: EditorialContext;
 }> {
   if (!ACTIVE_FORMAT_IDS.some((formatId) => formatId === input.formatId)) {
@@ -67,7 +67,7 @@ export async function resolveCanonicalEditorialContext(input: {
   } catch (error) {
     throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:${error instanceof Error ? error.message : String(error)}`);
   }
-  const { topics, hooks, ctas } = editorial;
+  const { topics, ctas } = editorial;
   const account = accounts.find((row) => row.id === input.accountId) as unknown as Row | undefined;
   const persona = personas.find((row) => row.id === input.personaId) as unknown as Row | undefined;
   if (!account) throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:account ${input.accountId}`);
@@ -81,29 +81,17 @@ export async function resolveCanonicalEditorialContext(input: {
     hook_id: row.hook_id ? String(row.hook_id) : undefined, final_hook: row.final_hook ? String(row.final_hook) : undefined,
     combo_key: row.combo_key ? String(row.combo_key) : undefined, created_at: row.created_at ? String(row.created_at) : undefined,
   }));
-  let selected = selectEditorial({
+  const selected = selectEditorial({
     seed: seed(input.accountId, input.personaId, input.formatId), accountId: input.accountId, personaId: input.personaId,
-    pillarIds: accountPillars(account), formatIds: [input.formatId], topics, hooks, ctas, history,
-    accountTopicCooldownDays: 14, accountHookCooldownDays: 7, networkTopicCooldownHours: 48, networkHookCooldownHours: 48,
+    pillarIds: accountPillars(account), formatIds: [input.formatId], topics, hooks: [], ctas, history,
+    accountTopicCooldownDays: 7,
   });
-  for (let attempt = 1; attempt <= 12 && selected.finalHook.length > 72; attempt += 1) {
-    selected = selectEditorial({
-      seed: `${seed(input.accountId, input.personaId, input.formatId)}:hook:${attempt}`, accountId: input.accountId, personaId: input.personaId,
-      pillarIds: accountPillars(account), formatIds: [input.formatId], topics, hooks, ctas, history,
-      accountTopicCooldownDays: 14, accountHookCooldownDays: 7, networkTopicCooldownHours: 48, networkHookCooldownHours: 48,
-    });
-  }
-  if (selected.finalHook.length > 72) throw new Error("CANONICAL_CONTEXT_UNAVAILABLE:no mobile-safe canonical hook for selected topic/format");
   const topic = selected.topic;
   const hook = selected.hook;
-  const canonicalHook = selected.finalHook;
-  if (input.preferredHook && input.preferredHook !== canonicalHook) {
-    // A UI hook is a suggestion only. Never let it sever the canonical hook link.
-  }
   const primaryKeyword = String(topic.topic);
   const secondaryKeywords = [String(topic.target_problem ?? ""), String(topic.target_emotion ?? "")].filter(Boolean);
-  const goldenExampleIds = input.references.map((reference) => reference.id).filter(Boolean);
-  if (!goldenExampleIds.length) goldenExampleIds.push(`FORMAT_${input.formatId}`);
+  const goldenExamples = await loadRuntimeGoldenExamples(input.formatId, topic.pillar_id, 3);
+  const goldenExampleIds = goldenExamples.map((example) => example.id);
   const personaVoice = String((persona as Row).content && typeof (persona as Row).content === "object"
     ? ((persona as Row).content as Row).voice ?? ""
     : (persona as Row).voice ?? "");
@@ -116,11 +104,12 @@ export async function resolveCanonicalEditorialContext(input: {
     trend_terms: [],
     persona_voice: personaVoice || "conversational and practical",
     golden_example_ids: goldenExampleIds,
+    golden_examples: goldenExamples,
     topic_id: topic.topic_id, hook_id: hook.hook_id, format_id: input.formatId,
     account_id: input.accountId, persona_id: input.personaId,
     brand_integration: input.formatId === "F07_RANKING"
       ? { required: false, mention: "", screenshot_required: false }
       : { required: true, mention: "CortiFree", screenshot_required: true },
   };
-  return { topicId: topic.topic_id, hookId: hook.hook_id, formatId: input.formatId, personaId: input.personaId, accountId: input.accountId, preferredHook: canonicalHook, editorialContext: context };
+  return { topicId: topic.topic_id, hookId: hook.hook_id, formatId: input.formatId, personaId: input.personaId, accountId: input.accountId, preferredHook: undefined, editorialContext: context };
 }

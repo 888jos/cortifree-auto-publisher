@@ -65,7 +65,7 @@ describe('autonomy selection', () => {
     assert.doesNotMatch(text, /\{[^}]+\}/);
   });
 
-  it('selects a compatible canonical topic, hook, format and CTA', () => {
+  it('selects a compatible territory, dynamic hook marker, format and CTA', () => {
     const selected = selectEditorial({
       seed: 'fixed-seed',
       accountId: 'CF_EN_01',
@@ -78,7 +78,8 @@ describe('autonomy selection', () => {
       history: [],
     });
     assert.equal(selected.topic.topic_id, 'TOPIC_0001');
-    assert.equal(selected.hook.hook_id, 'HOOK_0001');
+    assert.equal(selected.hook.hook_id, 'DYNAMIC');
+    assert.equal(selected.finalHook, '');
     assert.equal(selected.formatId, 'F03_ROUTINE_TIMELINE');
     assert.equal(selected.cta.cta_id, 'CTA_001');
   });
@@ -97,8 +98,8 @@ describe('autonomy selection', () => {
     }), /No eligible editorial candidates/);
   });
 
-  it('enforces network topic cooldowns across accounts', () => {
-    assert.throws(() => selectEditorial({
+  it('allows the same broad territory across different accounts', () => {
+    const selected = selectEditorial({
       seed: 'fixed-seed',
       accountId: 'CF_EN_02',
       personaId: 'P01',
@@ -108,6 +109,9 @@ describe('autonomy selection', () => {
       hooks: [hook],
       ctas: [cta],
       history: [{ account_id: 'CF_EN_01', topic_id: 'TOPIC_0001', created_at: new Date().toISOString() }],
-    }), /No eligible editorial candidates/);
+      networkTopicCooldownHours: 48,
+    });
+    assert.equal(selected.topic.topic_id, 'TOPIC_0001');
+    assert.equal(selected.hook.hook_id, 'DYNAMIC');
   });
 });

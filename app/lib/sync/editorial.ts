@@ -2,7 +2,7 @@ import { backendMode, dataBackend } from "../data-backend";
 import { readSheetObjects } from "../google/sheets";
 
 type Row = Record<string, unknown>;
-type Mapping = { sheet: string; range: string; table: string; key: string; transform?: (row: Row) => Row };
+type Mapping = { sheet: string; range: string; table: string; key: string; sourceKey?: string; transform?: (row: Row) => Row };
 
 const split = (value: unknown) => String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
 function decimal(value: unknown, fallback = 0) {
@@ -36,6 +36,66 @@ function pillar(row: Row): Row {
     preferred_formats: row.preferred_formats,
     persona_ids: row.persona_ids,
     weight: decimal(row.weight, 1),
+    active: bool(row.active, true),
+  };
+}
+
+function territory(row: Row): Row {
+  const parts = [
+    row.human_tension ? `Human tension: ${String(row.human_tension).trim()}` : "",
+    row.situations ? `Situations: ${String(row.situations).trim()}` : "",
+    row.creative_directions ? `Creative directions: ${String(row.creative_directions).trim()}` : "",
+    row.avoid ? `Avoid: ${String(row.avoid).trim()}` : "",
+  ].filter(Boolean);
+  return {
+    topic_id: row.territory_id,
+    pillar_id: row.pillar_id,
+    topic: row.territory,
+    angle: parts.join(" | "),
+    target_problem: row.human_tension,
+    target_emotion: row.target_emotion,
+    eligible_formats: row.eligible_formats,
+    eligible_personas: row.eligible_personas,
+    season: row.season || "evergreen",
+    priority: row.priority || "MEDIUM",
+    weight: decimal(row.weight, 1),
+    cooldown_days: Math.max(1, Math.round(decimal(row.cooldown_days, 7))),
+    active: bool(row.active, true),
+  };
+}
+
+function canonicalGoldenFormat(row: Row) {
+  const compatible = split(row.compatible_format_ids).find((value) => /^F0[134578]_/.test(value));
+  if (compatible) return compatible;
+  const direct = String(row.format_id ?? "").trim();
+  return /^F0[134578]_/.test(direct) ? direct : "";
+}
+
+function goldenExample(row: Row): Row {
+  const slides = ["slide_2", "slide_3", "slide_4", "slide_5", "slide_6", "slide_7"]
+    .map((key) => String(row[key] ?? "").trim())
+    .filter(Boolean);
+  return {
+    example_id: row.golden_id,
+    format_id: canonicalGoldenFormat(row),
+    concept_id: row.format_id,
+    pillar_id: row.pillar_id,
+    topic: row.topic,
+    angle: row.why_it_works,
+    hook: row.hook,
+    slides,
+    content: row,
+    active: bool(row.active, true),
+  };
+}
+
+function copyReference(row: Row): Row {
+  return {
+    copy_id: row.copy_id,
+    concept_id: row.integration_type,
+    hook: row.copy_line,
+    body: "",
+    content: row,
     active: bool(row.active, true),
   };
 }
@@ -130,18 +190,19 @@ const mappings: Mapping[] = [
   { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id", transform: pillar },
-  { sheet: "05_TOPICS_ANGLES", range: "A1:O1000", table: "content_topics", key: "topic_id" },
-  { sheet: "06_HOOKS", range: "A1:M500", table: "content_hooks", key: "hook_id" },
+  { sheet: "05_CONTENT_TERRITORIES", range: "A1:O200", table: "content_topics", key: "topic_id", sourceKey: "territory_id", transform: territory },
   { sheet: "07_CTAS", range: "A1:H100", table: "content_ctas", key: "cta_id" },
   { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id", transform: claimRule },
   { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id", transform: healthSource },
+  { sheet: "18_CORTIFREE_COPY_BANK", range: "A1:K200", table: "editorial_copy_bank", key: "copy_id", transform: copyReference },
+  { sheet: "20_GOLDEN_CAROUSELS", range: "A1:V200", table: "editorial_golden_examples", key: "example_id", sourceKey: "golden_id", transform: goldenExample },
   ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id" }] : []),
 ];
 
 async function upsert(table: string, key: string, rows: Row[]) {
   if (!rows.length) return 0;
   const supabaseRuntime = backendMode() === "supabase";
-  const tableHasNoWorkspaceColumn = new Set(["accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs", "editorial_records"]).has(table);
+  const tableHasNoWorkspaceColumn = new Set(["accounts", "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas", "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs", "editorial_records", "editorial_golden_examples", "editorial_copy_bank"]).has(table);
   let payload = rows.map((row) => {
     const normalized = supabaseRuntime
       ? Object.fromEntries(Object.entries(row).map(([field, value]) => [field, value === "" ? null : value]))
@@ -280,10 +341,36 @@ export async function syncEditorialSheetToConvex() {
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
     const source = await readSheetObjects(mapping.sheet, mapping.range);
+    const sourceKey = mapping.sourceKey ?? mapping.key;
     const rows = source
-      .filter((row) => row[mapping.key] !== null && row[mapping.key] !== undefined && String(row[mapping.key]).trim())
-      .map((row) => mapping.transform ? mapping.transform(row) : row);
+      .filter((row) => row[sourceKey] !== null && row[sourceKey] !== undefined && String(row[sourceKey]).trim())
+      .map((row) => mapping.transform ? mapping.transform(row) : row)
+      .filter((row) => row[mapping.key] !== null && row[mapping.key] !== undefined && String(row[mapping.key]).trim());
     counts[mapping.table] = await upsert(mapping.table, mapping.key, rows);
+  }
+
+  if (backendMode() === "supabase") {
+    const territories = await readSheetObjects("05_CONTENT_TERRITORIES", "A1:O200");
+    const activeIds = new Set(territories.map((row) => String(row.territory_id ?? "").trim()).filter(Boolean));
+    const existingResponse = await dataBackend("content_topics?select=topic_id&limit=5000");
+    if (!existingResponse.ok) throw new Error(`Cannot reconcile content territories: ${await existingResponse.text()}`);
+    const existing = await existingResponse.json() as Array<{ topic_id?: unknown }>;
+    const stale = existing.map((row) => String(row.topic_id ?? "")).filter((id) => id && !activeIds.has(id));
+    for (let offset = 0; offset < stale.length; offset += 100) {
+      const ids = stale.slice(offset, offset + 100).map(encodeURIComponent).join(",");
+      const response = await dataBackend(`content_topics?topic_id=in.(${ids})`, {
+        method: "PATCH",
+        body: JSON.stringify({ active: false }),
+      });
+      if (!response.ok) throw new Error(`Cannot deactivate stale content topics: ${await response.text()}`);
+    }
+    const hooksResponse = await dataBackend("content_hooks?active=eq.true", {
+      method: "PATCH",
+      body: JSON.stringify({ active: false }),
+    });
+    if (!hooksResponse.ok) throw new Error(`Cannot deactivate legacy hook formulas: ${await hooksResponse.text()}`);
+    counts.legacy_topics_deactivated = stale.length;
+    counts.dynamic_hook_mode = 1;
   }
 
   const recordMirrors = [
@@ -304,8 +391,9 @@ export async function syncEditorialSheetToConvex() {
     { key: "ACCOUNT_COUNT", value: counts.accounts ?? 0, value_type: "number", description: "Derived from synced account rows", source: "derived", active: true },
     { key: "FORMAT_COUNT", value: counts.content_formats ?? 0, value_type: "number", description: "Derived from synced format rows", source: "derived", active: true },
     { key: "CONTENT_PILLAR_COUNT", value: counts.content_pillars ?? 0, value_type: "number", description: "Derived from synced pillar rows", source: "derived", active: true },
-    { key: "TOPIC_ANGLE_COUNT", value: counts.content_topics ?? 0, value_type: "number", description: "Derived from synced topic rows", source: "derived", active: true },
-    { key: "HOOK_COUNT", value: counts.content_hooks ?? 0, value_type: "number", description: "Derived from synced hook rows", source: "derived", active: true },
+    { key: "CONTENT_TERRITORY_COUNT", value: counts.content_topics ?? 0, value_type: "number", description: "Derived from canonical creative territories", source: "derived", active: true },
+    { key: "DYNAMIC_HOOK_GENERATION", value: true, value_type: "boolean", description: "Hooks are generated with the carousel; legacy hook formulas are non-runtime", source: "system", active: true },
+    { key: "GOLDEN_EXAMPLE_COUNT", value: counts.editorial_golden_examples ?? 0, value_type: "number", description: "Creative few-shot examples mirrored from Sheet", source: "derived", active: true },
     { key: "CTA_COUNT", value: counts.content_ctas ?? 0, value_type: "number", description: "Derived from synced CTA rows", source: "derived", active: true },
     { key: "CLAIM_RULE_COUNT", value: counts.content_claim_rules ?? 0, value_type: "number", description: "Derived from synced claim-rule rows", source: "derived", active: true },
     { key: "HEALTH_SOURCE_COUNT", value: counts.content_health_sources ?? 0, value_type: "number", description: "Derived from synced health-source rows", source: "derived", active: true },

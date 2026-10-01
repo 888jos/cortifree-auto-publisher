@@ -92,7 +92,7 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
       loadRuntimeRows("content_hooks"),
       loadRuntimeRows("content_ctas"),
     ]);
-    if (topics.length && hooks.length && ctas.length) {
+    if (topics.length && ctas.length) {
       // Autonomy rules are optional in Supabase's editorial mirror. Selection
       // has safe defaults, so a missing optional table must not mask the real
       // canonical-context/account readiness error.
@@ -113,6 +113,56 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
     ctas: snapshot.tables.content_ctas as unknown as EditorialCta[],
     autonomyRules: snapshot.tables.autonomy_rules ?? [],
   };
+}
+
+export type RuntimeGoldenExample = {
+  id: string;
+  formatId: string;
+  pillarId: string;
+  topic: string;
+  hook: string;
+  slides: string[];
+  toneNotes: string;
+  whyItWorks: string;
+  visualDirection: string;
+};
+
+export async function loadRuntimeGoldenExamples(formatId: string, pillarId: string, limit = 3): Promise<RuntimeGoldenExample[]> {
+  if (!backendConfigured()) return [];
+  try {
+    const live = await loadRuntimeRows("editorial_golden_examples", 500);
+    const approved = live
+      .filter((row) => row.active !== false)
+      .filter((row) => String(row.approval_status ?? "").toLowerCase() === "human_approved")
+      .filter((row) => String(row.format_id ?? "") === formatId)
+      .sort((left, right) => {
+        const leftMatch = String(left.pillar_id ?? "") === pillarId ? 1 : 0;
+        const rightMatch = String(right.pillar_id ?? "") === pillarId ? 1 : 0;
+        return rightMatch - leftMatch;
+      });
+    return approved.slice(0, Math.max(0, limit)).map((row) => {
+      const content = row.content && typeof row.content === "object" ? row.content as AnyRow : {};
+      const structuredSlides = Array.isArray(row.slides)
+        ? row.slides.map((slide) => typeof slide === "string" ? slide : JSON.stringify(slide)).filter(Boolean)
+        : [];
+      const legacySlides = ["slide_2","slide_3","slide_4","slide_5","slide_6","slide_7","cta"]
+        .map((key) => String(content[key] ?? "").trim())
+        .filter(Boolean);
+      return {
+        id: String(row.example_id ?? ""),
+        formatId: String(row.format_id ?? ""),
+        pillarId: String(row.pillar_id ?? ""),
+        topic: String(row.topic ?? content.topic ?? ""),
+        hook: String(row.hook ?? content.hook ?? ""),
+        slides: structuredSlides.length ? structuredSlides : legacySlides,
+        toneNotes: String(content.tone_notes ?? ""),
+        whyItWorks: String(content.why_it_works ?? ""),
+        visualDirection: String(content.visual_direction ?? ""),
+      };
+    }).filter((example) => example.id && example.hook);
+  } catch {
+    return [];
+  }
 }
 
 export function autonomyRuleValue(rules: AnyRow[], key: string, fallback: number): number {

@@ -6,7 +6,7 @@ import {
   normalizeUploadPostResults,
 } from '../../app/lib/upload-post';
 import { loadRuntimeEditorial, autonomyRuleValue } from '../runtime/config';
-import { fillHook, type EditorialHook, type EditorialTopic } from './selection';
+import type { EditorialTopic } from './selection';
 
 type Row = Record<string, unknown>;
 type Platform = 'tiktok' | 'instagram';
@@ -244,23 +244,21 @@ export async function refreshPostAnalytics(limit = 100) {
 }
 
 export async function queueWinnerVariants() {
-  const { topics, hooks, autonomyRules } = await loadRuntimeEditorial();
+  const { topics, autonomyRules } = await loadRuntimeEditorial();
   const count = autonomyRuleValue(autonomyRules, 'winner_variants_to_queue', 3);
   const winners = (await rows('carousels?is_winner=eq.true&order=winner_at.desc&limit=20')).slice(0,20);
   const runtimeTopics = topics as unknown as EditorialTopic[];
-  const runtimeHooks = (hooks as unknown as EditorialHook[]).filter((hook) => hook.active !== false);
   const queued: Row[] = [];
   for (const winner of winners) {
     const existing = await rows(`carousel_ideas?source_winner_id=eq.${encodeURIComponent(String(winner.id))}&limit=20`);
     if (existing.length >= count) continue;
-    const topic = runtimeTopics.find((item) => item.topic === winner.topic && item.pillar_id === winner.pillar_id)
-      ?? runtimeTopics.find((item) => item.topic === winner.topic);
+    const topic = runtimeTopics.find((item) => item.topic_id === String(winner.topic_id ?? ''))
+      ?? runtimeTopics.find((item) => item.topic === winner.topic && item.pillar_id === winner.pillar_id)
+      ?? runtimeTopics.find((item) => item.pillar_id === winner.pillar_id);
     if (!topic) continue;
-    const compatible = runtimeHooks.filter((hook) =>
-      String(hook.compatible_formats).split('|').map((value) => value.trim()).includes(String(winner.content_type)),
-    );
-    for (const hook of compatible.slice(0, Math.max(0, count - existing.length))) {
-      const id = `CF_WIN_${String(winner.id).replace(/[^A-Z0-9]/gi,'')}_${hook.hook_id}`;
+
+    for (let index = existing.length; index < count; index += 1) {
+      const id = `CF_WIN_${String(winner.id).replace(/[^A-Z0-9]/gi,'')}_V${index + 1}`;
       const idea = {
         id,
         workspace_id: 'cortifree',
@@ -270,10 +268,10 @@ export async function queueWinnerVariants() {
         content_type: winner.content_type,
         topic_id: topic.topic_id,
         topic: topic.topic,
-        angle: `${topic.angle} — winner variation`,
-        hook_id: hook.hook_id,
-        hook_formula: hook.formula,
-        final_hook: fillHook(hook.formula, topic),
+        angle: `${topic.angle} | Winner signal: create a fresh variation within this territory without copying the winning hook or slide sequence.`,
+        hook_id: 'DYNAMIC',
+        hook_formula: null,
+        final_hook: null,
         cta_id: null,
         cta_text: 'Save this for later.',
         strategy: 'WINNER_VARIANT',

@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import type { Account } from '../domain';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, autonomyRuleValue } from '../runtime/config';
-import { selectEditorial, type EditorialTopic, type EditorialHook, type EditorialCta, type SelectionHistory } from './selection';
+import { selectEditorial, type SelectionHistory } from './selection';
+import { ACTIVE_FORMAT_IDS } from '../content/formats';
 import { loadLearningWeights } from './learning';
 import { claimContentSlot, ensureRollingSlots, syncContentSlotsFromCalendar } from './slots';
 
@@ -24,18 +25,10 @@ function strategy(index: number) {
   const slot = index % 10;
   return slot < 7 ? 'PROVEN' : slot < 9 ? 'ADJACENT' : 'EXPERIMENT';
 }
+const ACTIVE_FORMAT_SET = new Set<string>(ACTIVE_FORMAT_IDS);
 function formatIds(account: Account) {
-  const configured = Object.keys(account.format_mix ?? {}).filter((key) => /^F0[1-8]_/.test(key) || key === 'F08_2X2');
-  return configured.length ? configured : [
-    'F01_LIFESTYLE_GUIDE',
-    'F02_EDITORIAL_COLLAGE',
-    'F03_ROUTINE_TIMELINE',
-    'F04_AESTHETIC_EDUCATIONAL',
-    'F05_INTERACTIVE_CHECKLIST',
-    'F06_PERSONA_EXPLAINER',
-    'F07_RANKING',
-    'F08_2X2',
-  ];
+  const configured = Object.keys(account.format_mix ?? {}).filter((key) => ACTIVE_FORMAT_SET.has(key));
+  return configured.length ? configured : [...ACTIVE_FORMAT_IDS];
 }
 function pillarIds(account: Account) {
   const configured = Object.keys(account.pillar_mix ?? {}).filter((key) => key.startsWith('PILLAR_'));
@@ -43,7 +36,7 @@ function pillarIds(account: Account) {
 }
 
 export async function runScheduler() {
-  const [{ topics, hooks, ctas, autonomyRules }, accounts, learningWeights] = await Promise.all([
+  const [{ topics, ctas, autonomyRules }, accounts, learningWeights] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
     loadLearningWeights(),
@@ -51,10 +44,7 @@ export async function runScheduler() {
 
   const calendarSync = await syncContentSlotsFromCalendar();
   const rolling = await ensureRollingSlots(accounts);
-  const accountTopicCooldownDays = autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14);
-  const accountHookCooldownDays = autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7);
-  const networkTopicCooldownHours = autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48);
-  const networkHookCooldownHours = autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48);
+  const accountTopicCooldownDays = autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 7);
   const report: Array<Record<string, unknown>> = [];
 
   const [networkIdeas, slotRows] = await Promise.all([
@@ -90,7 +80,6 @@ export async function runScheduler() {
       const slotId = String(slot.id);
       const slotStrategy = String(slot.strategy ?? strategy(index));
       const preferredTopicId = String(slot.topic_id ?? '').trim();
-      const preferredHookId = String(slot.hook_id ?? '').trim();
       const preferredPillarId = String(slot.pillar_id ?? '').trim();
       let picked: ReturnType<typeof selectEditorial> | null = null;
       let selectedSeed = '';
@@ -104,13 +93,10 @@ export async function runScheduler() {
         const topicPool = preferredTopicId && attempt < 10
           ? topics.filter((topic) => topic.topic_id === preferredTopicId)
           : topics;
-        const hookPool = preferredHookId && attempt < 6
-          ? hooks.filter((hook) => hook.hook_id === preferredHookId)
-          : hooks;
         const allowedPillars = preferredPillarId && attempt < 18
           ? [preferredPillarId]
           : pillarIds(account);
-        if (!topicPool.length || !hookPool.length || !allowedPillars.length) continue;
+        if (!topicPool.length || !allowedPillars.length) continue;
         try {
           picked = selectEditorial({
             seed: selectedSeed,
@@ -119,13 +105,10 @@ export async function runScheduler() {
             pillarIds: allowedPillars,
             formatIds: formatIds(account),
             topics: topicPool,
-            hooks: hookPool,
+            hooks: [],
             ctas,
             history,
             accountTopicCooldownDays,
-            accountHookCooldownDays,
-            networkTopicCooldownHours,
-            networkHookCooldownHours,
             pillarWeights: account.pillar_mix ?? {},
             formatWeights: account.format_mix ?? {},
             learningWeights,
@@ -157,8 +140,8 @@ export async function runScheduler() {
         topic: picked.topic.topic,
         angle: picked.topic.angle,
         hook_id: picked.hook.hook_id,
-        hook_formula: picked.hook.formula,
-        final_hook: picked.finalHook,
+        hook_formula: null,
+        final_hook: null,
         cta_id: picked.cta.cta_id,
         cta_text: picked.cta.text,
         combo_key: picked.comboKey,
@@ -170,8 +153,8 @@ export async function runScheduler() {
       };
       await write('carousel_ideas?on_conflict=id', row);
       await claimContentSlot(slotId, id, picked.formatId);
-      history.push(row as SelectionHistory);
-      networkHistory.push(row as SelectionHistory);
+      history.push(row as unknown as SelectionHistory);
+      networkHistory.push(row as unknown as SelectionHistory);
       created += 1;
     }
 
@@ -194,15 +177,15 @@ export async function runScheduler() {
 }
 
 export async function createAcceptanceSample(input: { batchId?: string; limit?: number; formatIds?: string[] } = {}) {
-  const [{ topics, hooks, ctas, autonomyRules }, allAccounts] = await Promise.all([
+  const [{ topics, ctas, autonomyRules }, allAccounts] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
   ]);
   const batchId = input.batchId?.trim() || `E2E_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
-  const defaultFormatCycle = ['F01_LIFESTYLE_GUIDE','F02_EDITORIAL_COLLAGE','F03_ROUTINE_TIMELINE','F04_AESTHETIC_EDUCATIONAL','F05_INTERACTIVE_CHECKLIST','F06_PERSONA_EXPLAINER','F07_RANKING','F08_2X2'];
+  const defaultFormatCycle = [...ACTIVE_FORMAT_IDS];
   const requestedFormatIds = [...new Set((input.formatIds ?? [])
     .map((value) => String(value).trim())
-    .filter((value) => defaultFormatCycle.includes(value)))];
+    .filter((value) => ACTIVE_FORMAT_SET.has(value)))];
   const formatCycle = requestedFormatIds.length ? requestedFormatIds : defaultFormatCycle;
   const strictRequestedFormats = requestedFormatIds.length > 0;
   const defaultLimit = strictRequestedFormats ? requestedFormatIds.length : 20;
@@ -242,11 +225,8 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
           const selectionHistory = attempt < 20 ? [...history, ...acceptanceHistory] : acceptanceHistory;
           picked = selectEditorial({
             seed: selectedSeed, accountId: account.id, personaId: account.persona_id,
-            pillarIds: pillarIds(account), formatIds: [formatId], topics, hooks, ctas, history: selectionHistory,
-            accountTopicCooldownDays: attempt < 20 ? autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 14) : 0,
-            accountHookCooldownDays: attempt < 20 ? autonomyRuleValue(autonomyRules, 'account_hook_cooldown_days', 7) : 0,
-            networkTopicCooldownHours: attempt < 20 ? autonomyRuleValue(autonomyRules, 'network_topic_cooldown_hours', 48) : 0,
-            networkHookCooldownHours: attempt < 20 ? autonomyRuleValue(autonomyRules, 'network_final_hook_cooldown_hours', 48) : 0,
+            pillarIds: pillarIds(account), formatIds: [formatId], topics, hooks: [], ctas, history: selectionHistory,
+            accountTopicCooldownDays: attempt < 20 ? autonomyRuleValue(autonomyRules, 'account_topic_cooldown_days', 7) : 0,
           });
           if (picked) selectedFormatId = formatId;
         } catch { /* try another seed or the next compatible format */ }
@@ -260,12 +240,12 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
       id, workspace_id: 'cortifree', account_id: account.id, persona_id: account.persona_id,
       pillar_id: picked.topic.pillar_id, content_type: selectedFormatId, topic_id: picked.topic.topic_id,
       topic: picked.topic.topic, angle: picked.topic.angle, hook_id: picked.hook.hook_id,
-      hook_formula: picked.hook.formula, final_hook: picked.finalHook, cta_id: picked.cta.cta_id,
+      hook_formula: null, final_hook: null, cta_id: picked.cta.cta_id,
       cta_text: picked.cta.text, combo_key: picked.comboKey, strategy: strategy(index), status: 'QUEUED',
       seed: selectedSeed, acceptance_batch_id: batchId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
     plannedRows.push(row);
-    acceptanceHistory.push(row as SelectionHistory);
+    acceptanceHistory.push(row as unknown as SelectionHistory);
     report.push({
       id,
       account_id: account.id,
