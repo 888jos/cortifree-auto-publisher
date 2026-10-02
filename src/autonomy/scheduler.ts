@@ -34,12 +34,48 @@ function pillarIds(account: Account) {
   const configured = Object.keys(account.pillar_mix ?? {}).filter((key) => key.startsWith('PILLAR_'));
   return configured.length ? configured : [account.primary_pillar_id, ...(account.secondary_pillar_ids ?? [])].filter(Boolean) as string[];
 }
+function unit(seedValue: string) {
+  return crypto.createHash('sha1').update(seedValue).digest().readUInt32BE(0) / 0xffffffff;
+}
+function chooseBrandPlan(slotId: string, account: Account, patterns: AnyRow[]) {
+  const required = unit(`${slotId}:promo`) < Math.max(0, Math.min(1, account.promo_ratio ?? 0.08));
+  if (!required) return { required:false, mention:'', screenshot_required:false };
+  const active = patterns
+    .map((row) => row.data && typeof row.data === 'object' ? row.data as AnyRow : row)
+    .filter((row) => row.active !== false && String(row.active ?? 'TRUE').toUpperCase() !== 'FALSE');
+  if (!active.length) return {
+    required:true, mention:'the app CortiFree', screenshot_required:false,
+    integration_type:'HABIT_IN_LIST', intensity:1,
+  };
+  const weighted = active.map((row) => ({ row, weight: Math.max(0.1, Number(row.weight_pct ?? 1)) }));
+  const total = weighted.reduce((sum,item)=>sum+item.weight,0);
+  let cursor = unit(`${slotId}:integration`) * total;
+  let picked = weighted[weighted.length-1]!.row;
+  for (const item of weighted) {
+    cursor -= item.weight;
+    if (cursor <= 0) { picked = item.row; break; }
+  }
+  const slideChoices = String(picked.default_slide_range ?? '').split('|').map((value)=>value.trim()).filter(Boolean);
+  const screenChoices = String(picked.allowed_screen_categories ?? '').split('|').map((value)=>value.trim()).filter(Boolean);
+  return {
+    required:true,
+    mention:'the app CortiFree',
+    screenshot_required:false,
+    integration_type:String(picked.integration_type ?? ''),
+    slide:slideChoices.length ? slideChoices[Math.floor(unit(`${slotId}:slide`) * slideChoices.length)] : '',
+    intensity:Number(picked.intensity ?? 1) || 1,
+    app_screen_category:screenChoices.length ? screenChoices[Math.floor(unit(`${slotId}:screen`) * screenChoices.length)] : '',
+    app_screen_asset_id:null,
+    copy_bank_seed_id:null,
+  };
+}
 
 export async function runScheduler() {
-  const [{ topics, ctas, autonomyRules }, accounts, learningWeights] = await Promise.all([
+  const [{ topics, ctas, autonomyRules }, accounts, learningWeights, brandPatternRows] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
     loadLearningWeights(),
+    rows('editorial_records?kind=eq.brand_integrations&active=eq.true&select=data&limit=100').catch(() => []),
   ]);
 
   const calendarSync = await syncContentSlotsFromCalendar();
@@ -84,11 +120,9 @@ export async function runScheduler() {
       const preferredPillarId = String(slot.pillar_id ?? '').trim();
       const rawPreferredFormatId = String(slot.format_id ?? '').trim();
       const preferredFormatId = ACTIVE_FORMAT_SET.has(rawPreferredFormatId) ? rawPreferredFormatId : '';
-      const slotBrand = slot.brand_integration && typeof slot.brand_integration === 'object'
-        ? slot.brand_integration as Record<string, unknown>
-        : {};
-      const brandRequired = slotBrand.required === true;
-      const screenshotRequired = brandRequired && slot.app_screenshot_required === true;
+      // Legacy calendar promo flags are provenance only. Promo cadence is decided
+      // from the account's canonical promo_ratio and the current integration bank.
+      let brandPlan: Record<string, unknown> = { required:false, mention:'', screenshot_required:false };
       let picked: ReturnType<typeof selectEditorial> | null = null;
       let selectedSeed = '';
 
@@ -136,6 +170,9 @@ export async function runScheduler() {
         continue;
       }
 
+      brandPlan = chooseBrandPlan(slotId, account, brandPatternRows);
+      if (picked.formatId === 'F07_RANKING') brandPlan = { required:false, mention:'', screenshot_required:false };
+
       const safeSlot = slotId.replace(/[^A-Z0-9]/gi,'').slice(-50);
       const id = `CF_IDEA_SLOT_${safeSlot}_${picked.comboKey}`;
       const row = {
@@ -157,10 +194,10 @@ export async function runScheduler() {
         cta_text: picked.cta.text,
         combo_key: picked.comboKey,
         strategy: slotStrategy,
-        brand_required: brandRequired,
-        brand_integration: { ...slotBrand, required: brandRequired, screenshot_required: screenshotRequired },
-        app_screenshot_required: screenshotRequired,
-        copy_bank_seed_id: slotBrand.copy_bank_seed_id ?? null,
+        brand_required: brandPlan.required === true,
+        brand_integration: brandPlan,
+        app_screenshot_required: brandPlan.screenshot_required === true,
+        copy_bank_seed_id: brandPlan.copy_bank_seed_id ?? null,
         status: 'QUEUED',
         seed: selectedSeed,
         created_at: new Date().toISOString(),
