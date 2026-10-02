@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
-import { educationalAssetSlideForSlot, generationCategory } from "../app/lib/render-carousel.js";
+import { educationalAssetSlideForSlot, generationCategory, gridAssetSlideForSlot } from "../app/lib/render-carousel.js";
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
 import { rankingAssetCountForSlide } from "../app/lib/render-carousel.js";
 import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
@@ -42,6 +42,25 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.headlineSize, 30);
     assert.equal(body.text.bodySize, 20);
     assert.equal(body.text.maxBodyLines, 2);
+  });
+
+  it("splits F08 visual intent into two per-slide sources before diagonal repetition", () => {
+    const slide = {
+      position: 3,
+      role: "TIP",
+      layout: "grid-2x2",
+      headline: "keep skincare very boring",
+      body: "simple routine",
+      assetType: "stock",
+      assetQuery: "two skincare photos",
+      visualIntent: "Exactly two unique photos repeated diagonally: a woman applying moisturizer at a bathroom sink, plus a close-up of simple skincare essentials on the counter.",
+    };
+    const primary = gridAssetSlideForSlot(slide, 0);
+    const secondary = gridAssetSlideForSlot(slide, 1);
+    assert.match(primary.visualIntent, /woman applying moisturizer/i);
+    assert.doesNotMatch(primary.visualIntent, /essentials on the counter/i);
+    assert.match(secondary.visualIntent, /skincare essentials on the counter/i);
+    assert.equal(secondary.assetType, "stock");
   });
 
   it("classifies grooming copy as self-care without matching incidental substrings like 'eat' in 'neatly'", () => {
