@@ -70,7 +70,7 @@ export const carouselGeneratorInputSchema = z.object({
 });
 export const carouselSlideSchema = z.object({
   position: z.number().int().min(1).max(12), role: slideRoleSchema, layout: z.string().min(1).max(80),
-  headline: z.string().min(1).max(90), body: z.string().max(280), visualIntent: z.string().min(1).max(240),
+  headline: z.string().min(1).max(90), body: z.string().max(650), visualIntent: z.string().min(1).max(240),
   assetType: assetTypeSchema, assetQuery: z.string().min(1).max(180),
 });
 export const carouselSpecSchema = z.object({
