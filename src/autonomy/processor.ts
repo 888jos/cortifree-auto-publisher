@@ -239,19 +239,22 @@ export async function processQueuedIdeas(
       } catch (error) {
         renderError = error instanceof Error ? error.message : String(error);
       }
-      const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET/i.test(renderError));
+      const providerBlocked = Boolean(renderError && /MODELARK_PROVIDER_BLOCKED/i.test(renderError));
+      const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED/i.test(renderError));
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
         status: assetBlocked ? 'NEEDS_ASSETS' : 'GENERATED',
         carousel_id: carouselId, generated_at: new Date().toISOString(), render_status: renderStatus, last_error: renderError,
       });
       if (assetBlocked) {
         await updateContentSlot(idea.slot_id, { status: 'NEEDS_ASSETS', carousel_id: carouselId });
-        await requestPreflightRefill(await checkGenerationAssetReadiness({
-          personaId,
-          formatId: contentType,
-          slideCount: requestedSlideCount,
-          requireAppScreen: screenshotRequired,
-        })).catch(() => []);
+        if (!providerBlocked) {
+          await requestPreflightRefill(await checkGenerationAssetReadiness({
+            personaId,
+            formatId: contentType,
+            slideCount: requestedSlideCount,
+            requireAppScreen: screenshotRequired,
+          })).catch(() => []);
+        }
       } else if (renderError) {
         await updateContentSlot(idea.slot_id, { status: 'DRAFT', carousel_id: carouselId });
       }
@@ -354,7 +357,7 @@ export async function retryPendingRenders(limit = 20) {
       report.push({ id, status: 'READY_FOR_REVIEW', rendered: rendered.length });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET/i.test(message);
+      const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED/i.test(message);
       if (assetBlocked && carousel.source_idea_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
           status: 'NEEDS_ASSETS', render_status: 'NEEDS_ASSETS', last_error: message.slice(0,1000),
