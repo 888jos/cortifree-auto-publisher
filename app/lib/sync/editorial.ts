@@ -98,6 +98,7 @@ function goldenExample(row: Row): Row {
     .filter(Boolean);
   const humanStatus = String(row.human_status ?? "").trim().toUpperCase();
   const approvalStatus = humanStatus === "HUMAN_APPROVED" ? "human_approved"
+    : humanStatus === "AI_CURATED_APPROVED" ? "assistant_curated"
     : humanStatus === "REJECTED" ? "rejected"
     : "human_review";
   return {
@@ -112,8 +113,8 @@ function goldenExample(row: Row): Row {
     content: row,
     active: bool(row.active, true),
     approval_status: approvalStatus,
-    approved_by: approvalStatus === "human_approved" ? "sheet_human_review" : null,
-    approved_at: approvalStatus === "human_approved" ? new Date().toISOString() : null,
+    approved_by: approvalStatus === "human_approved" ? "sheet_human_review" : approvalStatus === "assistant_curated" ? "assistant_curated_v2" : null,
+    approved_at: ["human_approved", "assistant_curated"].includes(approvalStatus) ? new Date().toISOString() : null,
   };
 }
 
