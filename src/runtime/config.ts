@@ -87,9 +87,8 @@ export async function loadRuntimeAutonomyRules(limit = 200): Promise<AnyRow[]> {
 
 export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
   if (backendConfigured()) {
-    const [topics, hooks, ctas] = await Promise.all([
+    const [topics, ctas] = await Promise.all([
       loadRuntimeRows("content_topics"),
-      loadRuntimeRows("content_hooks"),
       loadRuntimeRows("content_ctas"),
     ]);
     if (topics.length && ctas.length) {
@@ -99,7 +98,10 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
       const autonomyRules = await loadRuntimeAutonomyRules(200);
       return {
         topics: topics as unknown as EditorialTopic[],
-        hooks: hooks as unknown as EditorialHook[],
+        // Legacy hook formulas are deliberately excluded from the V2 runtime.
+        // selectEditorial emits the DYNAMIC marker and the generator writes the
+        // hook together with the concept/body.
+        hooks: [],
         ctas: ctas as unknown as EditorialCta[],
         autonomyRules,
       };
@@ -109,7 +111,7 @@ export async function loadRuntimeEditorial(): Promise<RuntimeEditorial> {
   const snapshot = loadEditorialSnapshot();
   return {
     topics: snapshot.tables.content_topics as unknown as EditorialTopic[],
-    hooks: snapshot.tables.content_hooks as unknown as EditorialHook[],
+    hooks: [],
     ctas: snapshot.tables.content_ctas as unknown as EditorialCta[],
     autonomyRules: snapshot.tables.autonomy_rules ?? [],
   };

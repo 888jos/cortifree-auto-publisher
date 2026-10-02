@@ -62,3 +62,13 @@ test("Supabase timestamp offsets are normalized before strict runtime validation
   );
   assert.equal(normalizeBackendDatetime(null), undefined);
 });
+
+
+test("V2 editorial runtime never depends on legacy hook formulas", () => {
+  const runtime = fs.readFileSync("src/runtime/config.ts", "utf8");
+  const snapshot = fs.readFileSync("src/editorial/snapshot.ts", "utf8");
+
+  assert.doesNotMatch(runtime, /loadRuntimeRows\("content_hooks"/);
+  assert.doesNotMatch(snapshot, /content_hooks\?\.length/);
+  assert.match(snapshot, /startsWith\('T_'\)/);
+});
