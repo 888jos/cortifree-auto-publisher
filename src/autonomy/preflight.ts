@@ -1,5 +1,6 @@
 import { dataBackend } from "../../app/lib/data-backend";
 import { refillPersonaCaches } from "./image-cache";
+import { visualPersonaIdFor } from "../../app/lib/asset-selector";
 
 type Row = Record<string, unknown>;
 
@@ -12,6 +13,7 @@ async function rows(resource: string): Promise<Row[]> {
 export type AssetPreflight = {
   ready: boolean;
   personaId: string;
+  visualPersonaId: string;
   formatId: string;
   requiredPersonaAssets: number;
   personaAssets: number;
@@ -37,8 +39,9 @@ export async function checkGenerationAssetReadiness(input: {
   requireAppScreen?: boolean;
 }): Promise<AssetPreflight> {
   const requiredPersonaAssets = minimumPersonaAssets(input.formatId, input.slideCount);
+  const visualPersonaId = visualPersonaIdFor(input.personaId) ?? input.personaId;
   const [persona, stock, appScreens] = await Promise.all([
-    rows(`assets?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(input.personaId)}&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&select=id&limit=100`),
+    rows(`assets?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(visualPersonaId)}&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&select=id&limit=100`),
     rows("assets?workspace_id=eq.cortifree&source_type=eq.stock&enabled=eq.true&public_url=not.is.null&select=id,visual_tagging_schema,visual_review_status,visual_reviewed_at&limit=1000"),
     rows("assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&enabled=eq.true&public_url=not.is.null&select=id&limit=100"),
   ]);
@@ -56,6 +59,7 @@ export async function checkGenerationAssetReadiness(input: {
   return {
     ready: reasons.length === 0,
     personaId: input.personaId,
+    visualPersonaId,
     formatId: input.formatId,
     requiredPersonaAssets,
     personaAssets: persona.length,
@@ -67,7 +71,7 @@ export async function checkGenerationAssetReadiness(input: {
 
 export async function requestPreflightRefill(preflight: AssetPreflight) {
   if (preflight.personaAssets >= preflight.requiredPersonaAssets) {
-    return [{ persona_id: preflight.personaId, action: "NO_PERSONA_REFILL_NEEDED" }];
+    return [{ persona_id: preflight.visualPersonaId, account_persona_id: preflight.personaId, action: "NO_PERSONA_REFILL_NEEDED" }];
   }
-  return await refillPersonaCaches({ personaIds: [preflight.personaId] });
+  return await refillPersonaCaches({ personaIds: [preflight.visualPersonaId] });
 }

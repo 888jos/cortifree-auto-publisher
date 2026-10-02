@@ -133,7 +133,7 @@ export async function loadRuntimeGoldenExamples(formatId: string, pillarId: stri
     const live = await loadRuntimeRows("editorial_golden_examples", 500);
     const approved = live
       .filter((row) => row.active !== false)
-      .filter((row) => String(row.approval_status ?? "").toLowerCase() === "human_approved")
+      .filter((row) => new Set(["human_approved", "assistant_curated"]).has(String(row.approval_status ?? "").toLowerCase()))
       .filter((row) => String(row.format_id ?? "") === formatId)
       .sort((left, right) => {
         const leftMatch = String(left.pillar_id ?? "") === pillarId ? 1 : 0;

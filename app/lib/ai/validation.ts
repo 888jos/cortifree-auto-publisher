@@ -57,7 +57,8 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       issues.push({ code: "LAYOUT", message: `Slide must use ${expected.layout}`, slidePosition: slide.position, severity: "minor" });
     }
     if (slide.headline.length > 72) issues.push({ code: "HEADLINE_LENGTH", message: "Headline is too long for mobile", slidePosition: slide.position, severity: "minor" });
-    if (slide.body.length > 220) issues.push({ code: "BODY_LENGTH", message: "Body is too long for mobile", slidePosition: slide.position, severity: "minor" });
+    const maxBodyLength = expected.layout === "interactive-checklist" ? 620 : 220;
+    if (slide.body.length > maxBodyLength) issues.push({ code: "BODY_LENGTH", message: "Body is too long for the selected mobile layout", slidePosition: slide.position, severity: "major" });
     if (expected.layout === "routine-timeline") {
       const role = slide.role.toUpperCase();
       const isRoutineStep = index > 0 && role !== "CTA" && role !== "TAKEAWAY";
@@ -71,7 +72,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (expected.layout === "three-rect-educational") {
       const isCover = index === 0;
       const parts = slide.body.split("|").map((item) => item.trim()).filter(Boolean);
-      const allowedLabels = new Set(["BENEFITS", "HOW TO", "WHY IT HELPS", "WHAT TO USE", "MISTAKES"]);
+      const allowedLabels = new Set(["BENEFITS", "HOW TO", "WHY IT HELPS", "WHAT TO USE", "MISTAKES", "TAKEAWAY"]);
       if (isCover) {
         if (slide.headline.length > 72) issues.push({ code: "EDU_COVER_TITLE_LENGTH", message: "F04 cover title is too long for the centered title card", slidePosition: slide.position, severity: "minor" });
         if (slide.body.length > 24 || parts.length > 1) issues.push({ code: "EDU_COVER_COPY", message: "F04 cover must contain only a tiny decorative accent, never a bullet block", slidePosition: slide.position, severity: "minor" });
@@ -123,14 +124,17 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (expected.layout === "interactive-checklist") {
       const isNotesBody = index > 0;
       const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
-      if (isNotesBody && (choices.length < 4 || choices.length > 6)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body should contain roughly 4-6 useful list items", slidePosition: slide.position, severity: "minor" });
-      if (isNotesBody && choices.some((choice) => choice.length > 96)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes item is too long for a readable two-line checklist row", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && (choices.length < 4 || choices.length > 6)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body must contain 4-6 complete useful list items", slidePosition: slide.position, severity: "major" });
+      if (isNotesBody && choices.some((choice) => choice.length > 96)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes item is too long for a readable two-line checklist row; rewrite it rather than truncating it", slidePosition: slide.position, severity: "major" });
       const f05Headline = slide.headline.trim().replace(/[.!?]+$/, "");
       const f05Words = f05Headline.split(/\s+/).filter(Boolean);
       const f05BareCategories = new Set(["notifications","notification","check-in","checkin","focus","morning","mornings","breaks","break","apps","limits","app limits","phone parking","stress","sleep","routine","routines"]);
       if (isNotesBody && f05Words.length <= 2 && f05BareCategories.has(f05Headline.toLowerCase())) issues.push({ code: "CHECKLIST_BARE_CATEGORY", message: "F05 Note title must express an action or complete takeaway, not a bare category label", slidePosition: slide.position, severity: "major" });
       if (isNotesBody && slide.headline.length > 58) issues.push({ code: "CHECKLIST_HEADLINE_LENGTH", message: "F05 Note title is too long for a clean sentence-case heading", slidePosition: slide.position, severity: "minor" });
       if (index === 0 && slide.body.length > 48) issues.push({ code: "CHECKLIST_COVER_BODY", message: "F05 cover should remain photo-first with almost no secondary copy", slidePosition: slide.position, severity: "minor" });
+      if (isNotesBody && index === spec.slides.length - 1 && slide.role.toUpperCase() === "CTA") {
+        issues.push({ code: "CHECKLIST_FINAL_NOTE", message: "F05 final slide must remain a useful Note/takeaway, not a save/follow CTA card", slidePosition: slide.position, severity: "major" });
+      }
     }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });

@@ -83,29 +83,28 @@ const VISUAL_QA_EXCLUDED_FILENAMES = new Set([
   "f30e10fc-3bd9-450c-bde8-5691249e1367.jpeg",
 ]);
 
-const PERSONA_VISUAL_POOLS: Record<string, readonly string[]> = {
-  P01: ["P01", "P04"],
-  P02: ["P02", "P06", "P11"],
-  P03: ["P03", "P07"],
-  P04: ["P01", "P04"],
-  P05: ["P05", "P16"],
-  P06: ["P02", "P06", "P11"],
-  P07: ["P03", "P07"],
-  P08: ["P08", "P14", "P15"],
-  P09: ["P09", "P12"],
-  P10: ["P10"],
-  P11: ["P02", "P06", "P11"],
-  P12: ["P09", "P12"],
-  P13: ["P13"],
-  P14: ["P08", "P14", "P15"],
-  P15: ["P08", "P14", "P15"],
-  P16: ["P05", "P16"],
+// Sixteen publishing personas map to eight stable visual identities.
+// A carousel must NEVER mix faces merely because two accounts share a visual pool.
+const VISUAL_PERSONA_BY_ACCOUNT: Record<string, string> = {
+  P01: "P01", P04: "P01",
+  P02: "P06", P06: "P06", P11: "P06",
+  P03: "P03", P07: "P03",
+  P05: "P05", P16: "P05",
+  P08: "P08", P14: "P08", P15: "P08",
+  P09: "P09", P12: "P09",
+  P10: "P10",
+  P13: "P13",
 };
+
+export function visualPersonaIdFor(requestedPersonaId?: string) {
+  if (!requestedPersonaId) return undefined;
+  return VISUAL_PERSONA_BY_ACCOUNT[requestedPersonaId] ?? requestedPersonaId;
+}
 
 function personaPoolAllows(assetPersonaId?: string | null, requestedPersonaId?: string) {
   if (!requestedPersonaId) return true;
   if (!assetPersonaId) return false;
-  return (PERSONA_VISUAL_POOLS[requestedPersonaId] ?? [requestedPersonaId]).includes(assetPersonaId);
+  return assetPersonaId === visualPersonaIdFor(requestedPersonaId);
 }
 
 const stopWords = new Set(["the", "and", "with", "this", "that", "your", "for", "from", "into", "one", "clear", "everyday", "lifestyle", "image", "photo", "slide", "natural"]);
@@ -517,7 +516,7 @@ export function chooseAssets(options: {
     // dead-end. The chosen low-confidence image remains fully observable in
     // the render metadata via thresholdBypassed.
     const fallbackCandidate = !selectedCandidate && !officialAppScreenshot && !hookNeedsPersona && slide.assetType !== "persona"
-      ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD) ?? candidates[0]
+      ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)
       : undefined;
     const selected = selectedCandidate ?? fallbackCandidate;
     if (!selected) {
