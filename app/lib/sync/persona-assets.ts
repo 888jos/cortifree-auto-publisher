@@ -1,6 +1,6 @@
 import { dataBackend } from "../data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";
-import { listDriveChildren, searchDriveFiles, uploadDriveFile } from "../google/drive";
+import { listDriveChildren, uploadDriveFile } from "../google/drive";
 import { personaAssetFolder } from "../../../src/image-generation/core";
 import { visualPersonaIdFor } from "../asset-selector";
 
@@ -99,7 +99,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
 
     const visualPersonaId = visualPersonaIdFor(personaId);
     if (!visualPersonaId) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "VISUAL_PERSONA_UNRESOLVED" });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "VISUAL_PERSONA_UNRESOLVED" });
       continue;
     }
 
@@ -109,7 +109,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       report.push({
         id: asset.id,
         filename: asset.filename,
-        persona_id: visualPersonaId,
+        persona_id: personaId,
         visual_persona_id: visualPersonaId,
         status: "SKIPPED_LEGACY_NONCANONICAL",
       });
