@@ -136,28 +136,20 @@ describe("CortiFree AI schemas and generation", () => {
     assert.match(seenInstructions[1] ?? "", /assetQuery and visualIntent/);
   });
 
-  it("adds an exact F05 item-count repair after malformed Notes output", async () => {
+  it("adds an exact F05 item-count repair after a checklist rejection", async () => {
     process.env.OPENAI_API_KEY = "test-key";
     process.env.AI_GENERATION_ENABLED = "true";
     process.env.OPENAI_QA_ENABLED = "false";
-    const checklistInput: CarouselGeneratorInput = {
-      ...baseInput,
-      carouselType: "F05_INTERACTIVE_CHECKLIST",
-      layout: "interactive-checklist",
-      requestedSlideCount: 8,
-    };
-    const good = createFallbackCarousel(checklistInput);
-    const bad = structuredClone(good);
-    bad.slides[1]!.body = "put the phone away | drink some water";
     const seenInstructions: string[] = [];
     let calls = 0;
-    const result = await generateCarousel(checklistInput, {
+    const result = await generateCarousel(baseInput, {
       monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
       structuredRequest: async (options) => {
         seenInstructions.push(options.instructions);
         calls += 1;
+        if (calls === 1) throw new Error("F05 Notes body must contain 4-6 complete useful list items");
         return {
-          data: calls === 1 ? bad : good,
+          data: validSpec(),
           usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 },
         };
       },
