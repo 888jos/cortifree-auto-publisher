@@ -29,6 +29,9 @@ const STALE_MS = Math.max(60_000, Number(process.env.WORKER_STALE_MS ?? 15 * 60_
 const MAX_GENERIC_PER_TICK = Math.max(1, Math.min(10, Number(process.env.WORKER_GENERIC_BATCH ?? 2)));
 const MAX_IMAGE_PER_TICK = Math.max(1, Math.min(6, Number(process.env.WORKER_IMAGE_BATCH ?? 2)));
 const OPS_REFRESH_MS = Math.max(5 * 60_000, Number(process.env.WORKER_OPS_REFRESH_MS ?? 60 * 60_000));
+const IMAGE_CIRCUIT_LOG_MS = 60_000;
+let lastImageCircuitLogAt = 0;
+let lastImageCircuitKey = "";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -452,9 +455,16 @@ async function processGenericBatch() {
 async function processImageBatch() {
   const providerBlocker = await recentImageProviderBlocker();
   if (providerBlocker) {
-    console.warn("[worker] IMAGE CIRCUIT OPEN", providerBlocker);
+    const key = JSON.stringify(providerBlocker);
+    const now = Date.now();
+    if (key !== lastImageCircuitKey || now - lastImageCircuitLogAt >= IMAGE_CIRCUIT_LOG_MS) {
+      console.warn("[worker] IMAGE CIRCUIT OPEN", providerBlocker);
+      lastImageCircuitKey = key;
+      lastImageCircuitLogAt = now;
+    }
     return 0;
   }
+  lastImageCircuitKey = "";
   let processed = 0;
   for (; processed < MAX_IMAGE_PER_TICK; processed += 1) {
     const job = await claimImageJob();
