@@ -10,6 +10,7 @@ import { recoverModelArkOrphans } from "../../app/lib/recovery/modelark-orphans"
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { createAcceptanceSample, runScheduler } from "../autonomy/scheduler";
+import { updateContentSlot } from "../autonomy/slots";
 import { prepareCarouselForRender, processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
@@ -335,7 +336,7 @@ async function runRender(resourceId: string | null | undefined) {
   const id = String(resourceId ?? "").trim();
   if (!id) throw new Error("RENDER_CAROUSEL missing resource_id");
   const carousel = (await rows(
-    `carousels?workspace_id=eq.cortifree&id=eq.${encodeURIComponent(id)}&select=id,persona_id,content_type,lifecycle_state,spec&limit=1`,
+    `carousels?workspace_id=eq.cortifree&id=eq.${encodeURIComponent(id)}&select=id,persona_id,content_type,lifecycle_state,source_idea_id,calendar_slot_id,spec&limit=1`,
   ))[0];
   if (!carousel) throw new Error(`Carousel not found: ${id}`);
   const spec = carousel.spec as Record<string, unknown>;
@@ -361,6 +362,14 @@ async function runRender(resourceId: string | null | undefined) {
       lifecycle_state: "READY_FOR_REVIEW",
       last_review_action: "RENDERED",
     });
+    if (carousel.source_idea_id) {
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
+        status: "GENERATED",
+        render_status: "READY_FOR_REVIEW",
+        last_error: null,
+      });
+    }
+    await updateContentSlot(carousel.calendar_slot_id, { status: "READY_FOR_REVIEW", carousel_id: id });
     return { rendered: rendered.length, urls: rendered.map((slide) => slide.url) };
   } catch (error) {
     const message = errorMessage(error);
@@ -369,6 +378,14 @@ async function runRender(resourceId: string | null | undefined) {
       lifecycle_state: assetBlocked ? "NEEDS_ASSETS" : "NEEDS_FIX",
       last_review_action: assetBlocked ? "ASSET_BLOCKED" : "RENDER_FAILED",
     }).catch(() => undefined);
+    if (carousel.source_idea_id) {
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
+        status: assetBlocked ? "NEEDS_ASSETS" : "GENERATED",
+        render_status: assetBlocked ? "NEEDS_ASSETS" : "DRAFT",
+        last_error: message.slice(0, 1000),
+      }).catch(() => undefined);
+    }
+    if (assetBlocked) await updateContentSlot(carousel.calendar_slot_id, { status: "NEEDS_ASSETS", carousel_id: id }).catch(() => undefined);
     throw error;
   }
 }
