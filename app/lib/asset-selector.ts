@@ -152,11 +152,15 @@ function assetVisualText(asset: SelectableAsset) {
   ]).join(" ");
 }
 function assetText(asset: SelectableAsset) {
-  // Observable metadata is the primary retrieval corpus. The V2 pixel-derived
-  // asset_name is only a weak semantic/debugging signal; folder/category and
-  // the legacy physical filename must never decide a match.
+  // Observable metadata is the primary retrieval corpus. For ordinary visual
+  // assets, folder/category/filename must never decide a match. Official app
+  // screenshots are the exception: their canonical filename/subcategory
+  // intentionally encodes the UI screen type (breathing, library, Milo, etc.).
   const observedAssetName = String(visualField(asset, "asset_name") ?? "");
-  return `${assetVisualText(asset)} ${observedAssetName} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+  const appScreenIdentity = asset.source_type === "app_screenshot"
+    ? `${asset.filename} ${asset.subcategory} ${asset.category}`
+    : "";
+  return `${assetVisualText(asset)} ${observedAssetName} ${appScreenIdentity} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
 }
 
 function runtimeVisualMetadata(asset: SelectableAsset) {
