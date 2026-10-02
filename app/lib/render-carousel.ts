@@ -1784,7 +1784,7 @@ export async function renderCarouselRevision(input: {
                   assets,
                   carouselType: input.carouselType,
                   personaId: input.personaId,
-                  slides: [primarySelectionSlide(slide)],
+                  slides: [{ ...withoutAppScreenshotDirective(slide), assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
                 })[0]!;
                 const support = chooseAssets({
                   assets,
