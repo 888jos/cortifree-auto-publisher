@@ -3,7 +3,7 @@ import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs, autonomyRuleValue } from '../runtime/config';
 import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core';
 import { isAutomaticVisualReference, visualReferenceSchema } from '../visual-references/index';
-import { processImageGenerationJob } from '../../app/lib/image-generation';
+import { processImageGenerationJob, recentImageProviderBlocker } from '../../app/lib/image-generation';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
@@ -46,6 +46,7 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
   const target = autonomyRuleValue(autonomyRules, 'persona_cache_target', 20);
   const maxCache = Math.max(25, autonomyRuleValue(autonomyRules, 'persona_cache_max', 25));
   const generationEnabled = process.env.IMAGE_GENERATION_ENABLED === 'true';
+  const providerBlocker = generationEnabled ? await recentImageProviderBlocker() : null;
   const report: Row[] = [];
   const requestedPersonaIds = new Set((options.personaIds ?? []).map((id) => id.trim().toUpperCase()).filter(Boolean));
   const active = accounts.filter((account) =>
@@ -90,6 +91,10 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
     const master = (await rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_master&enabled=eq.true&select=id&limit=1`))[0];
     if (!master) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'BLOCKED_MASTER' }); continue; }
     if (!generationEnabled) { report.push({ persona_id: account.persona_id, count: existing.length, action: 'GENERATION_DISABLED' }); continue; }
+    if (providerBlocker) {
+      report.push({ persona_id: account.persona_id, count: existing.length, action: 'GENERATION_PROVIDER_BLOCKED', reason: providerBlocker.reason, blocked_at: providerBlocker.updatedAt });
+      continue;
+    }
 
     const sceneRows = await rows('persona_scene_templates?enabled=eq.true&select=*&limit=100');
     const refs = (await rows('visual_references?enabled=eq.true&select=*&limit=500'))
@@ -156,6 +161,8 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
 
 export async function processPendingImageJobs(limit = Math.max(1, Math.min(6, Number(process.env.AUTONOMY_MAX_IMAGE_JOBS_PER_RUN ?? 4)))) {
   if (process.env.IMAGE_GENERATION_ENABLED !== 'true') return [{ action: 'GENERATION_DISABLED' }];
+  const providerBlocker = await recentImageProviderBlocker();
+  if (providerBlocker) return [{ action: 'GENERATION_PROVIDER_BLOCKED', reason: providerBlocker.reason, blocked_at: providerBlocker.updatedAt }];
   const pending = (await rows(`image_generation_jobs?status=in.(PENDING,RETRY)&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
   for (const job of pending) {
