@@ -12,6 +12,15 @@ describe('carousel editor runtime resilience', () => {
     assert.match(source, /bodyEditRef/);
   });
 
+  it('uses the same canonical geometry and typography resolver as final rendering', async () => {
+    const source = await fs.readFile(path.join(process.cwd(), 'app/editor/[id]/page.tsx'), 'utf8');
+    assert.match(source, /getSlideGeometry/);
+    assert.match(source, /typographyForCarousel/);
+    assert.match(source, /getSlideGeometry\(\{\.\.\.gen,layout\},isHook,isVisualFinal,typographyForCarousel\(id\)\)/);
+    assert.match(source, /three-rect-educational.*\{x:80,y:110,width:450,height:430\}/s);
+    assert.match(source, /grid-2x2.*\{x:32,y:32,width:500,height:635\}/s);
+  });
+
   it('keeps the v6 editor hierarchy focused on canvas and contextual actions', async () => {
     const source = await fs.readFile(path.join(process.cwd(), 'app/editor/[id]/page.tsx'), 'utf8');
     const css = await fs.readFile(path.join(process.cwd(), 'app/editor/[id]/editor.css'), 'utf8');
