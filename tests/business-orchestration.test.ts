@@ -44,6 +44,12 @@ describe("business orchestration v1", () => {
     assert.equal(utc.toISOString(), "2026-09-28T00:00:00.000Z");
   });
 
+  it("always writes both slot_time and legacy-required local_time", async () => {
+    const slots = await fs.readFile(path.join(process.cwd(), "src/autonomy/slots.ts"), "utf8");
+    assert.match(slots, /slot_date:date, slot_time:time, local_time:time/);
+    assert.match(slots, /slot_date:day,slot_time:time,local_time:time/);
+  });
+
   it("does not silently drop common PostgREST filters", () => {
     const parsed = parseConvexResource("carousels?status=neq.ARCHIVED&scheduled_for=gte.2026-09-27T00%3A00%3A00Z&approved_at=not.is.null&rejected_at=is.null&limit=20");
     assert.ok(parsed.filters.some((filter) => filter.field === "status" && filter.op === "neq"));
