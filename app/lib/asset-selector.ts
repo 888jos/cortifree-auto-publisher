@@ -73,6 +73,10 @@ const EXPLICIT_FALLBACK_THRESHOLD = 28;
 // Hard scene/object/person constraints still apply before scoring; allow sparse
 // reviewed metadata to pass at a lower floor instead of blocking the carousel.
 const F05_BACKGROUND_FALLBACK_THRESHOLD = 22;
+// F03 needs one distinct same-persona photo per timed step. A lower fallback
+// is safer than repeating the same high-scoring frame: persona identity and
+// hard scene constraints have already been enforced before scoring.
+const F03_PERSONA_FALLBACK_THRESHOLD = 22;
 const MIN_SCENE_COMPATIBLE_POOL = 8;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
@@ -548,10 +552,16 @@ export function chooseAssets(options: {
     // For non-persona slides, a safe eligible candidate is preferable to a
     // dead-end. The chosen low-confidence image remains fully observable in
     // the render metadata via thresholdBypassed.
+    const isF03PersonaStep = options.carouselType === "F03_ROUTINE_TIMELINE"
+      && !isHook
+      && slide.assetType === "persona";
     const fallbackThreshold = options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
       ? F05_BACKGROUND_FALLBACK_THRESHOLD
-      : EXPLICIT_FALLBACK_THRESHOLD;
-    const fallbackCandidate = !selectedCandidate && !officialAppScreenshot && !hookNeedsPersona && slide.assetType !== "persona"
+      : isF03PersonaStep
+        ? F03_PERSONA_FALLBACK_THRESHOLD
+        : EXPLICIT_FALLBACK_THRESHOLD;
+    const fallbackCandidate = !selectedCandidate && !officialAppScreenshot && !hookNeedsPersona
+      && (slide.assetType !== "persona" || isF03PersonaStep)
       ? candidates.find((candidate) => candidate.score >= fallbackThreshold)
       : undefined;
     const selected = selectedCandidate ?? fallbackCandidate;
