@@ -1,6 +1,6 @@
 import os from "node:os";
 import { dataBackend } from "../../app/lib/data-backend";
-import { processImageGenerationJob } from "../../app/lib/image-generation";
+import { processImageGenerationJob, recentImageProviderBlocker } from "../../app/lib/image-generation";
 import { isPermanentImageGenerationError } from "../image-generation/core";
 import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToConvex } from "../../app/lib/sync/editorial";
@@ -422,6 +422,11 @@ async function processGenericBatch() {
 }
 
 async function processImageBatch() {
+  const providerBlocker = await recentImageProviderBlocker();
+  if (providerBlocker) {
+    console.warn("[worker] IMAGE CIRCUIT OPEN", providerBlocker);
+    return 0;
+  }
   let processed = 0;
   for (; processed < MAX_IMAGE_PER_TICK; processed += 1) {
     const job = await claimImageJob();
