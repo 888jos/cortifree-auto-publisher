@@ -30,7 +30,12 @@ export const editorialContextSchema = z.object({
   })).max(3).optional(),
   concept_id: z.string().optional(), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
   account_id: z.string(), persona_id: z.string(),
-  brand_integration: z.object({ required: z.boolean(), mention: z.string(), screenshot_required: z.boolean() }),
+  brand_integration: z.object({
+    required: z.boolean(), mention: z.string(), screenshot_required: z.boolean(),
+    integration_type: z.string().optional(), slide: z.string().optional(), intensity: z.number().optional(),
+    app_screen_category: z.string().optional(), app_screen_asset_id: z.string().nullable().optional(),
+    copy_bank_seed_id: z.string().nullable().optional(),
+  }),
 });
 export const healthGuardrailsSchema = z.object({
   sources: z.array(z.object({
