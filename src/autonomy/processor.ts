@@ -135,7 +135,18 @@ export async function processQueuedIdeas(
       }
 
       const requestedSlideCount = slideCountFor(contentType, formats);
-      const preflight = await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount });
+      const brandPlan = idea.brand_integration && typeof idea.brand_integration === 'object'
+        ? idea.brand_integration as Record<string, unknown>
+        : {};
+      const brandRequired = idea.brand_required === true;
+      const appScreenAssetId = String(brandPlan.app_screen_asset_id ?? '').trim();
+      const screenshotRequired = brandRequired && idea.app_screenshot_required === true && appScreenAssetId.length > 0;
+      const preflight = await checkGenerationAssetReadiness({
+        personaId,
+        formatId: contentType,
+        slideCount: requestedSlideCount,
+        requireAppScreen: screenshotRequired,
+      });
       if (!preflight.ready) {
         const reason = `ASSET_PREFLIGHT:${preflight.reasons.join(',')}`;
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
@@ -155,12 +166,6 @@ export async function processQueuedIdeas(
         last_error: null,
       });
       const goldenExamples = await loadRuntimeGoldenExamples(contentType, String(idea.pillar_id ?? ''), 3);
-      const brandPlan = idea.brand_integration && typeof idea.brand_integration === 'object'
-        ? idea.brand_integration as Record<string, unknown>
-        : {};
-      const brandRequired = idea.brand_required === true;
-      const appScreenAssetId = String(brandPlan.app_screen_asset_id ?? '').trim();
-      const screenshotRequired = brandRequired && idea.app_screenshot_required === true && appScreenAssetId.length > 0;
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
         layout,
@@ -241,7 +246,12 @@ export async function processQueuedIdeas(
       });
       if (assetBlocked) {
         await updateContentSlot(idea.slot_id, { status: 'NEEDS_ASSETS', carousel_id: carouselId });
-        await requestPreflightRefill(await checkGenerationAssetReadiness({ personaId, formatId: contentType, slideCount: requestedSlideCount })).catch(() => []);
+        await requestPreflightRefill(await checkGenerationAssetReadiness({
+          personaId,
+          formatId: contentType,
+          slideCount: requestedSlideCount,
+          requireAppScreen: screenshotRequired,
+        })).catch(() => []);
       } else if (renderError) {
         await updateContentSlot(idea.slot_id, { status: 'DRAFT', carousel_id: carouselId });
       }
@@ -369,10 +379,17 @@ export async function resumeAssetBlockedIdeas(limit = 50) {
     const personaId = String(idea.persona_id ?? "");
     const formatId = String(idea.content_type ?? "");
     if (!id || !personaId || !formatId) continue;
+    const brandPlan = idea.brand_integration && typeof idea.brand_integration === 'object'
+      ? idea.brand_integration as Record<string, unknown>
+      : {};
+    const requireAppScreen = idea.brand_required === true
+      && idea.app_screenshot_required === true
+      && String(brandPlan.app_screen_asset_id ?? '').trim().length > 0;
     const preflight = await checkGenerationAssetReadiness({
       personaId,
       formatId,
       slideCount: slideCountFor(formatId, formats),
+      requireAppScreen,
     });
     if (!preflight.ready) {
       report.push({ id, status: 'NEEDS_ASSETS', reasons: preflight.reasons });
