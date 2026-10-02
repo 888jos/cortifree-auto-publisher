@@ -278,6 +278,13 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "UNICODE_ARTIFACT" && issue.severity === "major"), true);
   });
 
+  it("rejects any stray non-Latin alphabet in an English carousel", () => {
+    const spec = validSpec();
+    spec.slides[1]!.assetQuery += " fruit फल";
+    const issues = validateCarouselSpec(spec, { slideCount: 7, language: "en", layout: "single-image" });
+    assert.equal(issues.some((issue) => issue.code === "UNEXPECTED_SCRIPT" && issue.severity === "major"), true);
+  });
+
   it("produces a canonical F05 Notes-style master-list fallback", () => {
     const checklistInput: CarouselGeneratorInput = {
       ...baseInput,
