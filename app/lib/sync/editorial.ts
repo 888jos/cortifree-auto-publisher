@@ -86,6 +86,11 @@ function goldenExample(row: Row): Row {
     slides,
     content: row,
     active: bool(row.active, true),
+    approval_status: String(row.human_status ?? "").trim().toUpperCase() === "AI_CURATED_APPROVED"
+      ? "ai_curated_approved"
+      : String(row.human_status ?? "").trim().toUpperCase() === "HUMAN_APPROVED"
+        ? "human_approved"
+        : "review_required",
   };
 }
 
