@@ -1,9 +1,11 @@
 import { dataBackend } from "../data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";
-import { listDriveChildren, searchDriveFiles, uploadDriveFile } from "../google/drive";
+import { listDriveChildren, uploadDriveFile } from "../google/drive";
 import { personaAssetFolder } from "../../../src/image-generation/core";
+import { visualPersonaIdFor } from "../asset-selector";
 
-const PERSONAS_ROOT = process.env.GOOGLE_DRIVE_PERSONAS_FOLDER_ID || "1cnDHDfAGgwOxTT_kJsZNpnRHvB5sY6Ps";
+const VISUAL_POOLS_ROOT = process.env.GOOGLE_DRIVE_VISUAL_POOLS_FOLDER_ID || "1f9ExgxZR_uKr6Rf4xVyAkvKWoNKUEenB";
+const VISUAL_POOLS_ROOT_NAME = "RUNTIME_8_VISUAL_POOLS_2026-10-02";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const PERSONA_RE = /^(P\d{2})/i;
 const PERSONA_BY_NAME: Record<string, string> = {
@@ -40,20 +42,6 @@ async function folders(folderId: string, path: string[] = [], out: FolderNode[] 
   return out;
 }
 
-async function discoverPersonaFolders() {
-  const discovered: FolderNode[] = [];
-  for (let index = 1; index <= 16; index += 1) {
-    const id = `P${String(index).padStart(2, "0")}`;
-    const matches = await searchDriveFiles(`name contains '${id}' and mimeType='${FOLDER_MIME}'`);
-    const match = matches.find((item) => PERSONA_RE.test(item.name));
-    if (match) {
-      discovered.push({ id: match.id, path: [match.name] });
-      await folders(match.id, [match.name], discovered);
-    }
-  }
-  return discovered;
-}
-
 function personaIdFromMaster(value: unknown) {
   const filename = String(value ?? "").toUpperCase();
   const direct = filename.match(/P\d{2}/)?.[0];
@@ -79,17 +67,16 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
   const execute = Boolean(options.execute);
   const [assets, rootedFolders] = await Promise.all([
     rows(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&source_type=eq.persona_generated&select=id,filename,category,persona_id,public_url,metadata,enabled,drive_file_id,drive_path&limit=5000`),
-    folders(PERSONAS_ROOT),
+    folders(VISUAL_POOLS_ROOT),
   ]);
 
-  const folderTree = rootedFolders.some((item) => Boolean(personaIdFromFolderPath(item.path)))
-    ? rootedFolders
-    : await discoverPersonaFolders();
+  const folderTree = rootedFolders;
 
   const personaFolders = new Map<string, FolderNode>();
   for (const item of folderTree) {
+    if (item.path.length !== 1) continue;
     const id = personaIdFromFolderPath(item.path);
-    if (id && !personaFolders.has(id)) personaFolders.set(id, item);
+    if (id && visualPersonaIdFor(id) === id && !personaFolders.has(id)) personaFolders.set(id, item);
   }
 
   const report: Row[] = [];
@@ -110,21 +97,30 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       continue;
     }
 
-    if (personaId === "P13") {
+    const visualPersonaId = visualPersonaIdFor(personaId);
+    if (!visualPersonaId) {
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "VISUAL_PERSONA_UNRESOLVED" });
+      continue;
+    }
+
+    // Historical assets generated with a now-merged-away face stay in legacy storage.
+    // Relabeling P04/Nora as P01/Emma (etc.) would corrupt identity continuity.
+    if (personaId !== visualPersonaId) {
       report.push({
         id: asset.id,
         filename: asset.filename,
         persona_id: personaId,
-        status: "SKIPPED_NO_VALID_MASTER",
+        visual_persona_id: visualPersonaId,
+        status: "SKIPPED_LEGACY_NONCANONICAL",
       });
       continue;
     }
 
-    const personaFolder = personaFolders.get(personaId);
+    const personaFolder = personaFolders.get(visualPersonaId);
     if (!personaFolder) {
       if (execute && !asset.persona_id) {
         await patchAsset(String(asset.id), {
-          persona_id: personaId,
+          persona_id: visualPersonaId,
           metadata: {
             ...metadata,
             reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null,
@@ -132,9 +128,9 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
             drive_archive_status: "PENDING_FOLDER_ACCESS",
           },
         });
-        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_PENDING_DRIVE" });
+        report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "ATTRIBUTED_PENDING_DRIVE" });
       } else {
-        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "PERSONA_FOLDER_NOT_FOUND" });
+        report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "PERSONA_FOLDER_NOT_FOUND" });
       }
       continue;
     }
@@ -146,23 +142,25 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       && item.path.at(-1) === targetName
     );
     if (!target) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName });
       continue;
     }
 
     const storedDriveFileId = String(asset.drive_file_id ?? metadata.drive_file_id ?? "").trim();
-    if (storedDriveFileId) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId });
+    const storedDrivePath = String(asset.drive_path ?? metadata.drive_path ?? "").trim();
+    const alreadyInRuntimePool = Boolean(storedDriveFileId) && storedDrivePath.startsWith(`${VISUAL_POOLS_ROOT_NAME}/`);
+    if (alreadyInRuntimePool) {
+      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId });
       continue;
     }
 
     if (!execute) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "READY_TO_ARCHIVE", target: [...target.path].join("/") });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "READY_TO_ARCHIVE", target: [...target.path].join("/") });
       continue;
     }
 
     const attribution = {
-      persona_id: personaId,
+      persona_id: visualPersonaId,
       metadata: {
         ...metadata,
         reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null,
@@ -172,13 +170,13 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
     await patchAsset(String(asset.id), attribution);
 
     if (!asset.public_url) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_NOT_ARCHIVED" });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "ATTRIBUTED_NOT_ARCHIVED" });
       continue;
     }
 
     const image = await fetch(String(asset.public_url), { signal: AbortSignal.timeout(30_000) });
     if (!image.ok) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status });
       continue;
     }
 
@@ -191,7 +189,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
         bytes: new Uint8Array(await image.arrayBuffer()),
         mimeType: image.headers.get("content-type") || "image/jpeg",
       });
-      const canonicalDrivePath = [...target.path, String(asset.filename)].join("/");
+      const canonicalDrivePath = [VISUAL_POOLS_ROOT_NAME, ...target.path, String(asset.filename)].join("/");
       const archivedAt = new Date().toISOString();
       await patchAsset(String(asset.id), {
         ...attribution,
@@ -209,7 +207,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       report.push({
         id: asset.id,
         filename: asset.filename,
-        persona_id: personaId,
+        persona_id: visualPersonaId,
         status: "ARCHIVED_DRIVE",
         drive_file_id: uploaded.id,
         drive_path: canonicalDrivePath,
@@ -227,7 +225,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       report.push({
         id: asset.id,
         filename: asset.filename,
-        persona_id: personaId,
+        persona_id: visualPersonaId,
         status: "DRIVE_UPLOAD_BLOCKED",
         error: message.slice(0, 500),
       });
@@ -237,7 +235,8 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
   return {
     ok: true,
     execute,
-    drive_root: PERSONAS_ROOT,
+    drive_root: VISUAL_POOLS_ROOT,
+    drive_root_name: VISUAL_POOLS_ROOT_NAME,
     discovered_persona_folders: personaFolders.size,
     folder_tree_count: folderTree.length,
     total: report.length,
