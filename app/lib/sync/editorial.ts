@@ -75,6 +75,10 @@ function goldenExample(row: Row): Row {
   const slides = ["slide_2", "slide_3", "slide_4", "slide_5", "slide_6", "slide_7"]
     .map((key) => String(row[key] ?? "").trim())
     .filter(Boolean);
+  const humanStatus = String(row.human_status ?? "").trim().toUpperCase();
+  const approvalStatus = humanStatus === "HUMAN_APPROVED" ? "human_approved"
+    : humanStatus === "REJECTED" ? "rejected"
+    : "review_required";
   return {
     example_id: row.golden_id,
     format_id: canonicalGoldenFormat(row),
@@ -86,6 +90,9 @@ function goldenExample(row: Row): Row {
     slides,
     content: row,
     active: bool(row.active, true),
+    approval_status: approvalStatus,
+    approved_by: approvalStatus === "human_approved" ? "sheet_human_review" : null,
+    approved_at: approvalStatus === "human_approved" ? new Date().toISOString() : null,
   };
 }
 
@@ -187,7 +194,7 @@ function persona(row: Row): Row {
 
 const mappings: Mapping[] = [
   { sheet: "01_PERSONAS", range: "A1:X40", table: "content_personas", key: "persona_id", transform: persona },
-  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "accounts", key: "account_id", transform: account },
+  { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "content_accounts", key: "account_id", transform: account },
   { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id", transform: pillar },
   { sheet: "05_CONTENT_TERRITORIES", range: "A1:O200", table: "content_topics", key: "topic_id", sourceKey: "territory_id", transform: territory },
@@ -209,7 +216,7 @@ async function upsert(table: string, key: string, rows: Row[]) {
       : row;
     return { ...normalized, ...(supabaseRuntime && tableHasNoWorkspaceColumn ? {} : supabaseRuntime ? { workspace_id: "cortifree" } : { id: row.id ?? row[key], workspace_id: "cortifree" }) };
   });
-  const conflictKey = table === "accounts" ? "account_id" : (supabaseRuntime ? key : "id");
+  const conflictKey = supabaseRuntime ? key : "id";
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const response = await dataBackend(`${table}?on_conflict=${conflictKey}`, {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(payload),
@@ -379,6 +386,8 @@ export async function syncEditorialSheetToConvex() {
     { sheet: "09_HEALTH_SOURCES", range: "A1:I100", kind: "health_sources", key: "source_id", title: "title" },
     { sheet: "12_AUTONOMY_RULES", range: "A1:G100", kind: "autonomy_rules", key: "rule_id", title: "key" },
     { sheet: "13_TEMPLATE_SPECS", range: "A1:H100", kind: "template_specs", key: "format_id", title: "format_id" },
+    { sheet: "17_BRAND_INTEGRATIONS", range: "A1:N100", kind: "brand_integrations", key: "integration_id", title: "integration_type" },
+    { sheet: "19_APP_SCREEN_LIBRARY", range: "A1:K100", kind: "app_screen_library", key: "screen_id", title: "category" },
   ];
   for (const mirror of recordMirrors) {
     counts[`editorial_${mirror.kind}`] = await syncSheetRecordKind(mirror);
