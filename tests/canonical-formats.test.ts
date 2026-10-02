@@ -122,7 +122,7 @@ describe("canonical carousel formats", () => {
   });
 
   it("uses images only on the F07 cover and keeps ranking body/final slides truly text-only", () => {
-    assert.equal(rankingAssetCountForSlide({ position: 1, role: "HOOK" }), 2);
+    assert.equal(rankingAssetCountForSlide({ position: 1, role: "HOOK" }), 1);
     assert.equal(rankingAssetCountForSlide({ position: 2, role: "TIP" }), 0);
     assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 0);
   });
