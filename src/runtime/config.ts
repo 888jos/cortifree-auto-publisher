@@ -26,13 +26,13 @@ function allowJsonFallback() {
 
 export async function loadRuntimeAccounts(): Promise<Account[]> {
   if (backendConfigured()) {
-    const live = await loadRuntimeRows("accounts", 100);
+    const live = await loadRuntimeRows("content_accounts", 100);
     const parsed = live
       .filter((row) => row.active !== false)
       .map((row, index) => {
         const candidate = {
-          id: row.id ?? row.account_id,
-          name: row.name ?? row.display_name ?? row.display_name_candidate ?? row.username ?? row.username_candidate ?? row.id ?? row.account_id,
+          id: row.account_id ?? row.id,
+          name: row.display_name ?? row.name ?? row.username ?? row.username_candidate ?? row.account_id ?? row.id,
           persona_id: row.persona_id,
           language: row.language ?? "en",
           market: row.market ?? "US",

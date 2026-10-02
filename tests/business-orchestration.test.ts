@@ -17,8 +17,12 @@ describe("business orchestration v1", () => {
     assert.equal(learningMultiplier({ F01: 2 }, "F01", "EXPERIMENT"), 1);
   });
 
-  it("requires a real persona cache before paid copy generation", () => {
-    assert.equal(minimumPersonaAssets("F01_LIFESTYLE_GUIDE", 7), 4);
+  it("requires only the persona cache the renderer actually needs", () => {
+    assert.equal(minimumPersonaAssets("F01_LIFESTYLE_GUIDE", 7), 1);
+    assert.equal(minimumPersonaAssets("F03_ROUTINE_TIMELINE", 7), 1);
+    assert.equal(minimumPersonaAssets("F04_AESTHETIC_EDUCATIONAL", 7), 1);
+    assert.equal(minimumPersonaAssets("F05_INTERACTIVE_CHECKLIST", 7), 1);
+    assert.equal(minimumPersonaAssets("F07_RANKING", 7), 1);
     assert.equal(minimumPersonaAssets("F06_PERSONA_EXPLAINER", 7), 4);
     assert.equal(minimumPersonaAssets("F08_2X2", 7), 2);
   });
@@ -60,6 +64,21 @@ describe("business orchestration v1", () => {
     const stillBlockedAt = processor.indexOf("action: 'CONFIG_STILL_BLOCKED'", queryAt);
     assert.ok(queryAt >= 0 && expireAt > queryAt);
     assert.ok(stillBlockedAt > expireAt, "expired blocked slots must be handled before returning CONFIG_STILL_BLOCKED");
+  });
+
+  it("uses content_accounts as the canonical account runtime", async () => {
+    const runtime = await fs.readFile(path.join(process.cwd(), "src/runtime/config.ts"), "utf8");
+    const sync = await fs.readFile(path.join(process.cwd(), "app/lib/sync/editorial.ts"), "utf8");
+    assert.match(runtime, /loadRuntimeRows\("content_accounts"/);
+    assert.match(sync, /table: "content_accounts"/);
+  });
+
+  it("keeps product integration conditional instead of forcing CortiFree into every post", async () => {
+    const processor = await fs.readFile(path.join(process.cwd(), "src/autonomy/processor.ts"), "utf8");
+    const prompt = await fs.readFile(path.join(process.cwd(), "app/lib/ai/prompts.ts"), "utf8");
+    assert.match(processor, /const brandRequired = idea\.brand_required === true/);
+    assert.match(prompt, /If editorialContext\.brand_integration\.required is false, do NOT mention CortiFree/);
+    assert.doesNotMatch(processor, /brand_integration: \{ required: true, mention: 'CortiFree', screenshot_required: true \}/);
   });
 
   it("keeps OpenAI behind asset preflight in autonomous processing", async () => {

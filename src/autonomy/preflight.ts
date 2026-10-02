@@ -21,15 +21,20 @@ export type AssetPreflight = {
 };
 
 export function minimumPersonaAssets(formatId: string, slideCount: number) {
+  // New-generation formats need identity continuity on the hook/cover.
+  // F08 additionally needs a second persona image for the diagonal pair when
+  // no official app screenshot is selected. Other body assets may be stock or
+  // repaired JIT, so preflight must not demand four cached persona images.
   if (formatId === "F06_PERSONA_EXPLAINER") return Math.min(Math.max(4, Math.ceil(slideCount / 2)), slideCount);
   if (formatId === "F08_2X2") return 2;
-  return Math.min(4, Math.max(1, slideCount));
+  return 1;
 }
 
 export async function checkGenerationAssetReadiness(input: {
   personaId: string;
   formatId: string;
   slideCount: number;
+  requireAppScreen?: boolean;
 }): Promise<AssetPreflight> {
   const requiredPersonaAssets = minimumPersonaAssets(input.formatId, input.slideCount);
   const [persona, stock, appScreens] = await Promise.all([
@@ -47,7 +52,7 @@ export async function checkGenerationAssetReadiness(input: {
   const reasons: string[] = [];
   if (persona.length < requiredPersonaAssets) reasons.push(`PERSONA_CACHE:${persona.length}/${requiredPersonaAssets}`);
   if (reviewedStock < 12) reasons.push(`REVIEWED_STOCK:${reviewedStock}/12`);
-  if (appScreens.length < 1) reasons.push("APP_SCREEN:0/1");
+  if (input.requireAppScreen && appScreens.length < 1) reasons.push("APP_SCREEN:0/1");
   return {
     ready: reasons.length === 0,
     personaId: input.personaId,

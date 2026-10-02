@@ -1,8 +1,29 @@
 import crypto from "node:crypto";
 import type { Account } from "../domain";
 import { dataBackend } from "../../app/lib/data-backend";
+import { ACTIVE_FORMAT_IDS } from "../content/formats";
 
 type Row = Record<string, unknown>;
+const ACTIVE_FORMAT_SET = new Set<string>(ACTIVE_FORMAT_IDS);
+function boolish(value: unknown) {
+  if (typeof value === "boolean") return value;
+  return ["true","1","yes"].includes(String(value ?? "").trim().toLowerCase());
+}
+function integrationPayload(data: Record<string, unknown>) {
+  const assetId = String(data.app_screen_asset_id ?? "").trim();
+  return {
+    required: false,
+    legacy_requested: boolish(data.brand_required),
+    mention: "the app CortiFree",
+    integration_type: String(data.integration_type ?? ""),
+    slide: String(data.integration_slide ?? ""),
+    intensity: Number(data.integration_intensity ?? 0) || 0,
+    app_screen_category: String(data.app_screen_category ?? ""),
+    app_screen_asset_id: assetId || null,
+    copy_bank_seed_id: String(data.copy_bank_seed_id ?? "") || null,
+    screenshot_required: false,
+  };
+}
 
 async function rows(resource: string): Promise<Row[]> {
   const response = await dataBackend(resource);
@@ -76,13 +97,26 @@ export async function syncContentSlotsFromCalendar() {
     const status = priorStatus && priorStatus !== "EXPIRED"
       ? priorStatus
       : scheduled.getTime() < now ? "EXPIRED" : "OPEN";
+    const plannedFormat = String(data.format_id_v2 ?? "").trim();
+    const rawTopicId = String(data.topic_id ?? "").trim();
+    const brand = integrationPayload(data);
     batch.push({
       id, workspace_id:"cortifree", account_id:accountId, persona_id:data.persona_id ?? null,
       slot_date:date, slot_time:time, timezone, scheduled_for:scheduled.toISOString(),
       strategy:strategyForSlot(id), pillar_id:data.pillar_id ?? null, concept_id:data.carousel_type ?? null,
-      format_id:null, topic_id:data.topic_id ?? null, hook_id:data.hook_id ?? null,
+      format_id:ACTIVE_FORMAT_SET.has(plannedFormat) ? plannedFormat : null,
+      topic_id:/^T_/.test(rawTopicId) ? rawTopicId : null,
+      hook_id:null,
       status, idea_id:prior?.idea_id ?? null, carousel_id:prior?.carousel_id ?? null,
-      source:"content_calendar", metadata:data, updated_at:new Date().toISOString(),
+      source:"content_calendar",
+      metadata:data,
+      topic:data.topic ?? null,
+      angle:data.angle ?? null,
+      hook:null,
+      brand_integration:brand,
+      app_screenshot_required:brand.screenshot_required,
+      source_payload:data,
+      updated_at:new Date().toISOString(),
     });
   }
   if (batch.length) await upsert("content_slots?on_conflict=id", batch);
@@ -133,13 +167,29 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
         const scheduled = zonedToUtc(day,time,account.timezone);
         if (scheduled.getTime() <= now.getTime() + 5 * 60_000) continue;
         const id=`AUTO_SLOT_${account.id}_${day.replaceAll("-","")}_${index+1}`;
+        const promoBucket = crypto.createHash("sha1").update(`${id}:promo`).digest().readUInt32BE(0) / 0xffffffff;
+        const brandRequired = promoBucket < Math.max(0, Math.min(1, account.promo_ratio ?? 0.08));
+        const brandIntegration = {
+          required: brandRequired,
+          mention: "the app CortiFree",
+          integration_type: brandRequired ? "HABIT_IN_LIST" : "",
+          slide: "",
+          intensity: brandRequired ? 1 : 0,
+          app_screen_category: "",
+          app_screen_asset_id: null,
+          copy_bank_seed_id: null,
+          screenshot_required: false,
+        };
         created.push({
           id,workspace_id:"cortifree",account_id:account.id,persona_id:account.persona_id,
           slot_date:day,slot_time:time,timezone:account.timezone,
           scheduled_for:scheduled.toISOString(),
           strategy:strategyForSlot(id),pillar_id:account.primary_pillar_id??null,
           concept_id:null,format_id:null,topic_id:null,hook_id:null,status:"OPEN",
-          source:"runtime_generated",metadata:{generated_from_account:true},updated_at:new Date().toISOString(),
+          source:"runtime_generated",metadata:{generated_from_account:true,promo_ratio:account.promo_ratio ?? 0.08},
+          brand_integration:brandIntegration,
+          app_screenshot_required:false,
+          updated_at:new Date().toISOString(),
         });
         added += 1;
       }
