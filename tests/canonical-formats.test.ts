@@ -108,6 +108,13 @@ describe("canonical carousel formats", () => {
     assert.match(supportB.visualIntent, /quiet desk with the phone away/i);
   });
 
+  it("keeps F05 Notes backgrounds contextual without depending on ModelArk repair", () => {
+    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    assert.match(renderer, /function checklistBackgroundFallbackSlide/);
+    assert.match(renderer, /slides: \[checklistBackgroundFallbackSlide\(slide\)\]/);
+    assert.match(renderer, /input\.layout !== "interactive-checklist"/);
+  });
+
   it("keeps F05 as a compact Notes-style checklist with readable mobile type", () => {
     const cover = getSlideGeometry(
       { layout: "interactive-checklist", position: 1, role: "HOOK", headline: "i thought this was normal", body: "" },
