@@ -151,7 +151,10 @@ describe("canonical carousel formats", () => {
 
   it("keeps the F05 atmospheric-background fallback below the general asset floor", () => {
     const selector = readFileSync(new URL("../app/lib/asset-selector.ts", import.meta.url), "utf8");
-    assert.match(selector, /F05_BACKGROUND_FALLBACK_THRESHOLD = 10/);
+    assert.match(selector, /F05_BACKGROUND_FALLBACK_THRESHOLD = 15/);
+    assert.match(selector, /F05_GENERIC_BACKGROUND_FALLBACK_THRESHOLD = 10/);
+    assert.match(selector, /slide\.f05DecorativeFallback === true/);
+    assert.match(renderer, /f05DecorativeFallback: true/);
     assert.match(selector, /Hard scene\/object\/person constraints still apply/);
   });
 
