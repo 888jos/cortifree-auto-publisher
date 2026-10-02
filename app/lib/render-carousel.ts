@@ -1440,8 +1440,19 @@ export async function renderCarousel(input: {
       const message = error instanceof Error ? error.message : String(error);
       const position = Number(message.match(/slide_(\d+)/)?.[1] ?? 0);
       if (!position || repairedPositions.has(position)) throw error;
+      const failedSlide = input.slides[position - 1]!;
+      const isHook = failedSlide.position === 1 || failedSlide.role.toUpperCase() === "HOOK";
+      const repairCanBecomeSelectable = isHook
+        || failedSlide.assetType === "persona"
+        || failedSlide.assetType === "generated"
+        || input.layout === "grid-2x2"
+        || input.layout === "lifestyle-3stack";
+      // ModelArk repair currently creates persona-generated assets. Generating
+      // one for a stock-only F04/F05 slot cannot satisfy that slot and merely
+      // burns time/cost before failing again.
+      if (!repairCanBecomeSelectable) throw error;
       repairedPositions.add(position);
-      await generateRepairAsset({ input, slide: input.slides[position - 1]!, position, usedReferenceIds });
+      await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds });
       assets = await loadSelectableAssets();
     }
   }
