@@ -20,10 +20,11 @@ function unsafeHealthReason(text: string) {
   return unsafeHealthRules.find((rule) => rule.pattern.test(text))?.reason ?? null;
 }
 
-const unexpectedScriptPattern = /[\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 const suspiciousUnicodeArtifactPattern = /\uFFFD|[\u3000-\u303F]|[\u200B-\u200D\uFEFF]/u;
 function hasUnexpectedScript(text: string, language: "en" | "fr") {
-  return language === "en" && unexpectedScriptPattern.test(text);
+  if (language !== "en") return false;
+  const letters = text.match(/\p{Letter}/gu) ?? [];
+  return letters.some((letter) => !/\p{Script=Latin}/u.test(letter));
 }
 
 const layoutAliases: Record<string, string> = {
