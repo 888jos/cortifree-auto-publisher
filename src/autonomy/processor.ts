@@ -22,6 +22,34 @@ async function patch(resource: string, body: Record<string, unknown>) {
   if (!response.ok) throw new Error(await response.text());
 }
 
+export async function recordGenerationQa(input: {
+  carouselId: string;
+  qaType: 'GENERATION' | 'RENDER';
+  status: 'PASS' | 'WARN' | 'FAIL';
+  severity?: 'INFO' | 'WARN' | 'FAIL';
+  reason?: string | null;
+  details?: Record<string, unknown>;
+}) {
+  const response = await dataBackend('content_generation_qa', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      workspace_id: 'cortifree',
+      carousel_id: input.carouselId,
+      slide_id: null,
+      qa_type: input.qaType,
+      status: input.status,
+      severity: input.severity ?? (input.status === 'FAIL' ? 'FAIL' : input.status === 'WARN' ? 'WARN' : 'INFO'),
+      reason: input.reason ?? null,
+      details: input.details ?? {},
+      auto_fixable: false,
+    }),
+  });
+  if (!response.ok) {
+    console.warn('[qa] persistence failed', input.carouselId, input.qaType, await response.text());
+  }
+}
+
 export async function prepareCarouselForRender(carouselId: string, lifecycleState?: unknown) {
   let state = String(lifecycleState ?? '').trim();
   if (!state) {
@@ -235,6 +263,20 @@ export async function processQueuedIdeas(
       });
       const result = await generateCarousel(input, {}, { carouselId });
       if (result.source !== 'openai') throw new Error(result.warning ?? 'Autonomous generation requires a successful AI draft');
+      await recordGenerationQa({
+        carouselId,
+        qaType: 'GENERATION',
+        status: result.qa?.approved === false ? 'WARN' : 'PASS',
+        severity: result.qa?.approved === false ? 'WARN' : 'INFO',
+        reason: result.qa?.approved === false ? result.qa.issues.map((issue) => issue.message).slice(0, 3).join('; ') : null,
+        details: {
+          source: result.source,
+          model: result.model,
+          warning: result.warning,
+          sampled_ai_qa: Boolean(result.qa),
+          issues: result.qa?.issues ?? [],
+        },
+      });
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
         hook_id: 'DYNAMIC',
         hook_formula: null,
@@ -258,12 +300,27 @@ export async function processQueuedIdeas(
           throw new Error(`RENDER_INCOMPLETE: expected ${result.spec.slides.length} final PNGs, received ${rendered.length}`);
         }
         await assertCarouselHasCompleteRender(carouselId);
+        await recordGenerationQa({
+          carouselId,
+          qaType: 'RENDER',
+          status: 'PASS',
+          severity: 'INFO',
+          details: { rendered_slides: rendered.length, expected_slides: result.spec.slides.length },
+        });
         renderStatus = 'READY_FOR_REVIEW';
         await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
         await updateContentSlot(idea.slot_id, { status: 'READY_FOR_REVIEW', carousel_id: carouselId });
 
       } catch (error) {
         renderError = error instanceof Error ? error.message : String(error);
+        await recordGenerationQa({
+          carouselId,
+          qaType: 'RENDER',
+          status: 'FAIL',
+          severity: 'FAIL',
+          reason: renderError.slice(0, 1000),
+          details: { content_type: contentType, persona_id: personaId },
+        });
       }
       const providerBlocked = Boolean(renderError && /MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(renderError));
       const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(renderError));
