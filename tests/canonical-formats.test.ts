@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
+import { educationalAssetSlideForSlot, generationCategory, gridAssetSlideForSlot } from "../app/lib/render-carousel.js";
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
 import { rankingAssetCountForSlide } from "../app/lib/render-carousel.js";
 import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
@@ -41,6 +42,62 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.headlineSize, 30);
     assert.equal(body.text.bodySize, 20);
     assert.equal(body.text.maxBodyLines, 2);
+  });
+
+  it("splits F08 visual intent into two per-slide sources before diagonal repetition", () => {
+    const slide = {
+      position: 3,
+      role: "TIP",
+      layout: "grid-2x2",
+      headline: "keep skincare very boring",
+      body: "simple routine",
+      assetType: "stock",
+      assetQuery: "two skincare photos",
+      visualIntent: "Exactly two unique photos repeated diagonally: a woman applying moisturizer at a bathroom sink, plus a close-up of simple skincare essentials on the counter.",
+    };
+    const primary = gridAssetSlideForSlot(slide, 0);
+    const secondary = gridAssetSlideForSlot(slide, 1);
+    assert.match(primary.visualIntent, /woman applying moisturizer/i);
+    assert.doesNotMatch(primary.visualIntent, /essentials on the counter/i);
+    assert.match(secondary.visualIntent, /skincare essentials on the counter/i);
+    assert.equal(secondary.assetType, "stock");
+  });
+
+  it("classifies grooming copy as self-care without matching incidental substrings like 'eat' in 'neatly'", () => {
+    const base = { position: 2, role: "TIP", layout: "grid-2x2", body: "", assetType: "persona" };
+    assert.equal(generationCategory({
+      ...base,
+      headline: "choose one hair default",
+      assetQuery: "woman making a low bun",
+      visualIntent: "close-up of a claw clip and neatly gathered hair",
+    }), "self_care");
+    assert.equal(generationCategory({
+      ...base,
+      headline: "eat the easiest breakfast",
+      assetQuery: "simple breakfast in a kitchen",
+      visualIntent: "woman eating yogurt and fruit",
+    }), "food");
+  });
+
+  it("splits F04 three-image visual intent into slot-specific asset queries", () => {
+    const slide = {
+      position: 2,
+      role: "MISTAKE",
+      layout: "three-rect-educational",
+      headline: "make notifications wait",
+      body: "HOW TO | turn off noise | check later",
+      assetType: "stock",
+      assetQuery: "three useful visuals",
+      visualIntent: "Three differentiated visuals: top-left proof/example of a phone face down beside a laptop; bottom-left support visual of a hand changing notification settings; bottom-right support visual of a quiet desk with the phone away.",
+    };
+    const primary = educationalAssetSlideForSlot(slide, 0);
+    const supportA = educationalAssetSlideForSlot(slide, 1);
+    const supportB = educationalAssetSlideForSlot(slide, 2);
+    assert.match(primary.visualIntent, /phone face down beside a laptop/i);
+    assert.doesNotMatch(primary.visualIntent, /hand changing notification/i);
+    assert.match(supportA.visualIntent, /hand changing notification settings/i);
+    assert.equal(supportA.assetType, "stock");
+    assert.match(supportB.visualIntent, /quiet desk with the phone away/i);
   });
 
   it("keeps F05 as a compact Notes-style checklist with readable mobile type", () => {
