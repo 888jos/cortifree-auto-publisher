@@ -67,6 +67,12 @@ export type EditorialContext = {
     required: boolean;
     mention: string;
     screenshot_required: boolean;
+    integration_type?: string;
+    slide?: string;
+    intensity?: number;
+    app_screen_category?: string;
+    app_screen_asset_id?: string | null;
+    copy_bank_seed_id?: string | null;
   };
 };
 export type HealthGuardrails = {
