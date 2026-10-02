@@ -62,11 +62,28 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   checks.counts = counts;
   if ((counts.personas ?? 0) < 16) blockers.push("PERSONAS_LT_16");
   if ((counts.accounts ?? 0) < 16) blockers.push("ACCOUNTS_LT_16");
-  if ((counts.content_topics ?? 0) < 500) blockers.push("TOPICS_LT_500");
-  if ((counts.content_hooks ?? 0) < 200) blockers.push("HOOKS_LT_200");
   if ((counts.content_ctas ?? 0) < 30) blockers.push("CTAS_LT_30");
   if ((counts.assets ?? 0) < 300) blockers.push("ASSETS_LT_300");
   if ((counts.visual_references ?? 0) < 150) blockers.push("VISUAL_REFS_LT_150");
+
+  const [activeTerritories, activeFormats, activeLegacyHooks] = await Promise.all([
+    rows("content_topics?active=eq.true&select=topic_id&limit=500").catch(() => []),
+    rows("content_formats?active=eq.true&select=format_id&limit=100").catch(() => []),
+    rows("content_hooks?active=eq.true&select=hook_id&limit=500").catch(() => []),
+  ]);
+  const canonicalFormats = new Set([
+    "F01_LIFESTYLE_GUIDE","F03_ROUTINE_TIMELINE","F04_AESTHETIC_EDUCATIONAL",
+    "F05_INTERACTIVE_CHECKLIST","F07_RANKING","F08_2X2",
+  ]);
+  const territoryIds = activeTerritories.map((row) => String(row.topic_id ?? "")).filter((id) => id.startsWith("T_"));
+  const formatIds = activeFormats.map((row) => String(row.format_id ?? ""));
+  checks.activeTerritories = territoryIds.length;
+  checks.activeCanonicalFormats = formatIds.filter((id) => canonicalFormats.has(id)).length;
+  checks.activeLegacyHookFormulas = activeLegacyHooks.length;
+  checks.dynamicHookMode = activeLegacyHooks.length === 0;
+  if (territoryIds.length < 40) blockers.push("CONTENT_TERRITORIES_LT_40");
+  if (checks.activeCanonicalFormats !== 6) blockers.push("CANONICAL_FORMATS_NOT_6");
+  if (activeLegacyHooks.length > 0) blockers.push("LEGACY_HOOK_FORMULAS_ACTIVE");
 
   checks.googleConfigured = googleServiceAccountConfigured();
   if (!checks.googleConfigured) blockers.push("GOOGLE_SERVICE_ACCOUNT_MISSING");
@@ -96,15 +113,16 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   if (masterPersonaIds.size < 16) blockers.push("PERSONA_MASTERS_LT_16");
 
   const accounts = await loadRuntimeAccounts().catch(() => []);
-  const publishAccounts = accounts.filter((account) =>
-    account.enabled &&
-    account.posting_enabled &&
-    account.warmup_status === "ACTIVE"
-  );
+  const enabledPostingAccounts = accounts.filter((account) => account.enabled && account.posting_enabled);
+  const publishAccounts = enabledPostingAccounts.filter((account) => account.warmup_status === "ACTIVE");
+  const mappedEnabledAccounts = enabledPostingAccounts.filter((account) => Boolean(account.upload_post_profile?.trim()));
   const mappedAccounts = publishAccounts.filter((account) => Boolean(account.upload_post_profile?.trim()));
+  checks.enabledPostingAccounts = enabledPostingAccounts.map((a) => a.id);
   checks.activePublishingAccounts = publishAccounts.map((a) => a.id);
+  checks.mappedEnabledAccounts = mappedEnabledAccounts.map((a) => a.id);
   checks.mappedPublishingAccounts = mappedAccounts.map((a) => a.id);
-  if (!mappedAccounts.length) blockers.push("NO_UPLOAD_POST_PROFILE");
+  if (!publishAccounts.length) blockers.push("NO_ACTIVE_PUBLISHING_ACCOUNT");
+  else if (mappedAccounts.length !== publishAccounts.length) blockers.push("ACTIVE_ACCOUNT_MISSING_UPLOAD_POST_PROFILE");
 
   checks.uploadPostApiKey = boolEnv("UPLOAD_POST_API_KEY");
   if (!checks.uploadPostApiKey) blockers.push("UPLOAD_POST_API_KEY_MISSING");
