@@ -218,7 +218,9 @@ export function generationCategory(slide: GeneratedSlide) {
   return "home";
 }
 
-function checklistBackgroundFallbackSlide(slide: GeneratedSlide): GeneratedSlide {
+type ChecklistBackgroundFallbackSlide = GeneratedSlide & { f05DecorativeFallback: true };
+
+function checklistBackgroundFallbackSlide(slide: GeneratedSlide): ChecklistBackgroundFallbackSlide {
   const category = generationCategory(slide);
   const fallbackByCategory: Record<string, string> = {
     outdoors: "natural outdoor walking or daylight lifestyle scene",
@@ -234,6 +236,7 @@ function checklistBackgroundFallbackSlide(slide: GeneratedSlide): GeneratedSlide
     assetType: "stock",
     assetQuery: intent,
     visualIntent: intent,
+    f05DecorativeFallback: true,
   };
 }
 
