@@ -2,6 +2,9 @@ name: Generate CortiFree acceptance 20
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - qa/editorial-v2-acceptance
 
 permissions:
   contents: read
