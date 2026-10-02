@@ -2,6 +2,8 @@ name: Generate CortiFree acceptance 20
 
 on:
   workflow_dispatch:
+  push:
+    branches: [feat/editorial-territories-v2]
 
 permissions:
   contents: read
