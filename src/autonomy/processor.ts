@@ -438,6 +438,13 @@ export async function retryPendingRenders(limit = 20) {
         throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
       }
       await assertCarouselHasCompleteRender(id);
+      await recordGenerationQa({
+        carouselId: id,
+        qaType: 'RENDER',
+        status: 'PASS',
+        severity: 'INFO',
+        details: { rendered_slides: rendered.length, expected_slides: slides.length, source: 'retry_pending_renders' },
+      });
       await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
       if (carousel.source_idea_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
@@ -448,6 +455,14 @@ export async function retryPendingRenders(limit = 20) {
       report.push({ id, status: 'READY_FOR_REVIEW', rendered: rendered.length });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      await recordGenerationQa({
+        carouselId: id,
+        qaType: 'RENDER',
+        status: 'FAIL',
+        severity: 'FAIL',
+        reason: message.slice(0, 1000),
+        details: { content_type: carousel.content_type, persona_id: carousel.persona_id, source: 'retry_pending_renders' },
+      });
       const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(message);
       await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
         lifecycle_state: assetBlocked ? 'NEEDS_ASSETS' : 'NEEDS_FIX',
