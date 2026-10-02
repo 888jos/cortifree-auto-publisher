@@ -82,6 +82,13 @@ export async function runScheduler() {
       const rawPreferredTopicId = String(slot.topic_id ?? '').trim();
       const preferredTopicId = /^T_/.test(rawPreferredTopicId) ? rawPreferredTopicId : '';
       const preferredPillarId = String(slot.pillar_id ?? '').trim();
+      const rawPreferredFormatId = String(slot.format_id ?? '').trim();
+      const preferredFormatId = ACTIVE_FORMAT_SET.has(rawPreferredFormatId) ? rawPreferredFormatId : '';
+      const slotBrand = slot.brand_integration && typeof slot.brand_integration === 'object'
+        ? slot.brand_integration as Record<string, unknown>
+        : {};
+      const brandRequired = slotBrand.required === true;
+      const screenshotRequired = brandRequired && slot.app_screenshot_required === true;
       let picked: ReturnType<typeof selectEditorial> | null = null;
       let selectedSeed = '';
 
@@ -97,14 +104,17 @@ export async function runScheduler() {
         const allowedPillars = preferredPillarId && attempt < 18
           ? [preferredPillarId]
           : pillarIds(account);
-        if (!topicPool.length || !allowedPillars.length) continue;
+        const allowedFormats = preferredFormatId && attempt < 12
+          ? [preferredFormatId]
+          : formatIds(account);
+        if (!topicPool.length || !allowedPillars.length || !allowedFormats.length) continue;
         try {
           picked = selectEditorial({
             seed: selectedSeed,
             accountId: account.id,
             personaId: account.persona_id,
             pillarIds: allowedPillars,
-            formatIds: formatIds(account),
+            formatIds: allowedFormats,
             topics: topicPool,
             hooks: [],
             ctas,
@@ -147,6 +157,10 @@ export async function runScheduler() {
         cta_text: picked.cta.text,
         combo_key: picked.comboKey,
         strategy: slotStrategy,
+        brand_required: brandRequired,
+        brand_integration: { ...slotBrand, required: brandRequired, screenshot_required: screenshotRequired },
+        app_screenshot_required: screenshotRequired,
+        copy_bank_seed_id: slotBrand.copy_bank_seed_id ?? null,
         status: 'QUEUED',
         seed: selectedSeed,
         created_at: new Date().toISOString(),
@@ -242,7 +256,9 @@ export async function createAcceptanceSample(input: { batchId?: string; limit?: 
       pillar_id: picked.topic.pillar_id, content_type: selectedFormatId, topic_id: picked.topic.topic_id,
       topic: picked.topic.topic, angle: picked.topic.angle, hook_id: picked.hook.hook_id,
       hook_formula: null, final_hook: null, cta_id: picked.cta.cta_id,
-      cta_text: picked.cta.text, combo_key: picked.comboKey, strategy: strategy(index), status: 'QUEUED',
+      cta_text: picked.cta.text, combo_key: picked.comboKey, strategy: strategy(index),
+      brand_required: false, brand_integration: { required: false, mention: '', screenshot_required: false },
+      app_screenshot_required: false, copy_bank_seed_id: null, status: 'QUEUED',
       seed: selectedSeed, acceptance_batch_id: batchId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
     plannedRows.push(row);
