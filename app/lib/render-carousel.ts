@@ -1374,7 +1374,7 @@ export async function renderCarousel(input: {
                     ...withoutAppScreenshotDirective(slide),
                     position: Math.max(2, slide.position),
                     role: "SUPPORT",
-                    assetType: "stock",
+                    assetType: input.layout === "lifestyle-3stack" ? "persona" : "stock",
                   };
               const next = chooseAssets({
                 assets,
