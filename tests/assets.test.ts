@@ -106,7 +106,7 @@ describe('asset scanner', () => {
     const support: SelectableAsset = {
       id: 'ranking-cover-support', filename: 'ranking-cover-support.jpg', category: 'misc', subcategory: 'misc', orientation: 'portrait',
       framing: 'detail', activity: '', mood: 'warm', colors: [], tags: [], public_url: 'https://example.com/ranking-cover-support.jpg',
-      use_count: 3, last_used_at: null, source_type: 'stock',
+      use_count: 10, last_used_at: null, source_type: 'stock',
       visual_description: 'quiet warm everyday interior detail', visible_objects: [], visible_actions: [], setting: 'indoor_room',
       people_visibility: 'no_person', body_parts_visible: [], composition: 'detail_scene',
       camera_angle: 'eye_level', lighting: 'warm_daylight', dominant_colors: [], text_in_image: '', specific_details: '',
