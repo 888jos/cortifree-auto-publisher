@@ -43,7 +43,7 @@ function embeddedFontForFamily(family: string) {
   return existsSync(fontPath) ? readFileSync(fontPath).toString("base64") : "";
 }
 
-type GeneratedSlide = {
+export type GeneratedSlide = {
   position: number;
   role: string;
   layout: string;
@@ -53,6 +53,32 @@ type GeneratedSlide = {
   visualIntent: string;
   assetType?: string;
 };
+
+function labeledEducationalVisual(value: string, label: "top-left" | "bottom-left" | "bottom-right") {
+  const source = value.replace(/^\s*Three differentiated visuals:\s*/i, "").trim();
+  const labels = "top-left|bottom-left|bottom-right|top-right";
+  const match = source.match(new RegExp(`(?:^|;\\s*)${label}\\s+([\\s\\S]*?)(?=;\\s*(?:${labels})\\b|$)`, "i"));
+  return match?.[1]?.replace(/^(?:proof\/example|support visual|proof|example)\s+(?:of\s+)?/i, "").trim() ?? "";
+}
+
+export function educationalAssetSlideForSlot(slide: GeneratedSlide, slotIndex: number): GeneratedSlide {
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  if (isHook) return slide;
+  const labels = ["top-left", "bottom-left", "bottom-right"] as const;
+  const label = labels[Math.max(0, Math.min(labels.length - 1, slotIndex))]!;
+  const visual = labeledEducationalVisual(slide.visualIntent, label)
+    || labeledEducationalVisual(slide.assetQuery, label);
+  const fallback = `${slide.headline}. ${slide.body.split("|").slice(1).join(". ")}`.trim();
+  const intent = visual || fallback;
+  return {
+    ...withoutAppScreenshotDirective(slide),
+    position: Math.max(2, slide.position),
+    role: slotIndex === 0 ? slide.role : "SUPPORT",
+    assetType: slotIndex === 0 ? slide.assetType : "stock",
+    assetQuery: intent,
+    visualIntent: intent,
+  };
+}
 
 function withoutAppScreenshotDirective(slide: GeneratedSlide): GeneratedSlide {
   if (!requiresOfficialAppScreenshot(slide)) return slide;
@@ -1274,9 +1300,12 @@ export async function renderCarousel(input: {
     || input.layout === "lifestyle-3stack";
 
   function primarySelectionSlide(slide: GeneratedSlide): GeneratedSlide {
-    const normalized = (multiImageLayout || input.layout === "grid-2x2")
-      ? withoutAppScreenshotDirective(slide)
+    const slotAware = input.layout === "three-rect-educational"
+      ? educationalAssetSlideForSlot(slide, 0)
       : slide;
+    const normalized = (multiImageLayout || input.layout === "grid-2x2")
+      ? withoutAppScreenshotDirective(slotAware)
+      : slotAware;
     return normalized.assetType === "generated"
       ? { ...normalized, assetType: "persona" }
       : normalized;
@@ -1370,12 +1399,14 @@ export async function renderCarousel(input: {
               const alreadyHasAppScreenshot = selected.some((match) => match.asset.source_type === "app_screenshot");
               const supportSlide = needsAppScreenshot && !alreadyHasAppScreenshot
                 ? slide
-                : {
-                    ...withoutAppScreenshotDirective(slide),
-                    position: Math.max(2, slide.position),
-                    role: "SUPPORT",
-                    assetType: input.layout === "lifestyle-3stack" ? "persona" : "stock",
-                  };
+                : input.layout === "three-rect-educational"
+                  ? educationalAssetSlideForSlot(slide, selected.length)
+                  : {
+                      ...withoutAppScreenshotDirective(slide),
+                      position: Math.max(2, slide.position),
+                      role: "SUPPORT",
+                      assetType: input.layout === "lifestyle-3stack" ? "persona" : "stock",
+                    };
               const next = chooseAssets({
                 assets,
                 carouselType: input.carouselType,
