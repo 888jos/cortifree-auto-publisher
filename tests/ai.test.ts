@@ -256,6 +256,28 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "ROUTINE_ITINERARY_DRIFT" && issue.severity === "major"), true);
   });
 
+  it("rejects an F03 cover that reads like a generic observation instead of a routine title", () => {
+    const routineInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F03_ROUTINE_TIMELINE",
+      layout: "routine-timeline",
+      requestedSlideCount: 7,
+      preferredHook: "my realistic low-stress morning routine",
+    };
+    const routine = createFallbackCarousel(routineInput);
+    routine.slides[0]!.headline = "i can close my laptop and still feel like work is following me";
+    routine.hook = routine.slides[0]!.headline;
+    const issues = validateCarouselSpec(routine, { slideCount: 7, language: "en", layout: "routine-timeline" });
+    assert.equal(issues.some((issue) => issue.code === "ROUTINE_COVER_TITLE" && issue.severity === "major"), true);
+  });
+
+  it("rejects malformed and invisible Unicode artifacts in generated copy or visual prompts", () => {
+    const spec = validSpec();
+    spec.slides[1]!.visualIntent += " malformed replacement � and zero-width\u200B";
+    const issues = validateCarouselSpec(spec, { slideCount: 7, language: "en", layout: "single-image" });
+    assert.equal(issues.some((issue) => issue.code === "UNICODE_ARTIFACT" && issue.severity === "major"), true);
+  });
+
   it("produces a canonical F05 Notes-style master-list fallback", () => {
     const checklistInput: CarouselGeneratorInput = {
       ...baseInput,
