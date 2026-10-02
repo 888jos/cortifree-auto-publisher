@@ -8,10 +8,19 @@ export type EditorialSnapshot = {
   tables: Record<string, Array<Record<string, unknown>>>;
 };
 
+function activeV2Territories(snapshot: EditorialSnapshot) {
+  return (snapshot.tables?.content_topics ?? []).filter((row) =>
+    row.active !== false && String(row.topic_id ?? '').startsWith('T_')
+  );
+}
+
 export function loadEditorialSnapshot(file = path.resolve('config/editorial/content-db.v3.json')): EditorialSnapshot {
   const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as EditorialSnapshot;
   if (parsed.workspace_id !== 'cortifree') throw new Error('Editorial snapshot must be scoped to cortifree');
-  if (!parsed.tables?.content_topics?.length || !parsed.tables?.content_hooks?.length) throw new Error('Editorial snapshot is incomplete');
+  if (!parsed.tables?.content_ctas?.length) throw new Error('Editorial snapshot is incomplete: content_ctas is missing');
+  if (!activeV2Territories(parsed).length) {
+    throw new Error('Editorial snapshot is legacy: V2 content territories are missing. Sync 05_CONTENT_TERRITORIES before enabling JSON fallback.');
+  }
   return parsed;
 }
 
