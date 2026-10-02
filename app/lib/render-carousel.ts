@@ -178,8 +178,8 @@ function referenceSceneIntent(slide: GeneratedSlide) {
 }
 
 async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
-  if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
-  const visualPersonaId = visualPersonaIdFor(visualPersonaId);
+  if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
+  const visualPersonaId = visualPersonaIdFor(options.input.personaId);
   if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
   const [personas, mastersResponse, referencesResponse] = await Promise.all([
     loadRuntimePersonaConfigs(),
