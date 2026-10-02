@@ -35,6 +35,35 @@ async function upsert(resource: string, body: unknown) {
   });
   if (!response.ok) throw new Error(await response.text());
 }
+
+async function recordLearningSignal(input: {
+  carouselId: string;
+  accountId?: unknown;
+  personaId?: unknown;
+  pillarId?: unknown;
+  formatId?: unknown;
+  hookId?: unknown;
+  signalType: string;
+  category?: string | null;
+  value: number;
+  metadata?: Record<string, unknown>;
+}) {
+  await upsert('content_learning_signals', {
+    workspace_id: 'cortifree',
+    carousel_id: input.carouselId,
+    account_id: input.accountId ?? null,
+    persona_id: input.personaId ?? null,
+    pillar_id: input.pillarId ?? null,
+    concept_id: null,
+    format_id: input.formatId ?? null,
+    hook_id: input.hookId ?? null,
+    hour_local: null,
+    signal_type: input.signalType,
+    category: input.category ?? null,
+    value: Number.isFinite(input.value) ? input.value : 0,
+    metadata: input.metadata ?? {},
+  });
+}
 function n(value: unknown) {
   const x = Number(value ?? 0);
   return Number.isFinite(x) ? x : 0;
@@ -138,6 +167,25 @@ async function syncContentPerformance(job: Row, label: string, metrics: ReturnTy
   if (label === '24h') patchRow.views_24h = metrics.views;
   if (label === '72h') patchRow.views_72h = metrics.views;
   await upsert('content_performance?on_conflict=carousel_id', patchRow);
+  await recordLearningSignal({
+    carouselId,
+    accountId: carousel.account_id ?? job.account_id,
+    personaId: carousel.persona_id,
+    pillarId: carousel.pillar_id,
+    formatId: carousel.format_id,
+    hookId: carousel.hook_id,
+    signalType: 'PERFORMANCE_SNAPSHOT',
+    category: label,
+    value: performanceScore(metrics),
+    metadata: {
+      views: metrics.views,
+      likes: metrics.likes,
+      comments: metrics.comments,
+      shares: metrics.shares,
+      saves: Math.max(metrics.saves, metrics.favorites),
+      captured_at: capturedAt,
+    },
+  });
 }
 
 export async function refreshPostAnalytics(limit = 100) {
@@ -232,6 +280,18 @@ export async function refreshPostAnalytics(limit = 100) {
       is_winner: true,
       performance_score: row.performance_score,
       winner_at: new Date().toISOString(),
+    });
+    await recordLearningSignal({
+      carouselId: String(row.carousel_id),
+      accountId: carousel.account_id,
+      personaId: carousel.persona_id,
+      pillarId: carousel.pillar_id,
+      formatId: carousel.format_id ?? carousel.content_type,
+      hookId: carousel.hook_id,
+      signalType: 'WINNER',
+      category: 'ACCOUNT_MEDIAN_MULTIPLE',
+      value: base > 0 ? n(row.views) / base : 0,
+      metadata: { views: row.views, account_median: base, performance_score: row.performance_score },
     });
     winnerRows.push({
       carousel_id: row.carousel_id,
