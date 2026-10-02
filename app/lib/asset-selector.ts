@@ -69,7 +69,10 @@ const STOCK_HOOK_THRESHOLD = 40;
 // Hard constraints have already removed incompatible candidates. This fallback
 // keeps a genuinely matching, sparsely described image usable during migration.
 const EXPLICIT_FALLBACK_THRESHOLD = 28;
-const F05_BACKGROUND_FALLBACK_THRESHOLD = 26;
+// F05 text lives on the Notes card, so the full-screen image is supporting atmosphere.
+// Hard scene/object/person constraints still apply before scoring; allow sparse
+// reviewed metadata to pass at a lower floor instead of blocking the carousel.
+const F05_BACKGROUND_FALLBACK_THRESHOLD = 22;
 const MIN_SCENE_COMPATIBLE_POOL = 8;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
