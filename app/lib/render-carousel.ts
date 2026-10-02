@@ -80,6 +80,34 @@ export function educationalAssetSlideForSlot(slide: GeneratedSlide, slotIndex: n
   };
 }
 
+function twoByTwoVisualParts(value: string) {
+  let source = value
+    .replace(/^\s*(?:Editorial\s+)?2x2\s+grid\s+with\s+/i, "")
+    .replace(/^\s*(?:Exactly\s+)?two\s+unique(?:\s+cohesive)?(?:\s+lifestyle)?\s+photos?(?:\s+only)?(?:,?\s+repeated\s+diagonally(?:\s+in\s+the\s+2x2\s+grid)?)?\s*:\s*/i, "")
+    .trim();
+  const labeled = source.match(/top-left(?:\s+and\s+bottom-right)?\s+(?:show|shows)?\s*([\s\S]*?);\s*top-right(?:\s+and\s+bottom-left)?\s+(?:show|shows)?\s*([\s\S]*)/i);
+  if (labeled) return [labeled[1]!.trim(), labeled[2]!.trim()];
+  const numbered = source.match(/1\)\s*([\s\S]*?)(?:;|,)?\s*2\)\s*([\s\S]*)/i);
+  if (numbered) return [numbered[1]!.trim(), numbered[2]!.trim()];
+  const plus = source.split(/\s*,?\s+plus\s+/i).map((part) => part.trim()).filter(Boolean);
+  if (plus.length >= 2) return [plus[0]!, plus.slice(1).join(" plus ")];
+  const semicolon = source.split(/\s*;\s*/).map((part) => part.trim()).filter(Boolean);
+  return semicolon.length >= 2 ? [semicolon[0]!, semicolon[1]!] : [source];
+}
+
+export function gridAssetSlideForSlot(slide: GeneratedSlide, slotIndex: 0 | 1): GeneratedSlide {
+  const visualParts = twoByTwoVisualParts(slide.visualIntent);
+  const queryParts = twoByTwoVisualParts(slide.assetQuery);
+  const intent = visualParts[slotIndex] || queryParts[slotIndex] || visualParts[0] || queryParts[0] || slide.headline;
+  return {
+    ...withoutAppScreenshotDirective(slide),
+    role: slotIndex === 0 ? slide.role : "SUPPORT",
+    assetType: slotIndex === 0 ? slide.assetType : "stock",
+    assetQuery: intent,
+    visualIntent: intent,
+  };
+}
+
 function withoutAppScreenshotDirective(slide: GeneratedSlide): GeneratedSlide {
   if (!requiresOfficialAppScreenshot(slide)) return slide;
   const fallbackIntent = `${slide.headline}. ${slide.body}`.trim();
@@ -1302,7 +1330,9 @@ export async function renderCarousel(input: {
   function primarySelectionSlide(slide: GeneratedSlide): GeneratedSlide {
     const slotAware = input.layout === "three-rect-educational"
       ? educationalAssetSlideForSlot(slide, 0)
-      : slide;
+      : input.layout === "grid-2x2"
+        ? gridAssetSlideForSlot(slide, 0)
+        : slide;
     const normalized = (multiImageLayout || input.layout === "grid-2x2")
       ? withoutAppScreenshotDirective(slotAware)
       : slotAware;
@@ -1316,9 +1346,9 @@ export async function renderCarousel(input: {
     try {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
-      const selectionSlides = input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides;
+      const selectionSlides = input.slides;
       const matches = selectionSlides.map((slide, selectionIndex): AssetMatch | undefined => {
-        const actualIndex = input.layout === "grid-2x2" ? 0 : selectionIndex;
+        const actualIndex = selectionIndex;
         if (input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0) return undefined;
         const locked = lockedMatchesForSlide(slide, actualIndex)[0];
         if (locked) return locked;
@@ -1432,39 +1462,48 @@ export async function renderCarousel(input: {
         break;
       }
 
-      const primaryGridMatch = matches[0]!;
-      const screenshotSlide = input.slides.find((slide) => requiresOfficialAppScreenshot(slide));
-      let secondaryGridMatch: AssetMatch;
-      if (screenshotSlide) {
-        secondaryGridMatch = chooseAssets({
-          assets,
-          carouselType: input.carouselType,
-          personaId: input.personaId,
-          excludedAssetIds: new Set([String(primaryGridMatch.asset.id)]),
-          slides: [{ ...screenshotSlide, assetType: "stock" }],
-        })[0]!;
-      } else {
-        const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === visualPersonaId);
-        secondaryGridMatch = chooseAssets({
-          assets: personaAssets,
-          carouselType: input.carouselType,
-          personaId: input.personaId,
-          personaOnly: true,
-          excludedAssetIds: new Set([String(primaryGridMatch.asset.id)]),
-          slides: [{
-            ...withoutAppScreenshotDirective(input.slides[1] ?? input.slides[0]!),
-            assetType: "persona",
-          }],
-        })[0]!;
-      }
+      const usedGridAssets = new Set<string>();
       gridMatches = input.slides.map((slide, index) => {
         const locked = lockedMatchesForSlide(slide, index);
-        if (index === 0 || slide.role.toUpperCase() === "HOOK") return locked.length ? [locked[0]!] : [primaryGridMatch];
+        const primary = locked[0] ?? matches[index];
+        if (!primary) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
+        usedGridAssets.add(String(primary.asset.id));
+        const isHook = index === 0 || slide.role.toUpperCase() === "HOOK";
+        if (isHook) return [primary];
         if (locked.length >= 4) return locked.slice(0, 4);
         if (locked.length >= 2) return [locked[0]!, locked[1]!, locked[1]!, locked[0]!];
-        // F08 deliberately reuses one persona image and one official app
-        // screen as the only two sources, repeated diagonally.
-        return [primaryGridMatch, secondaryGridMatch, secondaryGridMatch, primaryGridMatch];
+
+        const supportSlide = requiresOfficialAppScreenshot(slide)
+          ? slide
+          : gridAssetSlideForSlot(slide, 1);
+        let secondary: AssetMatch;
+        try {
+          secondary = chooseAssets({
+            assets,
+            carouselType: input.carouselType,
+            personaId: input.personaId,
+            excludedAssetIds: new Set([...usedGridAssets, String(primary.asset.id)]),
+            slides: [supportSlide],
+          })[0]!;
+        } catch {
+          // Prefer carousel-wide novelty, but do not make novelty itself a
+          // render blocker. Reuse elsewhere is acceptable; duplicate within
+          // this 2x2 slide is not.
+          try {
+            secondary = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: new Set([String(primary.asset.id)]),
+              slides: [supportSlide],
+            })[0]!;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`${message}:slide_${slide.position}`);
+          }
+        }
+        usedGridAssets.add(String(secondary.asset.id));
+        return [primary, secondary, secondary, primary];
       });
       break;
     } catch (error) {
