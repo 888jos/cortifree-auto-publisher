@@ -21,7 +21,7 @@ import {
   scoreVisualReferenceForScene,
   visualReferenceSchema,
 } from '../src/visual-references/index.js';
-import { chooseAssets, selectAssetOrGeneration, type JitSelectableAsset } from '../app/lib/asset-selector.js';
+import { chooseAssets, deriveVisualIntent, selectAssetOrGeneration, type JitSelectableAsset } from '../app/lib/asset-selector.js';
 import { LocalDriveAssetStorage } from '../src/storage/asset-storage.js';
 import type { PersonaConfig } from '../src/domain.js';
 
@@ -66,6 +66,17 @@ describe('persona image infrastructure', () => {
     const stockDecision = selectAssetOrGeneration({ assets: [{ ...base, source_type: 'stock', persona_id: null }], personaId: 'P02', category: 'home', visualIntent: 'morning window' });
     assert.equal(stockDecision.action, 'reuse_stock');
     assert.equal(selectAssetOrGeneration({ assets: [], personaId: 'P02', category: 'home', visualIntent: 'morning window' }).action, 'generate');
+  });
+
+  it('allows a static notebook visual without pretending someone must be writing', () => {
+    const intent = deriveVisualIntent({
+      headline: 'pick one thing that is actually yours',
+      body: 'HOW TO | choose one real priority | keep it visible',
+      assetQuery: 'simple notebook and pen beside a coffee cup',
+      visualIntent: 'top-down proof image of one priority visible in an open notebook',
+    });
+    assert.ok(intent.required_objects.includes('notebook'));
+    assert.equal(intent.required_actions.includes('writing'), false);
   });
 
   it('trusts an exact-scene persona repair asset even when inherited reference tags are sparse', () => {

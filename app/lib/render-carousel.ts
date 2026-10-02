@@ -205,7 +205,10 @@ type StoredReference = { id?: string; slides?: Array<{ geometry?: Geometry }> };
 
 export function rankingAssetCountForSlide(slide: Pick<GeneratedSlide, "position" | "role">) {
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
-  return isHook ? 2 : 0;
+  // F07 is text-first. One strong cover image is enough; requiring a second
+  // support image created needless low-confidence failures without improving
+  // the ranking layout. Body/takeaway slides remain fully text-only.
+  return isHook ? 1 : 0;
 }
 
 export function generationCategory(slide: GeneratedSlide) {

@@ -20,9 +20,11 @@ function unsafeHealthReason(text: string) {
   return unsafeHealthRules.find((rule) => rule.pattern.test(text))?.reason ?? null;
 }
 
-const unexpectedScriptPattern = /[\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+const suspiciousUnicodeArtifactPattern = /\uFFFD|[\u3000-\u303F]|[\u200B-\u200D\uFEFF]/u;
 function hasUnexpectedScript(text: string, language: "en" | "fr") {
-  return language === "en" && unexpectedScriptPattern.test(text);
+  if (language !== "en") return false;
+  const letters = text.match(/\p{Letter}/gu) ?? [];
+  return letters.some((letter) => !/\p{Script=Latin}/u.test(letter));
 }
 
 const layoutAliases: Record<string, string> = {
@@ -76,7 +78,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (isRoutineStep && /\b(?:calls?|messages?|errands?|pick(?:ing)?\s+up|pickup|appointments?|meetings?|classes?|commute|shopping?|shop)\b/i.test(slide.headline)) {
         routineItinerarySignals += 1;
       }
-      if (index === 0 && slide.body.length > 32) issues.push({ code: "ROUTINE_COVER_RANGE", message: "Routine cover body should contain only the overall time range", slidePosition: slide.position, severity: "minor" });
+      if (index === 0) {
+        const routineTitle = slide.headline.trim();
+        if (!/\b(?:routine|reset|wind[- ]?down|morning|night|evening|after[- ]?work|after[- ]?class|study break|lunch break)\b/i.test(routineTitle)) {
+          issues.push({ code: "ROUTINE_COVER_TITLE", message: "F03 cover must read like a routine or sequence title, not a generic observation", slidePosition: slide.position, severity: "major" });
+        }
+        if (slide.body.length > 32) issues.push({ code: "ROUTINE_COVER_RANGE", message: "Routine cover body should contain only the overall time range", slidePosition: slide.position, severity: "minor" });
+      }
     }
     if (expected.layout === "three-rect-educational") {
       const isCover = index === 0;
@@ -149,6 +157,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (hasUnexpectedScript(languageSurface, expected.language)) {
       issues.push({ code: "UNEXPECTED_SCRIPT", message: "English carousel contains stray non-Latin script; regenerate the affected copy or visual prompt", slidePosition: slide.position, severity: "major" });
     }
+    if (suspiciousUnicodeArtifactPattern.test(languageSurface)) {
+      issues.push({ code: "UNICODE_ARTIFACT", message: "Carousel contains malformed or invisible Unicode artifacts; regenerate the affected copy or visual prompt", slidePosition: slide.position, severity: "major" });
+    }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
@@ -167,6 +178,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   const allCopy = `${spec.title} ${spec.topic} ${spec.angle} ${spec.hook} ${spec.caption}`;
   if (hasUnexpectedScript(allCopy, expected.language)) {
     issues.push({ code: "UNEXPECTED_SCRIPT", message: "English carousel contains stray non-Latin script", severity: "major" });
+  }
+  if (suspiciousUnicodeArtifactPattern.test(allCopy)) {
+    issues.push({ code: "UNICODE_ARTIFACT", message: "Carousel contains malformed or invisible Unicode artifacts", severity: "major" });
   }
   const topLevelHealthReason = unsafeHealthReason(allCopy);
   if (topLevelHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${topLevelHealthReason}`, severity: "major" });
