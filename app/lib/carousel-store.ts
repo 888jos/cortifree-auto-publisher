@@ -1,6 +1,7 @@
 import { dataBackend } from "./data-backend";
 import type { CarouselGeneratorInput } from "./ai/types";
 import type { GenerateCarouselResult } from "./ai/carousel-generator";
+import { CAROUSEL_GENERATOR_PROMPT_VERSION } from "./ai/prompts";
 import { assertCortiFreeAccountId, assertCortiFreeCarouselId, CORTIFREE_ACCOUNT_ID, CORTIFREE_WORKSPACE_ID } from "./workspace";
 
 export async function getRecentCarousels(limit = 6) {
@@ -66,7 +67,7 @@ export async function saveGeneratedCarousel(options: {
         generated_at: result.generatedAt,
         qa_reviewed: result.qa !== null,
         qa_score: result.qa?.score ?? null,
-        prompt_version: "carousel-generator-v3-sourced-health",
+        prompt_version: CAROUSEL_GENERATOR_PROMPT_VERSION,
         health_guardrails: input.healthGuardrails ? {
           source_ids: input.healthGuardrails.sources.map((source) => source.sourceId),
           rule_ids: input.healthGuardrails.rules.map((rule) => rule.ruleId),
