@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
+import { rankingAssetCountForSlide } from "../app/lib/render-carousel.js";
 import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
 
 describe("canonical carousel formats", () => {
@@ -61,6 +62,12 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.maxBodyLines, 6);
     assert.equal(body.text.checklistPanelWidth, 778);
     assert.equal(body.text.checklistPanelHeight, 940);
+  });
+
+  it("uses images only on the F07 cover and keeps ranking body/final slides truly text-only", () => {
+    assert.equal(rankingAssetCountForSlide({ position: 1, role: "HOOK" }), 2);
+    assert.equal(rankingAssetCountForSlide({ position: 2, role: "TIP" }), 0);
+    assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 0);
   });
 
   it("keeps F07 tier slides compact, bold and horizontally composed", () => {
