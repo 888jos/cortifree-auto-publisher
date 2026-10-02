@@ -1356,13 +1356,21 @@ export async function renderCarousel(input: {
         if (input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0) return undefined;
         const locked = lockedMatchesForSlide(slide, actualIndex)[0];
         if (locked) return locked;
-        return chooseAssets({
-          assets,
-          carouselType: input.carouselType,
-          personaId: input.personaId,
-          excludedAssetIds: recentHookAssetIds,
-          slides: [primarySelectionSlide(slide)],
-        })[0]!;
+        try {
+          return chooseAssets({
+            assets,
+            carouselType: input.carouselType,
+            personaId: input.personaId,
+            excludedAssetIds: recentHookAssetIds,
+            slides: [primarySelectionSlide(slide)],
+          })[0]!;
+        } catch (error) {
+          // F07 cover imagery is decorative, not structural. If no safe cover
+          // image clears QA, render the already-supported text-first cover
+          // instead of invoking ModelArk for decoration.
+          if (input.layout === "ranking") return undefined;
+          throw error;
+        }
       });
       if (input.layout === "interactive-checklist") {
         const usedChecklistAssets = new Set<string>();
@@ -1443,7 +1451,10 @@ export async function renderCarousel(input: {
               : (index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 1;
           if (desiredCount === 0) return [];
           const primary = locked[0] ?? matches[index];
-          if (!primary) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
+          if (!primary) {
+            if (input.layout === "ranking") return [];
+            throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
+          }
           if (desiredCount === 1) return [primary];
           const selected: AssetMatch[] = locked.length ? locked.slice(0, desiredCount) : [primary];
           selected.forEach((match) => usedCarouselAssets.add(String(match.asset.id)));
@@ -1471,6 +1482,9 @@ export async function renderCarousel(input: {
               selected.push(next);
               usedCarouselAssets.add(String(next.asset.id));
             } catch (error) {
+              // Ranking cover photos are optional. One missing decorative
+              // support image must never create an image-generation dependency.
+              if (input.layout === "ranking") return [];
               const fallback = rerenderSupportFallback(primary, usedCarouselAssets);
               if (fallback) {
                 selected.push(fallback);
@@ -1761,7 +1775,32 @@ export async function renderCarouselRevision(input: {
       for (let attempt = 0; attempt < 2 && !selected; attempt += 1) {
         try {
           const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
-          if (input.layout === "grid-2x2" && !isHook) {
+          if (input.layout === "ranking") {
+            if (rankingAssetCountForSlide(slide) === 0) {
+              slideMatches = [];
+            } else {
+              try {
+                const primary = chooseAssets({
+                  assets,
+                  carouselType: input.carouselType,
+                  personaId: input.personaId,
+                  slides: [{ ...withoutAppScreenshotDirective(slide), assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
+                })[0]!;
+                const support = chooseAssets({
+                  assets,
+                  carouselType: input.carouselType,
+                  personaId: input.personaId,
+                  excludedAssetIds: new Set([String(primary.asset.id)]),
+                  slides: [{ ...withoutAppScreenshotDirective(slide), position: Math.max(2, slide.position), role: "SUPPORT", assetType: "stock" }],
+                })[0]!;
+                slideMatches = [primary, support];
+              } catch {
+                // Same contract as the main renderer: F07 can always fall back
+                // to its text-first cover during review edits/rerenders.
+                slideMatches = [];
+              }
+            }
+          } else if (input.layout === "grid-2x2" && !isHook) {
             const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
             const personaMatch = chooseAssets({
               assets: personaAssets,
@@ -1814,6 +1853,11 @@ export async function renderCarouselRevision(input: {
           }
           selected = true;
         } catch (error) {
+          if (input.layout === "ranking") {
+            slideMatches = [];
+            selected = true;
+            continue;
+          }
           if (attempt > 0) throw error;
           await generateRepairAsset({ input, slide, position: slide.position, usedReferenceIds });
           assets = await loadSelectableAssets();
