@@ -21,6 +21,30 @@ async function patch(resource: string, body: Record<string, unknown>) {
   const response = await dataBackend(resource, { method: 'PATCH', body: JSON.stringify(body) });
   if (!response.ok) throw new Error(await response.text());
 }
+
+export async function prepareCarouselForRender(carouselId: string, lifecycleState?: unknown) {
+  let state = String(lifecycleState ?? '').trim();
+  if (!state) {
+    const current = (await rows(`carousels?id=eq.${encodeURIComponent(carouselId)}&select=lifecycle_state&limit=1`))[0];
+    state = String(current?.lifecycle_state ?? 'IDEA');
+  }
+  const transitions: Record<string, string[]> = {
+    IDEA: ['GENERATING', 'ASSET_READY', 'RENDERING'],
+    GENERATING: ['ASSET_READY', 'RENDERING'],
+    ASSET_READY: ['RENDERING'],
+    NEEDS_ASSETS: ['RENDERING'],
+    NEEDS_FIX: ['RENDERING'],
+    FAILED: ['RENDERING'],
+    RENDERING: [],
+  };
+  const path = transitions[state];
+  if (!path) throw new Error(`CAROUSEL_NOT_RENDERABLE_FROM_STATE:${state}`);
+  for (const next of path) {
+    await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { lifecycle_state: next, updated_at: new Date().toISOString() });
+    state = next;
+  }
+  return state;
+}
 function layoutFor(contentType: string) {
   return canonicalLayoutFor(contentType);
 }
@@ -219,8 +243,9 @@ export async function processQueuedIdeas(
       await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
         pillar_id: idea.pillar_id ?? null, topic_id: idea.topic_id ?? null, hook_id: idea.hook_id ?? null,
         cta_id: idea.cta_id ?? null, strategy: idea.strategy ?? null, source_idea_id: id, combo_key: idea.combo_key ?? null,
-        calendar_slot_id: idea.slot_id ?? null, concept_id: idea.concept_id ?? null,
+        calendar_slot_id: idea.slot_id ?? null,
       });
+      await prepareCarouselForRender(carouselId, saved.lifecycle_state ?? 'ASSET_READY');
       let renderStatus = 'DRAFT';
       let renderError: string | null = null;
       try {
@@ -233,14 +258,21 @@ export async function processQueuedIdeas(
         }
         await assertCarouselHasCompleteRender(carouselId);
         renderStatus = 'READY_FOR_REVIEW';
-        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: renderStatus, review_status: 'AWAITING_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
+        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
         await updateContentSlot(idea.slot_id, { status: 'READY_FOR_REVIEW', carousel_id: carouselId });
 
       } catch (error) {
         renderError = error instanceof Error ? error.message : String(error);
       }
-      const providerBlocked = Boolean(renderError && /MODELARK_PROVIDER_BLOCKED/i.test(renderError));
-      const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED/i.test(renderError));
+      const providerBlocked = Boolean(renderError && /MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(renderError));
+      const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(renderError));
+      if (renderError) {
+        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
+          lifecycle_state: assetBlocked ? 'NEEDS_ASSETS' : 'NEEDS_FIX',
+          last_review_action: assetBlocked ? 'ASSET_BLOCKED' : 'RENDER_FAILED',
+          updated_at: new Date().toISOString(),
+        });
+      }
       await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
         status: assetBlocked ? 'NEEDS_ASSETS' : 'GENERATED',
         carousel_id: carouselId, generated_at: new Date().toISOString(), render_status: renderStatus, last_error: renderError,
@@ -339,6 +371,7 @@ export async function retryPendingRenders(limit = 20) {
     const slides = Array.isArray(spec?.generated_slides) ? spec!.generated_slides as any[] : [];
     if (!slides.length) continue;
     try {
+      await prepareCarouselForRender(id, carousel.lifecycle_state);
       const rendered = await renderCarousel({
         id, carouselType: String(carousel.content_type), layout: String(spec?.model_id ?? spec?.layout ?? 'single-image'),
         personaId: String(carousel.persona_id ?? ''), slides, references: Array.isArray(spec?.references) ? spec!.references as any[] : [], spec: spec ?? {},
@@ -347,7 +380,7 @@ export async function retryPendingRenders(limit = 20) {
         throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
       }
       await assertCarouselHasCompleteRender(id);
-      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', review_status: 'AWAITING_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
+      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
       if (carousel.source_idea_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
           status: 'GENERATED', render_status: 'READY_FOR_REVIEW', last_error: null,
@@ -357,7 +390,12 @@ export async function retryPendingRenders(limit = 20) {
       report.push({ id, status: 'READY_FOR_REVIEW', rendered: rendered.length });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED/i.test(message);
+      const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(message);
+      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
+        lifecycle_state: assetBlocked ? 'NEEDS_ASSETS' : 'NEEDS_FIX',
+        last_review_action: assetBlocked ? 'ASSET_BLOCKED' : 'RENDER_FAILED',
+        updated_at: new Date().toISOString(),
+      }).catch(() => undefined);
       if (assetBlocked && carousel.source_idea_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
           status: 'NEEDS_ASSETS', render_status: 'NEEDS_ASSETS', last_error: message.slice(0,1000),
