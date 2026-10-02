@@ -69,6 +69,8 @@ const STOCK_HOOK_THRESHOLD = 40;
 // Hard constraints have already removed incompatible candidates. This fallback
 // keeps a genuinely matching, sparsely described image usable during migration.
 const EXPLICIT_FALLBACK_THRESHOLD = 28;
+const F05_BACKGROUND_FALLBACK_THRESHOLD = 26;
+const MIN_SCENE_COMPATIBLE_POOL = 8;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
 const VISUAL_QA_EXCLUDED_FILENAMES = new Set([
@@ -413,10 +415,26 @@ export function chooseAssets(options: {
             return true;
           }))
         .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
-    // A sparse metadata index must not turn a viable render into a failed
-    // carousel. Prefer hard-compatible assets, then the broader eligible pool,
-    // then reuse the best ranked asset only once the fresh pool is exhausted.
-    const eligible = compatible.length ? compatible : usableRequested;
+    // Scene labels are helpful, but a tiny scene-filtered pool can become a
+    // false dead-end while hundreds of reviewed assets still satisfy the real
+    // hard requirements. Broaden only non-persona/non-app slides, and preserve
+    // required actions/objects/settings plus the explicit avoid list.
+    const safeBroadPool = usableRequested.filter((asset) =>
+      asset.source_type === "persona_generated" || passesHardConstraints(asset, intent),
+    );
+    const mayBroadenScenePool = !officialAppScreenshot
+      && !hookNeedsPersona
+      && slide.assetType !== "persona"
+      && compatible.length > 0
+      && compatible.length < MIN_SCENE_COMPATIBLE_POOL
+      && safeBroadPool.length > compatible.length;
+    const eligible = mayBroadenScenePool
+      ? safeBroadPool
+      : compatible.length
+        ? compatible
+        : safeBroadPool.length
+          ? safeBroadPool
+          : usableRequested;
     const unused = eligible.filter((asset) => !used.has(asset.id));
     const distinct = unused.length ? unused : eligible;
     if (!distinct.length) throw new Error(`ASSET_POOL_EMPTY:slide_${slide.position}`);
@@ -515,8 +533,11 @@ export function chooseAssets(options: {
     // For non-persona slides, a safe eligible candidate is preferable to a
     // dead-end. The chosen low-confidence image remains fully observable in
     // the render metadata via thresholdBypassed.
+    const fallbackThreshold = options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
+      ? F05_BACKGROUND_FALLBACK_THRESHOLD
+      : EXPLICIT_FALLBACK_THRESHOLD;
     const fallbackCandidate = !selectedCandidate && !officialAppScreenshot && !hookNeedsPersona && slide.assetType !== "persona"
-      ? candidates.find((candidate) => candidate.score >= EXPLICIT_FALLBACK_THRESHOLD)
+      ? candidates.find((candidate) => candidate.score >= fallbackThreshold)
       : undefined;
     const selected = selectedCandidate ?? fallbackCandidate;
     if (!selected) {
@@ -529,8 +550,10 @@ export function chooseAssets(options: {
     return {
       ...selected,
       score: Number(selected.score.toFixed(2)),
-      candidatePoolSize: compatible.length,
-      fallbackPath: selectedCandidate ? "primary" : "best_eligible_fallback",
+      candidatePoolSize: eligible.length,
+      fallbackPath: selectedCandidate
+        ? (mayBroadenScenePool ? "broadened_safe_pool" : "primary")
+        : (mayBroadenScenePool ? "broadened_safe_fallback" : "best_eligible_fallback"),
       threshold,
       thresholdBypassed: !selectedCandidate,
       visualIntent: intent,
