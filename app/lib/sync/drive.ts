@@ -34,6 +34,7 @@ async function walk(folderId: string, path: string[] = [], out: WalkedFile[] = [
   return out;
 }
 export function isCanonicalPersonaRootFolder(name: string) {
+  if (/^P\d{2}(?:[_\s-]|$)/i.test(name.trim())) return true;
   try {
     return Boolean(personaIdFromFolder(name));
   } catch {
