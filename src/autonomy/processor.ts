@@ -155,6 +155,12 @@ export async function processQueuedIdeas(
         last_error: null,
       });
       const goldenExamples = await loadRuntimeGoldenExamples(contentType, String(idea.pillar_id ?? ''), 3);
+      const brandPlan = idea.brand_integration && typeof idea.brand_integration === 'object'
+        ? idea.brand_integration as Record<string, unknown>
+        : {};
+      const brandRequired = idea.brand_required === true;
+      const appScreenAssetId = String(brandPlan.app_screen_asset_id ?? '').trim();
+      const screenshotRequired = brandRequired && idea.app_screenshot_required === true && appScreenAssetId.length > 0;
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
         layout,
@@ -183,7 +189,17 @@ export async function processQueuedIdeas(
           golden_examples: goldenExamples,
           concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || 'DYNAMIC'),
           format_id: contentType, account_id: accountId, persona_id: personaId,
-          brand_integration: { required: true, mention: 'CortiFree', screenshot_required: true },
+          brand_integration: {
+            required: brandRequired,
+            mention: brandRequired ? String(brandPlan.mention ?? 'the app CortiFree') : '',
+            screenshot_required: screenshotRequired,
+            integration_type: brandRequired ? String(brandPlan.integration_type ?? '') : '',
+            slide: brandRequired ? String(brandPlan.slide ?? '') : '',
+            intensity: brandRequired ? Number(brandPlan.intensity ?? 0) : 0,
+            app_screen_category: brandRequired ? String(brandPlan.app_screen_category ?? '') : '',
+            app_screen_asset_id: screenshotRequired ? appScreenAssetId : null,
+            copy_bank_seed_id: brandRequired ? String(idea.copy_bank_seed_id ?? brandPlan.copy_bank_seed_id ?? '') || null : null,
+          },
         },
         requireCanonicalContext: true,
       });
