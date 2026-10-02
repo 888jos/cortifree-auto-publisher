@@ -37,7 +37,14 @@ function pillarIds(account: Account) {
 function unit(seedValue: string) {
   return crypto.createHash('sha1').update(seedValue).digest().readUInt32BE(0) / 0xffffffff;
 }
-function chooseBrandPlan(slotId: string, account: Account, patterns: AnyRow[]) {
+function screenCategory(row: AnyRow) {
+  const value = `${String(row.subcategory ?? '')} ${String(row.filename ?? '')}`.toLowerCase();
+  if (/breathing/.test(value)) return 'breathing';
+  if (/library|meditation/.test(value)) return 'library';
+  if (/milo|coach/.test(value)) return 'milo';
+  return '';
+}
+function chooseBrandPlan(slotId: string, account: Account, patterns: AnyRow[], appScreens: AnyRow[]) {
   const required = unit(`${slotId}:promo`) < Math.max(0, Math.min(1, account.promo_ratio ?? 0.08));
   if (!required) return { required:false, mention:'', screenshot_required:false };
   const active = patterns
@@ -57,25 +64,37 @@ function chooseBrandPlan(slotId: string, account: Account, patterns: AnyRow[]) {
   }
   const slideChoices = String(picked.default_slide_range ?? '').split('|').map((value)=>value.trim()).filter(Boolean);
   const screenChoices = String(picked.allowed_screen_categories ?? '').split('|').map((value)=>value.trim()).filter(Boolean);
+  const integrationType = String(picked.integration_type ?? '');
+  const screenshotPattern = new Set(['SCREEN_AS_PROOF','DEDICATED_APP_SLIDE','PRODUCT_LED']).has(integrationType);
+  const screenCandidates = appScreens
+    .map((row) => ({ row, category: screenCategory(row) }))
+    .filter((item) => item.category && (!screenChoices.length || screenChoices.includes(item.category)));
+  const chosenScreen = screenshotPattern && screenCandidates.length
+    ? screenCandidates[Math.floor(unit(`${slotId}:screen-asset`) * screenCandidates.length)]
+    : undefined;
+  const fallbackScreenCategory = screenChoices.length
+    ? screenChoices[Math.floor(unit(`${slotId}:screen`) * screenChoices.length)]
+    : '';
   return {
     required:true,
     mention:'the app CortiFree',
-    screenshot_required:false,
-    integration_type:String(picked.integration_type ?? ''),
+    screenshot_required:Boolean(chosenScreen),
+    integration_type:integrationType,
     slide:slideChoices.length ? slideChoices[Math.floor(unit(`${slotId}:slide`) * slideChoices.length)] : '',
     intensity:Number(picked.intensity ?? 1) || 1,
-    app_screen_category:screenChoices.length ? screenChoices[Math.floor(unit(`${slotId}:screen`) * screenChoices.length)] : '',
-    app_screen_asset_id:null,
+    app_screen_category:chosenScreen?.category ?? fallbackScreenCategory,
+    app_screen_asset_id:chosenScreen ? String(chosenScreen.row.id ?? '') : null,
     copy_bank_seed_id:null,
   };
 }
 
 export async function runScheduler() {
-  const [{ topics, ctas, autonomyRules }, accounts, learningWeights, brandPatternRows] = await Promise.all([
+  const [{ topics, ctas, autonomyRules }, accounts, learningWeights, brandPatternRows, appScreens] = await Promise.all([
     loadRuntimeEditorial(),
     loadRuntimeAccounts(),
     loadLearningWeights(),
     rows('editorial_records?kind=eq.brand_integrations&active=eq.true&select=data&limit=100').catch(() => []),
+    rows('assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&enabled=eq.true&public_url=not.is.null&select=id,filename,subcategory,drive_file_id&limit=100').catch(() => []),
   ]);
 
   const calendarSync = await syncContentSlotsFromCalendar();
@@ -170,7 +189,7 @@ export async function runScheduler() {
         continue;
       }
 
-      brandPlan = chooseBrandPlan(slotId, account, brandPatternRows);
+      brandPlan = chooseBrandPlan(slotId, account, brandPatternRows, appScreens);
       if (picked.formatId === 'F07_RANKING') brandPlan = { required:false, mention:'', screenshot_required:false };
 
       const safeSlot = slotId.replace(/[^A-Z0-9]/gi,'').slice(-50);
