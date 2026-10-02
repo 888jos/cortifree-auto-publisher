@@ -180,13 +180,13 @@ export function rankingAssetCountForSlide(slide: Pick<GeneratedSlide, "position"
   return isHook ? 2 : 0;
 }
 
-function generationCategory(slide: GeneratedSlide) {
+export function generationCategory(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
-  if (/walk|outdoor|street|park|outside|nature/.test(text)) return "outdoors";
-  if (/gym|workout|exercise|fitness|pilates|yoga|run/.test(text)) return "fitness";
-  if (/food|meal|breakfast|lunch|dinner|eat|drink|coffee|matcha|grocery/.test(text)) return "food";
-  if (/study|work|desk|laptop|exam|task|focus/.test(text)) return "work_study";
-  if (/skin|beauty|glow|face|self.?care|makeup/.test(text)) return "self_care";
+  if (/\b(?:walk|walking|outdoor|outdoors|street|park|outside|nature|sidewalk|commute)\b/.test(text)) return "outdoors";
+  if (/\b(?:gym|workout|exercise|fitness|pilates|yoga|run|running|stretch|movement)\b/.test(text)) return "fitness";
+  if (/\b(?:food|meal|breakfast|lunch|dinner|eat|eating|drink|coffee|matcha|grocery|groceries|snack)\b/.test(text)) return "food";
+  if (/\b(?:study|work|desk|laptop|exam|task|focus|office)\b/.test(text)) return "work_study";
+  if (/\b(?:skin|skincare|beauty|glow|face|makeup|hair|grooming|shower|bathroom|blowout|bun)\b|self[ -]?care|claw[ -]?clip/.test(text)) return "self_care";
   return "home";
 }
 
