@@ -259,7 +259,7 @@ export async function processQueuedIdeas(
         }
         await assertCarouselHasCompleteRender(carouselId);
         renderStatus = 'READY_FOR_REVIEW';
-        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
+        await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, { status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'GENERATED', updated_at: new Date().toISOString() });
         await updateContentSlot(idea.slot_id, { status: 'READY_FOR_REVIEW', carousel_id: carouselId });
 
       } catch (error) {
@@ -381,7 +381,7 @@ export async function retryPendingRenders(limit = 20) {
         throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
       }
       await assertCarouselHasCompleteRender(id);
-      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
+      await patch(`carousels?id=eq.${encodeURIComponent(id)}`, { status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW', last_review_action: 'RENDERED', updated_at: new Date().toISOString() });
       if (carousel.source_idea_id) {
         await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(carousel.source_idea_id))}`, {
           status: 'GENERATED', render_status: 'READY_FOR_REVIEW', last_error: null,

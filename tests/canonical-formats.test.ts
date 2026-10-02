@@ -108,6 +108,13 @@ describe("canonical carousel formats", () => {
     assert.match(supportB.visualIntent, /quiet desk with the phone away/i);
   });
 
+  it("keeps F05 Notes backgrounds contextual without depending on ModelArk repair", () => {
+    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    assert.match(renderer, /function checklistBackgroundFallbackSlide/);
+    assert.match(renderer, /slides: \[checklistBackgroundFallbackSlide\(slide\)\]/);
+    assert.match(renderer, /input\.layout !== "interactive-checklist"/);
+  });
+
   it("keeps F05 as a compact Notes-style checklist with readable mobile type", () => {
     const cover = getSlideGeometry(
       { layout: "interactive-checklist", position: 1, role: "HOOK", headline: "i thought this was normal", body: "" },
@@ -194,6 +201,15 @@ describe("canonical carousel formats", () => {
     assert.match(page, /carouselType:\s*currentModel\.id/);
     assert.match(page, /layout:\s*currentModel\.layout/);
     assert.doesNotMatch(page, /carouselType:\s*currentType\.id/);
+  });
+
+  it("keeps carousel status aligned with lifecycle after successful renders", () => {
+    const processor = readFileSync(new URL("../src/autonomy/processor.ts", import.meta.url), "utf8");
+    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
+    const route = readFileSync(new URL("../app/api/carousels/[id]/render/route.ts", import.meta.url), "utf8");
+    assert.match(processor, /status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW'/);
+    assert.match(worker, /status: "READY_FOR_REVIEW",[\s\S]*lifecycle_state: "READY_FOR_REVIEW"/);
+    assert.match(route, /status: "READY_FOR_REVIEW", lifecycle_state: "READY_FOR_REVIEW"/);
   });
 
   it("keeps the draft worker path isolated from publishing", () => {

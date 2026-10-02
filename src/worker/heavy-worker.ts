@@ -357,6 +357,7 @@ async function runRender(resourceId: string | null | undefined) {
     }
     await assertCarouselHasCompleteRender(id);
     await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
+      status: "READY_FOR_REVIEW",
       lifecycle_state: "READY_FOR_REVIEW",
       last_review_action: "RENDERED",
     });
