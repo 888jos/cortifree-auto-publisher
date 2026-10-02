@@ -55,6 +55,7 @@ describe('autonomy selection', () => {
     assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:[{"code":"too_big"}]'), true);
     assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:Expected 7 slides'), true);
     assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:Too few concrete behaviors or details; Copy has no creator point of view'), true);
+    assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:English carousel contains stray non-Latin script'), true);
     assert.equal(isRetryableGenerationFailure('GENERATION_BLOCKED:OPENAI_API_KEY is missing'), false);
     assert.equal(isRetryableGenerationFailure('Unknown database failure'), false);
   });

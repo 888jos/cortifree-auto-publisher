@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { generateCarousel } from "../app/lib/ai/carousel-generator.js";
+import { scoreGenericity } from "../app/lib/ai/genericity.js";
+import { CAROUSEL_GENERATOR_INSTRUCTIONS } from "../app/lib/ai/prompts.js";
 import { createFallbackCarousel } from "../app/lib/ai/fallback.js";
 import { withRetry } from "../app/lib/ai/openai-client.js";
 import { estimateCostUsd } from "../app/lib/ai/pricing.js";
@@ -335,6 +337,41 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(lifestyle.slides.at(-1)?.role, "TAKEAWAY");
     const issues = validateCarouselSpec(lifestyle, { slideCount: 8, language: "en", layout: "lifestyle-3stack" });
     assert.equal(issues.some((issue) => issue.code.startsWith("LIFESTYLE_") || issue.code === "LAYOUT"), false);
+  });
+
+  it("does not require creator POV or action-verb density for F07 tier lists", () => {
+    const rankingInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F07_RANKING",
+      layout: "ranking",
+      requestedSlideCount: 7,
+    };
+    const ranking = createFallbackCarousel(rankingInput);
+    ranking.title = "morning phone habits ranked";
+    ranking.topic = "morning phone habits";
+    ranking.angle = "ranked by practicality";
+    ranking.hook = "morning phone habits tier list";
+    ranking.caption = "ranked by how practical each habit is";
+    ranking.slides.forEach((slide, index) => {
+      if (index === 0) {
+        slide.headline = "morning phone habits tier list";
+        slide.body = "";
+      } else {
+        slide.headline = ["S · phone outside the bedroom", "A · social apps after breakfast", "B · notifications muted", "C · app limits", "D · total morning ban", "F · phone under the pillow"][index - 1] ?? "B · simple boundary";
+        slide.body = "Useful for a clear reason, with an obvious tradeoff. Practicality matters more than sounding personal.";
+      }
+    });
+    const genericity = scoreGenericity(ranking);
+    assert.equal(genericity.issues.some((issue) => issue.code === "LOW_CONCRETENESS"), false);
+    assert.equal(genericity.issues.some((issue) => issue.code === "NO_CREATOR_POINT_OF_VIEW"), false);
+    const issues = validateCarouselSpec(ranking, { slideCount: 7, language: "en", layout: "ranking" });
+    assert.equal(issues.some((issue) => issue.code === "GENERICITY"), false);
+  });
+
+  it("keeps F04 section labels aligned with the validator", () => {
+    const f04Block = CAROUSEL_GENERATOR_INSTRUCTIONS.match(/F04_AESTHETIC_EDUCATIONAL:[\s\S]*?F05_INTERACTIVE_CHECKLIST:/)?.[0] ?? "";
+    assert.match(f04Block, /BENEFITS, HOW TO, WHY IT HELPS, WHAT TO USE, MISTAKES/);
+    assert.doesNotMatch(f04Block, /MISTAKES, TAKEAWAY/);
   });
 
   it("produces a canonical F07 meaning-first tier-list fallback", () => {
