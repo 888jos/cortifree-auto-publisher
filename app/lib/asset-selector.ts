@@ -77,6 +77,9 @@ const F05_BACKGROUND_FALLBACK_THRESHOLD = 22;
 // is safer than repeating the same high-scoring frame: persona identity and
 // hard scene constraints have already been enforced before scoring.
 const F03_PERSONA_FALLBACK_THRESHOLD = 22;
+// F07 body slides are text-only; this applies only to the second decorative
+// teaser image on the cover after all hard visual/review constraints passed.
+const F07_COVER_SUPPORT_FALLBACK_THRESHOLD = 12;
 const MIN_SCENE_COMPATIBLE_POOL = 8;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
@@ -555,11 +558,16 @@ export function chooseAssets(options: {
     const isF03PersonaStep = options.carouselType === "F03_ROUTINE_TIMELINE"
       && !isHook
       && slide.assetType === "persona";
+    const isF07CoverSupport = options.carouselType === "F07_RANKING"
+      && slide.role?.toUpperCase() === "SUPPORT"
+      && slide.assetType === "stock";
     const fallbackThreshold = options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
       ? F05_BACKGROUND_FALLBACK_THRESHOLD
       : isF03PersonaStep
         ? F03_PERSONA_FALLBACK_THRESHOLD
-        : EXPLICIT_FALLBACK_THRESHOLD;
+        : isF07CoverSupport
+          ? F07_COVER_SUPPORT_FALLBACK_THRESHOLD
+          : EXPLICIT_FALLBACK_THRESHOLD;
     const fallbackCandidate = !selectedCandidate && !officialAppScreenshot && !hookNeedsPersona
       && (slide.assetType !== "persona" || isF03PersonaStep)
       ? candidates.find((candidate) => candidate.score >= fallbackThreshold)
