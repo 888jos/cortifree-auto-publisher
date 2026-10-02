@@ -72,7 +72,8 @@ const EXPLICIT_FALLBACK_THRESHOLD = 28;
 // F05 text lives on the Notes card, so the full-screen image is supporting atmosphere.
 // Hard scene/object/person constraints still apply before scoring; allow sparse
 // reviewed metadata to pass at a lower floor instead of blocking the carousel.
-const F05_BACKGROUND_FALLBACK_THRESHOLD = 10;
+const F05_BACKGROUND_FALLBACK_THRESHOLD = 15;
+const F05_GENERIC_BACKGROUND_FALLBACK_THRESHOLD = 10;
 // F03 needs one distinct same-persona photo per timed step. A lower fallback
 // is safer than repeating the same high-scoring frame: persona identity and
 // hard scene constraints have already been enforced before scoring.
@@ -370,7 +371,7 @@ export function chooseAssets(options: {
   personaId?: string;
   personaOnly?: boolean;
   excludedAssetIds?: Set<string>;
-  slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
+  slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string; f05DecorativeFallback?: boolean }>;
 }): AssetMatch[] {
   const used = new Set<string>();
   const usedVisualDescriptions: string[] = [];
@@ -561,9 +562,13 @@ export function chooseAssets(options: {
     const isF07CoverSupport = options.carouselType === "F07_RANKING"
       && slide.role?.toUpperCase() === "SUPPORT"
       && slide.assetType === "stock";
-    const fallbackThreshold = options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
-      ? F05_BACKGROUND_FALLBACK_THRESHOLD
-      : isF03PersonaStep
+    const isF05GenericBackground = options.carouselType === "F05_INTERACTIVE_CHECKLIST"
+      && slide.f05DecorativeFallback === true;
+    const fallbackThreshold = isF05GenericBackground
+      ? F05_GENERIC_BACKGROUND_FALLBACK_THRESHOLD
+      : options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
+        ? F05_BACKGROUND_FALLBACK_THRESHOLD
+        : isF03PersonaStep
         ? F03_PERSONA_FALLBACK_THRESHOLD
         : isF07CoverSupport
           ? F07_COVER_SUPPORT_FALLBACK_THRESHOLD
