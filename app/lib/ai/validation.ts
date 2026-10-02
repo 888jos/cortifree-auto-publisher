@@ -20,6 +20,11 @@ function unsafeHealthReason(text: string) {
   return unsafeHealthRules.find((rule) => rule.pattern.test(text))?.reason ?? null;
 }
 
+const unexpectedScriptPattern = /[\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+function hasUnexpectedScript(text: string, language: "en" | "fr") {
+  return language === "en" && unexpectedScriptPattern.test(text);
+}
+
 const layoutAliases: Record<string, string> = {
   "cover-hero": "hero",
   "split-proof": "split",
@@ -136,6 +141,10 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
         issues.push({ code: "CHECKLIST_FINAL_NOTE", message: "F05 final slide must remain a useful Note/takeaway, not a save/follow CTA card", slidePosition: slide.position, severity: "major" });
       }
     }
+    const languageSurface = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`;
+    if (hasUnexpectedScript(languageSurface, expected.language)) {
+      issues.push({ code: "UNEXPECTED_SCRIPT", message: "English carousel contains stray non-Latin script; regenerate the affected copy or visual prompt", slidePosition: slide.position, severity: "major" });
+    }
     const normalized = `${slide.headline} ${slide.body}`.trim().toLowerCase();
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
@@ -145,6 +154,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   });
 
   const allCopy = `${spec.title} ${spec.topic} ${spec.angle} ${spec.hook} ${spec.caption}`;
+  if (hasUnexpectedScript(allCopy, expected.language)) {
+    issues.push({ code: "UNEXPECTED_SCRIPT", message: "English carousel contains stray non-Latin script", severity: "major" });
+  }
   const topLevelHealthReason = unsafeHealthReason(allCopy);
   if (topLevelHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${topLevelHealthReason}`, severity: "major" });
   if (spec.slides[0]?.role !== "HOOK") issues.push({ code: "HOOK_ROLE", message: "First slide must be HOOK", slidePosition: 1, severity: "major" });
