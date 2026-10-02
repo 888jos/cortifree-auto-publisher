@@ -40,6 +40,27 @@ function pillar(row: Row): Row {
   };
 }
 
+function contentFormat(row: Row): Row {
+  return {
+    ...row,
+    min_slides: Math.max(1, Math.round(decimal(row.min_slides, 5))),
+    max_slides: Math.max(1, Math.round(decimal(row.max_slides, 8))),
+    cooldown_days: Math.max(0, Math.round(decimal(row.cooldown_days, 0))),
+    weight: decimal(row.weight, 1),
+    active: bool(row.active, true),
+    generation_enabled: bool(row.generation_enabled, true),
+  };
+}
+
+function cta(row: Row): Row {
+  return {
+    ...row,
+    weight: decimal(row.weight, 1),
+    cooldown_days: Math.max(0, Math.round(decimal(row.cooldown_days, 0))),
+    active: bool(row.active, true),
+  };
+}
+
 function territory(row: Row): Row {
   const parts = [
     row.human_tension ? `Human tension: ${String(row.human_tension).trim()}` : "",
@@ -147,8 +168,8 @@ function account(row: Row): Row {
     language: row.language || "en",
     market: row.market || "US",
     timezone: row.timezone || "America/New_York",
-    active: row.active,
-    enabled: row.active,
+    active: bool(row.active, true),
+    enabled: bool(row.active, true),
     weight: Number(row.weight ?? 1),
     status: row.status ?? row.warmup_status ?? "CREATED",
     warmup_status: row.warmup_status || "CREATED",
@@ -158,7 +179,7 @@ function account(row: Row): Row {
     secondary_pillar_ids: split(row.secondary_pillar_ids),
     pillar_mix: mix(row.pillar_mix),
     format_mix: mix(row.format_mix),
-    posting_enabled: row.posting_enabled,
+    posting_enabled: bool(row.posting_enabled, false),
     daily_target: Number(row.daily_target ?? 1),
     posts_per_day: Number(row.daily_target ?? 1),
     posting_slots: split(row.posting_slots),
@@ -195,10 +216,10 @@ function persona(row: Row): Row {
 const mappings: Mapping[] = [
   { sheet: "01_PERSONAS", range: "A1:X40", table: "content_personas", key: "persona_id", transform: persona },
   { sheet: "02_ACCOUNTS", range: "A1:AD40", table: "content_accounts", key: "account_id", transform: account },
-  { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id" },
+  { sheet: "03_FORMATS", range: "A1:N40", table: "content_formats", key: "format_id", transform: contentFormat },
   { sheet: "04_CONTENT_PILLARS", range: "A1:I40", table: "content_pillars", key: "pillar_id", transform: pillar },
   { sheet: "05_CONTENT_TERRITORIES", range: "A1:O200", table: "content_topics", key: "topic_id", sourceKey: "territory_id", transform: territory },
-  { sheet: "07_CTAS", range: "A1:H100", table: "content_ctas", key: "cta_id" },
+  { sheet: "07_CTAS", range: "A1:H100", table: "content_ctas", key: "cta_id", transform: cta },
   { sheet: "09_CLAIMS_RULES", range: "A1:L100", table: "content_claim_rules", key: "rule_id", transform: claimRule },
   { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id", transform: healthSource },
   { sheet: "18_CORTIFREE_COPY_BANK", range: "A1:K200", table: "editorial_copy_bank", key: "copy_id", transform: copyReference },
