@@ -60,7 +60,7 @@ describe('persona image infrastructure', () => {
       framing: 'medium', activity: 'opening curtains', mood: 'calm', colors: [], tags: ['morning', 'window'],
       public_url: 'https://example.com/a.jpg', use_count: 0, last_used_at: null,
     };
-    const personaDecision = selectAssetOrGeneration({ assets: [{ ...base, source_type: 'persona_generated', persona_id: 'P02' }], personaId: 'P02', category: 'home', visualIntent: 'morning window' });
+    const personaDecision = selectAssetOrGeneration({ assets: [{ ...base, filename: 'AVA_HOME_001.jpg', source_type: 'persona_generated', persona_id: 'P06' }], personaId: 'P02', category: 'home', visualIntent: 'morning window' });
     assert.equal(personaDecision.action, 'reuse_persona');
     const stockDecision = selectAssetOrGeneration({ assets: [{ ...base, source_type: 'stock', persona_id: null }], personaId: 'P02', category: 'home', visualIntent: 'morning window' });
     assert.equal(stockDecision.action, 'reuse_stock');
@@ -70,10 +70,10 @@ describe('persona image infrastructure', () => {
   it('trusts an exact-scene persona repair asset even when inherited reference tags are sparse', () => {
     const scene = 'Nora taking a relaxed neighborhood walk after class with sneakers and tote';
     const exactRepair: JitSelectableAsset = {
-      id: 'repair-1', filename: 'NORA_OUTDOORS_004.jpg', category: 'outdoors', subcategory: 'walk',
+      id: 'repair-1', filename: 'EMMA_OUTDOORS_REPAIR_004.jpg', category: 'outdoors', subcategory: 'walk',
       orientation: 'portrait', framing: 'full_body', activity: scene, mood: 'natural',
       colors: [], tags: ['outdoors'], public_url: 'https://example.com/repair.jpg',
-      use_count: 0, last_used_at: null, source_type: 'persona_generated', persona_id: 'P04',
+      use_count: 0, last_used_at: null, source_type: 'persona_generated', persona_id: 'P01',
       scene, visual_description: scene,
       visible_objects: [], visible_actions: [], setting: 'outdoors',
       people_visibility: 'full_person', composition: 'person_activity_scene',
