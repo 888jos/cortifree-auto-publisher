@@ -102,7 +102,7 @@ export async function syncContentSlotsFromCalendar() {
     const brand = integrationPayload(data);
     batch.push({
       id, workspace_id:"cortifree", account_id:accountId, persona_id:data.persona_id ?? null,
-      slot_date:date, slot_time:time, timezone, scheduled_for:scheduled.toISOString(),
+      slot_date:date, slot_time:time, local_time:time, timezone, scheduled_for:scheduled.toISOString(),
       strategy:strategyForSlot(id), pillar_id:data.pillar_id ?? null, concept_id:data.carousel_type ?? null,
       format_id:ACTIVE_FORMAT_SET.has(plannedFormat) ? plannedFormat : null,
       topic_id:/^T_/.test(rawTopicId) ? rawTopicId : null,
@@ -182,7 +182,7 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
         };
         created.push({
           id,workspace_id:"cortifree",account_id:account.id,persona_id:account.persona_id,
-          slot_date:day,slot_time:time,timezone:account.timezone,
+          slot_date:day,slot_time:time,local_time:time,timezone:account.timezone,
           scheduled_for:scheduled.toISOString(),
           strategy:strategyForSlot(id),pillar_id:account.primary_pillar_id??null,
           concept_id:null,format_id:null,topic_id:null,hook_id:null,status:"OPEN",
