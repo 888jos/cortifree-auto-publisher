@@ -20,7 +20,7 @@ function unsafeHealthReason(text: string) {
   return unsafeHealthRules.find((rule) => rule.pattern.test(text))?.reason ?? null;
 }
 
-const unexpectedScriptPattern = /[\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+const unexpectedScriptPattern = /[\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Devanagari}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Bengali}\uFFFD]/u;
 function hasUnexpectedScript(text: string, language: "en" | "fr") {
   return language === "en" && unexpectedScriptPattern.test(text);
 }
