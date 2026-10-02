@@ -196,6 +196,15 @@ describe("canonical carousel formats", () => {
     assert.doesNotMatch(page, /carouselType:\s*currentType\.id/);
   });
 
+  it("keeps carousel status aligned with lifecycle after successful renders", () => {
+    const processor = readFileSync(new URL("../src/autonomy/processor.ts", import.meta.url), "utf8");
+    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
+    const route = readFileSync(new URL("../app/api/carousels/[id]/render/route.ts", import.meta.url), "utf8");
+    assert.match(processor, /status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW'/);
+    assert.match(worker, /status: "READY_FOR_REVIEW",[\s\S]*lifecycle_state: "READY_FOR_REVIEW"/);
+    assert.match(route, /status: "READY_FOR_REVIEW", lifecycle_state: "READY_FOR_REVIEW"/);
+  });
+
   it("keeps the draft worker path isolated from publishing", () => {
     const queue = readFileSync(new URL("../app/lib/worker-queue.ts", import.meta.url), "utf8");
     const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
