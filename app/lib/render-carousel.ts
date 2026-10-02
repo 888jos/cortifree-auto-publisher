@@ -1405,30 +1405,15 @@ export async function renderCarousel(input: {
             usedRoutineAssets.add(String(locked.asset.id));
             return [locked];
           }
-          try {
-            const selected = chooseAssets({
-              assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: new Set([...recentHookAssetIds, ...usedRoutineAssets]),
-              slides: [primarySelectionSlide(slide)],
-            })[0]!;
-            usedRoutineAssets.add(String(selected.asset.id));
-            return [selected];
-          } catch {
-            // Prefer a distinct photo for every timed step. If the eligible
-            // pool is genuinely exhausted, reuse is better than blocking the
-            // entire carousel.
-            const fallback = chooseAssets({
-              assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: recentHookAssetIds,
-              slides: [primarySelectionSlide(slide)],
-            })[0]!;
-            usedRoutineAssets.add(String(fallback.asset.id));
-            return [fallback];
-          }
+          const selected = chooseAssets({
+            assets,
+            carouselType: input.carouselType,
+            personaId: input.personaId,
+            excludedAssetIds: new Set([...recentHookAssetIds, ...usedRoutineAssets]),
+            slides: [primarySelectionSlide(slide)],
+          })[0]!;
+          usedRoutineAssets.add(String(selected.asset.id));
+          return [selected];
         });
         break;
       }
