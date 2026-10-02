@@ -33,6 +33,28 @@ type CarouselStructuredRequest = (options: {
   maxOutputTokens?: number;
 }) => Promise<StructuredResult<CarouselSpec>>;
 
+const invisibleFormatChars = /[\u200B-\u200F\u2060-\u206F\uFEFF]/g;
+function cleanGeneratedString(value: string) {
+  return value.replace(invisibleFormatChars, "");
+}
+export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec {
+  return {
+    ...spec,
+    title: cleanGeneratedString(spec.title),
+    topic: cleanGeneratedString(spec.topic),
+    angle: cleanGeneratedString(spec.angle),
+    hook: cleanGeneratedString(spec.hook),
+    caption: cleanGeneratedString(spec.caption),
+    slides: spec.slides.map((slide) => ({
+      ...slide,
+      headline: cleanGeneratedString(slide.headline),
+      body: cleanGeneratedString(slide.body),
+      visualIntent: cleanGeneratedString(slide.visualIntent),
+      assetQuery: cleanGeneratedString(slide.assetQuery),
+    })),
+  };
+}
+
 export async function generateCarousel(
   input: CarouselGeneratorInput & { bypassMonthlyCap?: boolean },
   dependencies: {
@@ -75,11 +97,20 @@ export async function generateCarousel(
         const slideCountRepair = /Expected\s+\d+\s+slides/i.test(repairIssues)
           ? `\nSLIDE-COUNT REPAIR: The slides array MUST contain exactly ${input.requestedSlideCount} objects, with positions 1 through ${input.requestedSlideCount}. Count them before returning JSON. Keep slide 1 as HOOK and slide ${input.requestedSlideCount} as the final TAKEAWAY/CTA.`
           : "";
+        const scriptRepair = /stray non-Latin|UNEXPECTED_SCRIPT/i.test(repairIssues)
+          ? "\nSCRIPT REPAIR: Retype every string field in clean English Latin script, including assetQuery and visualIntent. Do not copy Cyrillic, Han/CJK, Hiragana, Katakana, Hangul, Devanagari, Arabic, Hebrew, Thai or Bengali characters from prior text. Remove hidden or stray copied characters."
+          : "";
+        const checklistRepair = /F05 Notes body must contain 4-6 complete useful list items|CHECKLIST_OPTIONS/i.test(repairIssues)
+          ? "\nF05 CHECKLIST REPAIR: Every body Note after the cover must contain exactly 5 complete useful checklist items separated by exactly four ' | ' delimiters. Each item is one clear behavior, choice or principle. Do not use pipe characters inside an item."
+          : "";
+        const specificityRepair = /Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
+          ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
+          : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           maxOutputTokens: 3_200,
         });
@@ -88,7 +119,7 @@ export async function generateCarousel(
           cachedInputTokens: usage.cachedInputTokens + result.usage.cachedInputTokens,
           outputTokens: usage.outputTokens + result.usage.outputTokens,
         };
-        const candidate = carouselSpecSchema.parse(result.data);
+        const candidate = sanitizeGeneratedCarouselSpec(carouselSpecSchema.parse(result.data));
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         spec = candidate;
         break;
@@ -109,8 +140,9 @@ export async function generateCarousel(
         return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: `AI QA review required: ${qa.issues.map((issue) => issue.message).slice(0, 2).join("; ")}`, qa };
       }
       if (qa.correctedSpec) {
-        assertValidCarouselSpec(qa.correctedSpec, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        return { spec: qa.correctedSpec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+        const corrected = sanitizeGeneratedCarouselSpec(qa.correctedSpec);
+        assertValidCarouselSpec(corrected, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+        return { spec: corrected, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
       }
     }
     return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
