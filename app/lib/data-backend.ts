@@ -15,7 +15,7 @@ const SUPABASE_TABLE_ALIASES: Record<string, string> = {
 const SUPABASE_TABLES_WITHOUT_WORKSPACE_FILTER = new Set([
   "content_personas", "content_accounts", "content_topics", "content_hooks", "content_ctas",
   "content_formats", "content_pillars", "content_claim_rules", "content_health_sources", "content_template_specs", "system_logs",
-  "editorial_records",
+  "editorial_records", "editorial_golden_examples", "editorial_copy_bank",
 ]);
 
 export function supabaseTableName(table: string) {
