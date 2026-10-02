@@ -56,6 +56,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   if (spec.language !== expected.language) issues.push({ code: "LANGUAGE", message: `Expected language ${expected.language}`, severity: "major" });
 
   const seen = new Set<string>();
+  let routineItinerarySignals = 0;
   spec.slides.forEach((slide, index) => {
     if (slide.position !== index + 1) issues.push({ code: "POSITION", message: "Slide positions must be consecutive", slidePosition: slide.position, severity: "major" });
     if (canonicalLayout(slide.layout) !== canonicalLayout(expected.layout)) {
@@ -72,6 +73,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       if (isRoutineStep && !hasRangePrefix) issues.push({ code: "ROUTINE_TIME_RANGE", message: "Routine step must start with a start-end time range", slidePosition: slide.position, severity: "minor" });
       if (isRoutineStep && slide.headline.length > 72) issues.push({ code: "ROUTINE_ACTION_LENGTH", message: "Routine time + action is too long for the compact photo overlay", slidePosition: slide.position, severity: "minor" });
       if (isRoutineStep && slide.body.length > 90) issues.push({ code: "ROUTINE_BODY_LENGTH", message: "Routine support copy must stay to a few short factual lines", slidePosition: slide.position, severity: "minor" });
+      if (isRoutineStep && /\b(?:calls?|messages?|errands?|pick(?:ing)?\s+up|pickup|appointments?|meetings?|classes?|commute|shopping?|shop)\b/i.test(slide.headline)) {
+        routineItinerarySignals += 1;
+      }
       if (index === 0 && slide.body.length > 32) issues.push({ code: "ROUTINE_COVER_RANGE", message: "Routine cover body should contain only the overall time range", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "three-rect-educational") {
@@ -152,6 +156,13 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     const slideHealthReason = unsafeHealthReason(normalized);
     if (slideHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${slideHealthReason}`, slidePosition: slide.position, severity: "major" });
   });
+  if (expected.layout === "routine-timeline" && routineItinerarySignals >= 2) {
+    issues.push({
+      code: "ROUTINE_ITINERARY_DRIFT",
+      message: "F03 must be a coherent wellness routine, not an itinerary of calls, errands, appointments, classes, shopping or commute tasks",
+      severity: "major",
+    });
+  }
 
   const allCopy = `${spec.title} ${spec.topic} ${spec.angle} ${spec.hook} ${spec.caption}`;
   if (hasUnexpectedScript(allCopy, expected.language)) {

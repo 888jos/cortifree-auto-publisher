@@ -5,6 +5,7 @@ import {
   ModelArkSeedreamProvider,
   personaAssetFolder,
   withImageRetry,
+  isProviderAccountBlockedError,
   type ImageGenerationInput,
   type ImageGenerationProvider,
 } from "../../src/image-generation/core";
@@ -42,6 +43,28 @@ async function patchJob(id: string, values: Record<string, unknown>) {
     method: "PATCH", body: JSON.stringify({ ...values, updated_at: new Date().toISOString() }),
   });
   if (!response.ok) throw new Error(await response.text());
+}
+
+export async function recentImageProviderBlocker(windowMinutes = 15) {
+  const since = new Date(Date.now() - Math.max(1, windowMinutes) * 60_000).toISOString();
+  const pattern = encodeURIComponent("*AccountOverdueError*");
+  const response = await dataBackend(
+    "image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID
+      + "&status=eq.FAILED"
+      + "&updated_at=gte." + encodeURIComponent(since)
+      + "&last_error=ilike." + pattern
+      + "&select=id,last_error,updated_at"
+      + "&order=updated_at.desc&limit=1",
+  );
+  if (!response.ok) return null;
+  const rows = await response.json() as Array<{ id?: string; last_error?: string; updated_at?: string }>;
+  const blocker = rows[0];
+  if (!blocker || !isProviderAccountBlockedError(blocker.last_error)) return null;
+  return {
+    id: blocker.id ?? null,
+    reason: "overdue_balance",
+    updatedAt: blocker.updated_at ?? null,
+  };
 }
 
 async function outputBytes(result: { url?: string; base64?: string }) {
@@ -142,6 +165,8 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
   if (!current.enabled && !injectedProvider) throw new Error("IMAGE_GENERATION_ENABLED is false");
   if ((!current.apiKey || !current.model) && !injectedProvider) throw new Error("ModelArk credentials are not configured");
   if (!injectedProvider) {
+    const blocker = await recentImageProviderBlocker();
+    if (blocker) throw new Error(`MODELARK_PROVIDER_BLOCKED:${blocker.reason}`);
     const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
     const monthResponse = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(monthStart.toISOString()) + "&select=estimated_cost_usd");
     if (!monthResponse.ok) throw new Error("Cannot verify monthly image generation budget");

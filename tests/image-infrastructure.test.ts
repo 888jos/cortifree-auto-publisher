@@ -12,6 +12,7 @@ import {
   personaAssetFolder,
   withImageRetry,
   isPermanentImageGenerationError,
+  isProviderAccountBlockedError,
 } from '../src/image-generation/core.js';
 import {
   deterministicReferenceName,
@@ -128,8 +129,10 @@ describe('persona image infrastructure', () => {
     await assert.rejects(() => withImageRetry(async () => { throw new Error('invalid prompt'); }), /invalid prompt/);
   });
 
-  it('classifies permanent ModelArk input moderation failures as non-retryable', () => {
+  it('classifies permanent ModelArk moderation and account blocks as non-retryable', () => {
     assert.equal(isPermanentImageGenerationError(new Error('ModelArk 400: {"error":{"code":"InputImageSensitiveContentDetected","type":"BadRequest"}}')), true);
+    assert.equal(isProviderAccountBlockedError(new Error('ModelArk 403: {"error":{"code":"AccountOverdueError","message":"overdue balance"}}')), true);
+    assert.equal(isPermanentImageGenerationError(new Error('ModelArk 403: {"error":{"code":"AccountOverdueError","message":"overdue balance"}}')), true);
     assert.equal(isPermanentImageGenerationError(new Error('ModelArk 500: temporary upstream failure')), false);
     assert.equal(isPermanentImageGenerationError(new Error('429 temporary')), false);
   });

@@ -241,6 +241,21 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "ROUTINE_TIME_RANGE" || issue.code === "ROUTINE_BODY_LENGTH" || issue.code === "LAYOUT"), false);
   });
 
+  it("rejects F03 when the timeline becomes an errands-and-messages itinerary", () => {
+    const routineInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F03_ROUTINE_TIMELINE",
+      layout: "routine-timeline",
+      requestedSlideCount: 7,
+      preferredHook: "my low-stress afternoon routine",
+    };
+    const routine = createFallbackCarousel(routineInput);
+    routine.slides[2]!.headline = "10:30 - 10:45 · take a call outside";
+    routine.slides[3]!.headline = "12:15 - 12:35 · run a grocery errand";
+    const issues = validateCarouselSpec(routine, { slideCount: 7, language: "en", layout: "routine-timeline" });
+    assert.equal(issues.some((issue) => issue.code === "ROUTINE_ITINERARY_DRIFT" && issue.severity === "major"), true);
+  });
+
   it("produces a canonical F05 Notes-style master-list fallback", () => {
     const checklistInput: CarouselGeneratorInput = {
       ...baseInput,

@@ -92,7 +92,13 @@ export class ModelArkSeedreamProvider implements ImageGenerationProvider {
 }
 
 
+export function isProviderAccountBlockedError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /AccountOverdueError|overdue balance|insufficient balance|billing.*(?:blocked|overdue)|ModelArk\s+403\b/i.test(message);
+}
+
 export function isPermanentImageGenerationError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /InputImageSensitiveContentDetected|SensitiveContent|ModelArk\s+400\b|BadRequest|content\s*policy|moderation/i.test(message);
+  return isProviderAccountBlockedError(error)
+    || /InputImageSensitiveContentDetected|SensitiveContent|ModelArk\s+400\b|BadRequest|content\s*policy|moderation/i.test(message);
 }
