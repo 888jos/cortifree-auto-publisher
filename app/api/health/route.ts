@@ -43,12 +43,14 @@ export async function GET(request: Request) {
       }
     }
   }
+  // V2 editorial readiness is validated by productionGateStatus using
+  // active territories, six canonical formats and dynamic hooks. Public health
+  // keeps this coarse check limited to stable inventory counts.
   const editorialReady = Boolean(
     counts &&
     (counts.personas ?? 0) >= 16 &&
     (counts.accounts ?? 0) >= 16 &&
-    (counts.content_topics ?? 0) >= 500 &&
-    (counts.content_hooks ?? 0) >= 200 &&
+    (counts.content_topics ?? 0) >= 40 &&
     (counts.content_ctas ?? 0) >= 30
   );
   const googleSyncConfigured = googleServiceAccountConfigured();
