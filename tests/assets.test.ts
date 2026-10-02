@@ -8,6 +8,17 @@ import { scanAssets } from '../src/assets/scanner.js';
 import { chooseAssets, deriveVisualIntent, visualPersonaIdFor, type SelectableAsset } from '../app/lib/asset-selector';
 import { isAutomaticVisualReference } from '../src/visual-references';
 import { isBrowserRenderableAssetUrl } from '../app/lib/asset-public-url';
+import { isCanonicalPersonaRootFolder } from '../app/lib/sync/drive';
+
+describe('Drive persona root filtering', () => {
+  it('keeps canonical persona folders and ignores legacy visual-pool archives', () => {
+    assert.equal(isCanonicalPersonaRootFolder('AVA'), true);
+    assert.equal(isCanonicalPersonaRootFolder('P06_AVA'), true);
+    assert.equal(isCanonicalPersonaRootFolder('ZZ_LEGACY_VISUAL_POOLS_2026-10-01'), false);
+    assert.equal(isCanonicalPersonaRootFolder('00_VISUAL_POOLS'), false);
+    assert.equal(isCanonicalPersonaRootFolder('99_QUARANTINE_IDENTITY'), false);
+  });
+});
 
 describe('asset scanner', () => {
   it('maps sixteen accounts onto eight stable visual identities', () => {
