@@ -72,7 +72,8 @@ export function isRetryableGenerationFailure(message: string) {
     || /Slide positions must be consecutive/i.test(message)
     || /Slide must use\s+/i.test(message)
     || /Too few concrete behaviors or details/i.test(message)
-    || /Copy has no creator point of view/i.test(message);
+    || /Copy has no creator point of view/i.test(message)
+    || /stray non-Latin script|UNEXPECTED_SCRIPT/i.test(message);
 }
 
 export function preferredHookForFormat(contentType: string, value: unknown) {
