@@ -10,19 +10,18 @@ function boolish(value: unknown) {
   return ["true","1","yes"].includes(String(value ?? "").trim().toLowerCase());
 }
 function integrationPayload(data: Record<string, unknown>) {
-  const required = boolish(data.brand_required);
   const assetId = String(data.app_screen_asset_id ?? "").trim();
-  const screenReady = assetId.length > 0 && String(data.app_screen_status ?? "").toUpperCase() === "READY";
   return {
-    required,
-    mention: String(data.brand_exact_phrase ?? "the app CortiFree"),
+    required: false,
+    legacy_requested: boolish(data.brand_required),
+    mention: "the app CortiFree",
     integration_type: String(data.integration_type ?? ""),
     slide: String(data.integration_slide ?? ""),
     intensity: Number(data.integration_intensity ?? 0) || 0,
     app_screen_category: String(data.app_screen_category ?? ""),
     app_screen_asset_id: assetId || null,
     copy_bank_seed_id: String(data.copy_bank_seed_id ?? "") || null,
-    screenshot_required: required && boolish(data.app_screen_required) && screenReady,
+    screenshot_required: false,
   };
 }
 
