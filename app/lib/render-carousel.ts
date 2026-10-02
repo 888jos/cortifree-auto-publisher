@@ -149,6 +149,11 @@ async function selectedAssetBytes(match: AssetMatch) {
 
 type StoredReference = { id?: string; slides?: Array<{ geometry?: Geometry }> };
 
+export function rankingAssetCountForSlide(slide: Pick<GeneratedSlide, "position" | "role">) {
+  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  return isHook ? 2 : 0;
+}
+
 function generationCategory(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
   if (/walk|outdoor|street|park|outside|nature/.test(text)) return "outdoors";
@@ -1283,8 +1288,9 @@ export async function renderCarousel(input: {
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
       const selectionSlides = input.layout === "grid-2x2" ? [input.slides[0]!] : input.slides;
-      const matches = selectionSlides.map((slide, selectionIndex) => {
+      const matches = selectionSlides.map((slide, selectionIndex): AssetMatch | undefined => {
         const actualIndex = input.layout === "grid-2x2" ? 0 : selectionIndex;
+        if (input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0) return undefined;
         const locked = lockedMatchesForSlide(slide, actualIndex)[0];
         if (locked) return locked;
         return chooseAssets({
@@ -1337,20 +1343,24 @@ export async function renderCarousel(input: {
         break;
       }
 
-      const usedCarouselAssets = new Set<string>(matches.filter(Boolean).map((match) => String(match.asset.id)));
+      const usedCarouselAssets = new Set<string>(matches.filter((match): match is AssetMatch => Boolean(match)).map((match) => String(match.asset.id)));
       if (multiImageLayout) {
         gridMatches = input.slides.map((slide, index) => {
           const locked = lockedMatchesForSlide(slide, index);
-          const primary = locked[0] ?? matches[index]!;
           const desiredCount = input.layout === "three-rect-educational"
             ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 3)
             : input.layout === "editorial-asym-hero"
               ? 3
             : input.layout === "editorial-collage"
               ? 2
-              : input.layout === "lifestyle-3stack"
-                ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 1 : 3)
+            : input.layout === "lifestyle-3stack"
+              ? ((index === 0 || slide.role.toUpperCase() === "HOOK") ? 1 : 3)
+            : input.layout === "ranking"
+              ? rankingAssetCountForSlide(slide)
               : (index === 0 || slide.role.toUpperCase() === "HOOK") ? 2 : 1;
+          if (desiredCount === 0) return [];
+          const primary = locked[0] ?? matches[index];
+          if (!primary) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
           if (desiredCount === 1) return [primary];
           const selected: AssetMatch[] = locked.length ? locked.slice(0, desiredCount) : [primary];
           selected.forEach((match) => usedCarouselAssets.add(String(match.asset.id)));
@@ -1439,14 +1449,15 @@ export async function renderCarousel(input: {
   const prepared = await Promise.all(input.slides.map(async (sourceSlide, index) => {
     const override = editorOverrides[String(sourceSlide.position)] ?? {};
     const slide = { ...sourceSlide, headline: override.headline ?? sourceSlide.headline, body: override.body ?? sourceSlide.body };
-    let slideMatches = gridMatches[index]!;
-    if (override.assetIds?.length) {
+    let slideMatches = gridMatches[index] ?? [];
+    const isTextOnlyRanking = input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0;
+    if (!isTextOnlyRanking && override.assetIds?.length) {
       slideMatches = slideMatches.map((match, slot) => {
         const requested = override.assetIds?.[slot];
         const forced = requested == null ? null : assets.find((asset) => String(asset.id) === String(requested));
         return forced ? { asset: forced, score: 999, matchedTerms: ["editor_override"], fallbackPath: "editor_override" } : match;
       });
-    } else if (override.assetId != null) {
+    } else if (!isTextOnlyRanking && override.assetId != null) {
       const forced = assets.find((asset) => String(asset.id) === String(override.assetId));
       if (forced) slideMatches = [{ asset: forced, score: 999, matchedTerms: ["editor_override"], fallbackPath: "editor_override" }, ...slideMatches.slice(1)];
     }
@@ -1472,13 +1483,13 @@ export async function renderCarousel(input: {
     } as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
-    const primaryMatch = slideMatches[0]!;
+    const primaryMatch = slideMatches[0];
     const renderMetadata = {
       geometry,
       storage_path: upload.storagePath,
-      asset_score: primaryMatch.score,
-      matched_terms: primaryMatch.matchedTerms,
-      selection: {
+      asset_score: primaryMatch?.score ?? null,
+      matched_terms: primaryMatch?.matchedTerms ?? [],
+      selection: primaryMatch ? {
         candidate_pool_size: primaryMatch.candidatePoolSize ?? null,
         selected_asset_id: primaryMatch.asset.id,
         final_score: primaryMatch.score,
@@ -1497,13 +1508,32 @@ export async function renderCarousel(input: {
         repetition_penalty: primaryMatch.repetitionPenalty ?? null,
         top_candidates: primaryMatch.topCandidates ?? [],
         category_bonus: primaryMatch.categoryBonus ?? null,
+      } : {
+        candidate_pool_size: 0,
+        selected_asset_id: null,
+        final_score: null,
+        fallback_path: "text_only",
+        threshold: null,
+        threshold_bypassed: false,
+        visual_intent: null,
+        matched_dimensions: [],
+        matched_settings: [],
+        matched_compositions: [],
+        description_score: null,
+        object_score: null,
+        action_score: null,
+        setting_score: null,
+        composition_score: null,
+        repetition_penalty: null,
+        top_candidates: [],
+        category_bonus: null,
       },
       asset_ids: slideMatches.map((match) => match.asset.id),
       asset_source_types: slideMatches.map((match) => match.asset.source_type ?? null),
     };
     return {
-      databaseRow: { workspace_id: CORTIFREE_WORKSPACE_ID, carousel_id: input.id, position: slide.position, template_id: input.layout, headline: slide.headline, body: slide.body, asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent }, asset_id: primaryMatch.asset.id, rendered_url: upload.publicUrl, render_metadata: renderMetadata },
-      result: { position: slide.position, url: upload.publicUrl, assetId: primaryMatch.asset.id, assetFilename: primaryMatch.asset.filename, score: primaryMatch.score, matchedTerms: primaryMatch.matchedTerms, geometry, assetIds: slideMatches.map((match) => match.asset.id), assetSourceTypes: slideMatches.map((match) => match.asset.source_type ?? null) },
+      databaseRow: { workspace_id: CORTIFREE_WORKSPACE_ID, carousel_id: input.id, position: slide.position, template_id: input.layout, headline: slide.headline, body: slide.body, asset_requirement: { query: slide.assetQuery, visual_intent: slide.visualIntent }, asset_id: primaryMatch?.asset.id ?? null, rendered_url: upload.publicUrl, render_metadata: renderMetadata },
+      result: { position: slide.position, url: upload.publicUrl, assetId: primaryMatch?.asset.id ?? null, assetFilename: primaryMatch?.asset.filename ?? null, score: primaryMatch?.score ?? null, matchedTerms: primaryMatch?.matchedTerms ?? [], geometry, assetIds: slideMatches.map((match) => match.asset.id), assetSourceTypes: slideMatches.map((match) => match.asset.source_type ?? null) },
     };
   }));
   const slideResponse = await dataBackend("carousel_slides?on_conflict=carousel_id,position", {
@@ -1578,8 +1608,11 @@ export async function renderCarouselRevision(input: {
   for (const slide of input.slides.filter((item) => changed.has(item.position))) {
     const existing = existingByPosition.get(slide.position);
     let slideMatches: AssetMatch[] = [];
+    const isTextOnlyRanking = input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0;
 
-    if (!visualChanges.has(slide.position)) {
+    if (isTextOnlyRanking) {
+      slideMatches = [];
+    } else if (!visualChanges.has(slide.position)) {
       const previous = previousByPosition.get(slide.position);
       const existingUrl = existing?.rendered_url ?? (typeof previous?.url === "string" ? previous.url : null);
       if (!existingUrl) throw new Error(`REVISION_EXISTING_RENDER_MISSING:slide_${slide.position}`);
@@ -1696,17 +1729,21 @@ export async function renderCarouselRevision(input: {
     ) as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
-    const primaryMatch = slideMatches[0]!;
-    const persistedAssetId = assetMap.has(String(primaryMatch.asset.id)) ? primaryMatch.asset.id : null;
+    const primaryMatch = slideMatches[0];
+    const persistedAssetId = primaryMatch && assetMap.has(String(primaryMatch.asset.id)) ? primaryMatch.asset.id : null;
     const renderMetadata = {
       geometry,
       storage_path: upload.storagePath,
-      asset_score: primaryMatch.score,
-      matched_terms: primaryMatch.matchedTerms,
-      selection: {
+      asset_score: primaryMatch?.score ?? null,
+      matched_terms: primaryMatch?.matchedTerms ?? [],
+      selection: primaryMatch ? {
         selected_asset_id: primaryMatch.asset.id,
         fallback_path: primaryMatch.fallbackPath ?? (visualChanges.has(slide.position) ? "review_visual_reselect" : "review_preserved_visual"),
         threshold_bypassed: primaryMatch.thresholdBypassed ?? false,
+      } : {
+        selected_asset_id: null,
+        fallback_path: "text_only",
+        threshold_bypassed: false,
       },
       asset_ids: slideMatches.map((match) => match.asset.id),
       asset_source_types: slideMatches.map((match) => match.asset.source_type ?? null),
@@ -1729,10 +1766,10 @@ export async function renderCarouselRevision(input: {
       result: {
         position: slide.position,
         url: upload.publicUrl,
-        assetId: primaryMatch.asset.id,
-        assetFilename: primaryMatch.asset.filename,
-        score: primaryMatch.score,
-        matchedTerms: primaryMatch.matchedTerms,
+        assetId: primaryMatch?.asset.id ?? null,
+        assetFilename: primaryMatch?.asset.filename ?? null,
+        score: primaryMatch?.score ?? null,
+        matchedTerms: primaryMatch?.matchedTerms ?? [],
         geometry,
         assetIds: slideMatches.map((match) => match.asset.id),
         assetSourceTypes: slideMatches.map((match) => match.asset.source_type ?? null),
