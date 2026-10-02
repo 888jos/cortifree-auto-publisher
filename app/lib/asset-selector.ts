@@ -386,9 +386,14 @@ export function chooseAssets(options: {
       ? finalUse.filter((asset) => asset.source_type === "app_screenshot")
       : hookNeedsPersona || slide.assetType === "persona"
         ? finalUse.filter((asset) => asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId))
-        : slide.assetType === "stock" || slide.assetType === "text_only"
-          ? finalUse.filter((asset) => asset.source_type === "stock")
-          : finalUse;
+        : slide.assetType === "stock"
+          ? finalUse.filter((asset) =>
+              asset.source_type === "stock"
+              || (asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId)),
+            )
+          : slide.assetType === "text_only"
+            ? finalUse.filter((asset) => asset.source_type === "stock")
+            : finalUse;
     // Persona-required slides must preserve identity. Never silently
     // downgrade them to stock just to make a draft renderable. Throwing here
     // intentionally hands control back to render-carousel's ModelArk repair path.
@@ -407,14 +412,20 @@ export function chooseAssets(options: {
     // valid face asset only because its indexed keywords are sparse.
     const compatible = officialAppScreenshot
       ? usableRequested
-      : (options.personaOnly
+      : options.personaOnly
         ? usableRequested
         : usableRequested.filter((asset) => {
-            if (asset.source_type !== "persona_generated") return compatibleWithScene(asset, constraint);
-            if (hookNeedsPersona) return broadHookPersonaDomainMatch(slide, asset).compatible;
-            return true;
-          }))
-        .filter((asset) => asset.source_type === "persona_generated" || passesHardConstraints(asset, intent));
+            if (asset.source_type === "persona_generated") {
+              if (hookNeedsPersona) return broadHookPersonaDomainMatch(slide, asset).compatible;
+              // Persona assets used as a rescue for a stock-designated slot
+              // must satisfy the same physical constraints as reviewed stock.
+              if (slide.assetType === "stock") {
+                return compatibleWithScene(asset, constraint) && passesHardConstraints(asset, intent);
+              }
+              return true;
+            }
+            return compatibleWithScene(asset, constraint) && passesHardConstraints(asset, intent);
+          });
     // Scene labels are helpful, but a tiny scene-filtered pool can become a
     // false dead-end while hundreds of reviewed assets still satisfy the real
     // hard requirements. Broaden only non-persona/non-app slides, and preserve
@@ -485,6 +496,7 @@ export function chooseAssets(options: {
         ? semanticScore * 12 + actionScore * 8 + objectScore * 6 + settingScore * 4 + compositionScore * 4 + detailScore * 2 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + Math.min(8, legacyQueryScore) + (broadDomain.matched ? 24 : 0) - textPenalty
         : semanticScore * 35 + actionScore * 20 + objectScore * 15 + settingScore * 12 + compositionScore * 6 + detailScore * 5 + peopleScore * 3 + cameraScore * 2 + lightingScore * 2 + legacyQueryScore + personaSceneScore - textPenalty;
       if (officialAppScreenshot && asset.source_type === "app_screenshot") score += 100;
+      if (slide.assetType === "stock" && asset.source_type === "stock") score += 6;
       if (exactGeneratedSceneMatch) score += 60;
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);

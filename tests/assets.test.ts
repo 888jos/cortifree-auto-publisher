@@ -54,6 +54,36 @@ describe('asset scanner', () => {
     assert.equal(selected?.asset.persona_id, 'P01');
   });
 
+  it('rescues a weak stock-designated slot with the same canonical visual persona when the scene is materially better', () => {
+    const visualIntent = 'woman preparing a simple breakfast at a kitchen counter in morning light';
+    const weakStock: SelectableAsset = {
+      id: 'weak-stock-rescue', filename: 'weak-stock.jpg', category: 'misc', subcategory: 'misc', orientation: 'portrait',
+      framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/weak-stock.jpg',
+      use_count: 0, last_used_at: null, source_type: 'stock',
+      visual_description: 'plain empty indoor wall', visible_objects: [], visible_actions: [], setting: 'indoor_room',
+      people_visibility: 'no_person', body_parts_visible: [], composition: 'wide_empty_scene',
+      camera_angle: 'eye_level', lighting: 'indoor_light', dominant_colors: [], text_in_image: '', specific_details: '',
+      visual_tagging_schema: 'observable_v2', visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: '2026-10-01T00:00:00.000Z',
+    };
+    const matchingPersona: SelectableAsset = {
+      id: 'emma-breakfast', filename: 'EMMA_FOOD_001.jpg', category: 'food', subcategory: 'food', orientation: 'portrait',
+      framing: 'medium', activity: visualIntent, mood: 'natural', colors: [], tags: ['breakfast','kitchen'],
+      public_url: 'https://example.com/emma-breakfast.jpg', use_count: 0, last_used_at: null,
+      source_type: 'persona_generated', persona_id: 'P01', scene: visualIntent,
+      visual_description: visualIntent, visible_objects: ['food','bowl'], visible_actions: ['preparing_food'],
+      setting: 'kitchen', people_visibility: 'full_person', body_parts_visible: ['face'], composition: 'person_activity_scene',
+      camera_angle: 'eye_level', lighting: 'morning_light', dominant_colors: [], text_in_image: '', specific_details: 'simple breakfast',
+    };
+    const [selected] = chooseAssets({
+      carouselType: 'F03_ROUTINE_TIMELINE',
+      personaId: 'P04',
+      assets: [weakStock, matchingPersona],
+      slides: [{ position: 5, role: 'STEP', headline: '7:15 - 7:25 · eat the easiest breakfast', body: '', assetType: 'stock', assetQuery: visualIntent, visualIntent }],
+    });
+    assert.equal(selected?.asset.id, 'emma-breakfast');
+    assert.equal(selected?.asset.persona_id, 'P01');
+  });
+
   it('rejects stock below the explicit fallback confidence floor', () => {
     const weak: SelectableAsset = {
       id: 'weak-stock', filename: 'weak.jpg', category: 'misc', subcategory: 'misc', orientation: 'portrait',
