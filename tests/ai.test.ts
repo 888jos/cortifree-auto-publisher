@@ -237,6 +237,33 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code.startsWith("CHECKLIST_") || issue.code === "LAYOUT"), false);
   });
 
+  it("preserves complete F05 checklist copy beyond the old 280-character ceiling", () => {
+    const checklistInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F05_INTERACTIVE_CHECKLIST",
+      layout: "interactive-checklist",
+      requestedSlideCount: 8,
+    };
+    const checklist = createFallbackCarousel(checklistInput);
+    const items = [
+      "turn off notifications you never act on and keep only the people you actually need to hear from",
+      "leave distracting apps somewhere less immediate so opening them becomes an intentional choice",
+      "give yourself one part of the morning where you do not have to check or answer anything",
+      "decide when you will come back to messages instead of letting every new alert choose the timing",
+      "notice which apps leave you more drained than before you opened them and shorten those sessions",
+    ];
+    assert.ok(items.every((item) => item.length <= 96));
+    const body = items.join(" | ");
+    assert.ok(body.length > 280);
+    checklist.slides[1]!.headline = "Make your phone less demanding";
+    checklist.slides[1]!.body = body;
+    const parsed = carouselSpecSchema.parse(checklist);
+    assert.equal(parsed.slides[1]!.body, body);
+    assert.ok(parsed.slides[1]!.body.length > 280);
+    const issues = validateCarouselSpec(parsed, { slideCount: 8, language: "en", layout: "interactive-checklist" });
+    assert.equal(issues.some((issue) => issue.code === "BODY_LENGTH" || issue.code === "CHECKLIST_OPTION_LENGTH"), false);
+  });
+
   it("produces a canonical F01 lifestyle three-stack fallback", () => {
     const lifestyleInput: CarouselGeneratorInput = {
       ...baseInput,
