@@ -7,7 +7,7 @@ import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { uploadConvexFile } from "./convex-storage";
 import { analyzeHookComposition, type HookDesign } from "./hook-design";
-import { processImageGenerationJob } from "./image-generation";
+import { processImageGenerationJob, recentImageProviderBlocker } from "./image-generation";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-generation/core";
 import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../src/visual-references";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
@@ -237,6 +237,10 @@ function referenceSceneIntent(slide: GeneratedSlide) {
 }
 
 async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
+  const providerBlocker = await recentImageProviderBlocker();
+  if (providerBlocker) {
+    throw new Error(`MODELARK_PROVIDER_BLOCKED:${providerBlocker.reason}:slide_${options.position}`);
+  }
   if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
   const visualPersonaId = visualPersonaIdFor(options.input.personaId);
   if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
