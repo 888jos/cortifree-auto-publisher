@@ -1,7 +1,7 @@
 import sharp, { type OverlayOptions } from "sharp";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { chooseAssets, loadSelectableAssets, requiresOfficialAppScreenshot, type AssetMatch } from "./asset-selector";
+import { chooseAssets, loadSelectableAssets, requiresOfficialAppScreenshot, visualPersonaIdFor, type AssetMatch } from "./asset-selector";
 import { getSlideGeometry } from "./layout-geometry.js";
 import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
@@ -178,17 +178,19 @@ function referenceSceneIntent(slide: GeneratedSlide) {
 }
 
 async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
-  if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
+  if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
+  const visualPersonaId = visualPersonaIdFor(visualPersonaId);
+  if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
   const [personas, mastersResponse, referencesResponse] = await Promise.all([
     loadRuntimePersonaConfigs(),
-    dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&persona_id=eq.${encodeURIComponent(options.input.personaId)}&source_type=eq.persona_master&enabled=eq.true&public_url=not.is.null&select=id&limit=1`),
+    dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&persona_id=eq.${encodeURIComponent(visualPersonaId)}&source_type=eq.persona_master&enabled=eq.true&public_url=not.is.null&select=id&limit=1`),
     dataBackend(`visual_references?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&enabled=eq.true&select=*&limit=500`),
   ]);
   if (!mastersResponse.ok) throw new Error(`MODELARK_MASTER_LOOKUP_FAILED:${await mastersResponse.text()}`);
   if (!referencesResponse.ok) throw new Error(`MODELARK_REFERENCE_LOOKUP_FAILED:${await referencesResponse.text()}`);
   const masters = await mastersResponse.json() as Array<{ id: string | number }>;
   const master = masters[0];
-  if (!master) throw new Error(`MODELARK_MASTER_MISSING:${options.input.personaId}`);
+  if (!master) throw new Error(`MODELARK_MASTER_MISSING:${visualPersonaId}`);
   const referenceRows = await referencesResponse.json() as unknown[];
   const references = referenceRows
     .map((row) => visualReferenceSchema.safeParse(row))
@@ -205,10 +207,10 @@ async function generateRepairAsset(options: { input: { id: string; personaId?: s
     throw new Error(`MODELARK_REFERENCE_LOW_CONFIDENCE:slide_${options.position}:score_${bestReference.score}:required_${referenceFloor}:candidates_${rankedReferences.length}`);
   }
   const reference = bestReference.reference;
-  const persona = personas.find((item) => item.id === options.input.personaId);
-  if (!persona) throw new Error(`MODELARK_PERSONA_MISSING:${options.input.personaId}`);
+  const persona = personas.find((item) => item.id === visualPersonaId);
+  if (!persona) throw new Error(`MODELARK_PERSONA_MISSING:${visualPersonaId}`);
   const generationInput = imageGenerationInputSchema.parse({
-    persona_id: options.input.personaId, master_asset_id: master.id, visual_reference_id: reference.id,
+    persona_id: visualPersonaId, master_asset_id: master.id, visual_reference_id: reference.id,
     carousel_id: options.input.id, slide_id: `slide_${options.position}`, scene: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
     category: generationCategory(options.slide), framing: "portrait",
     prompt_additions: "Automatic carousel repair. Image 1 is only the identity master and Image 2 is only the Pinterest visual reference. Never place either source image directly in the carousel. Generate a new distinct natural photo and do not repeat any previously generated scene in this carousel.",
@@ -216,7 +218,7 @@ async function generateRepairAsset(options: { input: { id: string; personaId?: s
   const prompt = buildImagePrompt(persona, reference, generationInput);
   const jobResponse = await dataBackend("image_generation_jobs", {
     method: "POST", headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, persona_id: options.input.personaId, master_asset_id: master.id, visual_reference_id: reference.id, carousel_id: options.input.id, slide_id: `slide_${options.position}`, category: generationInput.category, scene: generationInput.scene, input: generationInput, prompt, provider: "modelark_seedream", model: process.env.MODELARK_MODEL_ID ?? "", status: "PENDING", attempts: 0, attempt_count: 0, metadata: {
+    body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, persona_id: visualPersonaId, master_asset_id: master.id, visual_reference_id: reference.id, carousel_id: options.input.id, slide_id: `slide_${options.position}`, category: generationInput.category, scene: generationInput.scene, input: generationInput, prompt, provider: "modelark_seedream", model: process.env.MODELARK_MODEL_ID ?? "", status: "PENDING", attempts: 0, attempt_count: 0, metadata: {
       automatic_repair: true,
       source: "carousel_render",
       visual_intent: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
@@ -1213,10 +1215,11 @@ export async function renderCarousel(input: {
 }) {
   assertCortiFreeCarouselId(input.id);
   input = { ...input, layout: canonicalLayoutFor(input.carouselType, input.layout) };
+  const visualPersonaId = visualPersonaIdFor(input.personaId);
   let assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
   const personaHookIds = assets
-    .filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId)
+    .filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === visualPersonaId)
     .map((asset) => String(asset.id));
   let recentHookAssetIds = new Set<string>();
   if (input.personaId && personaHookIds.length) {
@@ -1400,7 +1403,7 @@ export async function renderCarousel(input: {
           slides: [{ ...screenshotSlide, assetType: "stock" }],
         })[0]!;
       } else {
-        const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
+        const personaAssets = assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === visualPersonaId);
         secondaryGridMatch = chooseAssets({
           assets: personaAssets,
           carouselType: input.carouselType,
