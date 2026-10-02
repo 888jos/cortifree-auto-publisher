@@ -218,6 +218,25 @@ export function generationCategory(slide: GeneratedSlide) {
   return "home";
 }
 
+function checklistBackgroundFallbackSlide(slide: GeneratedSlide): GeneratedSlide {
+  const category = generationCategory(slide);
+  const fallbackByCategory: Record<string, string> = {
+    outdoors: "natural outdoor walking or daylight lifestyle scene",
+    fitness: "simple movement or workout lifestyle detail in natural light",
+    food: "simple warm kitchen or meal-preparation lifestyle scene",
+    work_study: "calm desk, study or work-break lifestyle scene",
+    self_care: "simple bathroom, grooming or self-care lifestyle scene",
+    home: "cozy realistic home routine detail in soft natural light",
+  };
+  const intent = fallbackByCategory[category] ?? fallbackByCategory.home;
+  return {
+    ...withoutAppScreenshotDirective(slide),
+    assetType: "stock",
+    assetQuery: intent,
+    visualIntent: intent,
+  };
+}
+
 function referenceSceneIntent(slide: GeneratedSlide) {
   const scene = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.trim();
   const category = generationCategory(slide);
@@ -1396,13 +1415,27 @@ export async function renderCarousel(input: {
               slides: [preferredSlide],
             })[0]!;
           } catch {
-            selected = chooseAssets({
-              assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
-              slides: [slide],
-            })[0]!;
+            try {
+              selected = chooseAssets({
+                assets,
+                carouselType: input.carouselType,
+                personaId: input.personaId,
+                excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
+                slides: [slide],
+              })[0]!;
+            } catch {
+              // Notes copy carries the meaning; its full-screen photo is
+              // atmospheric support. Broaden only the visual description
+              // while retaining the detected scene category and all selector
+              // hard-safety/review constraints.
+              selected = chooseAssets({
+                assets,
+                carouselType: input.carouselType,
+                personaId: input.personaId,
+                excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
+                slides: [checklistBackgroundFallbackSlide(slide)],
+              })[0]!;
+            }
           }
           usedChecklistAssets.add(String(selected.asset.id));
           return [selected];
@@ -1550,11 +1583,13 @@ export async function renderCarousel(input: {
       if (!position || repairedPositions.has(position)) throw error;
       const failedSlide = input.slides[position - 1]!;
       const isHook = failedSlide.position === 1 || failedSlide.role.toUpperCase() === "HOOK";
-      const repairCanBecomeSelectable = isHook
+      const repairCanBecomeSelectable = input.layout !== "interactive-checklist" && (
+        isHook
         || failedSlide.assetType === "persona"
         || failedSlide.assetType === "generated"
         || input.layout === "grid-2x2"
-        || input.layout === "lifestyle-3stack";
+        || input.layout === "lifestyle-3stack"
+      );
       // ModelArk repair currently creates persona-generated assets. Generating
       // one for a stock-only F04/F05 slot cannot satisfy that slot and merely
       // burns time/cost before failing again.
