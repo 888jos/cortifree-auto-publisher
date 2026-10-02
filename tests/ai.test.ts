@@ -163,6 +163,32 @@ describe("CortiFree AI schemas and generation", () => {
     assert.match(seenInstructions[1] ?? "", /pause cue/);
   });
 
+  it("uses a fourth targeted repair when the model repeatedly misses the exact slide count", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.AI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_QA_ENABLED = "false";
+    const wrongCount = validSpec();
+    wrongCount.slides = wrongCount.slides.slice(0, 6);
+    const seenInstructions: string[] = [];
+    let calls = 0;
+    const result = await generateCarousel(baseInput, {
+      monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+      structuredRequest: async (options) => {
+        calls += 1;
+        seenInstructions.push(options.instructions);
+        return {
+          data: calls < 4 ? structuredClone(wrongCount) : validSpec(),
+          usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 },
+        };
+      },
+    });
+    assert.equal(result.source, "openai");
+    assert.equal(calls, 4);
+    assert.match(seenInstructions[0] ?? "", /Return exactly 7 slides/);
+    assert.match(seenInstructions[1] ?? "", /SLIDE-COUNT REPAIR/);
+    assert.match(seenInstructions[3] ?? "", /positions 1 through 7/);
+  });
+
   it("retries retryable failures with exponential retry boundaries", async () => {
     let calls = 0;
     const result = await withRetry(async () => {
