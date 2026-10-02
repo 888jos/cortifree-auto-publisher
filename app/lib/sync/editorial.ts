@@ -87,7 +87,7 @@ function goldenExample(row: Row): Row {
     content: row,
     active: bool(row.active, true),
     approval_status: String(row.human_status ?? "").trim().toUpperCase() === "AI_CURATED_APPROVED"
-      ? "ai_curated_approved"
+      ? "assistant_curated"
       : String(row.human_status ?? "").trim().toUpperCase() === "HUMAN_APPROVED"
         ? "human_approved"
         : "review_required",
