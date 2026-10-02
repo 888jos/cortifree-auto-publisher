@@ -7,7 +7,7 @@ import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { uploadConvexFile } from "./convex-storage";
 import { analyzeHookComposition, type HookDesign } from "./hook-design";
-import { processImageGenerationJob } from "./image-generation";
+import { processImageGenerationJob, recentImageProviderBlocker } from "./image-generation";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-generation/core";
 import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../src/visual-references";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
@@ -237,6 +237,10 @@ function referenceSceneIntent(slide: GeneratedSlide) {
 }
 
 async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
+  const providerBlocker = await recentImageProviderBlocker();
+  if (providerBlocker) {
+    throw new Error(`MODELARK_PROVIDER_BLOCKED:${providerBlocker.reason}:slide_${options.position}`);
+  }
   if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
   const visualPersonaId = visualPersonaIdFor(options.input.personaId);
   if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
@@ -1405,30 +1409,15 @@ export async function renderCarousel(input: {
             usedRoutineAssets.add(String(locked.asset.id));
             return [locked];
           }
-          try {
-            const selected = chooseAssets({
-              assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: new Set([...recentHookAssetIds, ...usedRoutineAssets]),
-              slides: [primarySelectionSlide(slide)],
-            })[0]!;
-            usedRoutineAssets.add(String(selected.asset.id));
-            return [selected];
-          } catch {
-            // Prefer a distinct photo for every timed step. If the eligible
-            // pool is genuinely exhausted, reuse is better than blocking the
-            // entire carousel.
-            const fallback = chooseAssets({
-              assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: recentHookAssetIds,
-              slides: [primarySelectionSlide(slide)],
-            })[0]!;
-            usedRoutineAssets.add(String(fallback.asset.id));
-            return [fallback];
-          }
+          const selected = chooseAssets({
+            assets,
+            carouselType: input.carouselType,
+            personaId: input.personaId,
+            excludedAssetIds: new Set([...recentHookAssetIds, ...usedRoutineAssets]),
+            slides: [primarySelectionSlide(slide)],
+          })[0]!;
+          usedRoutineAssets.add(String(selected.asset.id));
+          return [selected];
         });
         break;
       }

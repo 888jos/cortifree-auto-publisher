@@ -10,7 +10,7 @@ import { recoverModelArkOrphans } from "../../app/lib/recovery/modelark-orphans"
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { createAcceptanceSample, runScheduler } from "../autonomy/scheduler";
-import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from "../autonomy/processor";
+import { prepareCarouselForRender, processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
@@ -335,31 +335,41 @@ async function runRender(resourceId: string | null | undefined) {
   const id = String(resourceId ?? "").trim();
   if (!id) throw new Error("RENDER_CAROUSEL missing resource_id");
   const carousel = (await rows(
-    `carousels?workspace_id=eq.cortifree&id=eq.${encodeURIComponent(id)}&select=id,persona_id,content_type,spec&limit=1`,
+    `carousels?workspace_id=eq.cortifree&id=eq.${encodeURIComponent(id)}&select=id,persona_id,content_type,lifecycle_state,spec&limit=1`,
   ))[0];
   if (!carousel) throw new Error(`Carousel not found: ${id}`);
   const spec = carousel.spec as Record<string, unknown>;
   const slides = Array.isArray(spec?.generated_slides) ? spec.generated_slides as any[] : [];
   if (!slides.length) throw new Error(`Carousel has no generated slides: ${id}`);
-  const rendered = await renderCarousel({
-    id,
-    carouselType: String(spec.carousel_type ?? carousel.content_type ?? ""),
-    layout: String(spec.model_id ?? spec.layout ?? "single-image"),
-    personaId: carousel.persona_id ? String(carousel.persona_id) : undefined,
-    slides,
-    references: Array.isArray(spec.references) ? spec.references as any[] : [],
-    spec,
-  });
-  if (rendered.length !== slides.length || rendered.some((slide) => !slide.url)) {
-    throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
+  await prepareCarouselForRender(id, carousel.lifecycle_state);
+  try {
+    const rendered = await renderCarousel({
+      id,
+      carouselType: String(spec.carousel_type ?? carousel.content_type ?? ""),
+      layout: String(spec.model_id ?? spec.layout ?? "single-image"),
+      personaId: carousel.persona_id ? String(carousel.persona_id) : undefined,
+      slides,
+      references: Array.isArray(spec.references) ? spec.references as any[] : [],
+      spec,
+    });
+    if (rendered.length !== slides.length || rendered.some((slide) => !slide.url)) {
+      throw new Error(`RENDER_INCOMPLETE: expected ${slides.length} final PNGs, received ${rendered.length}`);
+    }
+    await assertCarouselHasCompleteRender(id);
+    await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
+      lifecycle_state: "READY_FOR_REVIEW",
+      last_review_action: "RENDERED",
+    });
+    return { rendered: rendered.length, urls: rendered.map((slide) => slide.url) };
+  } catch (error) {
+    const message = errorMessage(error);
+    const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(message);
+    await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
+      lifecycle_state: assetBlocked ? "NEEDS_ASSETS" : "NEEDS_FIX",
+      last_review_action: assetBlocked ? "ASSET_BLOCKED" : "RENDER_FAILED",
+    }).catch(() => undefined);
+    throw error;
   }
-  await assertCarouselHasCompleteRender(id);
-  await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
-    status: "READY_FOR_REVIEW",
-    review_status: "AWAITING_REVIEW",
-    last_review_action: "RENDERED",
-  });
-  return { rendered: rendered.length, urls: rendered.map((slide) => slide.url) };
 }
 
 async function executeWorkerJob(job: WorkerJob) {

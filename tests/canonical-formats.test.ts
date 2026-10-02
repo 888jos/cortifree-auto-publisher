@@ -49,7 +49,7 @@ describe("canonical carousel formats", () => {
     const routineBlock = renderer.match(/if \(input\.layout === "routine-timeline"\)[\s\S]*?\n\s*}\n\s*if \(input\.layout !== "grid-2x2"/)?.[0] ?? "";
     assert.match(routineBlock, /usedRoutineAssets/);
     assert.match(routineBlock, /excludedAssetIds: new Set\(\[\.\.\.recentHookAssetIds, \.\.\.usedRoutineAssets\]\)/);
-    assert.match(routineBlock, /pool is genuinely exhausted/);
+    assert.doesNotMatch(routineBlock, /excludedAssetIds:\s*recentHookAssetIds/);
   });
 
   it("splits F08 visual intent into two per-slide sources before diagonal repetition", () => {
