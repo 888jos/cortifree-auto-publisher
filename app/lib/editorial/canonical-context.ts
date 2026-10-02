@@ -13,18 +13,10 @@ async function rows(resource: string): Promise<Row[]> {
   return await response.json() as Row[];
 }
 
-const split = (value: unknown) => String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
-
 function accountPillars(account: Row) {
   const mix = account.pillar_mix && typeof account.pillar_mix === "object" ? Object.keys(account.pillar_mix as object) : [];
   const configured = mix.filter((id) => id.startsWith("PILLAR_"));
   return configured.length ? configured : [account.primary_pillar_id, ...((account.secondary_pillar_ids as string[] | undefined) ?? [])].filter((id): id is string => Boolean(id));
-}
-
-function accountFormats(account: Row, requested: string) {
-  const mix = account.format_mix && typeof account.format_mix === "object" ? Object.keys(account.format_mix as object) : [];
-  const configured = mix.filter((id) => /^C\d{2}_/.test(id));
-  return [requested, ...configured, "C01_MORNING_ROUTINE", "C02_CHECKLIST", "C09_LIST"].filter((id, index, all) => all.indexOf(id) === index);
 }
 
 function seed(accountId: string, personaId: string, formatId: string) {
@@ -107,9 +99,9 @@ export async function resolveCanonicalEditorialContext(input: {
     golden_examples: goldenExamples,
     topic_id: topic.topic_id, hook_id: hook.hook_id, format_id: input.formatId,
     account_id: input.accountId, persona_id: input.personaId,
-    brand_integration: input.formatId === "F07_RANKING"
-      ? { required: false, mention: "", screenshot_required: false }
-      : { required: true, mention: "CortiFree", screenshot_required: true },
+    // Manual Studio generation is editorial-first by default.
+    // Product integration is enabled only by an explicit slot/planning decision.
+    brand_integration: { required: false, mention: "", screenshot_required: false },
   };
   return { topicId: topic.topic_id, hookId: hook.hook_id, formatId: input.formatId, personaId: input.personaId, accountId: input.accountId, preferredHook: undefined, editorialContext: context };
 }
