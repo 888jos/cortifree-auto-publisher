@@ -10,6 +10,8 @@ export function scoreGenericity(spec: CarouselSpec): { score: number; issues: Ge
   const abstract = /\b(meaningful|intentional|supportive|aligned|journey|wellness|self-care|feel better|more grounded|best self)\b/gi;
   const abstractHits = copy.match(abstract)?.length ?? 0;
   if (abstractHits >= 4) issues.push({ code: "ABSTRACT_COPY", message: "Too many abstract wellness terms", score: 2 });
+  // F07 is a text-first tier list: quality comes from clear item/reasoning copy,
+  // not first-person diary language or generic action-verb density.
   const isRanking = spec.slides.some((slide) => slide.layout === "ranking");
   if (!isRanking) {
     const concreteSlides = spec.slides.filter((slide) => /\b\d+\s*(min|minutes?|am|pm|glass|steps?)\b|\b(open|write|walk|put|make|turn|leave|drink|set|pack|delete|close|start|stop)\b/i.test(`${slide.headline} ${slide.body}`)).length;
