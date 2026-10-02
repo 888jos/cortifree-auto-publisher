@@ -151,7 +151,7 @@ describe("canonical carousel formats", () => {
 
   it("keeps the F05 atmospheric-background fallback below the general asset floor", () => {
     const selector = readFileSync(new URL("../app/lib/asset-selector.ts", import.meta.url), "utf8");
-    assert.match(selector, /F05_BACKGROUND_FALLBACK_THRESHOLD = 20/);
+    assert.match(selector, /F05_BACKGROUND_FALLBACK_THRESHOLD = 15/);
     assert.match(selector, /Hard scene\/object\/person constraints still apply/);
   });
 
@@ -209,7 +209,9 @@ describe("canonical carousel formats", () => {
     const route = readFileSync(new URL("../app/api/carousels/[id]/render/route.ts", import.meta.url), "utf8");
     assert.match(processor, /status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW'/);
     assert.match(worker, /status: "READY_FOR_REVIEW",[\s\S]*lifecycle_state: "READY_FOR_REVIEW"/);
+    assert.match(worker, /carousel_ideas[\s\S]*render_status: "READY_FOR_REVIEW"/);
     assert.match(route, /status: "READY_FOR_REVIEW", lifecycle_state: "READY_FOR_REVIEW"/);
+    assert.match(route, /carousel_ideas[\s\S]*render_status: "READY_FOR_REVIEW"/);
   });
 
   it("keeps the draft worker path isolated from publishing", () => {

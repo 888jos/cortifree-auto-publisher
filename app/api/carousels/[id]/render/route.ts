@@ -4,6 +4,7 @@ import { renderCarousel } from "../../../../lib/render-carousel";
 import { dataBackend } from "../../../../lib/data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "../../../../lib/workspace";
 import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../../lib/worker-queue";
+import { updateContentSlot } from "../../../../../src/autonomy/slots";
 
 export const runtime = "nodejs";
 // A repair render may run ModelArk synchronously before the PNGs are saved.
@@ -20,9 +21,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   try {
     const { id } = await context.params;
     try { assertCortiFreeCarouselId(id); } catch { return Response.json({ error: "Invalid carousel id" }, { status: 400 }); }
-    const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,persona_id,spec,updated_at&limit=1`);
+    const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=id,persona_id,source_idea_id,calendar_slot_id,spec,updated_at&limit=1`);
     if (!response.ok) throw new Error(await response.text());
-    const rows = await response.json() as Array<{ id: string; persona_id?: string; spec: unknown; updated_at?: string }>;
+    const rows = await response.json() as Array<{ id: string; persona_id?: string; source_idea_id?: string | null; calendar_slot_id?: string | null; spec: unknown; updated_at?: string }>;
     if (!rows[0]) return Response.json({ error: "Carousel not found" }, { status: 404 });
     if (await shouldDelegateHeavyWork()) {
       const queued = await enqueueWorkerJob({
@@ -44,6 +45,13 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       method: "PATCH",
       body: JSON.stringify({ status: "READY_FOR_REVIEW", lifecycle_state: "READY_FOR_REVIEW", last_review_action: "RENDERED", updated_at: new Date().toISOString() }),
     });
+    if (rows[0].source_idea_id) {
+      await dataBackend(`carousel_ideas?id=eq.${encodeURIComponent(rows[0].source_idea_id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "GENERATED", render_status: "READY_FOR_REVIEW", last_error: null, updated_at: new Date().toISOString() }),
+      });
+    }
+    await updateContentSlot(rows[0].calendar_slot_id, { status: "READY_FOR_REVIEW", carousel_id: id });
     return Response.json({ id, slides, rendered: true });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Stored carousel is incomplete", details: error.issues }, { status: 422 });

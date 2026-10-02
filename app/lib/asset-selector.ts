@@ -72,7 +72,7 @@ const EXPLICIT_FALLBACK_THRESHOLD = 28;
 // F05 text lives on the Notes card, so the full-screen image is supporting atmosphere.
 // Hard scene/object/person constraints still apply before scoring; allow sparse
 // reviewed metadata to pass at a lower floor instead of blocking the carousel.
-const F05_BACKGROUND_FALLBACK_THRESHOLD = 20;
+const F05_BACKGROUND_FALLBACK_THRESHOLD = 15;
 // F03 needs one distinct same-persona photo per timed step. A lower fallback
 // is safer than repeating the same high-scoring frame: persona identity and
 // hard scene constraints have already been enforced before scoring.
