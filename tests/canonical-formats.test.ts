@@ -135,6 +135,19 @@ describe("canonical carousel formats", () => {
     assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 0);
   });
 
+  it("falls back to a text-first F07 cover instead of generating decorative imagery", () => {
+    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    assert.match(renderer, /if \(input\.layout === "ranking"\) return undefined/);
+    assert.match(renderer, /Ranking cover photos are optional/);
+    assert.match(renderer, /F07 can always fall back[\s\S]*slideMatches = \[\]/);
+  });
+
+  it("keeps the F05 atmospheric-background fallback below the general asset floor", () => {
+    const selector = readFileSync(new URL("../app/lib/asset-selector.ts", import.meta.url), "utf8");
+    assert.match(selector, /F05_BACKGROUND_FALLBACK_THRESHOLD = 20/);
+    assert.match(selector, /Hard scene\/object\/person constraints still apply/);
+  });
+
   it("keeps F07 tier slides compact, bold and horizontally composed", () => {
     const cover = getSlideGeometry(
       { layout: "ranking", position: 1, role: "HOOK", headline: "sleep habits tier list", body: "backed by evidence" },
