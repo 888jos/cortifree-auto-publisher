@@ -160,7 +160,12 @@ export async function loadRuntimeGoldenExamples(formatId: string, pillarId: stri
         visualDirection: String(content.visual_direction ?? ""),
       };
     }).filter((example) => example.id && example.hook);
-  } catch {
+  } catch (error) {
+    console.error("[editorial] golden example load failed", {
+      formatId,
+      pillarId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }
