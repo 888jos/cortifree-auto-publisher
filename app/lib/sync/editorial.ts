@@ -78,7 +78,7 @@ function goldenExample(row: Row): Row {
   const humanStatus = String(row.human_status ?? "").trim().toUpperCase();
   const approvalStatus = humanStatus === "HUMAN_APPROVED" ? "human_approved"
     : humanStatus === "REJECTED" ? "rejected"
-    : "review_required";
+    : "human_review";
   return {
     example_id: row.golden_id,
     format_id: canonicalGoldenFormat(row),
