@@ -379,11 +379,6 @@ export async function resumeRetryableFailedIdeas(limit = 50) {
     const id = String(idea.id ?? '').trim();
     if (!id) continue;
     const message = String(idea.last_error ?? '');
-    if (!isRetryableGenerationFailure(message)) {
-      report.push({ id, status: 'FAILED', action: 'NON_RETRYABLE', error: message });
-      continue;
-    }
-
     const slotId = String(idea.slot_id ?? '').trim();
     if (slotId && !idea.carousel_id) {
       const slot = (await rows(
@@ -400,6 +395,15 @@ export async function resumeRetryableFailedIdeas(limit = 50) {
         report.push({ id, status: 'EXPIRED_SLOT', slot_id: slotId });
         continue;
       }
+    }
+
+    if (!isRetryableGenerationFailure(message)) {
+      await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
+        generation_attempts: Math.max(3, Number(idea.generation_attempts ?? 0)),
+        finished_at: idea.finished_at ?? new Date().toISOString(),
+      });
+      report.push({ id, status: 'FAILED', action: 'NON_RETRYABLE_TERMINAL', error: message });
+      continue;
     }
 
     await patch(`carousel_ideas?id=eq.${encodeURIComponent(id)}`, {
