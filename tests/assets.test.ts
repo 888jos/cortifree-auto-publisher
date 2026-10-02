@@ -5,11 +5,62 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
-import { chooseAssets, deriveVisualIntent, type SelectableAsset } from '../app/lib/asset-selector';
+import { chooseAssets, deriveVisualIntent, visualPersonaIdFor, type SelectableAsset } from '../app/lib/asset-selector';
 import { isAutomaticVisualReference } from '../src/visual-references';
 import { isBrowserRenderableAssetUrl } from '../app/lib/asset-public-url';
 
 describe('asset scanner', () => {
+  it('maps sixteen accounts onto eight stable visual identities', () => {
+    assert.equal(visualPersonaIdFor('P01'), 'P01');
+    assert.equal(visualPersonaIdFor('P04'), 'P01');
+    assert.equal(visualPersonaIdFor('P02'), 'P06');
+    assert.equal(visualPersonaIdFor('P11'), 'P06');
+    assert.equal(visualPersonaIdFor('P07'), 'P03');
+    assert.equal(visualPersonaIdFor('P16'), 'P05');
+    assert.equal(visualPersonaIdFor('P14'), 'P08');
+    assert.equal(visualPersonaIdFor('P15'), 'P08');
+    assert.equal(visualPersonaIdFor('P12'), 'P09');
+    assert.equal(visualPersonaIdFor('P10'), 'P10');
+    assert.equal(visualPersonaIdFor('P13'), 'P13');
+  });
+
+  it('never mixes faces inside a shared visual pool', () => {
+    const base = (id: string, persona_id: string): SelectableAsset => ({
+      id, filename: `${id}.jpg`, category: 'home', subcategory: 'home', orientation: 'portrait',
+      framing: 'medium', activity: 'morning routine', mood: 'natural', colors: [], tags: ['bedroom'],
+      public_url: `https://example.com/${id}.jpg`, use_count: 0, last_used_at: null,
+      source_type: 'persona_generated', persona_id, visual_description: 'woman sitting in bedroom in soft daylight',
+      visible_objects: ['bed'], visible_actions: ['sitting'], setting: 'bedroom', people_visibility: 'full_person',
+      body_parts_visible: ['face'], composition: 'person_activity_scene', camera_angle: 'eye_level',
+      lighting: 'soft_window_daylight', dominant_colors: [], text_in_image: '', specific_details: 'bedroom morning',
+    });
+    const [selected] = chooseAssets({
+      carouselType: 'F01_LIFESTYLE_GUIDE',
+      personaId: 'P04',
+      assets: [base('emma-canonical', 'P01'), base('nora-old-pool-face', 'P04')],
+      slides: [{ position: 1, role: 'HOOK', headline: 'slow morning', body: '', assetType: 'persona', assetQuery: 'woman in bedroom morning', visualIntent: 'woman in bedroom in soft morning daylight' }],
+    });
+    assert.equal(selected?.asset.persona_id, 'P01');
+  });
+
+  it('rejects stock below the explicit fallback confidence floor', () => {
+    const weak: SelectableAsset = {
+      id: 'weak-stock', filename: 'weak.jpg', category: 'misc', subcategory: 'misc', orientation: 'portrait',
+      framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/weak.jpg',
+      use_count: 0, last_used_at: null, source_type: 'stock',
+      visual_description: 'plain empty indoor wall', visible_objects: [], visible_actions: [], setting: 'indoor_room',
+      people_visibility: 'no_person', body_parts_visible: [], composition: 'wide_empty_scene',
+      camera_angle: 'eye_level', lighting: 'indoor_light', dominant_colors: [], text_in_image: '', specific_details: '',
+      visual_tagging_schema: 'observable_v2', visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: '2026-10-01T00:00:00.000Z',
+    };
+    assert.throws(() => chooseAssets({
+      carouselType: 'F05_INTERACTIVE_CHECKLIST',
+      personaId: 'P01',
+      assets: [weak],
+      slides: [{ position: 2, role: 'CHECKLIST', headline: 'Take a real break', body: 'step outside for a few minutes', assetType: 'stock', assetQuery: 'woman walking outdoors in daylight', visualIntent: 'person walking outside on a sunny path' }],
+    }), /LOW_CONFIDENCE_ASSET/);
+  });
+
   it('rejects legacy drive URLs from browser-rendered asset surfaces', () => {
     assert.equal(isBrowserRenderableAssetUrl('drive://1abc'), false);
     assert.equal(isBrowserRenderableAssetUrl('file:///tmp/test.jpg'), false);
