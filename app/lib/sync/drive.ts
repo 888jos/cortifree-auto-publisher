@@ -33,14 +33,24 @@ async function walk(folderId: string, path: string[] = [], out: WalkedFile[] = [
   for (const entries of nested) out.push(...entries);
   return out;
 }
+export function isCanonicalPersonaRootFolder(name: string) {
+  try {
+    return Boolean(personaIdFromFolder(name));
+  } catch {
+    return false;
+  }
+}
+
 async function walkPersonaTree(personaId?: string): Promise<WalkedFile[]> {
-  if (!personaId) return walk(PERSONAS_ROOT);
   const children = await listDriveChildren(PERSONAS_ROOT);
-  const folder = children.find((child) => {
-    if (child.mimeType !== FOLDER_MIME) return false;
-    try { return personaIdFromFolder(child.name) === personaId; }
-    catch { return false; }
-  });
+  const personaFolders = children.filter((child) =>
+    child.mimeType === FOLDER_MIME && isCanonicalPersonaRootFolder(child.name),
+  );
+  if (!personaId) {
+    const nested = await Promise.all(personaFolders.map((folder) => walk(folder.id, [folder.name])));
+    return nested.flat();
+  }
+  const folder = personaFolders.find((child) => personaIdFromFolder(child.name) === personaId);
   if (!folder) return [];
   return walk(folder.id, [folder.name]);
 }
