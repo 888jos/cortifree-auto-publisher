@@ -91,6 +91,83 @@ describe("CortiFree AI schemas and generation", () => {
     assert.ok(corruptedIssues.some((issue) => issue.code === "UNEXPECTED_SCRIPT"));
   });
 
+  it("strips invisible Unicode formatting marks before accepting generated copy", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.AI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_QA_ENABLED = "false";
+    const dirty = validSpec();
+    dirty.hook = "a softer\u200B everyday routine";
+    dirty.slides[0]!.headline = dirty.hook;
+    dirty.slides[1]!.assetQuery = "simple\u200C breakfast on a kitchen table";
+    dirty.slides[2]!.visualIntent = "quiet desk\u2060 with natural light";
+    const result = await generateCarousel(baseInput, {
+      monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+      structuredRequest: async () => ({ data: dirty, usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 } }),
+    });
+    assert.equal(result.source, "openai");
+    assert.equal(result.spec.hook, "a softer everyday routine");
+    assert.equal(result.spec.slides[1]!.assetQuery, "simple breakfast on a kitchen table");
+    assert.equal(result.spec.slides[2]!.visualIntent, "quiet desk with natural light");
+  });
+
+  it("adds script-specific repair instructions after a non-Latin generation rejection", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.AI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_QA_ENABLED = "false";
+    const dirty = validSpec();
+    dirty.slides[1]!.assetQuery = "simple breakfast with fruit फल on a kitchen table";
+    const seenInstructions: string[] = [];
+    let calls = 0;
+    const result = await generateCarousel(baseInput, {
+      monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+      structuredRequest: async (options) => {
+        seenInstructions.push(options.instructions);
+        calls += 1;
+        return {
+          data: calls === 1 ? dirty : validSpec(),
+          usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 },
+        };
+      },
+    });
+    assert.equal(result.source, "openai");
+    assert.equal(calls, 2);
+    assert.doesNotMatch(seenInstructions[0] ?? "", /SCRIPT REPAIR/);
+    assert.match(seenInstructions[1] ?? "", /SCRIPT REPAIR/);
+    assert.match(seenInstructions[1] ?? "", /assetQuery and visualIntent/);
+  });
+
+  it("adds an exact F05 item-count repair after malformed Notes output", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.AI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_QA_ENABLED = "false";
+    const checklistInput: CarouselGeneratorInput = {
+      ...baseInput,
+      carouselType: "F05_INTERACTIVE_CHECKLIST",
+      layout: "interactive-checklist",
+      requestedSlideCount: 8,
+    };
+    const good = createFallbackCarousel(checklistInput);
+    const bad = structuredClone(good);
+    bad.slides[1]!.body = "put the phone away | drink some water";
+    const seenInstructions: string[] = [];
+    let calls = 0;
+    const result = await generateCarousel(checklistInput, {
+      monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+      structuredRequest: async (options) => {
+        seenInstructions.push(options.instructions);
+        calls += 1;
+        return {
+          data: calls === 1 ? bad : good,
+          usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 },
+        };
+      },
+    });
+    assert.equal(result.source, "openai");
+    assert.equal(calls, 2);
+    assert.match(seenInstructions[1] ?? "", /F05 CHECKLIST REPAIR/);
+    assert.match(seenInstructions[1] ?? "", /exactly 5 complete useful checklist items/);
+  });
+
   it("requires the selected canonical renderer layout", () => {
     const spec = validSpec();
     spec.slides.forEach((slide) => { slide.layout = "grid-2x2"; });
