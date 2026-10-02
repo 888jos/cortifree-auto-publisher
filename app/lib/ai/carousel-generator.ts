@@ -68,14 +68,18 @@ export async function generateCarousel(
     let spec: CarouselSpec | null = null;
     let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
     let lastValidationError: unknown;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const maxAttempts = 4;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const repairIssues = lastValidationError instanceof Error ? lastValidationError.message : "";
+        const slideCountRepair = /Expected\s+\d+\s+slides/i.test(repairIssues)
+          ? `\nSLIDE-COUNT REPAIR: The slides array MUST contain exactly ${input.requestedSlideCount} objects, with positions 1 through ${input.requestedSlideCount}. Count them before returning JSON. Keep slide 1 as HOOK and slide ${input.requestedSlideCount} as the final TAKEAWAY/CTA.`
+          : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           maxOutputTokens: 3_200,
         });
@@ -90,7 +94,7 @@ export async function generateCarousel(
         break;
       } catch (error) {
         lastValidationError = error;
-        if (attempt === 3) throw error;
+        if (attempt === maxAttempts) throw error;
       }
     }
     if (!spec) throw lastValidationError ?? new Error("OpenAI returned no usable carousel");
