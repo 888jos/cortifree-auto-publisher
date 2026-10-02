@@ -44,6 +44,14 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.maxBodyLines, 2);
   });
 
+  it("keeps F03 asset selection unique across routine steps until the pool is exhausted", () => {
+    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    const routineBlock = renderer.match(/if \(input\.layout === "routine-timeline"\)[\s\S]*?\n\s*}\n\s*if \(input\.layout !== "grid-2x2"/)?.[0] ?? "";
+    assert.match(routineBlock, /usedRoutineAssets/);
+    assert.match(routineBlock, /excludedAssetIds: new Set\(\[\.\.\.recentHookAssetIds, \.\.\.usedRoutineAssets\]\)/);
+    assert.match(routineBlock, /pool is genuinely exhausted/);
+  });
+
   it("splits F08 visual intent into two per-slide sources before diagonal repetition", () => {
     const slide = {
       position: 3,

@@ -1397,6 +1397,41 @@ export async function renderCarousel(input: {
         });
         break;
       }
+      if (input.layout === "routine-timeline") {
+        const usedRoutineAssets = new Set<string>();
+        gridMatches = input.slides.map((slide, index) => {
+          const locked = lockedMatchesForSlide(slide, index)[0];
+          if (locked) {
+            usedRoutineAssets.add(String(locked.asset.id));
+            return [locked];
+          }
+          try {
+            const selected = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: new Set([...recentHookAssetIds, ...usedRoutineAssets]),
+              slides: [primarySelectionSlide(slide)],
+            })[0]!;
+            usedRoutineAssets.add(String(selected.asset.id));
+            return [selected];
+          } catch {
+            // Prefer a distinct photo for every timed step. If the eligible
+            // pool is genuinely exhausted, reuse is better than blocking the
+            // entire carousel.
+            const fallback = chooseAssets({
+              assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: recentHookAssetIds,
+              slides: [primarySelectionSlide(slide)],
+            })[0]!;
+            usedRoutineAssets.add(String(fallback.asset.id));
+            return [fallback];
+          }
+        });
+        break;
+      }
       if (input.layout !== "grid-2x2" && !multiImageLayout) {
         gridMatches = input.slides.map((_, index) => [matches[index]!]);
         break;

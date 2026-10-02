@@ -77,6 +77,18 @@ describe("CortiFree AI schemas and generation", () => {
     assert.equal(issues.some((issue) => issue.code === "HEALTH_CLAIM"), false);
   });
 
+  it("rejects stray non-Latin or replacement glyphs anywhere in English visual prompts", () => {
+    const devanagari = validSpec();
+    devanagari.slides[1]!.assetQuery = "simple breakfast with fruit फल on a kitchen table";
+    const devanagariIssues = validateCarouselSpec(devanagari, { slideCount: 7, language: "en", layout: "single-image" });
+    assert.ok(devanagariIssues.some((issue) => issue.code === "UNEXPECTED_SCRIPT"));
+
+    const corrupted = validSpec();
+    corrupted.slides[2]!.visualIntent = "quiet desk with phone off the home� screen";
+    const corruptedIssues = validateCarouselSpec(corrupted, { slideCount: 7, language: "en", layout: "single-image" });
+    assert.ok(corruptedIssues.some((issue) => issue.code === "UNEXPECTED_SCRIPT"));
+  });
+
   it("requires the selected canonical renderer layout", () => {
     const spec = validSpec();
     spec.slides.forEach((slide) => { slide.layout = "grid-2x2"; });
