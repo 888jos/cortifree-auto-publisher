@@ -40,6 +40,10 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     }
     const spec = storedSpecSchema.parse(rows[0].spec);
     const slides = await renderCarousel({ id, carouselType: spec.carousel_type, layout: spec.model_id, personaId: rows[0].persona_id, slides: spec.generated_slides, references: spec.references, spec });
+    await dataBackend(`carousels?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "READY_FOR_REVIEW", lifecycle_state: "READY_FOR_REVIEW", last_review_action: "RENDERED", updated_at: new Date().toISOString() }),
+    });
     return Response.json({ id, slides, rendered: true });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ error: "Stored carousel is incomplete", details: error.issues }, { status: 422 });
