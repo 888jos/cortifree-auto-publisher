@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
-import { educationalAssetSlideForSlot } from "../app/lib/render-carousel.js";
+import { educationalAssetSlideForSlot, generationCategory } from "../app/lib/render-carousel.js";
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
 import { rankingAssetCountForSlide } from "../app/lib/render-carousel.js";
 import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
@@ -42,6 +42,22 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.headlineSize, 30);
     assert.equal(body.text.bodySize, 20);
     assert.equal(body.text.maxBodyLines, 2);
+  });
+
+  it("classifies grooming copy as self-care without matching incidental substrings like 'eat' in 'neatly'", () => {
+    const base = { position: 2, role: "TIP", layout: "grid-2x2", body: "", assetType: "persona" };
+    assert.equal(generationCategory({
+      ...base,
+      headline: "choose one hair default",
+      assetQuery: "woman making a low bun",
+      visualIntent: "close-up of a claw clip and neatly gathered hair",
+    }), "self_care");
+    assert.equal(generationCategory({
+      ...base,
+      headline: "eat the easiest breakfast",
+      assetQuery: "simple breakfast in a kitchen",
+      visualIntent: "woman eating yogurt and fruit",
+    }), "food");
   });
 
   it("splits F04 three-image visual intent into slot-specific asset queries", () => {
