@@ -102,6 +102,31 @@ describe('asset scanner', () => {
     }), /LOW_CONFIDENCE_ASSET/);
   });
 
+  it('allows a sparse reviewed stock fallback for the decorative F07 cover support image', () => {
+    const support: SelectableAsset = {
+      id: 'ranking-cover-support', filename: 'ranking-cover-support.jpg', category: 'misc', subcategory: 'misc', orientation: 'portrait',
+      framing: 'detail', activity: '', mood: 'warm', colors: [], tags: [], public_url: 'https://example.com/ranking-cover-support.jpg',
+      use_count: 10, last_used_at: null, source_type: 'stock',
+      visual_description: 'quiet warm everyday interior detail', visible_objects: [], visible_actions: [], setting: 'indoor_room',
+      people_visibility: 'no_person', body_parts_visible: [], composition: 'detail_scene',
+      camera_angle: 'eye_level', lighting: 'warm_daylight', dominant_colors: [], text_in_image: '', specific_details: '',
+      visual_tagging_schema: 'observable_v2', visual_review_status: 'IMAGE_INSPECTED_V2', visual_reviewed_at: '2026-10-01T00:00:00.000Z',
+    };
+    const [selected] = chooseAssets({
+      carouselType: 'F07_RANKING',
+      personaId: 'P01',
+      assets: [support],
+      slides: [{
+        position: 2, role: 'SUPPORT', headline: 'focus boundaries', body: '', assetType: 'stock',
+        assetQuery: 'warm lifestyle detail', visualIntent: 'warm lifestyle detail',
+      }],
+    });
+    assert.equal(selected?.asset.id, 'ranking-cover-support');
+    assert.equal(selected?.thresholdBypassed, true);
+    assert.ok((selected?.score ?? 99) < 28);
+    assert.ok((selected?.score ?? 0) >= 12);
+  });
+
   it('rejects legacy drive URLs from browser-rendered asset surfaces', () => {
     assert.equal(isBrowserRenderableAssetUrl('drive://1abc'), false);
     assert.equal(isBrowserRenderableAssetUrl('file:///tmp/test.jpg'), false);
