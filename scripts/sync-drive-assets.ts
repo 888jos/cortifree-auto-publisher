@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { dataBackend, convexConfigured } from "../src/lib/data-backend.js";
-import { uploadConvexFile } from "../app/lib/convex-storage.js";
+import { dataBackend, backendConfigured } from "../src/lib/data-backend.js";
+import { uploadFile } from "../app/lib/storage.js";
 
 const DRIVE_FOLDER_ID = "1I7OJ8juCsXINUMNJZ5IO5qhIrjYJlqi_";
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
@@ -65,7 +65,7 @@ function mimeType(file: string) {
 async function main() {
   const root = process.argv[2];
   if (!root) throw new Error("Usage: sync-drive-assets <extracted asset directory>");
-  if (!convexConfigured()) throw new Error("Convex server credentials are required");
+  if (!backendConfigured()) throw new Error("Supabase server credentials are required");
 
   const files = await walk(root);
   let completed = 0;
@@ -87,13 +87,13 @@ async function main() {
     const existingResponse = await dataBackend(`assets?path=eq.${encodeURIComponent(recordPath)}&select=public_url&limit=1`);
     if (!existingResponse.ok) throw new Error(await existingResponse.text());
     const [existing] = await existingResponse.json() as Array<{ public_url?: string }>;
-    const upload = existing?.public_url ? null : await uploadConvexFile(new Uint8Array(bytes), mimeType(file));
+    const upload = existing?.public_url ? null : await uploadFile(new Uint8Array(bytes), mimeType(file));
 
     const terms = tokensFor(filename).filter((term) => term !== category);
     const dominant = stats.dominant;
     const dominantHex = `#${[dominant.r, dominant.g, dominant.b].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
     const publicUrl = existing?.public_url ?? upload?.publicUrl;
-    if (!publicUrl) throw new Error(`No Convex file URL for ${filename}`);
+    if (!publicUrl) throw new Error(`No storage URL for ${filename}`);
     rows.push({
       workspace_id: "cortifree", path: recordPath, filename, relative_path: relative, category,
       subcategory: inferSubcategory(category, terms), persona_id: null, source_type: "stock",
@@ -114,7 +114,7 @@ async function main() {
     if (!response.ok) throw new Error(`Asset upsert failed: ${await response.text()}`);
   }
 
-  console.log(`Synced ${uniqueRows.length} unique assets to Convex`);
+  console.log(`Synced ${uniqueRows.length} unique assets to Supabase`);
 }
 
 await main();

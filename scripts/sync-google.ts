@@ -1,5 +1,5 @@
-import { syncEditorialSheetToConvex } from "../app/lib/sync/editorial";
-import { syncGoogleDriveToConvex } from "../app/lib/sync/drive";
+import { syncEditorialSheetToBackend } from "../app/lib/sync/editorial";
+import { syncGoogleDriveToBackend } from "../app/lib/sync/drive";
 
 const allowedScopes = ["all", "sheet", "assets", "stock", "stock_missing", "visual_refs", "visual_refs_missing", "app_screens"] as const;
 type Scope = (typeof allowedScopes)[number];
@@ -17,11 +17,11 @@ if (!allowedScopes.includes(requestedScope)) {
 if (!Number.isFinite(limit) || limit < 1) throw new Error("Invalid --limit");
 
 const editorial = requestedScope === "all" || requestedScope === "sheet"
-  ? await syncEditorialSheetToConvex()
+  ? await syncEditorialSheetToBackend()
   : { status: "SKIPPED", reason: "Drive-only scoped sync" };
 
 const drive = requestedScope === "sheet"
   ? { status: "SKIPPED", reason: "Sheet-only sync" }
-  : await syncGoogleDriveToConvex({ limit, scope: requestedScope, personaId });
+  : await syncGoogleDriveToBackend({ limit, scope: requestedScope, personaId });
 
 console.log(JSON.stringify({ scope: requestedScope, persona_id: personaId ?? null, limit, editorial, drive }, null, 2));

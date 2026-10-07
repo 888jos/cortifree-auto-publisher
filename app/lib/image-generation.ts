@@ -11,12 +11,12 @@ import {
   type ImageGenerationProvider,
 } from "../../src/image-generation/core";
 import { isAutomaticVisualReference, visualReferenceSchema } from "../../src/visual-references";
-import { uploadConvexFile } from "./convex-storage";
+import { uploadFile } from "./storage";
 import { backendMode, dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
 
-const BUCKET = process.env.DATA_BACKEND?.toLowerCase() === "supabase" ? "cortifree-assets" : "convex-files";
+const BUCKET = "cortifree-assets";
 
 function settings() {
   return {
@@ -118,7 +118,7 @@ async function uploadGeneratedAsset(options: {
   const filename = generatedAssetName(options.personaName, options.category, existing);
   const folder = personaAssetFolder(options.category);
   const storagePath = "personas/" + options.personaId + "/" + folder + "/" + filename;
-  const { publicUrl, storageId } = await uploadConvexFile(new Uint8Array(jpeg), "image/jpeg");
+  const { publicUrl, storageId } = await uploadFile(new Uint8Array(jpeg), "image/jpeg");
   const referenceMetadata = options.reference.metadata ?? {};
   const metadataList = (key: string) => {
     const value = referenceMetadata[key];

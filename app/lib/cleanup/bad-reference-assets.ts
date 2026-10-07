@@ -1,4 +1,4 @@
-import { deleteGeneratedFile } from "../convex-storage";
+import { deleteGeneratedFile } from "../storage";
 import { dataBackend } from "../data-backend";
 import { deleteDriveFile } from "../google/drive";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";

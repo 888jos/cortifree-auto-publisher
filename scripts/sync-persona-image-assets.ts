@@ -5,8 +5,8 @@ import sharp from 'sharp';
 import { loadEnv } from '../src/config/env.js';
 import { loadPersonas } from '../src/personas/loader.js';
 import { scanVisualReferences } from '../src/visual-references/index.js';
-import { dataBackend, convexConfigured } from '../src/lib/data-backend.js';
-import { uploadConvexFile } from '../app/lib/convex-storage.js';
+import { dataBackend, backendConfigured } from '../src/lib/data-backend.js';
+import { uploadFile } from '../app/lib/storage.js';
 
 const WORKSPACE = 'cortifree';
 
@@ -25,7 +25,7 @@ function folderCategory(file: string) {
 
 async function main() {
   const env = loadEnv();
-  if (!convexConfigured()) throw new Error('Convex server credentials are required');
+  if (!backendConfigured()) throw new Error('Supabase server credentials are required');
   const personas = loadPersonas(env.DRIVE_ROOT);
   const personaResponse = await dataBackend('personas?on_conflict=id', {
     method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -48,7 +48,7 @@ async function main() {
       let publicUrl = await existingUrl(`assets?path=eq.${encodeURIComponent(recordPath)}&select=public_url&limit=1`, 'public_url');
       let convexStorageId: string | undefined;
       if (!publicUrl) {
-        const upload = await uploadConvexFile(new Uint8Array(bytes), mime);
+        const upload = await uploadFile(new Uint8Array(bytes), mime);
         publicUrl = upload.publicUrl;
         convexStorageId = upload.storageId;
         uploaded += 1;
@@ -77,7 +77,7 @@ async function main() {
     const mime = metadata.format === 'png' ? 'image/png' : metadata.format === 'webp' ? 'image/webp' : 'image/jpeg';
     let thumbnailUrl = await existingUrl(`visual_references?id=eq.${encodeURIComponent(reference.id)}&select=thumbnail_url&limit=1`, 'thumbnail_url');
     if (!thumbnailUrl) {
-      thumbnailUrl = (await uploadConvexFile(new Uint8Array(await fs.readFile(local)), mime)).publicUrl;
+      thumbnailUrl = (await uploadFile(new Uint8Array(await fs.readFile(local)), mime)).publicUrl;
       uploaded += 1;
     }
     const row = { ...reference, workspace_id: WORKSPACE, storage_path: storagePath, thumbnail_url: thumbnailUrl, updated_at: new Date().toISOString() };

@@ -1,6 +1,6 @@
 import { isCronOrAdminRequest } from "../../../lib/admin-auth";
-import { syncEditorialSheetToConvex } from "../../../lib/sync/editorial";
-import { syncGoogleDriveToConvex } from "../../../lib/sync/drive";
+import { syncEditorialSheetToBackend } from "../../../lib/sync/editorial";
+import { syncGoogleDriveToBackend } from "../../../lib/sync/drive";
 import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
 
 export const runtime = "nodejs";
@@ -31,10 +31,10 @@ async function run(request: Request) {
       return Response.json({ ok: true, queued: true, job: queued.job, reused: queued.reused, execution: "external_worker" }, { status: 202 });
     }
     const editorial = scope === "all" || scope === "sheet"
-      ? await syncEditorialSheetToConvex()
+      ? await syncEditorialSheetToBackend()
       : { status: "SKIPPED", reason: "Drive-only scope; canonical editorial mirror unchanged" };
     if (scope === "sheet") return Response.json({ ok: true, editorial, synced_at: new Date().toISOString() });
-    const drive = await syncGoogleDriveToConvex({ limit, offset, personaId, scope: scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? scope : "all" });
+    const drive = await syncGoogleDriveToBackend({ limit, offset, personaId, scope: scope === "visual_refs" || scope === "visual_refs_missing" || scope === "assets" || scope === "stock" || scope === "stock_missing" ? scope : "all" });
     return Response.json({ ok: true, editorial, drive, synced_at: new Date().toISOString() });
   } catch (error) {
     return Response.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });

@@ -61,7 +61,7 @@ export function getLocalIntegrationHealth(): LocalIntegrationHealth {
   return {
     runtime: {
       nodeEnv: process.env.NODE_ENV ?? "unknown",
-      dataBackend: process.env.DATA_BACKEND?.trim() || "supabase",
+      dataBackend: "supabase",
       workerOpsRefreshMs: Math.max(300_000, Number(process.env.WORKER_OPS_REFRESH_MS ?? 3_600_000)),
     },
     telegram: {

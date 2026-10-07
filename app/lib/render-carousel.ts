@@ -5,7 +5,7 @@ import { chooseAssets, loadSelectableAssets, requiresOfficialAppScreenshot, visu
 import { getSlideGeometry } from "./layout-geometry.js";
 import { dataBackend } from "./data-backend";
 import { assertCortiFreeCarouselId, CORTIFREE_WORKSPACE_ID } from "./workspace";
-import { uploadConvexFile } from "./convex-storage";
+import { uploadFile } from "./storage";
 import { analyzeHookComposition, type HookDesign } from "./hook-design";
 import { processImageGenerationJob, recentImageProviderBlocker } from "./image-generation";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../src/image-generation/core";
@@ -1282,7 +1282,7 @@ async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], geometr
 
 async function uploadRender(carouselId: string, position: number, bytes: Buffer) {
   const storagePath = `renders/${carouselId}/slide_${String(position).padStart(2, "0")}.png`;
-  const upload = await uploadConvexFile(new Uint8Array(bytes), "image/png");
+  const upload = await uploadFile(new Uint8Array(bytes), "image/png");
   return { storagePath, ...upload };
 }
 

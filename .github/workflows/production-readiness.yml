@@ -10,7 +10,6 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      DATA_BACKEND: supabase
       SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL || vars.GOOGLE_SERVICE_ACCOUNT_EMAIL }}

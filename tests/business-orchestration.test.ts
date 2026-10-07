@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { parseConvexResource } from "../app/lib/data-backend.js";
+import { parseResource } from "../app/lib/data-backend.js";
 import { learningMultiplier, strategyExponent } from "../src/autonomy/learning.js";
 import { minimumPersonaAssets } from "../src/autonomy/preflight.js";
 import { personaCacheGenerationPolicy } from "../src/autonomy/image-cache.js";
@@ -51,7 +51,7 @@ describe("business orchestration v1", () => {
   });
 
   it("does not silently drop common PostgREST filters", () => {
-    const parsed = parseConvexResource("carousels?status=neq.ARCHIVED&scheduled_for=gte.2026-09-27T00%3A00%3A00Z&approved_at=not.is.null&rejected_at=is.null&limit=20");
+    const parsed = parseResource("carousels?status=neq.ARCHIVED&scheduled_for=gte.2026-09-27T00%3A00%3A00Z&approved_at=not.is.null&rejected_at=is.null&limit=20");
     assert.ok(parsed.filters.some((filter) => filter.field === "status" && filter.op === "neq"));
     assert.ok(parsed.filters.some((filter) => filter.field === "scheduled_for" && filter.op === "gte"));
     assert.ok(parsed.filters.some((filter) => filter.field === "approved_at" && filter.op === "not_null"));
