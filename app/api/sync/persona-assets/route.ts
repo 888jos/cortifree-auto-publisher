@@ -1,4 +1,4 @@
-import { isCronOrAdminRequest } from "../../../lib/admin-auth";
+import { isOperatorRequest } from "../../../lib/admin-auth";
 import { syncPersonaGeneratedAssetsToDrive } from "../../../lib/sync/persona-assets";
 import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
 
@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorized(request: Request) {
-  return isCronOrAdminRequest(request);
+  return isOperatorRequest(request);
 }
 
 export async function POST(request: Request) {
