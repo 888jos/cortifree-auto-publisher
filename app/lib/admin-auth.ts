@@ -56,6 +56,14 @@ export function isCronOrAdminRequest(request: Request) {
   return isCronRequest(request) || isAdminRequest(request);
 }
 
+// Set only by middleware, after it strips any inbound copy, for signed-in
+// sessions on CORTIFREE_ALLOWED_EMAILS.
+export const SESSION_HEADER = "x-cortifree-session";
+
+export function isOperatorRequest(request: Request) {
+  return isCronOrAdminRequest(request) || request.headers.get(SESSION_HEADER) === "allowed";
+}
+
 // Machine-to-machine routes that accept the CRON_SECRET bearer without a user session.
 export const CRON_PATHS = new Set([
   "/api/autonomy/run",

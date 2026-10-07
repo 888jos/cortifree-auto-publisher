@@ -97,3 +97,19 @@ test("the data adapter keeps offset, logical and unknown PostgREST filters", () 
   assert.deepEqual(parsed.filters.find((filter) => filter.field === "or"), { field: "or", op: "raw", value: "(next_attempt_at.is.null,next_attempt_at.lte.2026-10-07)" });
   assert.deepEqual(parsed.filters.find((filter) => filter.field === "last_error"), { field: "last_error", op: "raw", value: "ilike.*Overdue*" });
 });
+
+test("operator routes accept only the middleware-set session marker, cron or admin", async () => {
+  const { isOperatorRequest } = await import("../app/lib/admin-auth");
+  const previous = { ...process.env };
+  process.env.NODE_ENV = "production";
+  process.env.CORTIFREE_ADMIN_PASSWORD = "admin-secret";
+  process.env.CRON_SECRET = "cron-secret";
+  try {
+    assert.equal(isOperatorRequest(new Request("https://example.com", { headers: { "x-cortifree-session": "allowed" } })), true);
+    assert.equal(isOperatorRequest(new Request("https://example.com", { headers: { authorization: "Bearer cron-secret" } })), true);
+    assert.equal(isOperatorRequest(new Request("https://example.com", { headers: { "x-cortifree-session": "yes" } })), false);
+    assert.equal(isOperatorRequest(new Request("https://example.com")), false);
+  } finally {
+    process.env = previous;
+  }
+});

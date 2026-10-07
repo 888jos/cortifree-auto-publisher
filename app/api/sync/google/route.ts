@@ -1,4 +1,4 @@
-import { isCronOrAdminRequest } from "../../../lib/admin-auth";
+import { isOperatorRequest } from "../../../lib/admin-auth";
 import { syncEditorialSheetToBackend } from "../../../lib/sync/editorial";
 import { syncGoogleDriveToBackend } from "../../../lib/sync/drive";
 import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorized(request: Request) {
-  return isCronOrAdminRequest(request);
+  return isOperatorRequest(request);
 }
 
 async function run(request: Request) {

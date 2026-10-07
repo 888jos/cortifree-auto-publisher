@@ -2,7 +2,7 @@ import { backendConfigured as isBackendConfigured, backendMode, getBackendCounts
 import { googleServiceAccountConfigured, googleServiceAccountIdentity } from "../../lib/google/auth";
 import { CORTIFREE_SHEET_ID, readSheetRange } from "../../lib/google/sheets";
 import { productionGateStatus } from "../../../src/autonomy/production-gate";
-import { isAdminRequest } from "../../lib/admin-auth";
+import { isAdminRequest, SESSION_HEADER } from "../../lib/admin-auth";
 import { releaseIdentity } from "../../lib/release";
 
 function hostname(value?: string) {
@@ -17,7 +17,7 @@ function hostname(value?: string) {
 export async function GET(request: Request) {
   const isAdmin = isAdminRequest(request);
   // Set by middleware for signed-in, allowlisted dashboard users only.
-  const isMember = isAdmin || request.headers.get("x-cortifree-session") === "allowed";
+  const isMember = isAdmin || request.headers.get(SESSION_HEADER) === "allowed";
   const backendConfigured = isBackendConfigured();
   const expectedHost = (process.env.CORTIFREE_CANONICAL_HOST || "cortifree-auto-publisher.vercel.app").toLowerCase();
   const deployedHost = hostname(process.env.VERCEL_PROJECT_PRODUCTION_URL) ?? hostname(process.env.NEXT_PUBLIC_APP_URL);

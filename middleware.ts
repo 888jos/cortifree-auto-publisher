@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { CRON_PATHS, isCronRequest, isEmailAllowed } from "./app/lib/admin-auth";
+import { CRON_PATHS, SESSION_HEADER, isCronRequest, isEmailAllowed } from "./app/lib/admin-auth";
 
 const publicPaths = new Set([
   "/login",
@@ -35,7 +35,6 @@ async function hasSupabaseSession(request: NextRequest, response: NextResponse) 
   return { configured: true, authenticated: Boolean(user), allowed: Boolean(user) && isEmailAllowed(user?.email) };
 }
 
-const SESSION_HEADER = "x-cortifree-session";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -50,9 +49,9 @@ export async function middleware(request: NextRequest) {
   }
   if (publicPaths.has(pathname)) return NextResponse.next({ request: { headers } });
 
-  if (CRON_PATHS.has(pathname) && isCronRequest(request)) return NextResponse.next();
+  if (CRON_PATHS.has(pathname) && isCronRequest(request)) return NextResponse.next({ request: { headers } });
 
-  const response = NextResponse.next({ request });
+  const response = NextResponse.next({ request: { headers } });
   const session = await hasSupabaseSession(request, response);
   if (!session.configured) {
     const apiRequest = pathname.startsWith("/api/");
@@ -61,7 +60,14 @@ export async function middleware(request: NextRequest) {
       headers: { "Content-Type": apiRequest ? "application/json" : "text/plain; charset=utf-8" },
     });
   }
-  if (session.allowed) return response;
+  if (session.allowed) {
+    // Tell route handlers this is an allowlisted operator session; keep any
+    // refreshed Supabase auth cookies set on the first response.
+    headers.set(SESSION_HEADER, "allowed");
+    const allowed = NextResponse.next({ request: { headers } });
+    response.cookies.getAll().forEach((cookie) => allowed.cookies.set(cookie));
+    return allowed;
+  }
   if (session.authenticated) {
     // Signed in, but not on CORTIFREE_ALLOWED_EMAILS.
     return new NextResponse(JSON.stringify({ error: "Forbidden", code: "EMAIL_NOT_ALLOWED" }), {

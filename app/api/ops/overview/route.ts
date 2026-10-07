@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminRequest } from "../../../lib/admin-auth";
+import { isOperatorRequest } from "../../../lib/admin-auth";
 import { dataBackend } from "../../../lib/data-backend";
 import { getLocalIntegrationHealth } from "../../../lib/integration-health";
 
@@ -23,7 +23,7 @@ function countBy(items: Row[], field: string) {
 }
 
 export async function GET(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperatorRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
