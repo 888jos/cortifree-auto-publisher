@@ -1,3 +1,4 @@
+import { isCronOrAdminRequest } from "../../../lib/admin-auth";
 import { syncEditorialSheetToConvex } from "../../../lib/sync/editorial";
 import { syncGoogleDriveToConvex } from "../../../lib/sync/drive";
 import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
@@ -6,10 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET || process.env.CORTIFREE_ADMIN_SECRET;
-  if (!secret) return false;
-  const auth = request.headers.get("authorization");
-  return auth === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret || request.headers.get("x-admin-token") === secret || request.headers.get("x-admin-password") === process.env.CORTIFREE_ADMIN_PASSWORD;
+  return isCronOrAdminRequest(request);
 }
 
 async function run(request: Request) {

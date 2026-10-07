@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isAdminRequest, isCronRequest } from "../app/lib/admin-auth";
+import { CRON_PATHS, isAdminRequest, isCronRequest, isEmailAllowed } from "../app/lib/admin-auth";
+import { signedOAuthState, verifyOAuthState } from "../app/lib/google/auth";
+import { assertKnownModelPricing, estimateCostUsd } from "../app/lib/ai/pricing";
 import { carouselGeneratorInputSchema } from "../app/lib/ai/schemas";
 
 function basic(username: string, password: string) {
@@ -46,4 +48,44 @@ test("client carousel input cannot enable the monthly-cap bypass", () => {
     bypassMonthlyCap: true,
   });
   assert.equal("bypassMonthlyCap" in parsed, false);
+});
+
+test("dashboard sessions are limited to the email allowlist, closed by default in production", () => {
+  const previous = { ...process.env };
+  try {
+    assert.equal(isEmailAllowed("Owner@Example.com", ["owner@example.com"]), true);
+    assert.equal(isEmailAllowed("stranger@example.com", ["owner@example.com"]), false);
+    assert.equal(isEmailAllowed(undefined, ["owner@example.com"]), false);
+    process.env.NODE_ENV = "production";
+    assert.equal(isEmailAllowed("owner@example.com", []), false);
+  } finally {
+    process.env = previous;
+  }
+});
+
+test("the cron bearer only opens machine routes", () => {
+  assert.equal(CRON_PATHS.has("/api/autonomy/run"), true);
+  assert.equal(CRON_PATHS.has("/api/carousels"), false);
+  assert.equal(CRON_PATHS.has("/api/ai/generate"), false);
+});
+
+test("Google OAuth state needs a real secret and the browser nonce", () => {
+  const previous = { ...process.env };
+  try {
+    delete process.env.OAUTH_STATE_SECRET;
+    delete process.env.TOKEN_ENCRYPTION_KEY;
+    assert.throws(() => signedOAuthState("nonce-a"), /OAUTH_STATE_SECRET/);
+    process.env.OAUTH_STATE_SECRET = "state-secret";
+    const state = signedOAuthState("nonce-a");
+    assert.equal(verifyOAuthState(state, "nonce-a"), true);
+    assert.equal(verifyOAuthState(state, "nonce-b"), false);
+    assert.equal(verifyOAuthState(state, undefined), false);
+  } finally {
+    process.env = previous;
+  }
+});
+
+test("unknown OpenAI models fail closed instead of costing $0", () => {
+  assert.throws(() => assertKnownModelPricing("gpt-unknown"), /No pricing/);
+  assert.throws(() => estimateCostUsd("gpt-unknown", { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 }), /No pricing/);
 });

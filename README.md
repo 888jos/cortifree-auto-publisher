@@ -19,7 +19,7 @@ Le renderer est un pipeline SVG déterministe + Sharp : il ne lance pas de navig
 
 ## Conventions de sécurité
 
-Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés Supabase, OpenAI et ModelArk restent uniquement côté serveur. Le dashboard et les API sont protégés par `CORTIFREE_ADMIN_PASSWORD` (ou, à défaut, `CORTIFREE_ADMIN_TOKEN`). Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
+Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés Supabase, OpenAI et ModelArk restent uniquement côté serveur. Le dashboard exige une session Supabase dont l'email figure dans `CORTIFREE_ALLOWED_EMAILS` (vide = personne en production) ; les routes d'administration exigent `CORTIFREE_ADMIN_PASSWORD` (ou, à défaut, `CORTIFREE_ADMIN_TOKEN`), et `CRON_SECRET` n'ouvre que les routes cron. Aucun appel externe de publication n’est déclenché tant que `DRY_RUN=true`.
 
 ## Supabase
 
@@ -80,7 +80,7 @@ Vision tagging is paid and deliberately requires explicit IDs:
 npm run refs:analyze -- --ids MIRROR_001,MORNING_HOME_001
 ```
 
-Seedream generation has three independent locks: `IMAGE_GENERATION_ENABLED=false`, `IMAGE_GENERATION_DAILY_CAP_USD=0`, and the Content Studio confirmation flow. Set a verified model ID and a manually reviewed unit cost before changing either lock. Never add a `NEXT_PUBLIC_MODELARK_API_KEY` variable. ModelArk documentation currently prohibits restricted Seedream models in the EU and on the EU market; keep this provider disabled for France/EU deployments and select a legally available provider before a real test.
+Seedream generation is guarded by `IMAGE_GENERATION_ENABLED=false`, the Content Studio confirmation flow, and the spend caps: `IMAGE_GENERATION_MONTHLY_CAP_USD` always applies and `IMAGE_GENERATION_DAILY_CAP_USD` applies when it is above 0. Generation refuses to run while `IMAGE_GENERATION_UNIT_COST_USD` is 0, because recorded spend would stay at $0 and no cap could trip. Set a verified model ID and a manually reviewed unit cost before enabling it. Never add a `NEXT_PUBLIC_MODELARK_API_KEY` variable. ModelArk documentation currently prohibits restricted Seedream models in the EU and on the EU market; keep this provider disabled for France/EU deployments and select a legally available provider before a real test.
 
 The Asset Library exposes Stock, Persona Generated, protected Masters and Visual References. Content Studio can create or regenerate one image, while Batch personas only queues confirmed jobs (maximum 100); it does not execute them automatically.
 

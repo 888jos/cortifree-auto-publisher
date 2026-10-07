@@ -74,6 +74,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (body.topic) patch.topic = body.topic;
     if (body.angle) patch.angle = body.angle;
     if (body.caption) patch.caption = body.caption;
+    const contentChanged = Object.keys(patch).some((key) => key !== "updated_at");
+    if (contentChanged) {
+      // An approval covers the exact content that was reviewed: editing it sends
+      // the carousel back to review, and already-handed-off posts are frozen.
+      const current = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}&select=status`);
+      if (!current.ok) throw new Error(await current.text());
+      const status = String(((await current.json()) as Array<{ status?: string }>)[0]?.status ?? "");
+      if (["SCHEDULED", "POSTED"].includes(status)) {
+        return Response.json({ error: `Carousel is ${status}; content can no longer be edited` }, { status: 409 });
+      }
+      if (["APPROVED", "PLANNED"].includes(status)) {
+        patch.status = "READY_FOR_REVIEW";
+        patch.review_status = "AWAITING_REVIEW";
+        patch.last_review_action = "EDITED_AFTER_APPROVAL";
+      }
+    }
     const response = await dataBackend(`carousels?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&id=eq.${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { Prefer: "return=representation" },

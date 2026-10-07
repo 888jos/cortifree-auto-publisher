@@ -16,6 +16,8 @@ function hostname(value?: string) {
 
 export async function GET(request: Request) {
   const isAdmin = isAdminRequest(request);
+  // Set by middleware for signed-in, allowlisted dashboard users only.
+  const isMember = isAdmin || request.headers.get("x-cortifree-session") === "allowed";
   const backendConfigured = isBackendConfigured();
   const expectedHost = (process.env.CORTIFREE_CANONICAL_HOST || "cortifree-auto-publisher.vercel.app").toLowerCase();
   const deployedHost = hostname(process.env.VERCEL_PROJECT_PRODUCTION_URL) ?? hostname(process.env.NEXT_PUBLIC_APP_URL);
@@ -105,7 +107,7 @@ export async function GET(request: Request) {
       deployedHost,
       productionChecks: production.checks,
       p0Ready,
-    } : publicStatus,
+    } : isMember ? publicStatus : { ok, service: publicStatus.service },
     { status: ok ? 200 : 503 },
   );
 }

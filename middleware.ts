@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { CRON_PATHS, isCronRequest, isEmailAllowed } from "./app/lib/admin-auth";
 
 const publicPaths = new Set([
   "/login",
@@ -18,7 +19,7 @@ const publicPaths = new Set([
 async function hasSupabaseSession(request: NextRequest, response: NextResponse) {
   const url = process.env.SUPABASE_URL;
   const anonKey = process.env.SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return { configured: false, authenticated: false };
+  if (!url || !anonKey) return { configured: false, authenticated: false, allowed: false };
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
@@ -31,16 +32,25 @@ async function hasSupabaseSession(request: NextRequest, response: NextResponse) 
     },
   });
   const { data: { user } } = await supabase.auth.getUser();
-  return { configured: true, authenticated: Boolean(user) };
+  return { configured: true, authenticated: Boolean(user), allowed: Boolean(user) && isEmailAllowed(user?.email) };
 }
+
+const SESSION_HEADER = "x-cortifree-session";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (publicPaths.has(pathname)) return NextResponse.next();
+  // Never trust an inbound copy of the internal session marker.
+  const headers = new Headers(request.headers);
+  headers.delete(SESSION_HEADER);
+  if (pathname === "/api/health") {
+    const probe = NextResponse.next();
+    const session = await hasSupabaseSession(request, probe).catch(() => ({ allowed: false }));
+    if (session.allowed) headers.set(SESSION_HEADER, "allowed");
+    return NextResponse.next({ request: { headers } });
+  }
+  if (publicPaths.has(pathname)) return NextResponse.next({ request: { headers } });
 
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  const authorization = request.headers.get("authorization") ?? "";
-  if (cronSecret && authorization === `Bearer ${cronSecret}`) return NextResponse.next();
+  if (CRON_PATHS.has(pathname) && isCronRequest(request)) return NextResponse.next();
 
   const response = NextResponse.next({ request });
   const session = await hasSupabaseSession(request, response);
@@ -51,7 +61,14 @@ export async function middleware(request: NextRequest) {
       headers: { "Content-Type": apiRequest ? "application/json" : "text/plain; charset=utf-8" },
     });
   }
-  if (session.authenticated) return response;
+  if (session.allowed) return response;
+  if (session.authenticated) {
+    // Signed in, but not on CORTIFREE_ALLOWED_EMAILS.
+    return new NextResponse(JSON.stringify({ error: "Forbidden", code: "EMAIL_NOT_ALLOWED" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
 
   if (pathname.startsWith("/api/")) {
     return new NextResponse(JSON.stringify({ error: "Unauthorized", code: "SUPABASE_AUTH_REQUIRED" }), {

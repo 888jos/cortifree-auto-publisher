@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import {
+  assertGenerationBudget,
   buildImagePrompt,
   generatedAssetName,
   ModelArkSeedreamProvider,
@@ -43,6 +44,33 @@ async function patchJob(id: string, values: Record<string, unknown>) {
     method: "PATCH", body: JSON.stringify({ ...values, updated_at: new Date().toISOString() }),
   });
   if (!response.ok) throw new Error(await response.text());
+}
+
+async function spentSinceUsd(since: Date) {
+  // Paged: PostgREST caps a single response (1000 rows by default), which would undercount.
+  const pageSize = 1000;
+  let total = 0;
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(since.toISOString()) + `&select=estimated_cost_usd&order=id.asc&limit=${pageSize}&offset=${offset}`);
+    if (!response.ok) throw new Error("Cannot verify image generation budget");
+    const rows = await response.json() as Array<{ estimated_cost_usd: number }>;
+    total += rows.reduce((sum, row) => sum + Number(row.estimated_cost_usd ?? 0), 0);
+    if (rows.length < pageSize) return total;
+  }
+}
+
+// Fails closed: without a real unit cost the recorded spend stays at $0 and no cap can ever trip.
+async function assertImageBudget(current: ReturnType<typeof settings>) {
+  if (!(current.unitCostUsd > 0)) throw new Error("IMAGE_GENERATION_UNIT_COST_USD must be > 0 for the budget caps to work");
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const spentMonthUsd = await spentSinceUsd(monthStart);
+  if (current.monthlyCapUsd <= 0 || spentMonthUsd + current.unitCostUsd > current.monthlyCapUsd) throw new Error(`Monthly ModelArk image budget reached (${spentMonthUsd.toFixed(2)} / ${current.monthlyCapUsd.toFixed(2)} USD)`);
+  // A daily cap of 0 means "no daily limit"; the monthly cap above always applies.
+  if (current.dailyCapUsd > 0) {
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    assertGenerationBudget({ spentTodayUsd: await spentSinceUsd(dayStart), unitCostUsd: current.unitCostUsd, dailyCapUsd: current.dailyCapUsd });
+  }
 }
 
 export async function recentImageProviderBlocker(windowMinutes = 15) {
@@ -167,12 +195,7 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
   if (!injectedProvider) {
     const blocker = await recentImageProviderBlocker();
     if (blocker) throw new Error(`MODELARK_PROVIDER_BLOCKED:${blocker.reason}`);
-    const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-    const monthResponse = await dataBackend("image_generation_usage?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&created_at=gte." + encodeURIComponent(monthStart.toISOString()) + "&select=estimated_cost_usd");
-    if (!monthResponse.ok) throw new Error("Cannot verify monthly image generation budget");
-    const monthUsage = await monthResponse.json() as Array<{ estimated_cost_usd: number }>;
-    const spentMonthUsd = monthUsage.reduce((total, row) => total + Number(row.estimated_cost_usd ?? 0), 0);
-    if (current.monthlyCapUsd <= 0 || spentMonthUsd + current.unitCostUsd > current.monthlyCapUsd) throw new Error(`Monthly ModelArk image budget reached (${spentMonthUsd.toFixed(2)} / ${current.monthlyCapUsd.toFixed(2)} USD)`);
+    await assertImageBudget(current);
   }
   const job = await queryOne<Record<string, unknown>>("image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(jobId) + "&select=*");
   if (!["PENDING", "RETRY", "FAILED", "RUNNING"].includes(String(job.status))) throw new Error("Job cannot run from " + job.status);
@@ -196,7 +219,9 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
     );
     const asset = await uploadGeneratedAsset({ bytes: await outputBytes(result), personaId: persona.id, personaName: persona.name, category: String(job.category), scene: String(job.scene), reference, jobId });
     await patchJob(jobId, { status: "DONE", output_asset_id: asset.id, finished_at: new Date().toISOString(), cost_estimate_usd: current.unitCostUsd });
-    await dataBackend("image_generation_usage", { method: "POST", body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, job_id: jobId, persona_id: persona.id, provider: provider.name, model: result.model, images_generated: 1, estimated_cost_usd: current.unitCostUsd }) });
+    const usage = await dataBackend("image_generation_usage", { method: "POST", body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, job_id: jobId, persona_id: persona.id, provider: provider.name, model: result.model, images_generated: 1, estimated_cost_usd: current.unitCostUsd }) });
+    // The image is already paid for: keep the asset, but make the missing spend visible.
+    if (!usage.ok) console.error("[image-generation] usage not recorded; budget caps will undercount", jobId, await usage.text());
     return asset;
   } catch (error) {
     await patchJob(jobId, { status: "FAILED", last_error: (error instanceof Error ? error.message : String(error)).slice(0, 1_000), finished_at: new Date().toISOString() });
@@ -206,5 +231,5 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
 
 export function getImageGenerationStatus() {
   const current = settings();
-  return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, monthlyCapUsd: current.monthlyCapUsd, unitCostUsd: current.unitCostUsd };
+  return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, dailyCapUsd: current.dailyCapUsd, monthlyCapUsd: current.monthlyCapUsd, unitCostUsd: current.unitCostUsd };
 }

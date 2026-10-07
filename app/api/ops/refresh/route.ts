@@ -1,3 +1,4 @@
+import { isCronRequest } from "../../../lib/admin-auth";
 import { refreshPostAnalytics, refreshPublishStatuses, queueWinnerVariants } from "../../../../src/autonomy/performance";
 import { sendPendingTelegramNotifications } from "../../../lib/telegram-notifications";
 
@@ -5,8 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  return Boolean(secret && request.headers.get("authorization") === `Bearer ${secret}`);
+  return isCronRequest(request);
 }
 
 export async function GET(request: Request) {

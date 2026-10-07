@@ -3,6 +3,8 @@ import { dataBackend } from "../data-backend";
 
 const STAGE = "GOOGLE_OAUTH_REFRESH_TOKEN";
 
+// Decryption still accepts the legacy fallback seeds so tokens stored before
+// TOKEN_ENCRYPTION_KEY became mandatory keep working until the next re-consent.
 function keyCandidates() {
   const seeds = [
     process.env.TOKEN_ENCRYPTION_KEY,
@@ -13,9 +15,15 @@ function keyCandidates() {
   return [...new Set(seeds)].map((seed) => crypto.createHash("sha256").update(seed).digest());
 }
 
+function encryptionKey() {
+  const seed = process.env.TOKEN_ENCRYPTION_KEY?.trim();
+  if (!seed) throw new Error("TOKEN_ENCRYPTION_KEY is required to store the Google refresh token");
+  return crypto.createHash("sha256").update(seed).digest();
+}
+
 function encrypt(value: string) {
   const iv = crypto.randomBytes(12);
-  const [primaryKey] = keyCandidates();
+  const primaryKey = encryptionKey();
   const cipher = crypto.createCipheriv("aes-256-gcm", primaryKey, iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   return `${iv.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${ciphertext.toString("base64url")}`;
