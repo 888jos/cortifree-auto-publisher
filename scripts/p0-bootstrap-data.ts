@@ -1,20 +1,20 @@
-import { syncEditorialSheetToConvex } from "../app/lib/sync/editorial";
-import { syncGoogleDriveToConvex } from "../app/lib/sync/drive";
-import { getConvexCounts } from "../app/lib/data-backend";
+import { syncEditorialSheetToBackend } from "../app/lib/sync/editorial";
+import { syncGoogleDriveToBackend } from "../app/lib/sync/drive";
+import { getBackendCounts } from "../app/lib/data-backend";
 
 const batch = Math.max(1, Math.min(250, Number(process.env.P0_DRIVE_BATCH || 250)));
 const maxPasses = Math.max(1, Math.min(10, Number(process.env.P0_DRIVE_MAX_PASSES || 4)));
 
-const editorial = await syncEditorialSheetToConvex();
+const editorial = await syncEditorialSheetToBackend();
 const passes: unknown[] = [];
 
 for (let pass = 1; pass <= maxPasses; pass += 1) {
-  const result = await syncGoogleDriveToConvex({ limit: batch });
+  const result = await syncGoogleDriveToBackend({ limit: batch });
   passes.push({ pass, ...result });
   if ((result.remaining_hint ?? 0) <= 0 || result.uploaded === 0) break;
 }
 
-const counts = await getConvexCounts();
+const counts = await getBackendCounts();
 const safeCounts = {
   personas: counts.personas ?? 0,
   accounts: counts.accounts ?? 0,

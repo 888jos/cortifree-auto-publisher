@@ -5,13 +5,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# tsx is a runtime dependency: the worker runs its TypeScript sources directly.
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
-COPY . .
+COPY --chown=node:node . .
 
-ENV NODE_ENV=production
-ENV DATA_BACKEND=supabase
-
+USER node
 CMD ["npm", "run", "worker:start"]

@@ -1,0 +1,16 @@
+# Never ship local secrets or build output into the worker image.
+.env*
+!.env.example
+.git
+.github
+.next
+.vercel
+node_modules
+coverage
+dist
+work
+.data
+tests
+docs
+*.log
+.DS_Store

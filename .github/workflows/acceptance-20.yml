@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      DATA_BACKEND: supabase
       SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

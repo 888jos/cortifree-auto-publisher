@@ -3,8 +3,8 @@ import { dataBackend } from "../../app/lib/data-backend";
 import { processImageGenerationJob, recentImageProviderBlocker } from "../../app/lib/image-generation";
 import { isPermanentImageGenerationError } from "../image-generation/core";
 import { renderCarousel } from "../../app/lib/render-carousel";
-import { syncEditorialSheetToConvex } from "../../app/lib/sync/editorial";
-import { syncGoogleDriveToConvex } from "../../app/lib/sync/drive";
+import { syncEditorialSheetToBackend } from "../../app/lib/sync/editorial";
+import { syncGoogleDriveToBackend } from "../../app/lib/sync/drive";
 import { syncPersonaGeneratedAssetsToDrive } from "../../app/lib/sync/persona-assets";
 import { recoverModelArkOrphans } from "../../app/lib/recovery/modelark-orphans";
 import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
@@ -322,13 +322,13 @@ async function runGoogleSync(payload: Row) {
   const offset = Math.max(0, Number(payload.offset ?? 0));
   const personaId = payload.persona_id ? String(payload.persona_id).trim().toUpperCase() : undefined;
   const editorial = scope === "all" || scope === "sheet"
-    ? await syncEditorialSheetToConvex()
+    ? await syncEditorialSheetToBackend()
     : { status: "SKIPPED", reason: "Drive-only scope" };
   if (scope === "sheet") return { editorial, drive: { status: "SKIPPED" } };
   const driveScope = ["visual_refs", "visual_refs_missing", "assets", "stock", "stock_missing", "app_screens"].includes(scope)
     ? scope as "visual_refs" | "visual_refs_missing" | "assets" | "stock" | "stock_missing" | "app_screens"
     : "all";
-  const drive = await syncGoogleDriveToConvex({ limit, offset, personaId, scope: driveScope });
+  const drive = await syncGoogleDriveToBackend({ limit, offset, personaId, scope: driveScope });
   return { editorial, drive };
 }
 

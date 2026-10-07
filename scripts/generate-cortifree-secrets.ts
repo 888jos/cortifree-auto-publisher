@@ -5,7 +5,8 @@ function secret(bytes = 32) {
 }
 
 const values = {
-  CORTIFREE_BACKEND_SECRET: secret(48),
+  TOKEN_ENCRYPTION_KEY: secret(32),
+  OAUTH_STATE_SECRET: secret(32),
   CRON_SECRET: secret(32),
   CORTIFREE_ADMIN_TOKEN: secret(32),
 };

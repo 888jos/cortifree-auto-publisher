@@ -23,7 +23,7 @@ Les MASTER et le Drive ne sont jamais modifiés par le scanner. Les clés Supaba
 
 ## Supabase
 
-Les routes sous `app/api` lisent et écrivent dans le projet Supabase CortiFree. Les tables multi-workspace sont forcées sur `workspace_id=cortifree`; les tables éditoriales dédiées (`content_*` et `editorial_records`) n’acceptent pas de redirection vers un autre produit. `DATA_BACKEND=convex` reste disponible uniquement comme mode de rollback explicite.
+Les routes sous `app/api` lisent et écrivent dans le projet Supabase CortiFree. Les tables multi-workspace sont forcées sur `workspace_id=cortifree`; les tables éditoriales dédiées (`content_*` et `editorial_records`) n’acceptent pas de redirection vers un autre produit.
 
 ```bash
 npm run typecheck
@@ -31,7 +31,7 @@ npm test
 supabase migration list
 ```
 
-Vercel utilise `npm run vercel-build`, `DATA_BACKEND=supabase`, `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`. Les migrations versionnées vivent dans `supabase/migrations/`; elles doivent être vérifiées avant application. Le build Vercel ne déploie jamais le schéma.
+Vercel utilise `npm run vercel-build`, `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`. Les migrations versionnées vivent dans `supabase/migrations/`; elles doivent être vérifiées avant application. Le build Vercel ne déploie jamais le schéma.
 
 ## OpenAI Setup
 
@@ -94,9 +94,13 @@ The Asset Library exposes Stock, Persona Generated, protected Masters and Visual
 - `scripts/sync-persona-image-assets.ts` : synchronisation non destructive Drive vers le stockage runtime.
 - `src/render/` : tokens de design, registre de templates, SVG + Sharp et QA.
 - `supabase/migrations/` : historique SQL canonique et versionné.
-- `app/lib/data-backend.ts` : accès serveur Supabase, avec rollback Convex explicite.
+- `app/lib/data-backend.ts` : accès serveur Supabase (PostgREST), toujours limité au workspace `cortifree`.
 - `src/runtime/config.ts` : comptes/personas/editorial lus depuis le backend configuré. Les JSON locaux sont uniquement un fallback d'urgence opt-in.
 
+
+## Worker Railway
+
+Les tâches lourdes (génération, rendu, synchro Drive, publication) tournent dans un worker externe construit avec `Dockerfile.worker` et lancé par `npm run worker:start`. Les routes cron de Vercel ne font qu'ajouter des jobs dans `worker_jobs` quand le worker est actif. L'image est construite sans dépendances de dev, tourne en utilisateur `node`, et `.dockerignore` exclut tous les fichiers `.env*`.
 
 ## Isolation CortiFree / Cocorise
 
@@ -106,7 +110,6 @@ CortiFree est un service autonome et ne dépend d'aucune ressource Cocorise en p
 - Projet Vercel attendu : `prj_VAzxY6ziL68xkWugWCdw6ympilER`; `scripts/vercel-ignore.mjs` bloque les builds provenant du projet Cocorise.
 - Supabase : projet CortiFree `adwyqshphctqbdfckvno`, clé service-role strictement serveur.
 - Workspace runtime : `cortifree`.
-- Convex : mode de rollback optionnel, jamais sélectionné sans `DATA_BACKEND=convex`.
 - Upload-Post : seuls les profils explicitement listés dans `CORTIFREE_UPLOAD_POST_PROFILES` sont éligibles.
 - Aucune variable `NEXT_PUBLIC_COCORISE_URL` n'est autorisée dans ce repo.
 

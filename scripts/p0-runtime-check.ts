@@ -1,4 +1,4 @@
-import { getConvexCounts, getConvexPing, convexConfigured } from "../app/lib/data-backend";
+import { getBackendCounts, getBackendPing, backendConfigured } from "../app/lib/data-backend";
 import { googleServiceAccountConfigured } from "../app/lib/google/auth";
 import { readSheetRange } from "../app/lib/google/sheets";
 import { listDriveChildren } from "../app/lib/google/drive";
@@ -11,8 +11,8 @@ async function main() {
   const report: Record<string, unknown> = {
     generatedAt: new Date().toISOString(),
     env: {
-      NEXT_PUBLIC_CONVEX_URL: flag(process.env.NEXT_PUBLIC_CONVEX_URL),
-      CORTIFREE_BACKEND_SECRET: flag(process.env.CORTIFREE_BACKEND_SECRET),
+      SUPABASE_URL: flag(process.env.SUPABASE_URL),
+      SUPABASE_SERVICE_ROLE_KEY: flag(process.env.SUPABASE_SERVICE_ROLE_KEY),
       GOOGLE_SERVICE_ACCOUNT_EMAIL: flag(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL),
       GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: flag(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
       UPLOAD_POST_API_KEY: flag(process.env.UPLOAD_POST_API_KEY),
@@ -21,8 +21,8 @@ async function main() {
       MODELARK_API_KEY: flag(process.env.MODELARK_API_KEY),
       MODELARK_MODEL_ID: flag(process.env.MODELARK_MODEL_ID),
     },
-    convex: {
-      configured: convexConfigured(),
+    backend: {
+      configured: backendConfigured(),
       live: false,
       counts: null,
       ping: null,
@@ -37,17 +37,17 @@ async function main() {
     },
   };
 
-  if (convexConfigured()) {
+  if (backendConfigured()) {
     try {
-      (report.convex as any).ping = await getConvexPing();
-      (report.convex as any).live = true;
+      (report.backend as any).ping = await getBackendPing();
+      (report.backend as any).live = true;
     } catch (error) {
-      (report.convex as any).error = error instanceof Error ? error.message : String(error);
+      (report.backend as any).error = error instanceof Error ? error.message : String(error);
     }
-    if ((report.convex as any).live) {
+    if ((report.backend as any).live) {
       try {
-        const counts = await getConvexCounts();
-        (report.convex as any).counts = {
+        const counts = await getBackendCounts();
+        (report.backend as any).counts = {
           personas: counts.personas ?? 0,
           accounts: counts.accounts ?? 0,
           assets: counts.assets ?? 0,
@@ -59,7 +59,7 @@ async function main() {
           publish_jobs: counts.publish_jobs ?? 0,
         };
       } catch (error) {
-        (report.convex as any).dataError = error instanceof Error ? error.message : String(error);
+        (report.backend as any).dataError = error instanceof Error ? error.message : String(error);
       }
     }
   }
@@ -75,17 +75,17 @@ async function main() {
     }
   }
 
-  const counts = (report.convex as any).counts as Record<string, number> | null;
+  const counts = (report.backend as any).counts as Record<string, number> | null;
   const readiness = {
-    convexConfigured: (report.convex as any).configured === true,
-    convexLive: (report.convex as any).live === true,
+    backendConfigured: (report.backend as any).configured === true,
+    backendLive: (report.backend as any).live === true,
     editorialLoaded: Boolean(counts && counts.personas >= 16 && counts.content_topics >= 500 && counts.content_hooks >= 200 && counts.content_ctas >= 30),
     googleConfigured: (report.google as any).configured === true,
     googleReadable: (report.google as any).sheetReadable === true && (report.google as any).driveReadable === true,
     uploadPostConfigured: flag(process.env.UPLOAD_POST_API_KEY),
     cronConfigured: flag(process.env.CRON_SECRET),
   };
-  const ready = readiness.convexConfigured && readiness.convexLive && readiness.editorialLoaded && readiness.googleConfigured && readiness.googleReadable;
+  const ready = readiness.backendConfigured && readiness.backendLive && readiness.editorialLoaded && readiness.googleConfigured && readiness.googleReadable;
   report.readiness = { ...readiness, p0InfrastructureReady: ready };
 
   console.log(JSON.stringify(report, null, 2));

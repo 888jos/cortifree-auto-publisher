@@ -1,6 +1,6 @@
 import { backendMode, dataBackend } from "../data-backend";
 import { isBrowserRenderableAssetUrl } from "../asset-public-url";
-import { uploadConvexFile } from "../convex-storage";
+import { uploadFile } from "../storage";
 import { listDriveChildren, getDriveFile, downloadDriveFile, type DriveFile } from "../google/drive";
 import { readSheetObjects } from "../google/sheets";
 import { personaIdFromFolder } from "../../../src/personas/identity";
@@ -107,7 +107,7 @@ function sameTimestamp(left: unknown, right: unknown) {
 }
 async function upload(file: DriveFile) {
   const downloaded = await downloadDriveFile(file.id);
-  return await uploadConvexFile(downloaded.bytes, downloaded.contentType || file.mimeType);
+  return await uploadFile(downloaded.bytes, downloaded.contentType || file.mimeType);
 }
 
 function sheetReviewStatus(row: Row) {
@@ -786,7 +786,7 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
   const result = {
     id: `SYNC_DRIVE_${Date.now()}`,
     workspace_id: "cortifree",
-    event: backendMode() === "supabase" ? "DRIVE_TO_SUPABASE" : "DRIVE_TO_CONVEX",
+    event: "DRIVE_TO_SUPABASE",
     status: failed ? "PARTIAL" : "SUCCESS",
     uploaded,
     skipped,
@@ -836,7 +836,7 @@ async function syncGoogleDriveToBackendUnlocked(options: DriveSyncOptions = {}) 
 
 /** Serialize syncs per scope in one process; database unique keys protect
  * concurrent Vercel instances and retries across processes. */
-export async function syncGoogleDriveToConvex(options: DriveSyncOptions = {}) {
+export async function syncGoogleDriveToBackend(options: DriveSyncOptions = {}) {
   const key = `${backendMode()}:${options.scope ?? "all"}:${options.personaId ?? "*"}`;
   const previous = syncLocks.get(key) ?? Promise.resolve();
   const current = previous.then(() => syncGoogleDriveToBackendUnlocked(options));

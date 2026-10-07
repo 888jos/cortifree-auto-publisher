@@ -228,7 +228,7 @@ type HealthStatus = {
   ok?: boolean;
   p0Ready?: boolean;
   dryRun: boolean;
-  backend?: "supabase" | "convex";
+  backend?: "supabase";
   backendConfigured?: boolean;
   backendLive?: boolean;
   backendDataReady?: boolean;

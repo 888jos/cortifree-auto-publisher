@@ -365,7 +365,7 @@ async function syncCanonicalCalendar() {
   return calendarRows.length;
 }
 
-export async function syncEditorialSheetToConvex() {
+export async function syncEditorialSheetToBackend() {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = {};
   for (const mapping of mappings) {
@@ -430,7 +430,7 @@ export async function syncEditorialSheetToConvex() {
     { key: "HEALTH_SOURCE_COUNT", value: counts.content_health_sources ?? 0, value_type: "number", description: "Derived from synced health-source rows", source: "derived", active: true },
     { key: "AUTONOMY_RULE_COUNT", value: counts.editorial_autonomy_rules ?? 0, value_type: "number", description: "Derived from synced autonomy-rule rows", source: "derived", active: true },
     { key: "TEMPLATE_SPEC_COUNT", value: counts.editorial_template_specs ?? 0, value_type: "number", description: "Derived from synced template rows", source: "derived", active: true },
-    { key: "RUNTIME_TRUTH", value: backendMode() === "supabase" ? "SUPABASE" : "CONVEX", value_type: "enum", description: "Autonomous runtime reads the configured Supabase editorial mirror", source: "system", active: true },
+    { key: "RUNTIME_TRUTH", value: "SUPABASE", value_type: "enum", description: "Autonomous runtime reads the configured Supabase editorial mirror", source: "system", active: true },
     { key: "GOOGLE_SYNC_MODE", value: "CLOUD_API", value_type: "enum", description: "Google Sheet and Drive sync through cloud APIs", source: "system", active: true },
     { key: "JSON_RUNTIME_FALLBACK_DEFAULT", value: false, value_type: "boolean", description: "JSON fallback is emergency-only and opt-in", source: "system", active: true },
   ];

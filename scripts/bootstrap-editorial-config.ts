@@ -1,5 +1,5 @@
 import { loadAccounts } from '../src/config/accounts.js';
-import { dataBackend, convexConfigured } from '../src/lib/data-backend.js';
+import { dataBackend, backendConfigured } from '../src/lib/data-backend.js';
 import { loadEditorialSnapshot } from '../src/editorial/snapshot.js';
 
 const keyByTable: Record<string, string> = {
@@ -29,7 +29,7 @@ async function upsert(table: string, rows: Array<Record<string, unknown>>, key: 
 }
 
 async function main() {
-  if (!convexConfigured()) throw new Error('Convex server credentials are required');
+  if (!backendConfigured()) throw new Error('Supabase server credentials are required');
   const snapshot = loadEditorialSnapshot();
   const counts: Record<string, number> = {};
   for (const [table, key] of Object.entries(keyByTable)) {

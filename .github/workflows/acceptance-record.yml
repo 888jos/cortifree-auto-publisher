@@ -27,7 +27,6 @@ jobs:
   record:
     runs-on: ubuntu-latest
     env:
-      DATA_BACKEND: supabase
       SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       ACCEPTANCE_REVIEWED: ${{ inputs.reviewed }}
