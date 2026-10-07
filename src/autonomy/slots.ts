@@ -38,6 +38,25 @@ async function upsert(resource: string, body: unknown) {
   });
   if (!response.ok) throw new Error(await response.text());
 }
+async function insertNew(resource: string, body: unknown) {
+  const response = await dataBackend(resource, {
+    method: "POST",
+    headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
+// Reads slots matching `values` on `column`, in chunks small enough for a URL.
+// Errors propagate: treating a failed read as "no slots" would reopen claimed slots.
+async function slotsWhereIn(column: "id" | "scheduled_for", values: string[]) {
+  const unique = [...new Set(values)];
+  const found: Row[] = [];
+  for (let index = 0; index < unique.length; index += 80) {
+    const list = unique.slice(index, index + 80).map((value) => `"${value.replaceAll('"', "")}"`).join(",");
+    found.push(...await rows(`content_slots?workspace_id=eq.cortifree&${column}=in.(${encodeURIComponent(list)})&select=id,account_id,scheduled_for,status,idea_id,carousel_id`));
+  }
+  return found;
+}
 async function patch(resource: string, body: Row) {
   const response = await dataBackend(resource, { method: "PATCH", body: JSON.stringify({ ...body, updated_at: new Date().toISOString() }) });
   if (!response.ok) throw new Error(await response.text());
@@ -70,14 +89,10 @@ export function strategyForSlot(slotId: string) {
 }
 
 export async function syncContentSlotsFromCalendar() {
-  const [records, existing] = await Promise.all([
-    rows("editorial_records?kind=eq.content_calendar&active=eq.true&select=key,data&limit=2000"),
-    rows("content_slots?workspace_id=eq.cortifree&select=id,status,idea_id,carousel_id&limit=2000").catch(() => []),
-  ]);
-  const existingById = new Map(existing.map((row) => [String(row.id), row]));
+  const records = await rows("editorial_records?kind=eq.content_calendar&active=eq.true&select=key,data&limit=2000");
   const now = Date.now();
-  const batch: Row[] = [];
   let restDays = 0;
+  const planned: Array<{ id: string; accountId: string; date: string; time: string; timezone: string; scheduled: Date; data: Record<string, unknown> }> = [];
   for (const record of records) {
     const data = record.data && typeof record.data === "object" ? record.data as Record<string, unknown> : {};
     const id = String(record.key ?? data.slot_id ?? "").trim();
@@ -91,7 +106,23 @@ export async function syncContentSlotsFromCalendar() {
       continue;
     }
     if (!id || !accountId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) continue;
-    const scheduled = zonedToUtc(date,time,timezone);
+    planned.push({ id, accountId, date, time, timezone, scheduled: zonedToUtc(date, time, timezone), data });
+  }
+  // Prior state is read for exactly these slots, so claims (idea/carousel) are always preserved.
+  const existingById = new Map((await slotsWhereIn("id", planned.map((slot) => slot.id))).map((row) => [String(row.id), row]));
+  // Another slot (e.g. an AUTO_SLOT) may already hold the same account and time,
+  // which the unique index content_slots_account_time_idx rejects for the whole batch.
+  const takenTimes = new Map((await slotsWhereIn("scheduled_for", planned.map((slot) => slot.scheduled.toISOString())))
+    .map((row) => [`${String(row.account_id)}|${new Date(String(row.scheduled_for)).toISOString()}`, String(row.id)]));
+  const batch: Row[] = [];
+  let skippedConflicts = 0;
+  for (const { id, accountId, date, time, timezone, scheduled, data } of planned) {
+    const holder = takenTimes.get(`${accountId}|${scheduled.toISOString()}`);
+    if (holder && holder !== id) {
+      skippedConflicts += 1;
+      continue;
+    }
+    takenTimes.set(`${accountId}|${scheduled.toISOString()}`, id);
     const prior = existingById.get(id);
     const priorStatus = String(prior?.status ?? "");
     const status = priorStatus && priorStatus !== "EXPIRED"
@@ -120,7 +151,7 @@ export async function syncContentSlotsFromCalendar() {
     });
   }
   if (batch.length) await upsert("content_slots?on_conflict=id", batch);
-  return { synced: batch.length, restDays };
+  return { synced: batch.length, restDays, skippedConflicts };
 }
 
 function dateKeyInZone(date: Date, timezone: string) {
@@ -133,7 +164,7 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
     { status: "EXPIRED" },
   ).catch(() => undefined);
   const [existing, calendarRecords] = await Promise.all([
-    rows("content_slots?workspace_id=eq.cortifree&scheduled_for=gte."+encodeURIComponent(now.toISOString())+"&select=id,account_id,slot_date,status&order=scheduled_for.asc&limit=2000").catch(() => []),
+    rows("content_slots?workspace_id=eq.cortifree&scheduled_for=gte."+encodeURIComponent(now.toISOString())+"&select=id,account_id,slot_date,scheduled_for,status&order=scheduled_for.asc&limit=1000"),
     rows("editorial_records?kind=eq.content_calendar&active=eq.true&select=key,data&limit=2000").catch(() => []),
   ]);
   const restDays = new Set(
@@ -146,6 +177,7 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
     }),
   );
   const byAccountDate = new Map<string, number>();
+  const takenTimes = new Set(existing.map((row) => `${String(row.account_id)}|${new Date(String(row.scheduled_for)).toISOString()}`));
   for (const row of existing) {
     const key = `${String(row.account_id)}:${String(row.slot_date)}`;
     byAccountDate.set(key,(byAccountDate.get(key)??0)+1);
@@ -166,6 +198,8 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
         const time=candidateTimes[index % candidateTimes.length]!;
         const scheduled = zonedToUtc(day,time,account.timezone);
         if (scheduled.getTime() <= now.getTime() + 5 * 60_000) continue;
+        if (takenTimes.has(`${account.id}|${scheduled.toISOString()}`)) continue;
+        takenTimes.add(`${account.id}|${scheduled.toISOString()}`);
         const id=`AUTO_SLOT_${account.id}_${day.replaceAll("-","")}_${index+1}`;
         const promoBucket = crypto.createHash("sha1").update(`${id}:promo`).digest().readUInt32BE(0) / 0xffffffff;
         const brandRequired = promoBucket < Math.max(0, Math.min(1, account.promo_ratio ?? 0.08));
@@ -196,7 +230,8 @@ export async function ensureRollingSlots(accounts: Account[], now = new Date()) 
       if (added) byAccountDate.set(key, current + added);
     }
   }
-  if(created.length)await upsert("content_slots?on_conflict=id",created);
+  // Insert-only: an existing AUTO_SLOT must never be reset to OPEN.
+  if(created.length)await insertNew("content_slots?on_conflict=id",created);
   return {created:created.length};
 }
 

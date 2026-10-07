@@ -88,8 +88,16 @@ export function generationConfigBlockReason() {
   return null;
 }
 
-function isGenerationConfigBlockedMessage(message: string) {
-  return /GENERATION_BLOCKED:(?:OPENAI_API_KEY is missing|AI_GENERATION_ENABLED=false)/.test(message);
+export function isGenerationConfigBlockedMessage(message: string) {
+  return /GENERATION_BLOCKED:(?:OPENAI_API_KEY is missing|AI_GENERATION_ENABLED=false)/.test(message)
+    // Budget blocks pause the idea until the cap resets instead of failing it for good.
+    || /Monthly OpenAI safety cap reached|Cannot verify monthly OpenAI usage|No pricing for model/.test(message);
+}
+
+// Render failures that more assets can fix. Kept narrow: a bare "required" used
+// to match unrelated errors and send them into the NEEDS_ASSETS resume loop.
+export function isAssetBlockedRenderError(message: string) {
+  return /PERSONA_ASSET|_REQUIRED:|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(message);
 }
 
 export function isRetryableGenerationFailure(message: string) {
@@ -101,7 +109,8 @@ export function isRetryableGenerationFailure(message: string) {
     || /Slide must use\s+/i.test(message)
     || /Too few concrete behaviors or details/i.test(message)
     || /Copy has no creator point of view/i.test(message)
-    || /stray non-Latin script|UNEXPECTED_SCRIPT/i.test(message);
+    || /stray non-Latin script|UNEXPECTED_SCRIPT/i.test(message)
+    || /^GENERATION_INTERRUPTED$/.test(message);
 }
 
 export function preferredHookForFormat(contentType: string, value: unknown) {
@@ -323,7 +332,7 @@ export async function processQueuedIdeas(
         });
       }
       const providerBlocked = Boolean(renderError && /MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(renderError));
-      const assetBlocked = Boolean(renderError && /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(renderError));
+      const assetBlocked = Boolean(renderError && isAssetBlockedRenderError(renderError));
       if (renderError) {
         await patch(`carousels?id=eq.${encodeURIComponent(carouselId)}`, {
           lifecycle_state: assetBlocked ? 'NEEDS_ASSETS' : 'NEEDS_FIX',
@@ -367,6 +376,20 @@ export async function processQueuedIdeas(
     }
   }
   return report;
+}
+
+// An idea left in GENERATING by a killed function or crashed worker would keep
+// its slot forever. Fail it as interrupted so the retry path picks it up.
+export async function recoverStaleGeneratingIdeas(staleMinutes = 30, limit = 50) {
+  const before = new Date(Date.now() - staleMinutes * 60_000).toISOString();
+  const ideas = await rows(`carousel_ideas?workspace_id=eq.cortifree&status=eq.GENERATING&started_at=lt.${encodeURIComponent(before)}&select=id,slot_id&limit=${limit}`);
+  for (const idea of ideas) {
+    await patch(`carousel_ideas?id=eq.${encodeURIComponent(String(idea.id))}&status=eq.GENERATING`, {
+      status: 'FAILED', last_error: 'GENERATION_INTERRUPTED', finished_at: new Date().toISOString(),
+    });
+    await updateContentSlot(idea.slot_id, { status: 'FAILED' });
+  }
+  return ideas.map((idea) => ({ id: idea.id, status: 'FAILED', action: 'STALE_GENERATING_RECOVERED' }));
 }
 
 export async function resumeRetryableFailedIdeas(limit = 50) {
@@ -424,14 +447,25 @@ export async function resumeRetryableFailedIdeas(limit = 50) {
   return report;
 }
 
+const MAX_RENDER_RETRIES = Math.max(1, Number(process.env.MAX_RENDER_RETRIES ?? 3));
+
 export async function retryPendingRenders(limit = 20) {
-  const drafts = (await rows(`carousels?workspace_id=eq.cortifree&status=eq.DRAFT&select=*&order=created_at.asc&limit=${limit}`)).slice(0, limit);
+  // Least recently touched first: a failure bumps updated_at, so broken drafts
+  // rotate to the back instead of crowding out newer ones.
+  const drafts = (await rows(`carousels?workspace_id=eq.cortifree&status=eq.DRAFT&select=*&order=updated_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
   for (const carousel of drafts) {
     const id = String(carousel.id);
     const spec = carousel.spec as Record<string, unknown> | undefined;
     const slides = Array.isArray(spec?.generated_slides) ? spec!.generated_slides as any[] : [];
     if (!slides.length) continue;
+    if (carousel.lifecycle_state === 'NEEDS_FIX') {
+      const failures = await rows(`content_generation_qa?carousel_id=eq.${encodeURIComponent(id)}&qa_type=eq.RENDER&status=eq.FAIL&select=id&limit=${MAX_RENDER_RETRIES}`);
+      if (failures.length >= MAX_RENDER_RETRIES) {
+        report.push({ id, status: 'DRAFT', action: 'RENDER_RETRIES_EXHAUSTED' });
+        continue;
+      }
+    }
     try {
       await prepareCarouselForRender(id, carousel.lifecycle_state);
       const rendered = await renderCarousel({
@@ -467,7 +501,7 @@ export async function retryPendingRenders(limit = 20) {
         reason: message.slice(0, 1000),
         details: { content_type: carousel.content_type, persona_id: carousel.persona_id, source: 'retry_pending_renders' },
       });
-      const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(message);
+      const assetBlocked = isAssetBlockedRenderError(message);
       await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
         lifecycle_state: assetBlocked ? 'NEEDS_ASSETS' : 'NEEDS_FIX',
         last_review_action: assetBlocked ? 'ASSET_BLOCKED' : 'RENDER_FAILED',

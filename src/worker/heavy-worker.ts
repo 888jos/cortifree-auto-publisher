@@ -11,7 +11,7 @@ import { CORTIFREE_WORKSPACE_ID } from "../../app/lib/workspace";
 import type { WorkerJob } from "../../app/lib/worker-queue";
 import { createAcceptanceSample, runScheduler } from "../autonomy/scheduler";
 import { updateContentSlot } from "../autonomy/slots";
-import { prepareCarouselForRender, processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from "../autonomy/processor";
+import { isAssetBlockedRenderError, prepareCarouselForRender, processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, recoverStaleGeneratingIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from "../autonomy/processor";
 import { refillPersonaCaches, processPendingImageJobs } from "../autonomy/image-cache";
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from "../autonomy/performance";
 import { autoScheduleApproved } from "../autonomy/publishing";
@@ -129,6 +129,22 @@ function due(nextAttemptAt: unknown) {
   return !Number.isFinite(at) || at <= Date.now();
 }
 
+// Due filter in SQL: filtering after `limit` let future RETRY rows starve due jobs.
+function dueFilter() {
+  return `&or=(next_attempt_at.is.null,next_attempt_at.lte.${encodeURIComponent(new Date().toISOString())})`;
+}
+
+// Keeps locked_at fresh while a job runs, so stale-lock recovery never hands a
+// long but healthy job to a second worker.
+function keepLockFresh(table: "worker_jobs" | "image_generation_jobs", id: string) {
+  const timer = setInterval(() => {
+    patch(`${table}?id=eq.${encodeURIComponent(id)}&status=eq.RUNNING&worker_id=eq.${encodeURIComponent(WORKER_ID)}`, { locked_at: new Date().toISOString() })
+      .catch((error) => console.error("[worker] LOCK REFRESH FAILED", table, id, errorMessage(error)));
+  }, 60_000);
+  timer.unref();
+  return timer;
+}
+
 function stale(lockedAt: unknown) {
   const at = Date.parse(String(lockedAt ?? ""));
   return Number.isFinite(at) && at < Date.now() - STALE_MS;
@@ -160,7 +176,7 @@ async function recoverStaleJobs() {
 
 async function claimWorkerJob() {
   const candidates = await rows<WorkerJob>(
-    "worker_jobs?workspace_id=eq.cortifree&status=in.(PENDING,RETRY)&select=*&order=priority.desc&limit=20",
+    "worker_jobs?workspace_id=eq.cortifree&status=in.(PENDING,RETRY)&select=*&order=priority.desc&limit=20" + dueFilter(),
   );
   for (const candidate of candidates.filter((item) => due(item.next_attempt_at))) {
     const claimed = await patch<WorkerJob>(
@@ -181,7 +197,7 @@ async function claimWorkerJob() {
 
 async function claimImageJob() {
   const candidates = await rows(
-    "image_generation_jobs?workspace_id=eq.cortifree&status=in.(PENDING,RETRY)&select=*&order=priority.desc&limit=20",
+    "image_generation_jobs?workspace_id=eq.cortifree&status=in.(PENDING,RETRY)&select=*&order=priority.desc&limit=20" + dueFilter(),
   );
   for (const candidate of candidates.filter((item) => due(item.next_attempt_at))) {
     const id = String(candidate.id);
@@ -220,6 +236,7 @@ async function runAutonomy() {
   await stage("imageJobs", processPendingImageJobs);
   await stage("assetRecovery", resumeAssetBlockedIdeas);
   await stage("configRecovery", resumeConfigBlockedIdeas);
+  await stage("staleGenerationRecovery", () => recoverStaleGeneratingIdeas());
   await stage("failedGenerationRecovery", resumeRetryableFailedIdeas);
   await stage("scheduler", runScheduler);
   await stage("drafts", processQueuedIdeas);
@@ -227,7 +244,9 @@ async function runAutonomy() {
   await stage("publishing", autoScheduleApproved);
   result.finishedAt = new Date().toISOString();
   result.errors = errors;
-  if (Object.keys(errors).length) throw new Error(`AUTONOMY_STAGES_FAILED:${JSON.stringify(errors)}`);
+  // Stage errors are reported in the result, not thrown: a job retry would rerun
+  // every stage and burn the generation attempts of failed ideas within a minute.
+  if (Object.keys(errors).length) console.error("[worker] AUTONOMY_STAGES_FAILED", JSON.stringify(errors));
   return result;
 }
 
@@ -249,13 +268,14 @@ async function runDraftPipeline(payload: Row) {
   // scheduling or publishing stage belongs in this job.
   await stage("assetRecovery", () => resumeAssetBlockedIdeas(limit));
   await stage("configRecovery", () => resumeConfigBlockedIdeas(limit));
+  await stage("staleGenerationRecovery", () => recoverStaleGeneratingIdeas());
   await stage("failedGenerationRecovery", () => resumeRetryableFailedIdeas(limit));
   await stage("drafts", () => processQueuedIdeas(limit));
   await stage("rerenders", () => retryPendingRenders(limit));
 
   result.finishedAt = new Date().toISOString();
   result.errors = errors;
-  if (Object.keys(errors).length) throw new Error(`DRAFT_PIPELINE_STAGES_FAILED:${JSON.stringify(errors)}`);
+  if (Object.keys(errors).length) console.error("[worker] DRAFT_PIPELINE_STAGES_FAILED", JSON.stringify(errors));
   return result;
 }
 
@@ -376,7 +396,7 @@ async function runRender(resourceId: string | null | undefined) {
     return { rendered: rendered.length, urls: rendered.map((slide) => slide.url) };
   } catch (error) {
     const message = errorMessage(error);
-    const assetBlocked = /PERSONA_ASSET|required|ASSET_DIVERSITY_EXHAUSTED|LOW_CONFIDENCE_ASSET|MODELARK_PROVIDER_BLOCKED|AccountOverdueError|overdue balance/i.test(message);
+    const assetBlocked = isAssetBlockedRenderError(message);
     await patch(`carousels?id=eq.${encodeURIComponent(id)}`, {
       lifecycle_state: assetBlocked ? "NEEDS_ASSETS" : "NEEDS_FIX",
       last_review_action: assetBlocked ? "ASSET_BLOCKED" : "RENDER_FAILED",
@@ -411,12 +431,13 @@ async function executeWorkerJob(job: WorkerJob) {
 }
 
 async function finishWorkerJob(job: WorkerJob, result: unknown) {
-  await patch(`worker_jobs?id=eq.${encodeURIComponent(job.id)}&worker_id=eq.${encodeURIComponent(WORKER_ID)}`, {
+  const updated = await patch(`worker_jobs?id=eq.${encodeURIComponent(job.id)}&worker_id=eq.${encodeURIComponent(WORKER_ID)}`, {
     status: "DONE",
     result,
     finished_at: new Date().toISOString(),
     locked_at: null,
   });
+  if (!updated.length) console.error("[worker] LOST LOCK before DONE; another worker may have rerun", job.kind, job.id);
 }
 
 async function failWorkerJob(job: WorkerJob, error: unknown) {
@@ -440,6 +461,7 @@ async function processGenericBatch() {
   for (; processed < MAX_GENERIC_PER_TICK; processed += 1) {
     const job = await claimWorkerJob();
     if (!job) break;
+    const lock = keepLockFresh("worker_jobs", job.id);
     try {
       const result = await executeWorkerJob(job);
       await finishWorkerJob(job, result);
@@ -447,6 +469,8 @@ async function processGenericBatch() {
     } catch (error) {
       console.error("[worker] FAILED", job.kind, job.id, error);
       await failWorkerJob(job, error);
+    } finally {
+      clearInterval(lock);
     }
   }
   return processed;
@@ -469,6 +493,7 @@ async function processImageBatch() {
   for (; processed < MAX_IMAGE_PER_TICK; processed += 1) {
     const job = await claimImageJob();
     if (!job) break;
+    const lock = keepLockFresh("image_generation_jobs", String(job.id));
     try {
       await processImageGenerationJob(String(job.id));
       await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
@@ -492,6 +517,8 @@ async function processImageBatch() {
         finished_at: retry ? null : new Date().toISOString(),
       });
       console.error("[worker] IMAGE FAILED", job.id, error);
+    } finally {
+      clearInterval(lock);
     }
   }
   return processed;
