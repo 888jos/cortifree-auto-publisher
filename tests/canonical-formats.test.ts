@@ -207,7 +207,15 @@ describe("canonical carousel formats", () => {
   });
 
   it("does not persist editorial concept IDs as carousel formats from the Studio", () => {
-    const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+    // The Studio home is split across app/page.tsx and app/_home/**.
+    const homeRoot = new URL("../app/_home/", import.meta.url);
+    const page = [
+      readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"),
+      ...readdirSync(homeRoot, { recursive: true, encoding: "utf8" })
+        .filter((file) => /\.tsx?$/.test(file))
+        .sort()
+        .map((file) => readFileSync(new URL(file, homeRoot), "utf8")),
+    ].join("\n");
     assert.match(page, /carouselType:\s*currentModel\.id/);
     assert.match(page, /layout:\s*currentModel\.layout/);
     assert.doesNotMatch(page, /carouselType:\s*currentType\.id/);
