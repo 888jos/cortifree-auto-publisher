@@ -3,7 +3,7 @@ import { dataBackend } from '../lib/data-backend';
 import { evaluatePublishReadiness } from '../../app/lib/publish-readiness';
 import { resolvePublishingProfile } from '../../app/lib/publishing-profile';
 import { uploadPhotoCarousel } from '../../app/lib/upload-post';
-import { productionGateStatus } from './production-gate';
+import { productionGateStatus, type ProductionGateStatus } from './production-gate';
 
 type Row = Record<string, unknown>;
 async function rows(resource: string): Promise<Row[]> {
@@ -55,10 +55,11 @@ export function nextPostingTime(slots: string[], timezone: string, now = new Dat
   return zonedToUtc(nextCalendar.getUTCFullYear(),nextCalendar.getUTCMonth()+1,nextCalendar.getUTCDate(),hour,minute,timezone);
 }
 
-export async function autoScheduleApproved() {
+// `gate` is injectable so tests can exercise scheduling without a production-sized dataset.
+export async function autoScheduleApproved(options: { gate?: () => Promise<ProductionGateStatus> } = {}) {
   if (process.env.AUTONOMY_AUTO_PUBLISH !== 'true') return [{ action:'AUTO_PUBLISH_DISABLED' }];
   if (process.env.DRY_RUN !== 'false') return [{ action:'BLOCKED_DRY_RUN' }];
-  const gate = await productionGateStatus();
+  const gate = await (options.gate ?? productionGateStatus)();
   if (!gate.ready) return [{ action:'BLOCKED_PRODUCTION_GATE', blockers: gate.blockers, warnings: gate.warnings }];
   const report: Row[]=[];
   const accounts = await loadRuntimeAccounts();
