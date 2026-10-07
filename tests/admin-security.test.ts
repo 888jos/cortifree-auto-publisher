@@ -3,6 +3,7 @@ import test from "node:test";
 import { CRON_PATHS, isAdminRequest, isCronRequest, isEmailAllowed } from "../app/lib/admin-auth";
 import { signedOAuthState, verifyOAuthState } from "../app/lib/google/auth";
 import { assertKnownModelPricing, estimateCostUsd } from "../app/lib/ai/pricing";
+import { parseConvexResource } from "../app/lib/data-backend";
 import { carouselGeneratorInputSchema } from "../app/lib/ai/schemas";
 
 function basic(username: string, password: string) {
@@ -88,4 +89,11 @@ test("Google OAuth state needs a real secret and the browser nonce", () => {
 test("unknown OpenAI models fail closed instead of costing $0", () => {
   assert.throws(() => assertKnownModelPricing("gpt-unknown"), /No pricing/);
   assert.throws(() => estimateCostUsd("gpt-unknown", { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 }), /No pricing/);
+});
+
+test("the data adapter keeps offset, logical and unknown PostgREST filters", () => {
+  const parsed = parseConvexResource("image_generation_usage?created_at=gte.2026-10-01&or=(next_attempt_at.is.null,next_attempt_at.lte.2026-10-07)&last_error=ilike.*Overdue*&limit=1000&offset=2000");
+  assert.equal(parsed.offset, 2000);
+  assert.deepEqual(parsed.filters.find((filter) => filter.field === "or"), { field: "or", op: "raw", value: "(next_attempt_at.is.null,next_attempt_at.lte.2026-10-07)" });
+  assert.deepEqual(parsed.filters.find((filter) => filter.field === "last_error"), { field: "last_error", op: "raw", value: "ilike.*Overdue*" });
 });

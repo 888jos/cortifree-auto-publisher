@@ -3,7 +3,7 @@ import { anyApi } from "convex/server";
 
 const api = anyApi;
 
-type Filter = { field: string; op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "not_null" | "is_null"; value: unknown };
+type Filter = { field: string; op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "not_null" | "is_null" | "raw"; value: unknown };
 
 let client: ConvexHttpClient | null = null;
 const SUPABASE_TABLE_ALIASES: Record<string, string> = {
@@ -46,8 +46,10 @@ export function parseConvexResource(resource: string) {
   const params = new URLSearchParams(query);
   const filters: Filter[] = [];
   for (const [field, raw] of params.entries()) {
-    if (["select", "order", "limit", "on_conflict"].includes(field)) continue;
+    if (["select", "order", "limit", "offset", "on_conflict"].includes(field)) continue;
     if (field === "workspace_id") continue;
+    // PostgREST logical groups are passed through verbatim (Supabase only).
+    if (field === "or" || field === "and") { filters.push({ field, op: "raw", value: raw }); continue; }
     if (raw === "not.is.null") filters.push({ field, op: "not_null", value: true });
     else if (raw === "is.null") filters.push({ field, op: "is_null", value: true });
     else if (raw.startsWith("not.eq.")) filters.push({ field, op: "neq", value: raw.slice(7) });
@@ -59,6 +61,9 @@ export function parseConvexResource(resource: string) {
     else if (raw.startsWith("lt.")) filters.push({ field, op: "lt", value: raw.slice(3) });
     else if (raw.startsWith("like.")) filters.push({ field, op: "like", value: raw.slice(5) });
     else if (raw.startsWith("in.(") && raw.endsWith(")")) filters.push({ field, op: "in", value: raw.slice(4, -1).split(",") });
+    // Any other PostgREST operator (ilike, is.true, not.in, ...) used to be dropped
+    // silently, widening the query; pass it through instead.
+    else filters.push({ field, op: "raw", value: raw });
   }
   filters.push({ field: "workspace_id", op: "eq", value: "cortifree" });
   const [orderField, orderDirection] = (params.get("order") ?? "").split(".");
@@ -69,6 +74,7 @@ export function parseConvexResource(resource: string) {
     orderField: orderField || undefined,
     orderDirection: orderDirection === "desc" ? "desc" as const : "asc" as const,
     limit: Math.min(5000, Math.max(1, Number(params.get("limit") ?? 1000))),
+    offset: Math.max(0, Number(params.get("offset") ?? 0)) || 0,
     conflictFields: params.get("on_conflict")?.split(",").filter(Boolean) ?? [],
   };
 }
@@ -92,10 +98,12 @@ function supabaseQuery(parsed: ReturnType<typeof parseConvexResource>) {
     if (filter.op === "not_null") query.set(filter.field, "not.is.null");
     else if (filter.op === "is_null") query.set(filter.field, "is.null");
     else if (filter.op === "in") query.set(filter.field, `in.(${(filter.value as string[]).join(",")})`);
+    else if (filter.op === "raw") query.set(filter.field, String(filter.value));
     else query.set(filter.field, `${filter.op}.${String(filter.value)}`);
   }
   if (parsed.orderField) query.set("order", `${parsed.orderField}.${parsed.orderDirection}`);
   query.set("limit", String(parsed.limit));
+  if (parsed.offset) query.set("offset", String(parsed.offset));
   return { url: `${url}/rest/v1/${table}?${query}`, key };
 }
 
@@ -116,7 +124,10 @@ export async function dataBackend(resource: string, init: RequestInit = {}) {
         if (parsed.conflictFields.length) {
           const target = new URL(url);
           target.searchParams.set("on_conflict", parsed.conflictFields.join(","));
-          headers.set("Prefer", "resolution=merge-duplicates,return=representation");
+          // Respect a caller's resolution (ignore-duplicates is how atomic claims work).
+          const prefer = headers.get("Prefer") ?? "";
+          const resolution = prefer.match(/resolution=[a-z-]+/)?.[0] ?? "resolution=merge-duplicates";
+          headers.set("Prefer", `${resolution},return=representation`);
           const response = await fetch(target, { ...init, method, headers });
           const body = await response.text();
           return new Response(response.status === 204 ? null : body, { status: response.status, headers: { "Content-Type": "application/json", "X-CortiFree-Backend": "supabase" } });
