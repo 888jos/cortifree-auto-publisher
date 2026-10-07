@@ -15,10 +15,20 @@ async function patch(resource: string, body: Record<string, unknown>) {
   const response = await dataBackend(resource, { method: 'PATCH', body: JSON.stringify(body) });
   if (!response.ok) throw new Error(await response.text());
 }
-async function insert(resource: string, body: unknown) {
-  const response = await dataBackend(resource, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(body) });
-  if (!response.ok) throw new Error(await response.text());
-  return await response.json() as Row[];
+// Atomically claims the publish job for this idempotency key. Returns null when
+// another run already owns it, so Upload-Post is called at most once per claim.
+async function claimPublishJob(body: Row & { idempotency_key: string }): Promise<Row | null> {
+  const created = await dataBackend('publish_jobs?on_conflict=idempotency_key', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify(body) });
+  if (!created.ok) throw new Error(await created.text());
+  const [row] = await created.json() as Row[];
+  if (row) return row;
+  // Only a previously FAILED job may be re-claimed (after the carousel was rescheduled).
+  const retried = await dataBackend(`publish_jobs?idempotency_key=eq.${encodeURIComponent(body.idempotency_key)}&status=eq.FAILED`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ status: 'SCHEDULING', scheduled_at: body.scheduled_at, last_error: null }),
+  });
+  if (!retried.ok) throw new Error(await retried.text());
+  return ((await retried.json()) as Row[])[0] ?? null;
 }
 function localParts(date: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23' }).formatToParts(date);
@@ -71,12 +81,21 @@ export async function autoScheduleApproved() {
       const scheduledDate = new Date(String(carousel.scheduled_for)).toISOString();
       if (!Number.isFinite(Date.parse(scheduledDate))) throw new Error('SCHEDULED_WITHOUT_VALID_TIME');
       const idempotencyKey=`cortifree:${profile}:${platform}:${id}`;
-      const jobs=await insert('publish_jobs?on_conflict=idempotency_key',{workspace_id:'cortifree',carousel_id:id,account_id:account.id,platform,scheduled_at:scheduledDate,external_id:id,idempotency_key:idempotencyKey,attempts:1,status:'SCHEDULING'});
-      const job=jobs[0];
-      const result=await uploadPhotoCarousel({carouselId:id,profile,platform,spec:readiness.spec,slides:rendered,scheduledDate});
+      const job=await claimPublishJob({workspace_id:'cortifree',carousel_id:id,account_id:account.id,platform,scheduled_at:scheduledDate,external_id:id,idempotency_key:idempotencyKey,attempts:1,status:'SCHEDULING'});
+      if (!job) { report.push({account_id:account.id,carousel_id:id,action:'ALREADY_QUEUED'}); continue; }
+      let result: Awaited<ReturnType<typeof uploadPhotoCarousel>>;
+      try {
+        result=await uploadPhotoCarousel({carouselId:id,profile,platform,spec:readiness.spec,slides:rendered,scheduledDate});
+      } catch (error) {
+        // Leaving the job in SCHEDULING would block this account forever (it would look already queued).
+        const message=(error instanceof Error?error.message:String(error)).slice(0,1000);
+        await patch(`publish_jobs?id=eq.${encodeURIComponent(String(job.id))}`,{status:'FAILED',last_error:message});
+        await patch(`carousels?id=eq.${encodeURIComponent(id)}`,{status:'FAILED',review_status:'FAILED',updated_at:new Date().toISOString()});
+        throw error;
+      }
       const requestId=typeof result.request_id==='string'?result.request_id:id;
       const jobId=typeof result.job_id==='string'?result.job_id:null;
-      if(job?.id)await patch(`publish_jobs?id=eq.${encodeURIComponent(String(job.id))}`,{status:'SCHEDULED',provider_request_id:requestId,provider_job_id:jobId,last_error:null});
+      await patch(`publish_jobs?id=eq.${encodeURIComponent(String(job.id))}`,{status:'SCHEDULED',provider_request_id:requestId,provider_job_id:jobId,last_error:null});
       await patch(`carousels?id=eq.${encodeURIComponent(id)}`,{status:'SCHEDULED',review_status:'SCHEDULED',scheduled_for:scheduledDate,updated_at:new Date().toISOString()});
       report.push({account_id:account.id,carousel_id:id,action:'SCHEDULED',scheduled_at:scheduledDate});
     } catch(error){report.push({account_id:account.id,carousel_id:id,action:'ERROR',error:error instanceof Error?error.message:String(error)});}

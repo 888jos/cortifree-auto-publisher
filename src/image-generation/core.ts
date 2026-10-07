@@ -65,7 +65,8 @@ export async function withImageRetry<T>(operation: (attempt: number) => Promise<
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try { return await operation(attempt); } catch (error) {
       lastError = error;
-      const retryable = error instanceof Error && /429|timeout|fetch failed|5\d\d|temporar/i.test(error.message);
+      // Status codes are matched only where the provider puts them ("ModelArk 503: ..."), not anywhere in the body.
+      const retryable = error instanceof Error && /^ModelArk (?:429|5\d\d)\b|timeout|fetch failed|temporar/i.test(error.message);
       if (!retryable || attempt === maxAttempts) throw error;
       await sleep(300 * (2 ** (attempt - 1)));
     }

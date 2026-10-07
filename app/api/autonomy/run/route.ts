@@ -1,6 +1,6 @@
 import { isCronRequest } from '../../../lib/admin-auth';
 import { runScheduler } from '../../../../src/autonomy/scheduler';
-import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from '../../../../src/autonomy/processor';
+import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, recoverStaleGeneratingIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from '../../../../src/autonomy/processor';
 import { refillPersonaCaches, processPendingImageJobs } from '../../../../src/autonomy/image-cache';
 import { refreshPublishStatuses, refreshPostAnalytics, queueWinnerVariants } from '../../../../src/autonomy/performance';
 import { autoScheduleApproved } from '../../../../src/autonomy/publishing';
@@ -44,6 +44,7 @@ export async function GET(request:Request){
   await stage('imageJobs',processPendingImageJobs);
   await stage('assetRecovery',resumeAssetBlockedIdeas);
   await stage('configRecovery',resumeConfigBlockedIdeas);
+  await stage('staleGenerationRecovery',()=>recoverStaleGeneratingIdeas());
   await stage('failedGenerationRecovery',resumeRetryableFailedIdeas);
   await stage('scheduler',runScheduler);
   await stage('drafts',processQueuedIdeas);

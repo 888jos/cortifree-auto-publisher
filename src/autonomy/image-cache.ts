@@ -163,9 +163,19 @@ export async function processPendingImageJobs(limit = Math.max(1, Math.min(6, Nu
   if (process.env.IMAGE_GENERATION_ENABLED !== 'true') return [{ action: 'GENERATION_DISABLED' }];
   const providerBlocker = await recentImageProviderBlocker();
   if (providerBlocker) return [{ action: 'GENERATION_PROVIDER_BLOCKED', reason: providerBlocker.reason, blocked_at: providerBlocker.updatedAt }];
-  const pending = (await rows(`image_generation_jobs?status=in.(PENDING,RETRY)&order=created_at.asc&limit=${limit}`)).slice(0, limit);
+  const due = encodeURIComponent(new Date().toISOString());
+  const pending = (await rows(`image_generation_jobs?status=in.(PENDING,RETRY)&or=(next_attempt_at.is.null,next_attempt_at.lte.${due})&order=created_at.asc&limit=${limit}`)).slice(0, limit);
   const report: Row[] = [];
   for (const job of pending) {
+    // Same compare-and-swap claim as the worker, so both never generate (and pay for) one job twice.
+    const claim = await dataBackend(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}&status=in.(PENDING,RETRY)`, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'RUNNING', locked_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+    });
+    if (!claim.ok || !((await claim.json()) as Row[]).length) {
+      report.push({ id: job.id, status: 'SKIPPED', reason: 'CLAIMED_ELSEWHERE' });
+      continue;
+    }
     try {
       const asset = await processImageGenerationJob(String(job.id));
       report.push({ id: job.id, status: 'DONE', asset_id: asset.id });
