@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dataBackend } from "../../../lib/data-backend";
 import { enqueueWorkerJob } from "../../../lib/worker-queue";
 import { ACTIVE_FORMAT_IDS } from "../../../../src/content/formats";
 
@@ -28,4 +29,28 @@ export async function POST(request: Request) {
     maxAttempts: 1,
   });
   return Response.json({ ok: true, batchId, formatIds, job: queued.job, reused: queued.reused }, { status: 202 });
+}
+
+async function rows(resource: string) {
+  const response = await dataBackend(resource);
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json() as Array<Record<string, unknown>>;
+}
+
+// Progress of one sample: the worker job (with its result) and the batch's ideas.
+export async function GET(request: Request) {
+  const batchId = new URL(request.url).searchParams.get("batchId") ?? "";
+  if (!/^[A-Z0-9_]{3,60}$/.test(batchId)) return Response.json({ error: "Invalid batchId" }, { status: 400 });
+  const [jobs, ideas] = await Promise.all([
+    rows(`worker_jobs?workspace_id=eq.cortifree&idempotency_key=eq.${encodeURIComponent(`acceptance-sample:${batchId}`)}&select=id,status,attempts,last_error,result,started_at,finished_at&limit=1`),
+    rows(`carousel_ideas?workspace_id=eq.cortifree&acceptance_batch_id=eq.${encodeURIComponent(batchId)}&select=*&order=created_at.asc&limit=50`),
+  ]);
+  return Response.json({
+    batchId,
+    job: jobs[0] ?? null,
+    ideas: ideas.map((idea) => ({
+      id: idea.id, format: idea.content_type ?? idea.format_id, persona: idea.persona_id, status: idea.status,
+      render_status: idea.render_status, carousel_id: idea.carousel_id, last_error: idea.last_error, updated_at: idea.updated_at,
+    })),
+  });
 }
