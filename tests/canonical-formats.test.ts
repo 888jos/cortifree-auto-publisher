@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
@@ -7,6 +7,16 @@ import { educationalAssetSlideForSlot, generationCategory, gridAssetSlideForSlot
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
 import { rankingAssetCountForSlide } from "../app/lib/render-carousel.js";
 import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
+
+// The renderer is split across render-carousel.ts and app/lib/render/**.
+function rendererSource() {
+  const root = new URL("../app/lib/render/", import.meta.url);
+  const modules = readdirSync(root, { recursive: true, encoding: "utf8" })
+    .filter((file) => file.endsWith(".ts"))
+    .sort()
+    .map((file) => readFileSync(new URL(file, root), "utf8"));
+  return [readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8"), ...modules].join("\n");
+}
 
 describe("canonical carousel formats", () => {
   it("keeps six formats active while preserving legacy render compatibility", () => {
@@ -45,7 +55,7 @@ describe("canonical carousel formats", () => {
   });
 
   it("keeps F03 asset selection unique across routine steps until the pool is exhausted", () => {
-    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    const renderer = rendererSource();
     const routineBlock = renderer.match(/if \(input\.layout === "routine-timeline"\)[\s\S]*?\n\s*}\n\s*if \(input\.layout !== "grid-2x2"/)?.[0] ?? "";
     assert.match(routineBlock, /usedRoutineAssets/);
     assert.match(routineBlock, /excludedAssetIds: new Set\(\[\.\.\.recentHookAssetIds, \.\.\.usedRoutineAssets\]\)/);
@@ -109,7 +119,7 @@ describe("canonical carousel formats", () => {
   });
 
   it("keeps F05 Notes backgrounds contextual without depending on ModelArk repair", () => {
-    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    const renderer = rendererSource();
     assert.match(renderer, /function checklistBackgroundFallbackSlide/);
     assert.match(renderer, /slides: \[checklistBackgroundFallbackSlide\(slide\)\]/);
     assert.match(renderer, /input\.layout !== "interactive-checklist"/);
@@ -143,7 +153,7 @@ describe("canonical carousel formats", () => {
   });
 
   it("falls back to a text-first F07 cover instead of generating decorative imagery", () => {
-    const renderer = readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8");
+    const renderer = rendererSource();
     assert.match(renderer, /if \(input\.layout === "ranking"\) return undefined/);
     assert.match(renderer, /Ranking cover photos are optional/);
     assert.match(renderer, /F07 can always fall back[\s\S]*slideMatches = \[\]/);
