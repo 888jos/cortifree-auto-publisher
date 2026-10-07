@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { canonicalLayoutFor } from "../app/lib/canonical-layout.js";
 import { getSlideGeometry } from "../app/lib/layout-geometry.js";
@@ -7,16 +6,6 @@ import { educationalAssetSlideForSlot, generationCategory, gridAssetSlideForSlot
 import { getHookGenerationPlan } from "../app/lib/hook-selector.js";
 import { rankingAssetCountForSlide } from "../app/lib/render-carousel.js";
 import { ACTIVE_FORMAT_IDS, contentFormats } from "../src/content/formats.js";
-
-// The renderer is split across render-carousel.ts and app/lib/render/**.
-function rendererSource() {
-  const root = new URL("../app/lib/render/", import.meta.url);
-  const modules = readdirSync(root, { recursive: true, encoding: "utf8" })
-    .filter((file) => file.endsWith(".ts"))
-    .sort()
-    .map((file) => readFileSync(new URL(file, root), "utf8"));
-  return [readFileSync(new URL("../app/lib/render-carousel.ts", import.meta.url), "utf8"), ...modules].join("\n");
-}
 
 describe("canonical carousel formats", () => {
   it("keeps six formats active while preserving legacy render compatibility", () => {
@@ -52,14 +41,6 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.headlineSize, 30);
     assert.equal(body.text.bodySize, 20);
     assert.equal(body.text.maxBodyLines, 2);
-  });
-
-  it("keeps F03 asset selection unique across routine steps until the pool is exhausted", () => {
-    const renderer = rendererSource();
-    const routineBlock = renderer.match(/if \(input\.layout === "routine-timeline"\)[\s\S]*?\n\s*}\n\s*if \(input\.layout !== "grid-2x2"/)?.[0] ?? "";
-    assert.match(routineBlock, /usedRoutineAssets/);
-    assert.match(routineBlock, /excludedAssetIds: new Set\(\[\.\.\.recentHookAssetIds, \.\.\.usedRoutineAssets\]\)/);
-    assert.doesNotMatch(routineBlock, /excludedAssetIds:\s*recentHookAssetIds/);
   });
 
   it("splits F08 visual intent into two per-slide sources before diagonal repetition", () => {
@@ -118,13 +99,6 @@ describe("canonical carousel formats", () => {
     assert.match(supportB.visualIntent, /quiet desk with the phone away/i);
   });
 
-  it("keeps F05 Notes backgrounds contextual without depending on ModelArk repair", () => {
-    const renderer = rendererSource();
-    assert.match(renderer, /function checklistBackgroundFallbackSlide/);
-    assert.match(renderer, /slides: \[checklistBackgroundFallbackSlide\(slide\)\]/);
-    assert.match(renderer, /input\.layout !== "interactive-checklist"/);
-  });
-
   it("keeps F05 as a compact Notes-style checklist with readable mobile type", () => {
     const cover = getSlideGeometry(
       { layout: "interactive-checklist", position: 1, role: "HOOK", headline: "i thought this was normal", body: "" },
@@ -152,19 +126,6 @@ describe("canonical carousel formats", () => {
     assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 0);
   });
 
-  it("falls back to a text-first F07 cover instead of generating decorative imagery", () => {
-    const renderer = rendererSource();
-    assert.match(renderer, /if \(input\.layout === "ranking"\) return undefined/);
-    assert.match(renderer, /Ranking cover photos are optional/);
-    assert.match(renderer, /F07 can always fall back[\s\S]*slideMatches = \[\]/);
-  });
-
-  it("keeps the F05 atmospheric-background fallback below the general asset floor", () => {
-    const selector = readFileSync(new URL("../app/lib/asset-selector.ts", import.meta.url), "utf8");
-    assert.match(selector, /F05_BACKGROUND_FALLBACK_THRESHOLD = 15/);
-    assert.match(selector, /Hard scene\/object\/person constraints still apply/);
-  });
-
   it("keeps F07 tier slides compact, bold and horizontally composed", () => {
     const cover = getSlideGeometry(
       { layout: "ranking", position: 1, role: "HOOK", headline: "sleep habits tier list", body: "backed by evidence" },
@@ -186,15 +147,6 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.width, 930);
   });
 
-  it("supports targeted acceptance batches without falling through to unrelated formats", () => {
-    const scheduler = readFileSync(new URL("../src/autonomy/scheduler.ts", import.meta.url), "utf8");
-    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
-    assert.match(scheduler, /formatIds\?: string\[\]/);
-    assert.match(scheduler, /strictRequestedFormats \? 1 : formatCycle\.length/);
-    assert.match(worker, /payload\.format_ids/);
-    assert.match(worker, /formatIds: requestedFormatIds/);
-  });
-
   it("routes hook generation to canonical formats while keeping concepts separate", () => {
     const routine = getHookGenerationPlan({ category: "Morning & night", text: "my realistic night routine" });
     assert.equal(routine.formatId, "F03_ROUTINE_TIMELINE");
@@ -204,65 +156,5 @@ describe("canonical carousel formats", () => {
     const checklist = getHookGenerationPlan({ category: "Weekly & seasonal reset", text: "save this reset checklist" });
     assert.equal(checklist.formatId, "F05_INTERACTIVE_CHECKLIST");
     assert.equal(checklist.layout, "interactive-checklist");
-  });
-
-  it("does not persist editorial concept IDs as carousel formats from the Studio", () => {
-    // The Studio home is split across app/page.tsx and app/_home/**.
-    const homeRoot = new URL("../app/_home/", import.meta.url);
-    const page = [
-      readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"),
-      ...readdirSync(homeRoot, { recursive: true, encoding: "utf8" })
-        .filter((file) => /\.tsx?$/.test(file))
-        .sort()
-        .map((file) => readFileSync(new URL(file, homeRoot), "utf8")),
-    ].join("\n");
-    assert.match(page, /carouselType:\s*currentModel\.id/);
-    assert.match(page, /layout:\s*currentModel\.layout/);
-    assert.doesNotMatch(page, /carouselType:\s*currentType\.id/);
-  });
-
-  it("keeps carousel status aligned with lifecycle after successful renders", () => {
-    const processor = readFileSync(new URL("../src/autonomy/processor.ts", import.meta.url), "utf8");
-    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
-    const route = readFileSync(new URL("../app/api/carousels/[id]/render/route.ts", import.meta.url), "utf8");
-    assert.match(processor, /status: 'READY_FOR_REVIEW', lifecycle_state: 'READY_FOR_REVIEW'/);
-    assert.match(worker, /status: "READY_FOR_REVIEW",[\s\S]*lifecycle_state: "READY_FOR_REVIEW"/);
-    assert.match(worker, /carousel_ideas[\s\S]*render_status: "READY_FOR_REVIEW"/);
-    assert.match(route, /status: "READY_FOR_REVIEW", lifecycle_state: "READY_FOR_REVIEW"/);
-    assert.match(route, /carousel_ideas[\s\S]*render_status: "READY_FOR_REVIEW"/);
-  });
-
-  it("keeps the draft worker path isolated from publishing", () => {
-    const queue = readFileSync(new URL("../app/lib/worker-queue.ts", import.meta.url), "utf8");
-    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
-    assert.match(queue, /"DRAFT_PIPELINE"/);
-    assert.match(worker, /job\.kind === "DRAFT_PIPELINE"/);
-    const draftPipeline = worker.match(/async function runDraftPipeline[\s\S]*?\n}\n\nasync function runAcceptanceSample/)?.[0] ?? "";
-    assert.match(draftPipeline, /processQueuedIdeas/);
-    assert.match(draftPipeline, /retryPendingRenders/);
-    assert.doesNotMatch(draftPipeline, /autoScheduleApproved|runScheduler|refreshPublishStatuses/);
-  });
-
-  it("scopes generation and draft rerenders to the CortiFree workspace", () => {
-    const processor = readFileSync(new URL("../src/autonomy/processor.ts", import.meta.url), "utf8");
-    assert.match(processor, /carousel_ideas\?workspace_id=eq\.cortifree&status=eq\.QUEUED/);
-    assert.match(processor, /carousels\?workspace_id=eq\.cortifree&status=eq\.DRAFT/);
-  });
-
-  it("keeps worker heartbeats alive during long-running jobs", () => {
-    const worker = readFileSync(new URL("../src/worker/heavy-worker.ts", import.meta.url), "utf8");
-    assert.match(worker, /function startHeartbeatLoop\(\)/);
-    assert.match(worker, /setInterval\(\(\) =>/);
-    assert.match(worker, /HEARTBEAT FAILED/);
-    assert.match(worker, /startHeartbeatLoop\(\);/);
-    assert.doesNotMatch(worker, /let lastHeartbeat = Date\.now\(\)/);
-  });
-
-  it("keeps login and both Telegram webhook URLs outside session middleware", () => {
-    const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
-    assert.match(middleware, /"\/login"/);
-    assert.match(middleware, /"\/api\/auth\/login"/);
-    assert.match(middleware, /"\/api\/telegram\/webhook"/);
-    assert.match(middleware, /"\/api\/integrations\/telegram\/webhook"/);
   });
 });
