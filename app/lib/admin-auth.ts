@@ -51,3 +51,27 @@ export function isCronRequest(request: Request) {
   return constantTimeEqual(bearer, expected)
     || constantTimeEqual(request.headers.get("x-cron-secret") ?? "", expected);
 }
+
+export function isCronOrAdminRequest(request: Request) {
+  return isCronRequest(request) || isAdminRequest(request);
+}
+
+// Machine-to-machine routes that accept the CRON_SECRET bearer without a user session.
+export const CRON_PATHS = new Set([
+  "/api/autonomy/run",
+  "/api/ops/refresh",
+  "/api/sync/google",
+  "/api/sync/persona-assets",
+  "/api/acceptance/gate",
+  "/api/production-gate",
+]);
+
+export function allowedEmails(raw = process.env.CORTIFREE_ALLOWED_EMAILS) {
+  return (raw ?? "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
+}
+
+// Fails closed in production: an empty allowlist admits nobody.
+export function isEmailAllowed(email: string | null | undefined, allowlist = allowedEmails()) {
+  if (!allowlist.length) return process.env.NODE_ENV !== "production";
+  return Boolean(email && allowlist.includes(email.trim().toLowerCase()));
+}

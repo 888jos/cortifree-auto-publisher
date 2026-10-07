@@ -1,3 +1,4 @@
+import { isCronOrAdminRequest } from "../../../lib/admin-auth";
 import { syncPersonaGeneratedAssetsToDrive } from "../../../lib/sync/persona-assets";
 import { enqueueWorkerJob, shouldDelegateHeavyWork } from "../../../lib/worker-queue";
 
@@ -5,13 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET || process.env.CORTIFREE_ADMIN_SECRET;
-  return Boolean(secret && (
-    request.headers.get("authorization") === `Bearer ${secret}`
-    || request.headers.get("x-cron-secret") === secret
-    || request.headers.get("x-admin-token") === secret
-    || request.headers.get("x-admin-password") === process.env.CORTIFREE_ADMIN_PASSWORD
-  ));
+  return isCronOrAdminRequest(request);
 }
 
 export async function POST(request: Request) {

@@ -153,6 +153,9 @@ export async function productionGateStatus(): Promise<ProductionGateStatus> {
   checks.cronSecret = boolEnv("CRON_SECRET");
   if (!checks.cronSecret) blockers.push("CRON_SECRET_MISSING");
 
+  checks.allowedEmails = boolEnv("CORTIFREE_ALLOWED_EMAILS");
+  if (!checks.allowedEmails) blockers.push("CORTIFREE_ALLOWED_EMAILS_MISSING");
+
   checks.dryRun = process.env.DRY_RUN !== "false";
   checks.autoApprove = process.env.AUTONOMY_AUTO_APPROVE === "true";
   checks.autoPublish = process.env.AUTONOMY_AUTO_PUBLISH === "true";

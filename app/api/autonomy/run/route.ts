@@ -1,3 +1,4 @@
+import { isCronRequest } from '../../../lib/admin-auth';
 import { runScheduler } from '../../../../src/autonomy/scheduler';
 import { processQueuedIdeas, resumeAssetBlockedIdeas, resumeConfigBlockedIdeas, resumeRetryableFailedIdeas, retryPendingRenders } from '../../../../src/autonomy/processor';
 import { refillPersonaCaches, processPendingImageJobs } from '../../../../src/autonomy/image-cache';
@@ -8,10 +9,8 @@ import { enqueueWorkerJob, shouldDelegateHeavyWork } from '../../../lib/worker-q
 export const runtime='nodejs';
 export const maxDuration=300;
 
-function authorized(request:Request){
-  const secret=process.env.CRON_SECRET;
-  if(!secret)return false;
-  return request.headers.get('authorization')===`Bearer ${secret}`;
+function authorized(request: Request) {
+  return isCronRequest(request);
 }
 
 function parisHour(date = new Date()) {

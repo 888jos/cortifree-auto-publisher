@@ -6,6 +6,7 @@ import { buildGeneratorInput, CAROUSEL_GENERATOR_INSTRUCTIONS, CAROUSEL_GENERATO
 import { carouselSpecSchema, type CarouselReview, type CarouselSpec } from "./schemas";
 import { reviewCarouselDraft, shouldRunQA } from "./carousel-reviewer";
 import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
+import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec } from "./validation";
 
 export type GenerateCarouselResult = {
@@ -82,13 +83,16 @@ export async function generateCarousel(
     return fallback("OPENAI_API_KEY is missing");
   }
 
+  assertKnownModelPricing(config.OPENAI_MODEL_PRIMARY);
   const monthly = await (dependencies.monthlyUsage ?? getMonthlyUsage)();
   assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, input.bypassMonthlyCap === true);
 
   const request: CarouselStructuredRequest = dependencies.structuredRequest ?? requestStructured;
+  // Tokens from rejected attempts are still billed, so they are logged on failure too.
+  let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+  let usageLogged = false;
   try {
     let spec: CarouselSpec | null = null;
-    let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
     let lastValidationError: unknown;
     const maxAttempts = 4;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -130,6 +134,7 @@ export async function generateCarousel(
     }
     if (!spec) throw lastValidationError ?? new Error("OpenAI returned no usable carousel");
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: true });
+    usageLogged = true;
 
     let qa: CarouselReview | null = null;
     if (config.OPENAI_QA_ENABLED && shouldRunQA(config.OPENAI_QA_SAMPLE_RATE, dependencies.random)) {
@@ -147,7 +152,7 @@ export async function generateCarousel(
     }
     return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
   } catch (error) {
-    await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
+    if (!usageLogged) await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
     if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError(error instanceof Error ? error.message : "OpenAI request failed");
     return fallback(error instanceof Error ? error.message : "OpenAI request failed");
   }

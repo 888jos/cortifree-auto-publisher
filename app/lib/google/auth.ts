@@ -55,21 +55,34 @@ export function googleOAuthAuthorizationUrl(state: string, origin?: string) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
-export function signedOAuthState() {
-  const payload = `${Date.now()}.${crypto.randomUUID()}`;
-  const secret = process.env.OAUTH_STATE_SECRET || process.env.CORTIFREE_ADMIN_SECRET || "cortifree-oauth-state";
-  const signature = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+export const OAUTH_STATE_COOKIE = "cf_google_oauth_nonce";
+
+function oauthStateSecret() {
+  const secret = process.env.OAUTH_STATE_SECRET?.trim() || process.env.TOKEN_ENCRYPTION_KEY?.trim();
+  if (!secret) throw new Error("Set OAUTH_STATE_SECRET (or TOKEN_ENCRYPTION_KEY) before starting Google OAuth");
+  return secret;
+}
+
+// The state carries a nonce that must match an httpOnly cookie set on the
+// browser that started the flow, so a state cannot be replayed from elsewhere.
+export function signedOAuthState(nonce: string) {
+  const payload = `${Date.now()}.${nonce}`;
+  const signature = crypto.createHmac("sha256", oauthStateSecret()).update(payload).digest("base64url");
   return `${b64url(payload)}.${signature}`;
 }
 
-export function verifyOAuthState(state: string) {
+export function verifyOAuthState(state: string, cookieNonce: string | null | undefined) {
   const [encoded, signature] = state.split(".");
-  if (!encoded || !signature) return false;
+  if (!encoded || !signature || !cookieNonce) return false;
   const payload = Buffer.from(encoded, "base64url").toString("utf8");
-  const secret = process.env.OAUTH_STATE_SECRET || process.env.CORTIFREE_ADMIN_SECRET || "cortifree-oauth-state";
-  const expected = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
-  const timestamp = Number(payload.split(".", 1)[0]);
-  return signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) && Number.isFinite(timestamp) && Date.now() - timestamp < 10 * 60 * 1000;
+  const expected = crypto.createHmac("sha256", oauthStateSecret()).update(payload).digest("base64url");
+  const [rawTimestamp, nonce] = payload.split(".");
+  const timestamp = Number(rawTimestamp);
+  return signature.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    && nonce === cookieNonce
+    && Number.isFinite(timestamp)
+    && Date.now() - timestamp < 10 * 60 * 1000;
 }
 
 export async function exchangeGoogleOAuthCode(code: string, origin?: string) {

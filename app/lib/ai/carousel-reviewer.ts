@@ -3,6 +3,7 @@ import { CAROUSEL_REVIEWER_INSTRUCTIONS, CAROUSEL_REVIEWER_PROMPT_VERSION } from
 import { carouselReviewSchema, carouselSpecSchema, type CarouselReview, type CarouselSpec } from "./schemas";
 import { requestStructured } from "./openai-client";
 import { logAIUsage } from "./usage";
+import { assertKnownModelPricing } from "./pricing";
 import { validateCarouselSpec } from "./validation";
 
 export function shouldRunQA(sampleRate: number, random = Math.random): boolean {
@@ -19,6 +20,7 @@ export async function reviewCarouselDraft(
     return { approved: false, score: 0, issues: deterministicIssues.map((issue) => ({ ...issue, slidePosition: issue.slidePosition ?? null })), correctedSpec: null };
   }
 
+  assertKnownModelPricing(config.OPENAI_MODEL_QA);
   try {
     const result = await requestStructured({
       model: config.OPENAI_MODEL_QA,

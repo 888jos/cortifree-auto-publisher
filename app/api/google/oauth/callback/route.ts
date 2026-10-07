@@ -1,4 +1,4 @@
-import { exchangeGoogleOAuthCode, googleOAuthRedirectUri, verifyOAuthState } from "../../../../lib/google/auth";
+import { exchangeGoogleOAuthCode, googleOAuthRedirectUri, OAUTH_STATE_COOKIE, verifyOAuthState } from "../../../../lib/google/auth";
 import { storeGoogleRefreshToken } from "../../../../lib/google/oauth-store";
 
 export const runtime = "nodejs";
@@ -7,7 +7,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state") || "";
-  if (!code || !verifyOAuthState(state)) return new Response("OAuth state or code is invalid/expired.", { status: 400 });
+  const cookieNonce = request.headers.get("cookie")?.split(";").map((part) => part.trim().split("="))
+    .find(([name]) => name === OAUTH_STATE_COOKIE)?.[1];
+  let validState = false;
+  try { validState = verifyOAuthState(state, cookieNonce); } catch { validState = false; }
+  if (!code || !validState) return new Response("OAuth state or code is invalid/expired.", { status: 400 });
   try {
     const token = await exchangeGoogleOAuthCode(code, url.origin);
     const refreshToken = token.refresh_token;

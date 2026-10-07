@@ -15,21 +15,34 @@ export function assertWithinMonthlyCap(spent: number, cap: number, bypass = fals
   if (!bypass && spent >= cap) throw new MonthlyCapExceededError(spent, cap);
 }
 
+// Throws when usage cannot be read: callers must not treat an unknown spend as $0.
 export async function getMonthlyUsage(): Promise<MonthlyUsage> {
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
-  try {
-    const response = await dataBackend(`ai_usage_logs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=estimated_cost_usd,input_tokens,cached_input_tokens,output_tokens&created_at=gte.${encodeURIComponent(monthStart)}`);
-    if (!response.ok) throw new Error("Usage query failed");
+  const total: MonthlyUsage = { costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+  // Paged: PostgREST caps a single response (1000 rows by default), which would undercount.
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await dataBackend(`ai_usage_logs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=estimated_cost_usd,input_tokens,cached_input_tokens,output_tokens&created_at=gte.${encodeURIComponent(monthStart)}&order=id.asc&limit=${pageSize}&offset=${offset}`);
+    if (!response.ok) throw new Error("Cannot verify monthly OpenAI usage; generation is blocked until it can be read");
     const rows = await response.json() as Array<Record<string, number | string | null>>;
-    return rows.reduce<MonthlyUsage>((total, row) => ({
-      costUsd: total.costUsd + Number(row.estimated_cost_usd ?? 0),
-      calls: total.calls + 1,
-      inputTokens: total.inputTokens + Number(row.input_tokens ?? 0),
-      cachedInputTokens: total.cachedInputTokens + Number(row.cached_input_tokens ?? 0),
-      outputTokens: total.outputTokens + Number(row.output_tokens ?? 0),
-    }), { costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 });
-  } catch {
-    return { costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+    for (const row of rows) {
+      total.costUsd += Number(row.estimated_cost_usd ?? 0);
+      total.calls += 1;
+      total.inputTokens += Number(row.input_tokens ?? 0);
+      total.cachedInputTokens += Number(row.cached_input_tokens ?? 0);
+      total.outputTokens += Number(row.output_tokens ?? 0);
+    }
+    if (rows.length < pageSize) return total;
+  }
+}
+
+function safeEstimate(model: string, usage: TokenUsage) {
+  try {
+    return estimateCostUsd(model, usage);
+  } catch (error) {
+    // Callers check pricing before any request, so this only guards the log write.
+    console.error("[ai-usage]", error instanceof Error ? error.message : error);
+    return 0;
   }
 }
 
@@ -50,7 +63,7 @@ export async function logAIUsage(entry: {
     input_tokens: usage.inputTokens,
     cached_input_tokens: usage.cachedInputTokens,
     output_tokens: usage.outputTokens,
-    estimated_cost_usd: estimateCostUsd(entry.model, usage),
+    estimated_cost_usd: safeEstimate(entry.model, usage),
     success: entry.success,
     error: entry.error?.slice(0, 1_000) ?? null,
   };
