@@ -415,6 +415,11 @@ export async function syncEditorialSheetToBackend() {
 
   const recordMirrors = [
     { sheet: "04_CONTENT_PILLARS", range: "A1:I40", kind: "pillars", key: "pillar_id", title: "name" },
+    // Voice columns (slang_level, voice_markers, avoid_voice...) sit past the
+    // content_personas columns, so the full row is mirrored for the generator.
+    { sheet: "01_PERSONAS", range: "A1:AD40", kind: "persona_voice", key: "persona_id", title: "name" },
+    // STYLE_REFERENCE rows are real creator hooks used as voice references.
+    { sheet: "06_HOOKS", range: "A1:Q400", kind: "hook_references", key: "hook_id", title: "formula" },
     { sheet: "09_CLAIMS_RULES", range: "A1:L100", kind: "claim_rules", key: "rule_id", title: "topic" },
     { sheet: "09_HEALTH_SOURCES", range: "A1:I100", kind: "health_sources", key: "source_id", title: "title" },
     { sheet: "12_AUTONOMY_RULES", range: "A1:G100", kind: "autonomy_rules", key: "rule_id", title: "key" },

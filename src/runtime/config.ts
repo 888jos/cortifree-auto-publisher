@@ -212,3 +212,109 @@ export async function loadRuntimePersonaConfigs(): Promise<PersonaConfig[]> {
   if (!allowJsonFallback()) throw new Error("Runtime personas are empty/unavailable and JSON fallback is disabled");
   return (fallbackPersonas as unknown[]).map((value) => personaConfigSchema.parse(value));
 }
+
+export type RuntimeVoiceReferences = {
+  personaVoice: string;
+  hookReferences: string[];
+  voiceExamples: RuntimeGoldenExample[];
+};
+
+const splitList = (value: unknown) => String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
+const isTrue = (value: unknown, fallback = true) => {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return fallback;
+  return !["false", "0", "no", "faux", "non"].includes(normalized);
+};
+
+function shuffled<T>(items: T[], random: () => number) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [copy[index], copy[swap]] = [copy[swap]!, copy[index]!];
+  }
+  return copy;
+}
+
+async function editorialRecords(kind: string): Promise<AnyRow[]> {
+  const response = await dataBackend(`editorial_records?kind=eq.${encodeURIComponent(kind)}&active=eq.true&select=data&limit=1000`);
+  if (!response.ok) return [];
+  const records = await response.json() as Array<{ data?: AnyRow }>;
+  return records.map((row) => row.data ?? {}).filter((row) => Object.keys(row).length > 0);
+}
+
+/** One readable voice brief from the persona's 01_PERSONAS voice columns. */
+export function personaVoiceBrief(row: AnyRow | undefined, fallbackName: string) {
+  if (!row) return fallbackName;
+  const parts = [
+    `${String(row.name ?? fallbackName)}${row.age ? `, ${row.age}` : ""}: ${String(row.voice_markers ?? row.voice ?? "").trim()}`,
+    row.situation ? `life right now: ${row.situation}` : "",
+    row.slang_level ? `slang level ${row.slang_level}/10` : "",
+    row.punctuation_profile ? `punctuation: ${row.punctuation_profile}` : "",
+    row.allowed_invented_details ? `details she can mention: ${row.allowed_invented_details}` : "",
+    row.avoid_voice ? `never sounds like: ${row.avoid_voice}` : "",
+  ].map((part) => part.trim()).filter(Boolean);
+  return parts.join(". ");
+}
+
+/**
+ * Voice references from the Sheet: the persona's voice columns, the
+ * STYLE_REFERENCE hooks written for this format (06_HOOKS), and creator-voice
+ * golden carousels (20_GOLDEN_CAROUSELS concept rows) compatible with it.
+ * Every read is best-effort: missing references only weaken the prompt.
+ */
+export async function loadRuntimeVoiceReferences(input: {
+  formatId: string;
+  personaId: string;
+  personaName: string;
+  hookLimit?: number;
+  exampleLimit?: number;
+  random?: () => number;
+}): Promise<RuntimeVoiceReferences> {
+  const empty = { personaVoice: input.personaName, hookReferences: [], voiceExamples: [] };
+  if (!backendConfigured()) return empty;
+  const random = input.random ?? Math.random;
+  try {
+    const [personaRows, hookRows, goldenRows] = await Promise.all([
+      editorialRecords("persona_voice"),
+      editorialRecords("hook_references"),
+      loadRuntimeRows("editorial_golden_examples", 500).catch(() => [] as AnyRow[]),
+    ]);
+    const persona = personaRows.find((row) => String(row.persona_id ?? "") === input.personaId);
+    const styleHooks = hookRows.filter((row) =>
+      String(row.runtime_use ?? "").toUpperCase() === "STYLE_REFERENCE"
+      && isTrue(row.active)
+      && splitList(row.compatible_formats).includes(input.formatId));
+    const hookReferences = shuffled(styleHooks, random)
+      .slice(0, input.hookLimit ?? 8)
+      .map((row) => String(row.formula ?? "").trim())
+      .filter(Boolean);
+    const voiceGoldens = goldenRows.filter((row) => {
+      const content = row.content && typeof row.content === "object" ? row.content as AnyRow : {};
+      return row.active !== false
+        && String(row.approval_status ?? "").toLowerCase() !== "rejected"
+        && /^C\d{2}_/.test(String(row.concept_id ?? content.format_id ?? ""))
+        && splitList(content.compatible_format_ids).includes(input.formatId);
+    });
+    const voiceExamples = shuffled(voiceGoldens, random).slice(0, input.exampleLimit ?? 3).map((row) => {
+      const content = row.content && typeof row.content === "object" ? row.content as AnyRow : {};
+      const slides = ["slide_2", "slide_3", "slide_4", "slide_5", "slide_6", "slide_7", "cta"]
+        .map((key) => String(content[key] ?? "").trim()).filter(Boolean);
+      return {
+        id: String(row.example_id ?? ""),
+        formatId: input.formatId,
+        pillarId: String(row.pillar_id ?? ""),
+        topic: String(row.topic ?? content.topic ?? ""),
+        hook: String(row.hook ?? content.hook ?? ""),
+        slides,
+        toneNotes: String(content.tone_notes ?? ""),
+        whyItWorks: String(content.why_it_works ?? ""),
+        visualDirection: String(content.visual_direction ?? ""),
+      };
+    }).filter((example) => example.id && example.hook);
+    return { personaVoice: personaVoiceBrief(persona, input.personaName), hookReferences, voiceExamples };
+  } catch (error) {
+    console.error("[editorial] voice reference load failed", { formatId: input.formatId, error: error instanceof Error ? error.message : String(error) });
+    return empty;
+  }
+}

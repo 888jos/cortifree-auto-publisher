@@ -28,6 +28,11 @@ export const editorialContextSchema = z.object({
     id: z.string(), formatId: z.string(), pillarId: z.string(), topic: z.string(), hook: z.string(),
     slides: z.array(z.string()).max(12), toneNotes: z.string(), whyItWorks: z.string(), visualDirection: z.string(),
   })).max(3).optional(),
+  hook_style_references: z.array(z.string().max(200)).max(12).optional(),
+  voice_examples: z.array(z.object({
+    id: z.string(), formatId: z.string(), pillarId: z.string(), topic: z.string(), hook: z.string(),
+    slides: z.array(z.string()).max(12), toneNotes: z.string(), whyItWorks: z.string(), visualDirection: z.string(),
+  })).max(3).optional(),
   concept_id: z.string().optional(), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
   account_id: z.string(), persona_id: z.string(),
   brand_integration: z.object({

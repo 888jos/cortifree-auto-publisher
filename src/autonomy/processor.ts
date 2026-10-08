@@ -5,7 +5,7 @@ import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carouse
 import { renderCarousel } from '../../app/lib/render-carousel';
 import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
-import { loadRuntimeAccounts, loadRuntimeGoldenExamples, loadRuntimePersonaConfigs, loadRuntimeRows } from '../runtime/config';
+import { loadRuntimeAccounts, loadRuntimeGoldenExamples, loadRuntimePersonaConfigs, loadRuntimeRows, loadRuntimeVoiceReferences } from '../runtime/config';
 import { assertCarouselHasCompleteRender } from '../../app/lib/human-review';
 import { loadHealthGuardrails } from './health-context';
 import { checkGenerationAssetReadiness, requestPreflightRefill } from './preflight';
@@ -228,6 +228,9 @@ export async function processQueuedIdeas(
         last_error: null,
       });
       const goldenExamples = await loadRuntimeGoldenExamples(contentType, String(idea.pillar_id ?? ''), 3);
+      const voice = await loadRuntimeVoiceReferences({
+        formatId: contentType, personaId, personaName: String(personaNames.get(personaId) ?? personaId),
+      });
       const input = carouselGeneratorInputSchema.parse({
         carouselType: contentType,
         layout,
@@ -251,9 +254,11 @@ export async function processQueuedIdeas(
         editorialContext: {
           search_query: `${String(idea.topic ?? '')} ${String(idea.angle ?? '')}`.trim(),
           primary_keyword: String(idea.topic ?? ''), secondary_keywords: [], language_profile: 'GENZ_GIRLY_US',
-          language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: String(personaNames.get(personaId) ?? personaId),
+          language_version: 'genz-girly-us-v1', trend_terms: [], persona_voice: voice.personaVoice,
           golden_example_ids: goldenExamples.map((example) => example.id),
           golden_examples: goldenExamples,
+          hook_style_references: voice.hookReferences,
+          voice_examples: voice.voiceExamples,
           concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || 'DYNAMIC'),
           format_id: contentType, account_id: accountId, persona_id: personaId,
           brand_integration: {
