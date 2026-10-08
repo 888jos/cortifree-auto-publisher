@@ -104,7 +104,8 @@ export function isVoicelessChecklist(spec: CarouselSpec) {
     .filter((slide) => slide.layout === "interactive-checklist" && slide.role !== "HOOK")
     .flatMap((slide) => slide.body.split(/\s*\|\s*/).map((item) => item.trim()).filter(Boolean));
   if (items.length < 4) return false;
-  return items.filter((item) => PERSONAL_ITEM.test(item)).length < items.length / 2;
+  // Low bar on purpose: a higher one made the model force "i" into every item.
+  return items.filter((item) => PERSONAL_ITEM.test(item)).length < items.length / 4;
 }
 
 function referenceTexts(input: CarouselGeneratorInput) {
@@ -170,10 +171,10 @@ export async function generateCarousel(
           ? "\nF05 CHECKLIST REPAIR: Every body Note after the cover must contain exactly 5 complete useful checklist items separated by exactly four ' | ' delimiters. Each item is one clear behavior, choice or principle. Do not use pipe characters inside an item."
           : "";
         const checklistVoiceRepair = /VOICELESS_CHECKLIST/.test(repairIssues)
-          ? "\nCHECKLIST VOICE REPAIR: The Notes items read like a generic command list. Rewrite them as her own notes: at least half in first person or with a short aside in parentheses (e.g. \"phone charges in the kitchen (i will cave otherwise)\"), 4-12 words each, 4-5 items per Note."
+          ? "\nCHECKLIST VOICE REPAIR: The Notes items read like a generic command list. Give a few of them her own touch (first person or a short aside in parentheses, e.g. \"phone charges in the kitchen (i will cave otherwise)\"), keep the rest as short plain notes, 4-12 words each, 4-5 items per Note."
           : "";
         const nativeRepair = /NATIVE_STYLE/.test(repairIssues)
-          ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, and remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers. Say it the way she would say it to a friend."
+          ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers, and vary sentence shapes: do not explain every action with \"..., so i...\". Say it the way she would say it to a friend."
           : "";
         const dashRepair = /DASH_PUNCTUATION/.test(repairIssues)
           ? "\nDASH REPAIR: Remove every em dash, en dash and spaced hyphen used as punctuation. Use a comma, a colon, a new short sentence, or \" / \" like a person typing on her phone. Hyphens inside words (low-effort) and F03 time ranges stay."

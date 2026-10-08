@@ -12,6 +12,7 @@ describe("native TikTok case", () => {
     assert.equal(nativeCase("Pause the cart before adding one more thing."), "pause the cart before adding one more thing");
     assert.equal(nativeCase("HOW TO | Write the next action. | Keep it short."), "HOW TO | write the next action | keep it short");
     assert.equal(nativeCase("S · Leave the shoes by the door"), "S · leave the shoes by the door");
+    assert.equal(nativeCase("ss · charge it away from the bed"), "SS · charge it away from the bed");
     assert.equal(nativeCase("I'm using CortiFree rn..."), "i'm using CortiFree rn...");
     assert.equal(nativeCase("the room feels less like a cave, which is honestly helpful"), "the room feels less like a cave, which is helpful");
   });
@@ -23,6 +24,12 @@ describe("native style issues", () => {
     const issues = nativeStyleIssues(spec([slide(1, "ranking", ""), slide(2, "ranking", long), slide(3, "ranking", long)], "not the whole day, just the first thing", "progress, not evidence"));
     assert.ok(issues.some((issue) => issue.startsWith("TOO_LONG")));
     assert.ok(issues.some((issue) => issue.startsWith("AI_CONTRAST")));
+  });
+
+  it("flags the same so-i sentence shape on most slides", () => {
+    const so = (text: string) => `i do ${text}, so i feel calmer`;
+    const issues = nativeStyleIssues(spec([slide(1, "lifestyle-3stack", ""), ...[2, 3, 4, 5].map((n) => slide(n, "lifestyle-3stack", so(`thing ${n}`)))]));
+    assert.ok(issues.some((issue) => issue.startsWith("REPETITIVE_SHAPE")));
   });
 
   it("accepts short native lines", () => {

@@ -18,8 +18,9 @@ const CRUTCHES = /(^|[\s,(])(?:honestly|weirdly),?\s+/gi;
 /** Lowercases copy (keeping labels, tiers and brands) and drops the final period of each line. */
 export function nativeCase(text: string) {
   text = text.replace(CRUTCHES, "$1");
-  const tier = text.match(/^\s*(SS|[SABCDF][+-]?)\s*·\s*/);
-  const head = tier ? tier[0] : "";
+  // F07 tiers stay uppercase even when the model lowercases them ("s ·").
+  const tier = text.match(/^\s*(ss|[sabcdf][+-]?)\s*·\s*/i);
+  const head = tier ? tier[0].toUpperCase() : "";
   const rest = text.slice(head.length);
   const lowered = rest.split(/(\s+)/).map((part) => (/\s/.test(part) ? part : lowerWord(part))).join("");
   return head + lowered
@@ -56,5 +57,8 @@ export function nativeStyleIssues(spec: CarouselSpec): string[] {
   const copy = [spec.hook, spec.caption, ...spec.slides.flatMap((slide) => [slide.headline, slide.body])].join("\n");
   const contrasts = CONTRAST.reduce((total, pattern) => total + (copy.match(pattern)?.length ?? 0), 0);
   if (contrasts >= 2) issues.push(`AI_CONTRAST: ${contrasts} "not X, just Y" / "X, not Y" constructions`);
+  // The same sentence shape on every slide ("i do X, so Y") reads generated.
+  const shaped = body.filter((slide) => /,\s*so\s+(?:i|you|the|my)\b|\bso\s+i\b/i.test(slide.body)).length;
+  if (body.length >= 4 && shaped >= Math.ceil(body.length / 2)) issues.push(`REPETITIVE_SHAPE: ${shaped} slides use the same "..., so i..." sentence; vary the shapes`);
   return issues;
 }
