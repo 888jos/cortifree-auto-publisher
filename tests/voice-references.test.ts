@@ -42,3 +42,24 @@ describe("Sheet voice references", () => {
     assert.deepEqual(voice.voiceExamples[0]!.slides, ["a / b"]);
   });
 });
+
+describe("reference copy guard", async () => {
+  const { copiedReferencePhrase } = await import("../app/lib/ai/carousel-generator.js");
+  const spec = (hook: string, bodies: string[]) => ({
+    title: "t", topic: "t", angle: "a", hook, caption: "c",
+    slides: bodies.map((body, index) => ({ position: index + 1, role: index ? "STEP" : "HOOK", layout: "grid-2x2", headline: `h${index}`, body, visualIntent: "v", assetType: "stock", assetQuery: "q" })),
+  }) as never;
+
+  it("flags a hook lifted from a reference", () => {
+    assert.equal(
+      copiedReferencePhrase(spec("my lazy girl reset checklist for sunday", ["x"]), ["my lazy girl reset checklist ♡"]),
+      "my lazy girl reset checklist",
+    );
+  });
+
+  it("flags copy that repeats two long reference runs, not ordinary short phrases", () => {
+    const reference = "before — save another routine every time something looked off and then buy the missing product before finishing the ones i already liked";
+    assert.ok(copiedReferencePhrase(spec("new hook", [reference]), [reference]));
+    assert.equal(copiedReferencePhrase(spec("new hook", ["close the laptop and write tomorrow's first task"]), ["10:20 - 10:25 · close the laptop and write tomorrow's first task"]), null);
+  });
+});

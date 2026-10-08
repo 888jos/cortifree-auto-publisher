@@ -56,6 +56,44 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
   };
 }
 
+const referenceWords = (value: string) => value.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).filter(Boolean);
+function shingles(value: string, size: number) {
+  const words = referenceWords(value);
+  const out = new Set<string>();
+  for (let index = 0; index + size <= words.length; index += 1) out.add(words.slice(index, index + size).join(" "));
+  return out;
+}
+
+/**
+ * Returns the first phrase the draft lifted from a reference or recent post:
+ * a 5-word run in the hook, or two distinct 7-word runs anywhere in the copy.
+ * Ordinary short phrases ("close the laptop") never trigger it.
+ */
+export function copiedReferencePhrase(spec: CarouselSpec, references: string[]): string | null {
+  const hookRefs = new Set<string>();
+  const copyRefs = new Set<string>();
+  for (const reference of references) {
+    for (const shingle of shingles(reference, 5)) hookRefs.add(shingle);
+    for (const shingle of shingles(reference, 7)) copyRefs.add(shingle);
+  }
+  for (const shingle of shingles(spec.hook, 5)) if (hookRefs.has(shingle)) return shingle;
+  const copied = new Set<string>();
+  for (const field of [spec.caption, ...spec.slides.flatMap((slide) => [slide.headline, slide.body])]) {
+    for (const shingle of shingles(field, 7)) if (copyRefs.has(shingle)) copied.add(shingle);
+  }
+  return copied.size >= 2 ? [...copied][0]! : null;
+}
+
+function referenceTexts(input: CarouselGeneratorInput) {
+  const context = input.editorialContext;
+  const examples = [...(context?.golden_examples ?? []), ...(context?.voice_examples ?? [])];
+  return [
+    ...examples.flatMap((example) => [example.hook, ...example.slides]),
+    ...(context?.hook_style_references ?? []),
+    ...(input.recentCarousels ?? []).map((carousel) => carousel.hook ?? ""),
+  ].filter(Boolean);
+}
+
 export async function generateCarousel(
   input: CarouselGeneratorInput & { bypassMonthlyCap?: boolean },
   dependencies: {
@@ -107,6 +145,9 @@ export async function generateCarousel(
         const checklistRepair = /F05 Notes body must contain 4-6 complete useful list items|CHECKLIST_OPTIONS/i.test(repairIssues)
           ? "\nF05 CHECKLIST REPAIR: Every body Note after the cover must contain exactly 5 complete useful checklist items separated by exactly four ' | ' delimiters. Each item is one clear behavior, choice or principle. Do not use pipe characters inside an item."
           : "";
+        const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
+          ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
+          : "";
         const specificityRepair = /Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
@@ -114,9 +155,10 @@ export async function generateCarousel(
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
-          maxOutputTokens: 3_200,
+          // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
+          maxOutputTokens: 4_800,
         });
         usage = {
           inputTokens: usage.inputTokens + result.usage.inputTokens,
@@ -125,6 +167,10 @@ export async function generateCarousel(
         };
         const candidate = sanitizeGeneratedCarouselSpec(carouselSpecSchema.parse(result.data));
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+        // Copying a reference is worth a rewrite, but never a dead end: the
+        // last attempt is kept even if it still echoes a reference.
+        const copied = copiedReferencePhrase(candidate, referenceTexts(input));
+        if (copied && attempt < maxAttempts) throw new Error(`COPIED_REFERENCE: "${copied}"`);
         spec = candidate;
         break;
       } catch (error) {
