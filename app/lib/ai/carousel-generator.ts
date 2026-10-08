@@ -9,7 +9,7 @@ import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
-import { nativeCase, nativeStyleIssues } from "./native-style";
+import { fixHashtags, nativeCase, nativeStyleIssues } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
 
 export type GenerateCarouselResult = {
@@ -54,7 +54,7 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
     topic: cleanGeneratedString(spec.topic),
     angle: cleanGeneratedString(spec.angle),
     hook: slideCopy(spec.hook),
-    caption: copy(spec.caption),
+    caption: fixHashtags(copy(spec.caption)),
     slides: spec.slides.map((slide) => ({
       ...slide,
       headline: slideCopy(slide.headline),

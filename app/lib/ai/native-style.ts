@@ -34,6 +34,11 @@ const CONTRAST = [
   /\w,\s*not\s+(?:just\s+|even\s+)?(?:a|an|the|my|your)?\s*\w+/gi, // "progress, not evidence"
 ];
 
+/** Joins a hashtag split by a space ("#clean girl #x" → "#cleangirl #x") in the trailing hashtag run. */
+export function fixHashtags(caption: string) {
+  return caption.replace(/#(\w+) ([a-z]\w*)(?=\s+#|\s*$)/g, "#$1$2");
+}
+
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
 /**
