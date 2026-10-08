@@ -8,6 +8,7 @@ import { reviewCarouselDraft, shouldRunQA } from "./carousel-reviewer";
 import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec } from "./validation";
+import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
 
 export type GenerateCarouselResult = {
   spec: CarouselSpec;
@@ -39,17 +40,20 @@ function cleanGeneratedString(value: string) {
   return value.replace(invisibleFormatChars, "");
 }
 export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec {
+  // Consumer-facing copy never ships dash punctuation, even if every repair
+  // pass still used it.
+  const copy = (value: string) => stripDashPunctuation(cleanGeneratedString(value));
   return {
     ...spec,
-    title: cleanGeneratedString(spec.title),
+    title: copy(spec.title),
     topic: cleanGeneratedString(spec.topic),
     angle: cleanGeneratedString(spec.angle),
-    hook: cleanGeneratedString(spec.hook),
-    caption: cleanGeneratedString(spec.caption),
+    hook: copy(spec.hook),
+    caption: copy(spec.caption),
     slides: spec.slides.map((slide) => ({
       ...slide,
-      headline: cleanGeneratedString(slide.headline),
-      body: cleanGeneratedString(slide.body),
+      headline: copy(slide.headline),
+      body: copy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
       assetQuery: cleanGeneratedString(slide.assetQuery),
     })),
@@ -162,6 +166,9 @@ export async function generateCarousel(
         const checklistVoiceRepair = /VOICELESS_CHECKLIST/.test(repairIssues)
           ? "\nCHECKLIST VOICE REPAIR: The Notes items read like a generic command list. Rewrite them as her own notes: at least half in first person or with a short aside in parentheses (e.g. \"phone charges in the kitchen (i will cave otherwise)\"), 4-12 words each, 4-5 items per Note."
           : "";
+        const dashRepair = /DASH_PUNCTUATION/.test(repairIssues)
+          ? "\nDASH REPAIR: Remove every em dash, en dash and spaced hyphen used as punctuation. Use a comma, a colon, a new short sentence, or \" / \" like a person typing on her phone. Hyphens inside words (low-effort) and F03 time ranges stay."
+          : "";
         const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
           ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
           : "";
@@ -172,7 +179,7 @@ export async function generateCarousel(
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -182,7 +189,11 @@ export async function generateCarousel(
           cachedInputTokens: usage.cachedInputTokens + result.usage.cachedInputTokens,
           outputTokens: usage.outputTokens + result.usage.outputTokens,
         };
-        const candidate = sanitizeGeneratedCarouselSpec(carouselSpecSchema.parse(result.data));
+        const parsed = carouselSpecSchema.parse(result.data);
+        // Ask for a natural rewrite first; sanitizing is only the safety net.
+        const dashed = [parsed.hook, parsed.caption, ...parsed.slides.flatMap((slide) => [slide.headline, slide.body])].some(hasDashPunctuation);
+        if (dashed && attempt < maxAttempts) throw new Error("DASH_PUNCTUATION: copy uses dashes as punctuation");
+        const candidate = sanitizeGeneratedCarouselSpec(parsed);
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         // Copying a reference is worth a rewrite, but never a dead end: the
         // last attempt is kept even if it still echoes a reference.
