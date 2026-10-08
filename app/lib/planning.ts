@@ -143,6 +143,7 @@ export async function scheduleCarousel(input: {
       persona_id: carousel.persona_id ?? null,
       slot_date: slotDate,
       slot_time: slotTime,
+      local_time: slotTime,
       timezone,
       scheduled_for: scheduledFor,
       strategy: "MANUAL",

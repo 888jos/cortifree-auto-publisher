@@ -5,17 +5,19 @@ type Row = Record<string, unknown>;
 type Mapping = { sheet: string; range: string; table: string; key: string; sourceKey?: string; transform?: (row: Row) => Row };
 
 const split = (value: unknown) => String(value ?? "").split("|").map((item) => item.trim()).filter(Boolean);
-function decimal(value: unknown, fallback = 0) {
-  const normalized = typeof value === "string" ? value.trim().replace(",", ".") : value;
+// Sheet cells may be empty or use a French decimal comma ("0,3").
+export function decimal(value: unknown, fallback = 0) {
+  if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return fallback;
+  const normalized = typeof value === "string" ? value.trim().replace(/\s/g, "").replace(",", ".") : value;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function bool(value: unknown, fallback = false) {
+export function bool(value: unknown, fallback = false) {
   if (typeof value === "boolean") return value;
   const normalized = String(value ?? "").trim().toLowerCase();
-  if (["true", "1", "yes"].includes(normalized)) return true;
-  if (["false", "0", "no"].includes(normalized)) return false;
+  if (["true", "1", "yes", "vrai", "oui", "x"].includes(normalized)) return true;
+  if (["false", "0", "no", "faux", "non"].includes(normalized)) return false;
   return fallback;
 }
 
@@ -171,7 +173,7 @@ function account(row: Row): Row {
     timezone: row.timezone || "America/New_York",
     active: bool(row.active, true),
     enabled: bool(row.active, true),
-    weight: Number(row.weight ?? 1),
+    weight: decimal(row.weight, 1),
     status: row.status ?? row.warmup_status ?? "CREATED",
     warmup_status: row.warmup_status || "CREATED",
     upload_post_profile: row.upload_post_profile || "",
@@ -181,12 +183,21 @@ function account(row: Row): Row {
     pillar_mix: mix(row.pillar_mix),
     format_mix: mix(row.format_mix),
     posting_enabled: bool(row.posting_enabled, false),
-    daily_target: Number(row.daily_target ?? 1),
-    posts_per_day: Number(row.daily_target ?? 1),
+    daily_target: Math.max(1, Math.round(decimal(row.daily_target, 1))),
+    posts_per_day: Math.max(1, Math.round(decimal(row.daily_target, 1))),
     posting_slots: split(row.posting_slots),
-    promo_ratio: Number(row.promo_ratio ?? 0.08),
-    ready_buffer_days: Number(row.ready_buffer_days ?? 3),
+    promo_ratio: decimal(row.promo_ratio, 0.08),
+    ready_buffer_days: Math.max(0, Math.round(decimal(row.ready_buffer_days, 3))),
     workspace_id: row.workspace_id ?? "cortifree",
+  };
+}
+
+function languageTerm(row: Row): Row {
+  return {
+    ...row,
+    weight: decimal(row.weight, 1),
+    active: bool(row.active, true),
+    safe_for_health: bool(row.safe_for_health, true),
   };
 }
 
@@ -225,7 +236,7 @@ const mappings: Mapping[] = [
   { sheet: "09_HEALTH_SOURCES", range: "A1:I100", table: "content_health_sources", key: "source_id", transform: healthSource },
   { sheet: "18_CORTIFREE_COPY_BANK", range: "A1:K200", table: "editorial_copy_bank", key: "copy_id", transform: copyReference },
   { sheet: "20_GOLDEN_CAROUSELS", range: "A1:V200", table: "editorial_golden_examples", key: "example_id", sourceKey: "golden_id", transform: goldenExample },
-  ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id" }] : []),
+  ...(process.env.CORTIFREE_LANGUAGE_BANK_SHEET ? [{ sheet: process.env.CORTIFREE_LANGUAGE_BANK_SHEET, range: "A1:Q500", table: "content_language_bank", key: "term_id", transform: languageTerm }] : []),
 ];
 
 async function upsert(table: string, key: string, rows: Row[]) {

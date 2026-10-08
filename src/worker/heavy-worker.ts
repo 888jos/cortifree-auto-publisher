@@ -462,16 +462,26 @@ async function processGenericBatch() {
     const job = await claimWorkerJob();
     if (!job) break;
     const lock = keepLockFresh("worker_jobs", job.id);
+    let result: unknown;
     try {
-      const result = await executeWorkerJob(job);
-      await finishWorkerJob(job, result);
-      console.log("[worker] DONE", job.kind, job.id, job.resource_id ?? "");
+      result = await executeWorkerJob(job);
     } catch (error) {
+      clearInterval(lock);
       console.error("[worker] FAILED", job.kind, job.id, error);
       await failWorkerJob(job, error);
-    } finally {
-      clearInterval(lock);
+      continue;
     }
+    clearInterval(lock);
+    // The work already ran (and may have been paid for): never send it back to
+    // RETRY because recording the result failed.
+    try {
+      await finishWorkerJob(job, result);
+    } catch (error) {
+      console.error("[worker] FINISH FAILED", job.kind, job.id, error);
+      await finishWorkerJob(job, { recorded: false, error: error instanceof Error ? error.message : String(error) })
+        .catch((retryError) => console.error("[worker] FINISH RETRY FAILED", job.kind, job.id, retryError));
+    }
+    console.log("[worker] DONE", job.kind, job.id, job.resource_id ?? "");
   }
   return processed;
 }
@@ -496,19 +506,14 @@ async function processImageBatch() {
     const lock = keepLockFresh("image_generation_jobs", String(job.id));
     try {
       await processImageGenerationJob(String(job.id));
-      await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
-        worker_id: WORKER_ID,
-        locked_at: null,
-      });
-      await resumeAssetBlockedIdeas(20);
-      console.log("[worker] IMAGE DONE", job.id);
     } catch (error) {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 2_000);
       const attempts = Number(job.worker_attempts ?? 1);
       const maxAttempts = Number(job.max_attempts ?? 3);
       const retry = attempts < maxAttempts && !isPermanentImageGenerationError(error);
       const delaySeconds = Math.min(900, 15 * 2 ** Math.max(0, attempts - 1));
-      await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
+      // Never overwrite a job that already reached DONE (and was billed).
+      await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}&status=neq.DONE`, {
         status: retry ? "RETRY" : "FAILED",
         worker_id: retry ? null : WORKER_ID,
         locked_at: null,
@@ -517,9 +522,18 @@ async function processImageBatch() {
         finished_at: retry ? null : new Date().toISOString(),
       });
       console.error("[worker] IMAGE FAILED", job.id, error);
-    } finally {
       clearInterval(lock);
+      continue;
     }
+    clearInterval(lock);
+    // Bookkeeping after a successful (paid) generation must not send the job
+    // back to RETRY, which would generate and bill the image again.
+    await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}`, {
+      worker_id: WORKER_ID,
+      locked_at: null,
+    }).catch((error) => console.error("[worker] IMAGE POST-DONE PATCH", job.id, error));
+    await resumeAssetBlockedIdeas(20).catch((error) => console.error("[worker] RESUME AFTER IMAGE", job.id, error));
+    console.log("[worker] IMAGE DONE", job.id);
   }
   return processed;
 }

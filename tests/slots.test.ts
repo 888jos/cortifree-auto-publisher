@@ -21,6 +21,20 @@ beforeEach(() => {
 afterEach(() => fake.restore());
 
 describe("syncContentSlotsFromCalendar", () => {
+  it("defaults a blank timezone and skips an invalid one instead of failing the sync", async () => {
+    fake.seed("editorial_records", [
+      calendar("CAL_BLANK_TZ", { date: "2099-04-01", local_time: "20:00", timezone: "" }),
+      calendar("CAL_BAD_TZ", { date: "2099-04-02", local_time: "20:00", timezone: "Mars/Olympus" }),
+    ]);
+
+    const result = await syncContentSlotsFromCalendar();
+
+    assert.equal(result.synced, 1);
+    const [slot] = fake.table("content_slots");
+    assert.equal(slot.id, "CAL_BLANK_TZ");
+    assert.equal(slot.scheduled_for, slotAt("2099-04-01", "20:00"));
+  });
+
   it("keeps claims on existing slots and skips account/time collisions", async () => {
     fake.seed("content_slots", [
       { id: "CAL_CLAIMED", account_id: "CF_EN_01", scheduled_for: slotAt("2099-03-01", "20:00"), status: "QUEUED", idea_id: "IDEA_1", carousel_id: "CF_CAROUSEL_1" },

@@ -99,14 +99,18 @@ export async function syncContentSlotsFromCalendar() {
     const accountId = String(data.account_id ?? "").trim();
     const date = String(data.date ?? "").trim();
     const time = String(data.local_time ?? "").trim();
-    const timezone = String(data.timezone ?? "America/New_York");
+    // A blank or mistyped timezone cell skips that slot instead of failing the
+    // whole calendar sync.
+    const timezone = String(data.timezone ?? "").trim() || "America/New_York";
     const isRest = String(data.content_mode ?? "").toUpperCase() === "REST" || String(data.status ?? "").toUpperCase() === "NO_POST";
     if (isRest) {
       restDays += 1;
       continue;
     }
     if (!id || !accountId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) continue;
-    planned.push({ id, accountId, date, time, timezone, scheduled: zonedToUtc(date, time, timezone), data });
+    let scheduled: Date;
+    try { scheduled = zonedToUtc(date, time, timezone); } catch { continue; }
+    planned.push({ id, accountId, date, time, timezone, scheduled, data });
   }
   // Prior state is read for exactly these slots, so claims (idea/carousel) are always preserved.
   const existingById = new Map((await slotsWhereIn("id", planned.map((slot) => slot.id))).map((row) => [String(row.id), row]));

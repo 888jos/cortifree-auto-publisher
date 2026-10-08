@@ -541,7 +541,7 @@ export function chooseAssets(options: {
     const threshold = officialAppScreenshot
       ? 0
       : options.personaOnly && slide.assetType === "persona"
-        ? 40
+        ? PERSONA_THRESHOLD
         : isHook && slide.assetType === "persona"
           ? PERSONA_HOOK_THRESHOLD
           : slide.assetType === "persona"
