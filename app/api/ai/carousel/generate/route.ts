@@ -6,6 +6,8 @@ import { getRecentCarousels, saveGeneratedCarousel } from "../../../../lib/carou
 import { resolveCanonicalEditorialContext } from "../../../../lib/editorial/canonical-context";
 
 export const runtime = "nodejs";
+// Up to four drafting passes (repairs) plus the QA review.
+export const maxDuration = 300;
 
 const requestSchema = carouselGeneratorInputSchema.extend({
   id: z.string().regex(/^CF_[A-Z0-9_]+$/).optional(),
