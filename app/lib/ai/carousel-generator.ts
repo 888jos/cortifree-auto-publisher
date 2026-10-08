@@ -10,6 +10,7 @@ import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
 import { nativeCase, nativeStyleIssues } from "./native-style";
+import { plainLanguageEdit } from "./plain-language";
 
 export type GenerateCarouselResult = {
   spec: CarouselSpec;
@@ -44,17 +45,20 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
   // Consumer-facing copy never ships dash punctuation, even if every repair
   // pass still used it.
   const copy = (value: string) => nativeCase(stripDashPunctuation(cleanGeneratedString(value)));
+  // Slide text is drawn with fonts that have no colour emoji (♡ is fine);
+  // the caption is posted as text, so it keeps them.
+  const slideCopy = (value: string) => copy(value).replace(/(?!♡)\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/\s{2,}/g, " ").trim();
   return {
     ...spec,
-    title: copy(spec.title),
+    title: slideCopy(spec.title),
     topic: cleanGeneratedString(spec.topic),
     angle: cleanGeneratedString(spec.angle),
-    hook: copy(spec.hook),
+    hook: slideCopy(spec.hook),
     caption: copy(spec.caption),
     slides: spec.slides.map((slide) => ({
       ...slide,
-      headline: copy(slide.headline),
-      body: copy(slide.body),
+      headline: slideCopy(slide.headline),
+      body: slideCopy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
       assetQuery: cleanGeneratedString(slide.assetQuery),
     })),
@@ -117,6 +121,7 @@ export async function generateCarousel(
   input: CarouselGeneratorInput & { bypassMonthlyCap?: boolean },
   dependencies: {
     structuredRequest?: CarouselStructuredRequest;
+    plainLanguageRequest?: Parameters<typeof plainLanguageEdit>[1];
     monthlyUsage?: typeof getMonthlyUsage;
     random?: () => number;
   } = {},
@@ -218,6 +223,26 @@ export async function generateCarousel(
       }
     }
     if (!spec) throw lastValidationError ?? new Error("OpenAI returned no usable carousel");
+    // Clarity pass: rewrite figurative lines ("my brain is actually online")
+    // into plain concrete wording. Any failure keeps the validated draft.
+    const plainRequest = dependencies.plainLanguageRequest ?? (dependencies.structuredRequest ? undefined : requestStructured);
+    if (plainRequest) {
+      try {
+        const plain = await plainLanguageEdit(spec, plainRequest, config.OPENAI_MODEL_PRIMARY);
+        usage = {
+          inputTokens: usage.inputTokens + plain.usage.inputTokens,
+          cachedInputTokens: usage.cachedInputTokens + plain.usage.cachedInputTokens,
+          outputTokens: usage.outputTokens + plain.usage.outputTokens,
+        };
+        if (plain.spec) {
+          const edited = sanitizeGeneratedCarouselSpec(plain.spec);
+          assertValidCarouselSpec(edited, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+          spec = edited;
+        }
+      } catch (error) {
+        console.warn("[ai] plain-language pass skipped", error instanceof Error ? error.message : error);
+      }
+    }
     await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: true });
     usageLogged = true;
 
