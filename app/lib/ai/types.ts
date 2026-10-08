@@ -57,6 +57,10 @@ export type EditorialContext = {
   persona_voice: string;
   golden_example_ids: string[];
   golden_examples?: GoldenExampleReference[];
+  /** Real creator hooks from 06_HOOKS (STYLE_REFERENCE) for this format. */
+  hook_style_references?: string[];
+  /** Creator-voice carousels from 20_GOLDEN_CAROUSELS compatible with this format. */
+  voice_examples?: GoldenExampleReference[];
   concept_id?: string;
   topic_id: string;
   hook_id: string;
