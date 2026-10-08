@@ -194,18 +194,22 @@ export async function generateCarousel(
           outputTokens: usage.outputTokens + result.usage.outputTokens,
         };
         const parsed = carouselSpecSchema.parse(result.data);
+        // Style rewrites (dashes, copying, voice, length) only use the first
+        // two attempts; the rest are kept for hard validation failures, so a
+        // style nudge can never exhaust generation.
+        const styleAttempt = attempt <= 2;
         // Ask for a natural rewrite first; sanitizing is only the safety net.
         const dashed = [parsed.hook, parsed.caption, ...parsed.slides.flatMap((slide) => [slide.headline, slide.body])].some(hasDashPunctuation);
-        if (dashed && attempt < maxAttempts) throw new Error("DASH_PUNCTUATION: copy uses dashes as punctuation");
+        if (dashed && styleAttempt) throw new Error("DASH_PUNCTUATION: copy uses dashes as punctuation");
         const candidate = sanitizeGeneratedCarouselSpec(parsed);
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         // Copying a reference is worth a rewrite, but never a dead end: the
         // last attempt is kept even if it still echoes a reference.
         const copied = copiedReferencePhrase(candidate, referenceTexts(input));
-        if (copied && attempt < maxAttempts) throw new Error(`COPIED_REFERENCE: "${copied}"`);
-        if (isVoicelessChecklist(candidate) && attempt < maxAttempts) throw new Error("VOICELESS_CHECKLIST: most Notes items are bare commands");
+        if (copied && styleAttempt) throw new Error(`COPIED_REFERENCE: "${copied}"`);
+        if (isVoicelessChecklist(candidate) && styleAttempt) throw new Error("VOICELESS_CHECKLIST: most Notes items are bare commands");
         const styleIssues = nativeStyleIssues(candidate);
-        if (styleIssues.length && attempt < maxAttempts) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
         spec = candidate;
         break;
       } catch (error) {

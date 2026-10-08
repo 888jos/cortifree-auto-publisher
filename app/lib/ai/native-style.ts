@@ -12,8 +12,12 @@ function lowerWord(word: string) {
   return word.toLowerCase();
 }
 
+// Crutch words the model leans on; dropping them never changes the meaning.
+const CRUTCHES = /(^|[\s,(])(?:honestly|weirdly),?\s+/gi;
+
 /** Lowercases copy (keeping labels, tiers and brands) and drops the final period of each line. */
 export function nativeCase(text: string) {
+  text = text.replace(CRUTCHES, "$1");
   const tier = text.match(/^\s*(SS|[SABCDF][+-]?)\s*·\s*/);
   const head = tier ? tier[0] : "";
   const rest = text.slice(head.length);
