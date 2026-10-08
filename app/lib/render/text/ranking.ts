@@ -1,5 +1,6 @@
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
+import sharp from "sharp";
 import { FONT_FILES, rasterText, wrap, wrapHook } from "./shared";
 
 export function rankingCopyParts(slide: GeneratedSlide) {
@@ -74,7 +75,10 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
     width: frame.width, height: 140, size: frame.headlineSize ?? 42, weight: 800,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily,
   });
-  overlays.push({ input: itemImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 335 });
+  const itemTop = frame.headlineY ?? 335;
+  overlays.push({ input: itemImage, left: frame.headlineX ?? frame.x, top: itemTop });
+  // A two-line item must push the reason down instead of overlapping it.
+  const itemHeight = (await sharp(itemImage).metadata()).height ?? 0;
 
   if (slide.body.trim()) {
     const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
@@ -83,7 +87,7 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
       width: frame.width, height: 300, size: frame.bodySize ?? 28, weight: 500,
       color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });
-    overlays.push({ input: reasonImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 505 });
+    overlays.push({ input: reasonImage, left: frame.bodyX ?? frame.x, top: Math.max(frame.bodyY ?? 505, itemTop + itemHeight + 28) });
   }
   return overlays;
 }

@@ -313,3 +313,11 @@ describe("render-carousel golden renders", () => {
     });
   }
 });
+
+it("Pango font descriptions put the family first and the size last", async () => {
+  const { pangoFontDescription } = await import("../app/lib/render/text/shared");
+  assert.equal(pangoFontDescription("TikTok Sans", 800, 42), "TikTok Sans Bold 42px");
+  assert.equal(pangoFontDescription("Bricolage Grotesque", 600, 68), "Bricolage Grotesque Semi-Bold 68px");
+  assert.equal(pangoFontDescription("DM Sans", 500, 28), "DM Sans Medium 28px");
+  assert.equal(pangoFontDescription("DM Sans", 400, 28), "DM Sans 28px");
+});
