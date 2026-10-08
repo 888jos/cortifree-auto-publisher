@@ -382,6 +382,9 @@ export function chooseAssets(options: {
     const finalUse = options.assets.filter((asset) =>
       !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename)
       && !options.excludedAssetIds?.has(String(asset.id))
+      // A stock photo with a creator caption already burned in ("grocery day",
+      // "my obsession rn") would clash with the carousel's own text.
+      && !(asset.source_type === "stock" && /overlay/i.test(String(asset.text_in_image ?? "")))
       && (asset.source_type === "stock" || asset.source_type === "persona_generated" || asset.source_type === "app_screenshot")
       && (
         asset.source_type === "app_screenshot"
