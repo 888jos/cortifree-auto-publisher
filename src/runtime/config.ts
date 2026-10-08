@@ -2,6 +2,7 @@ import { accountSchema, personaConfigSchema, type Account, type PersonaConfig } 
 import { backendConfigured, dataBackend } from "../lib/data-backend";
 import { loadAccounts as loadJsonAccounts } from "../config/accounts";
 import { loadEditorialSnapshot } from "../editorial/snapshot";
+import { stripDashPunctuation } from "../../app/lib/ai/dashes";
 import fallbackPersonas from "../../config/personas.json" with { type: "json" };
 import type { EditorialTopic, EditorialHook, EditorialCta } from "../autonomy/selection";
 
@@ -155,8 +156,8 @@ export async function loadRuntimeGoldenExamples(formatId: string, pillarId: stri
         formatId: String(row.format_id ?? ""),
         pillarId: String(row.pillar_id ?? ""),
         topic: String(row.topic ?? content.topic ?? ""),
-        hook: String(row.hook ?? content.hook ?? ""),
-        slides: structuredSlides.length ? structuredSlides : legacySlides,
+        hook: stripDashPunctuation(String(row.hook ?? content.hook ?? "")),
+        slides: (structuredSlides.length ? structuredSlides : legacySlides).map(stripDashPunctuation),
         toneNotes: String(content.tone_notes ?? ""),
         whyItWorks: String(content.why_it_works ?? ""),
         visualDirection: String(content.visual_direction ?? ""),
@@ -301,13 +302,13 @@ export async function loadRuntimeVoiceReferences(input: {
     const voiceExamples = shuffled(voiceGoldens, random).slice(0, input.exampleLimit ?? 3).map((row) => {
       const content = row.content && typeof row.content === "object" ? row.content as AnyRow : {};
       const slides = ["slide_2", "slide_3", "slide_4", "slide_5", "slide_6", "slide_7", "cta"]
-        .map((key) => String(content[key] ?? "").trim()).filter(Boolean);
+        .map((key) => stripDashPunctuation(String(content[key] ?? "").trim())).filter(Boolean);
       return {
         id: String(row.example_id ?? ""),
         formatId: input.formatId,
         pillarId: String(row.pillar_id ?? ""),
         topic: String(row.topic ?? content.topic ?? ""),
-        hook: String(row.hook ?? content.hook ?? ""),
+        hook: stripDashPunctuation(String(row.hook ?? content.hook ?? "")),
         slides,
         toneNotes: String(content.tone_notes ?? ""),
         whyItWorks: String(content.why_it_works ?? ""),
