@@ -80,3 +80,19 @@ describe("emoji guard", async () => {
     assert.ok(!codes("my meal defaults ranked ♡").includes("EMOJI"));
   });
 });
+
+describe("F05 checklist voice", async () => {
+  const { isVoicelessChecklist } = await import("../app/lib/ai/carousel-generator.js");
+  const spec = (body: string) => ({
+    title: "t", topic: "t", angle: "a", hook: "h", caption: "c",
+    slides: [
+      { position: 1, role: "HOOK", layout: "interactive-checklist", headline: "h", body: "", visualIntent: "v", assetType: "stock", assetQuery: "q" },
+      { position: 2, role: "CHECKLIST", layout: "interactive-checklist", headline: "n", body, visualIntent: "v", assetType: "stock", assetQuery: "q" },
+    ],
+  }) as never;
+
+  it("flags a list of bare commands and accepts her own notes", () => {
+    assert.equal(isVoicelessChecklist(spec("Put pajamas out | Do skincare first | Keep the toothbrush ready | Lower the lights")), true);
+    assert.equal(isVoicelessChecklist(spec("pajamas out before i get lazy | skincare first (non-negotiable) | my toothbrush stays ready | lower the lights")), false);
+  });
+});
