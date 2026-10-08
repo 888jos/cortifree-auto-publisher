@@ -157,6 +157,10 @@ export async function generateCarousel(
   try {
     let spec: CarouselSpec | null = null;
     let lastValidationError: unknown;
+    // A draft that passed hard validation but was sent back for style is
+    // kept: if the rewrites then fail, generation returns it instead of
+    // losing a usable carousel.
+    let bestValid: CarouselSpec | null = null;
     const maxAttempts = 4;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
@@ -204,11 +208,12 @@ export async function generateCarousel(
         // two attempts; the rest are kept for hard validation failures, so a
         // style nudge can never exhaust generation.
         const styleAttempt = attempt <= 2;
+        const candidate = sanitizeGeneratedCarouselSpec(parsed);
+        assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
+        bestValid = candidate;
         // Ask for a natural rewrite first; sanitizing is only the safety net.
         const dashed = [parsed.hook, parsed.caption, ...parsed.slides.flatMap((slide) => [slide.headline, slide.body])].some(hasDashPunctuation);
         if (dashed && styleAttempt) throw new Error("DASH_PUNCTUATION: copy uses dashes as punctuation");
-        const candidate = sanitizeGeneratedCarouselSpec(parsed);
-        assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         // Copying a reference is worth a rewrite, but never a dead end: the
         // last attempt is kept even if it still echoes a reference.
         const copied = copiedReferencePhrase(candidate, referenceTexts(input));
@@ -220,7 +225,10 @@ export async function generateCarousel(
         break;
       } catch (error) {
         lastValidationError = error;
-        if (attempt === maxAttempts) throw error;
+        if (attempt === maxAttempts) {
+          if (bestValid) { spec = bestValid; break; }
+          throw error;
+        }
       }
     }
     if (!spec) throw lastValidationError ?? new Error("OpenAI returned no usable carousel");
