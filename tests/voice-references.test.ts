@@ -10,6 +10,7 @@ afterEach(() => fake.restore());
 const nora = {
   persona_id: "P04", name: "Nora", age: "22", voice_markers: "cozy, reflective, slightly teasing",
   slang_level: "7", punctuation_profile: "lowercase; ... occasional", avoid_voice: "productivity coaching",
+  allowed_invented_details: "ephemeral night timing, shower, book",
 };
 
 describe("Sheet voice references", () => {
@@ -18,6 +19,8 @@ describe("Sheet voice references", () => {
     assert.match(brief, /^Nora, 22: cozy, reflective, slightly teasing/);
     assert.match(brief, /slang level 7\/10/);
     assert.match(brief, /never sounds like: productivity coaching/);
+    assert.match(brief, /bring up in passing: night timing, shower, book/);
+    assert.doesNotMatch(brief, /ephemeral/);
     assert.equal(personaVoiceBrief(undefined, "Nora"), "Nora");
   });
 
