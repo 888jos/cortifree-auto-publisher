@@ -13,6 +13,7 @@ describe("native TikTok case", () => {
     assert.equal(nativeCase("HOW TO | Write the next action. | Keep it short."), "HOW TO | write the next action | keep it short");
     assert.equal(nativeCase("S · Leave the shoes by the door"), "S · leave the shoes by the door");
     assert.equal(nativeCase("I'm using CortiFree rn..."), "i'm using CortiFree rn...");
+    assert.equal(nativeCase("the room feels less like a cave, which is honestly helpful"), "the room feels less like a cave, which is helpful");
   });
 });
 
