@@ -84,6 +84,20 @@ export function copiedReferencePhrase(spec: CarouselSpec, references: string[]):
   return copied.size >= 2 ? [...copied][0]! : null;
 }
 
+const PERSONAL_ITEM = /\b(i|i'm|i’m|i've|i’ve|my|me)\b|\(/i;
+
+/**
+ * F05 Notes slides drift into a generic command list. Returns true when fewer
+ * than half of the checklist items carry her voice (first person or an aside).
+ */
+export function isVoicelessChecklist(spec: CarouselSpec) {
+  const items = spec.slides
+    .filter((slide) => slide.layout === "interactive-checklist" && slide.role !== "HOOK")
+    .flatMap((slide) => slide.body.split(/\s*\|\s*/).map((item) => item.trim()).filter(Boolean));
+  if (items.length < 4) return false;
+  return items.filter((item) => PERSONAL_ITEM.test(item)).length < items.length / 2;
+}
+
 function referenceTexts(input: CarouselGeneratorInput) {
   const context = input.editorialContext;
   const examples = [...(context?.golden_examples ?? []), ...(context?.voice_examples ?? [])];
@@ -145,6 +159,9 @@ export async function generateCarousel(
         const checklistRepair = /F05 Notes body must contain 4-6 complete useful list items|CHECKLIST_OPTIONS/i.test(repairIssues)
           ? "\nF05 CHECKLIST REPAIR: Every body Note after the cover must contain exactly 5 complete useful checklist items separated by exactly four ' | ' delimiters. Each item is one clear behavior, choice or principle. Do not use pipe characters inside an item."
           : "";
+        const checklistVoiceRepair = /VOICELESS_CHECKLIST/.test(repairIssues)
+          ? "\nCHECKLIST VOICE REPAIR: The Notes items read like a generic command list. Rewrite them as her own notes: at least half in first person or with a short aside in parentheses (e.g. \"phone charges in the kitchen (i will cave otherwise)\"), 4-12 words each, 4-5 items per Note."
+          : "";
         const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
           ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
           : "";
@@ -155,7 +172,7 @@ export async function generateCarousel(
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -171,6 +188,7 @@ export async function generateCarousel(
         // last attempt is kept even if it still echoes a reference.
         const copied = copiedReferencePhrase(candidate, referenceTexts(input));
         if (copied && attempt < maxAttempts) throw new Error(`COPIED_REFERENCE: "${copied}"`);
+        if (isVoicelessChecklist(candidate) && attempt < maxAttempts) throw new Error("VOICELESS_CHECKLIST: most Notes items are bare commands");
         spec = candidate;
         break;
       } catch (error) {
