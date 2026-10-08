@@ -165,6 +165,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   }
 
   const allCopy = `${spec.title} ${spec.topic} ${spec.angle} ${spec.hook} ${spec.caption}`;
+  // The renderer's brand fonts have no colour emoji; ♡ is the only allowed glyph.
+  const emoji = `${allCopy} ${spec.slides.map((slide) => `${slide.headline} ${slide.body}`).join(" ")}`.match(/\p{Extended_Pictographic}/gu)?.filter((glyph) => glyph !== "♡") ?? [];
+  if (emoji.length) issues.push({ code: "EMOJI", message: `Remove emoji ${[...new Set(emoji)].join(" ")}; only ♡ renders on carousel slides`, severity: "major" });
   if (hasUnexpectedScript(allCopy, expected.language)) {
     issues.push({ code: "UNEXPECTED_SCRIPT", message: "English carousel contains stray non-Latin script", severity: "major" });
   }

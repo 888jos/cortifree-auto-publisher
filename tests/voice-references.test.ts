@@ -63,3 +63,17 @@ describe("reference copy guard", async () => {
     assert.equal(copiedReferencePhrase(spec("new hook", ["close the laptop and write down tomorrow's first thing"]), ["10:20 - 10:25 · close the laptop and write tomorrow's first task"]), null);
   });
 });
+
+describe("emoji guard", async () => {
+  const { validateCarouselSpec } = await import("../app/lib/ai/validation.js");
+  const spec = (hook: string) => ({
+    title: "t", topic: "t", angle: "a", hook, caption: "save this ♡",
+    slides: [{ position: 1, role: "HOOK", layout: "ranking", headline: hook, body: "", visualIntent: "v", assetType: "stock", assetQuery: "q" }],
+  }) as never;
+
+  it("blocks colour emoji but allows ♡", () => {
+    const codes = (hook: string) => validateCarouselSpec(spec(hook), { slideCount: 1, language: "en", layout: "ranking" }).map((issue) => issue.code);
+    assert.ok(codes("my meal defaults ranked 💀").includes("EMOJI"));
+    assert.ok(!codes("my meal defaults ranked ♡").includes("EMOJI"));
+  });
+});
