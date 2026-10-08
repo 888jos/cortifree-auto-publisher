@@ -251,7 +251,9 @@ export function personaVoiceBrief(row: AnyRow | undefined, fallbackName: string)
     row.situation ? `life right now: ${row.situation}` : "",
     row.slang_level ? `slang level ${row.slang_level}/10` : "",
     row.punctuation_profile ? `punctuation: ${row.punctuation_profile}` : "",
-    row.allowed_invented_details ? `details she can mention: ${row.allowed_invented_details}` : "",
+    // The Sheet prefixes this list with "ephemeral" (passing details, not
+    // facts about her); the model was copying the word into the copy.
+    row.allowed_invented_details ? `small everyday things she can bring up in passing: ${String(row.allowed_invented_details).replace(/^\s*ephemeral\s+/i, "")}` : "",
     row.avoid_voice ? `never sounds like: ${row.avoid_voice}` : "",
   ].map((part) => part.trim()).filter(Boolean);
   return parts.join(". ");
