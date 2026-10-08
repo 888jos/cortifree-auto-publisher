@@ -18,6 +18,11 @@ describe("plain-language pass", () => {
     assert.equal((result.spec as { slides: Array<{ body: string }> } | null)?.slides[1]!.body, "everything else waits until after my coffee");
   });
 
+  it("keeps slide 1 in step when only the hook line is rewritten", async () => {
+    const result = await plainLanguageEdit(spec, reply(["things i do before noon", "save this #wellnesstok", "my morning reset", "", "S · three priorities max", "everything else waits until my brain is actually online"]), "m");
+    assert.equal((result.spec as { slides: Array<{ headline: string }> } | null)?.slides[0]!.headline, "things i do before noon");
+  });
+
   it("rejects a rewrite that drops a tier prefix or changes the line count", async () => {
     assert.equal((await plainLanguageEdit(spec, reply(["my morning reset", "save this #wellnesstok", "my morning reset", "", "three priorities max", "x"]), "m")).spec, null);
     assert.equal((await plainLanguageEdit(spec, reply(["one line"]), "m")).spec, null);
