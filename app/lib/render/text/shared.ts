@@ -66,9 +66,16 @@ export function textBlock(lines: string[], x: number, y: number, width: number, 
   return `<text x="${textX}" y="${y}" fill="${color}" font-family="${fontFamily}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}">${lines.map((line, index) => `<tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${xml(line)}</tspan>`).join("")}</text>`;
 }
 
+// Pango reads "FAMILY [STYLE] SIZE": the family must come first and the size
+// last, otherwise it falls back to the system font (DejaVu on the worker).
+export function pangoFontDescription(family: string, weight: number, size: number) {
+  const style = weight >= 700 ? " Bold" : weight >= 600 ? " Semi-Bold" : weight >= 500 ? " Medium" : "";
+  return `${family}${style} ${size}px`;
+}
+
 export async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number; fontFamily?: string }) {
   const fontPath = resolveFontPath(options.fontFamily, options.weight);
-  const font = `${options.weight >= 700 ? "bold " : ""}${options.size}px ${options.fontFamily ?? "TikTok Sans"}`;
+  const font = pangoFontDescription(options.fontFamily ?? "TikTok Sans", options.weight, options.size);
   const input = { text: { text, font, fontfile: fontPath, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } };
   const textBuffer = await sharp(input).ensureAlpha().png().toBuffer();
   const metadata = await sharp(textBuffer).metadata();

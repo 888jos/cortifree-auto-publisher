@@ -7,6 +7,11 @@ RUN apt-get update \
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Carousel text is drawn by Pango/librsvg through fontconfig: install the
+# brand fonts system-wide, or every render falls back to DejaVu.
+COPY public/fonts/ /usr/local/share/fonts/cortifree/
+RUN fc-cache -f
+
 COPY package.json package-lock.json ./
 # tsx is a runtime dependency: the worker runs its TypeScript sources directly.
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
