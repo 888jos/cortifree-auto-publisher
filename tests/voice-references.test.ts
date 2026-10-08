@@ -60,6 +60,6 @@ describe("reference copy guard", async () => {
   it("flags copy that repeats two long reference runs, not ordinary short phrases", () => {
     const reference = "before — save another routine every time something looked off and then buy the missing product before finishing the ones i already liked";
     assert.ok(copiedReferencePhrase(spec("new hook", [reference]), [reference]));
-    assert.equal(copiedReferencePhrase(spec("new hook", ["close the laptop and write tomorrow's first task"]), ["10:20 - 10:25 · close the laptop and write tomorrow's first task"]), null);
+    assert.equal(copiedReferencePhrase(spec("new hook", ["close the laptop and write down tomorrow's first thing"]), ["10:20 - 10:25 · close the laptop and write tomorrow's first task"]), null);
   });
 });
