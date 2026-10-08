@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nativeCase, nativeStyleIssues } from "../app/lib/ai/native-style.js";
+import { fixHashtags, nativeCase, nativeStyleIssues } from "../app/lib/ai/native-style.js";
 
 const slide = (position: number, layout: string, body: string, headline = "h") =>
   ({ position, role: position === 1 ? "HOOK" : "STEP", layout, headline, body, visualIntent: "v", assetType: "stock", assetQuery: "q" });
@@ -34,5 +34,12 @@ describe("native style issues", () => {
 
   it("accepts short native lines", () => {
     assert.deepEqual(nativeStyleIssues(spec([slide(1, "ranking", ""), slide(2, "ranking", "shoes by the door = half the battle lol"), slide(3, "ranking", "5 min on the front step counts")])), []);
+  });
+});
+
+describe("caption hashtags", () => {
+  it("joins a hashtag split by a space, leaving the sentence alone", () => {
+    assert.equal(fixHashtags("what would you keep? #selfcare #clean girl #simpleroutines"), "what would you keep? #selfcare #cleangirl #simpleroutines");
+    assert.equal(fixHashtags("save this #wellnesstok"), "save this #wellnesstok");
   });
 });
