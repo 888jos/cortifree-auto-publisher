@@ -96,3 +96,18 @@ describe("F05 checklist voice", async () => {
     assert.equal(isVoicelessChecklist(spec("pajamas out before i get lazy | skincare first (non-negotiable) | my toothbrush stays ready | lower the lights")), false);
   });
 });
+
+describe("operator edits", async () => {
+  const { loadRuntimeOperatorEdits } = await import("../src/runtime/config.js");
+  it("pairs generated slide text with what the operator kept", async () => {
+    fake.seed("carousels", [{
+      id: "CF_1", workspace_id: "cortifree", content_type: "F07_RANKING", updated_at: "2026-10-09T10:00:00Z",
+      spec: {
+        generated_slides: [{ position: 2, headline: "S · charge it away", body: "this genuinely works because i have to get up" }, { position: 3, headline: "A · same", body: "unchanged" }],
+        editor_overrides: { "2": { body: "works bc i have to get up lol" }, "3": { body: "unchanged" } },
+      },
+    }]);
+    const edits = await loadRuntimeOperatorEdits("F07_RANKING");
+    assert.deepEqual(edits, [{ field: "body", before: "this genuinely works because i have to get up", after: "works bc i have to get up lol" }]);
+  });
+});

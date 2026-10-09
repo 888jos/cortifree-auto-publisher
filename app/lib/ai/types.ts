@@ -61,6 +61,8 @@ export type EditorialContext = {
   hook_style_references?: string[];
   /** Creator-voice carousels from 20_GOLDEN_CAROUSELS compatible with this format. */
   voice_examples?: GoldenExampleReference[];
+  /** The operator's own corrections (generated → kept) on recent carousels of this format. */
+  operator_edits?: Array<{ field: "headline" | "body"; before: string; after: string }>;
   concept_id?: string;
   topic_id: string;
   hook_id: string;
