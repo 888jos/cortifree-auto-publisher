@@ -60,6 +60,15 @@ export async function middleware(request: NextRequest) {
       headers: { "Content-Type": apiRequest ? "application/json" : "text/plain; charset=utf-8" },
     });
   }
+  if (session.allowed && pathname === "/" && !request.nextUrl.searchParams.has("studio")) {
+    // Daily work starts from the review queue; the Studio stays at /?studio=1.
+    const review = request.nextUrl.clone();
+    review.pathname = "/review";
+    review.search = "";
+    const redirect = NextResponse.redirect(review);
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  }
   if (session.allowed) {
     // Tell route handlers this is an allowlisted operator session; keep any
     // refreshed Supabase auth cookies set on the first response.

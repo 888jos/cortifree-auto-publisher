@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { isAdminRequest } from "../../../lib/admin-auth";
+import { isOperatorRequest } from "../../../lib/admin-auth";
 import { approveCarousel } from "../../../lib/human-review";
 
 export async function POST(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperatorRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json() as { carouselId?: string; actor?: string };
     if (!body.carouselId) return NextResponse.json({ error: "carouselId is required" }, { status: 400 });

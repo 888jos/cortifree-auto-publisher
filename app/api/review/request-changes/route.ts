@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminRequest } from "../../../lib/admin-auth";
+import { isOperatorRequest } from "../../../lib/admin-auth";
 import { enqueueWorkerJob } from "../../../lib/worker-queue";
 import { dataBackend } from "../../../lib/data-backend";
 import { planReviewRevision, recordReviewEvent } from "../../../lib/human-review";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperatorRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json() as { carouselId?: string; feedback?: string; actor?: string };
     const carouselId = body.carouselId?.trim();

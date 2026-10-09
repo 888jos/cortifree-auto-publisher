@@ -21,6 +21,7 @@ export function Sidebar({ active, setActive, productVersion, changeProductVersio
       </div>
 
       {productVersion === "current" && <nav aria-label="Main navigation">
+        <Link className="templateLabNav reviewFirstNav" href="/review">À valider ↗</Link>
         {menus.map((menu) => (
           <button
             key={menu}
@@ -31,7 +32,6 @@ export function Sidebar({ active, setActive, productVersion, changeProductVersio
             {menu}
           </button>
         ))}
-        <Link className="templateLabNav" href="/review">Review Queue ↗</Link>
         <Link className="templateLabNav" href="/planning">Planning ↗</Link>
         <Link className="templateLabNav" href="/templates">Template Lab ↗</Link>
       </nav>}

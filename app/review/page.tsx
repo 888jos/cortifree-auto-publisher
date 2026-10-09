@@ -10,8 +10,26 @@ type Carousel = {
   id:string; account_id?:string; persona_id?:string; topic?:string; angle?:string; content_type?:string;
   status:string; review_status:string; current_version?:number; revision_count?:number; created_at?:string;
   review_notes?:string|null; rejection_reason_code?:string|null; rejection_action?:string|null;
+  scheduled_for?:string|null; caption?:string|null;
   slides:Slide[];
 };
+type Pill = { key:string; label:string; ok:boolean; detail:string };
+type Blocked = { id:string; format?:string; persona?:string; account?:string; status:string; reason:string };
+
+// "publie dans 14 h", "publié il y a 2 h" or "pas encore planifié".
+function publishLabel(iso?:string|null){
+  if(!iso)return "pas encore planifié";
+  const minutes=Math.round((Date.parse(iso)-Date.now())/60000);
+  const when=new Date(iso).toLocaleString("fr-FR",{weekday:"short",hour:"2-digit",minute:"2-digit"});
+  if(minutes<0)return `${when} · heure passée`;
+  if(minutes<60)return `${when} · dans ${minutes} min`;
+  return `${when} · dans ${Math.round(minutes/60)} h`;
+}
+function urgent(iso?:string|null){
+  if(!iso)return false;
+  const minutes=(Date.parse(iso)-Date.now())/60000;
+  return minutes>=0&&minutes<120;
+}
 type Payload = { status:string; summary:Record<string,number>; carousels:Carousel[] };
 
 const statuses = [
@@ -32,6 +50,9 @@ export default function ReviewPage() {
   const [reasonCode,setReasonCode]=useState("COPY_AI");
   const [rejectionAction,setRejectionAction]=useState<RejectionAction>("ARCHIVE");
   const [feedback,setFeedback]=useState("");
+  const [pills,setPills]=useState<Pill[]>([]);
+  const [blocked,setBlocked]=useState<Blocked[]>([]);
+  const [blockedOpen,setBlockedOpen]=useState(false);
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -46,6 +67,29 @@ export default function ReviewPage() {
   },[status]);
 
   useEffect(()=>{void load()},[load]);
+  useEffect(()=>{
+    let cancelled=false;
+    const refresh=()=>fetch("/api/review/status",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>{
+      if(cancelled||!data)return;
+      setPills(data.pills??[]);setBlocked(data.blocked??[]);
+    }).catch(()=>{});
+    void refresh();
+    const timer=window.setInterval(refresh,60000);
+    return()=>{cancelled=true;window.clearInterval(timer)};
+  },[]);
+
+  async function approveAll() {
+    const ids=payload.carousels.filter(item=>item.slides.length>0).map(item=>item.id);
+    if(!ids.length||!window.confirm(`Valider les ${ids.length} carrousels de la file ?`))return;
+    let done=0;
+    for(const carouselId of ids){
+      setBusy(`Validation ${done+1}/${ids.length}…`);
+      const response=await fetch("/api/review/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({carouselId,actor:"studio"})});
+      if(response.ok)done+=1;
+    }
+    setBusy(`${done}/${ids.length} validés`);
+    await load();
+  }
 
   const carousel=payload.carousels[selected]??null;
   const activeSlide=carousel?.slides[slideIndex]??carousel?.slides[0]??null;
@@ -91,8 +135,10 @@ export default function ReviewPage() {
   return <main className="reviewShell">
     <header className="reviewTop">
       <div className="reviewBrand"><Link href="/"><span>CF</span>CortiFree</Link><i>/</i><b>Review</b></div>
-      <nav><Link href="/planning">Planning</Link><Link href="/">Studio</Link></nav>
+      <nav><Link href="/planning">Planning</Link><Link href="/?studio=1">Studio</Link></nav>
     </header>
+
+    {pills.length>0&&<div className="reviewHealth" aria-label="État du pipeline">{pills.map(pill=><span key={pill.key} className={pill.ok?"ok":"ko"} title={pill.detail}><i/>{pill.label}<small>{pill.detail}</small></span>)}</div>}
 
     <section className="reviewHero">
       <div><p>EDITORIAL REVIEW</p><h1>Décider vite, corriger seulement quand il faut.</h1><span>Chaque validation garde la version exacte. Une modification après validation rend l’approbation obsolète.</span></div>
@@ -104,20 +150,27 @@ export default function ReviewPage() {
       </div>
     </section>
 
-    <div className="reviewTabs">{statuses.map(([value,label])=><button key={value} className={status===value?"active":""} onClick={()=>setStatus(value)}>{label}<span>{payload.summary[value]??0}</span></button>)}</div>
+    {blocked.length>0&&<section className="reviewBlocked">
+      <button onClick={()=>setBlockedOpen(open=>!open)}>⚠︎ {blocked.length} carrousel{blocked.length>1?"s":""} bloqué{blocked.length>1?"s":""} avant la relecture <span>{blockedOpen?"masquer":"voir"}</span></button>
+      {blockedOpen&&<ul>{blocked.map(item=><li key={item.id}><b>{item.format?.slice(0,3)} · {item.persona}</b><span>{item.reason}</span></li>)}</ul>}
+    </section>}
+
+    <div className="reviewTabs">{statuses.map(([value,label])=><button key={value} className={status===value?"active":""} onClick={()=>setStatus(value)}>{label}<span>{payload.summary[value]??0}</span></button>)}
+      {status==="AWAITING_REVIEW"&&payload.carousels.length>1&&<button className="approveAll" onClick={()=>void approveAll()}>Tout valider</button>}
+    </div>
 
     {loading?<div className="reviewEmpty">Chargement de la queue…</div>:!carousel?<div className="reviewEmpty"><b>Queue vide.</b><span>Pour une fois, aucun humain n’a rien à décider.</span></div>:
     <section className="reviewWorkspace">
       <aside className="reviewQueue">
         {payload.carousels.map((item,index)=><button key={item.id} className={index===selected?"active":""} onClick={()=>{setSelected(index);setSlideIndex(0)}}>
           {item.slides[0]?.url?<img src={item.slides[0].url} alt=""/>:<div className="reviewNoThumb">No PNG</div>}
-          <div><strong>{item.topic||item.id}</strong><span>{item.persona_id||"—"} · {item.content_type||"—"}</span><small>{item.review_status}</small></div>
+          <div><strong>{item.topic||item.id}</strong><span>{item.persona_id||"—"} · {item.content_type||"—"}</span><small className={urgent(item.scheduled_for)?"urgent":""}>{publishLabel(item.scheduled_for)}</small></div>
         </button>)}
       </aside>
 
       <div className="reviewStage">
         <div className="reviewMeta">
-          <div><span>{carousel.persona_id||"—"} · {carousel.account_id||"—"}</span><h2>{carousel.topic||carousel.id}</h2><p>{carousel.angle||carousel.content_type||""}</p></div>
+          <div><span>{carousel.persona_id||"—"} · {carousel.account_id||"—"} · {publishLabel(carousel.scheduled_for)}</span><h2>{carousel.topic||carousel.id}</h2><p>{carousel.angle||carousel.content_type||""}</p></div>
           <div className="reviewCounter">{selected+1} / {payload.carousels.length}</div>
         </div>
 
@@ -132,6 +185,7 @@ export default function ReviewPage() {
           {status==="AWAITING_REVIEW"&&<><button className="reject" onClick={()=>setRejectOpen(true)}>Refuser <kbd>R</kbd></button><button className="approve" onClick={()=>void approve()}>Valider <kbd>A</kbd></button></>}
         </div>
         {busy&&<div className="reviewNotice">{busy}</div>}
+        {carousel.caption&&<div className="reviewCaption"><b>Légende</b><p>{carousel.caption}</p></div>}
       </div>
 
       <aside className="reviewDetails">
