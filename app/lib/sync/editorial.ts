@@ -292,6 +292,8 @@ const VOICE_RECORD_MIRRORS = [
   { sheet: "01_PERSONAS", range: "A1:AD40", kind: "persona_voice", key: "persona_id", title: "name" },
   // STYLE_REFERENCE rows are real creator hooks used as voice references.
   { sheet: "06_HOOKS", range: "A1:Q400", kind: "hook_references", key: "hook_id", title: "formula" },
+  // Look-alike groups and their single image master (optional tab).
+  { sheet: "00_VISUAL_GROUPS", range: "A1:F20", kind: "visual_groups", key: "group_id", title: "label", optional: true },
 ];
 
 /** Mirrors only the voice tabs: two Sheet reads, light enough to run inline. */
@@ -307,9 +309,17 @@ async function syncSheetRecordKind(input: {
   kind: string;
   key: string;
   title?: string;
+  optional?: boolean;
 }) {
   if (backendMode() !== "supabase") return 0;
-  const source = await readSheetObjects(input.sheet, input.range);
+  let source: Awaited<ReturnType<typeof readSheetObjects>>;
+  try {
+    source = await readSheetObjects(input.sheet, input.range);
+  } catch (error) {
+    // An optional tab that does not exist yet leaves the code defaults in place.
+    if (input.optional && /Unable to parse range|not found|400/i.test(error instanceof Error ? error.message : String(error))) return 0;
+    throw error;
+  }
   const syncedAt = new Date().toISOString();
   const records = source.flatMap((sourceRow, index) => {
     const key = String(sourceRow[input.key] ?? "").trim();

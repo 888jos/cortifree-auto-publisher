@@ -1,6 +1,7 @@
 import { dataBackend } from "../../app/lib/data-backend";
 import { refillPersonaCaches } from "./image-cache";
 import { visualGroupMembers, visualPersonaIdFor } from "../../app/lib/asset-selector";
+import { loadVisualGroups } from "../../app/lib/visual-groups";
 
 type Row = Record<string, unknown>;
 
@@ -39,6 +40,7 @@ export async function checkGenerationAssetReadiness(input: {
   requireAppScreen?: boolean;
 }): Promise<AssetPreflight> {
   const requiredPersonaAssets = minimumPersonaAssets(input.formatId, input.slideCount);
+  await loadVisualGroups();
   const visualPersonaId = visualPersonaIdFor(input.personaId) ?? input.personaId;
   const [persona, stock, appScreens] = await Promise.all([
     // Look-alike personas share one pool, so count the whole visual group.

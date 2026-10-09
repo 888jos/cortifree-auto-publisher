@@ -93,3 +93,5 @@ export type OpsOverview = {
   alerts: Array<{ code: string; severity: string; message: string }>;
 };
 
+
+export type VisualGroupSummary = { id: string; label: string; master: string; members: string[] };

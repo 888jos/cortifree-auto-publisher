@@ -1,3 +1,5 @@
+import { visualPersonaIdFor } from "../../../lib/asset-selector";
+import { loadVisualGroups } from "../../../lib/visual-groups";
 import { z } from 'zod';
 import { batchGenerationCount, buildImagePrompt, imageGenerationInputSchema } from '../../../../src/image-generation/core';
 import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from '../../../../src/visual-references';
@@ -34,7 +36,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const batch = batchSchema.parse(await request.json());
+    const requested = batchSchema.parse(await request.json());
+    // A group is always generated from its single master: selecting a
+    // look-alike generates for the master, once per group.
+    await loadVisualGroups();
+    const batch = { ...requested, persona_ids: [...new Set(requested.persona_ids.map((id) => visualPersonaIdFor(id) ?? id))] };
     const total = batchGenerationCount(batch.persona_ids.length, batch.scene_ids.length, batch.variations);
     const personas = await loadRuntimePersonaConfigs();
     const selectedPersonas = personas.filter((persona) => batch.persona_ids.includes(persona.id));
