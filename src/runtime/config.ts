@@ -321,3 +321,38 @@ export async function loadRuntimeVoiceReferences(input: {
     return empty;
   }
 }
+
+export type OperatorEdit = { field: "headline" | "body"; before: string; after: string };
+
+/**
+ * The operator's own text corrections on recent carousels of this format:
+ * generated slide text versus what she kept in the editor. They are the most
+ * direct signal of the voice she wants, so the generator imitates them.
+ */
+export async function loadRuntimeOperatorEdits(formatId: string, limit = 8): Promise<OperatorEdit[]> {
+  if (!backendConfigured()) return [];
+  try {
+    const response = await dataBackend(`carousels?workspace_id=eq.cortifree&content_type=eq.${encodeURIComponent(formatId)}&select=spec&order=updated_at.desc&limit=40`);
+    if (!response.ok) return [];
+    const carousels = await response.json() as Array<{ spec?: AnyRow }>;
+    const edits: OperatorEdit[] = [];
+    for (const carousel of carousels) {
+      const spec = carousel.spec ?? {};
+      const overrides = spec.editor_overrides && typeof spec.editor_overrides === "object" ? spec.editor_overrides as Record<string, AnyRow> : {};
+      const slides = Array.isArray(spec.generated_slides) ? spec.generated_slides as AnyRow[] : [];
+      for (const slide of slides) {
+        const override = overrides[String(slide.position)];
+        if (!override) continue;
+        for (const field of ["headline", "body"] as const) {
+          const before = String(slide[field] ?? "").trim();
+          const after = typeof override[field] === "string" ? String(override[field]).trim() : "";
+          if (after && before && after !== before) edits.push({ field, before: before.slice(0, 300), after: after.slice(0, 300) });
+          if (edits.length >= limit) return edits;
+        }
+      }
+    }
+    return edits;
+  } catch {
+    return [];
+  }
+}

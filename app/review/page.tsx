@@ -126,11 +126,11 @@ export default function ReviewPage() {
       if(event.key==="ArrowLeft"&&payload.carousels.length){event.preventDefault();setSelected(i=>Math.max(0,i-1));setSlideIndex(0)}
       if(status==="AWAITING_REVIEW"&&event.key.toLowerCase()==="a"){event.preventDefault();void approve()}
       if(status==="AWAITING_REVIEW"&&event.key.toLowerCase()==="r"){event.preventDefault();setRejectOpen(true)}
-      if(carousel&&event.key.toLowerCase()==="e"){window.location.href=`/editor/${carousel.id}`}
+      if(carousel&&event.key.toLowerCase()==="e"){window.location.href=`/editor/${carousel.id}?slide=${carousel.slides[slideIndex]?.position??1}`}
     };
     window.addEventListener("keydown",handler);
     return()=>window.removeEventListener("keydown",handler);
-  },[payload.carousels.length,status,rejectOpen,carousel]);
+  },[payload.carousels.length,status,rejectOpen,carousel,slideIndex]);
 
   return <main className="reviewShell">
     <header className="reviewTop">
@@ -181,7 +181,7 @@ export default function ReviewPage() {
         <div className="reviewStrip">{carousel.slides.map((slide,index)=><button key={slide.position} className={slideIndex===index?"active":""} onClick={()=>setSlideIndex(index)}><img src={slide.url} alt=""/><span>{slide.position}</span></button>)}</div>
 
         <div className="reviewActions">
-          <Link className="secondary" href={`/editor/${carousel.id}`}>Modifier <kbd>E</kbd></Link>
+          <Link className="secondary" href={`/editor/${carousel.id}?slide=${(activeSlide?.position??1)}`}>Modifier <kbd>E</kbd></Link>
           {status==="AWAITING_REVIEW"&&<><button className="reject" onClick={()=>setRejectOpen(true)}>Refuser <kbd>R</kbd></button><button className="approve" onClick={()=>void approve()}>Valider <kbd>A</kbd></button></>}
         </div>
         {busy&&<div className="reviewNotice">{busy}</div>}

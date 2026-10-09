@@ -114,6 +114,7 @@ function referenceTexts(input: CarouselGeneratorInput) {
   return [
     ...examples.flatMap((example) => [example.hook, ...example.slides]),
     ...(context?.hook_style_references ?? []),
+    ...(context?.operator_edits ?? []).map((edit) => edit.after),
     ...(input.recentCarousels ?? []).map((carousel) => carousel.hook ?? ""),
   ].filter(Boolean);
 }
