@@ -1,3 +1,4 @@
+import { visualGroupOf } from "./visual-groups";
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 
@@ -95,27 +96,16 @@ const VISUAL_QA_EXCLUDED_FILENAMES = new Set([
   "f30e10fc-3bd9-450c-bde8-5691249e1367.jpeg",
 ]);
 
-// Sixteen publishing personas map to eight stable visual identities.
-// A carousel must NEVER mix faces merely because two accounts share a visual pool.
-const VISUAL_PERSONA_BY_ACCOUNT: Record<string, string> = {
-  P01: "P01", P04: "P01",
-  P02: "P06", P06: "P06", P11: "P06",
-  P03: "P03", P07: "P03",
-  P05: "P05", P16: "P05",
-  P08: "P08", P14: "P08", P15: "P08",
-  P09: "P09", P12: "P09",
-  P10: "P10",
-  P13: "P13",
-};
-
+/** The group master: the one identity every new image of this persona's group is generated from. */
 export function visualPersonaIdFor(requestedPersonaId?: string) {
   if (!requestedPersonaId) return undefined;
-  return VISUAL_PERSONA_BY_ACCOUNT[requestedPersonaId] ?? requestedPersonaId;
+  return visualGroupOf(requestedPersonaId)?.master ?? requestedPersonaId;
 }
 
 /**
  * The one face a carousel will show: the account's own persona when it has
- * enough images for every slide, otherwise the look-alike with the most.
+ * enough images for every slide, else the group master (the only face new
+ * images can be generated for), else the look-alike with the most images.
  */
 export function pickCarouselFace(assets: Array<{ source_type?: string | null; persona_id?: string | null }>, personaId: string | undefined, neededImages: number) {
   if (!personaId) return undefined;
@@ -126,16 +116,16 @@ export function pickCarouselFace(assets: Array<{ source_type?: string | null; pe
     counts.set(asset.persona_id, (counts.get(asset.persona_id) ?? 0) + 1);
   }
   if ((counts.get(personaId) ?? 0) >= neededImages) return personaId;
+  const master = visualPersonaIdFor(personaId)!;
+  if ((counts.get(master) ?? 0) >= neededImages) return master;
   const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  return best?.[0] ?? personaId;
+  return best?.[0] ?? master;
 }
 
 /** Every persona sharing this persona's visual identity (look-alikes). */
 export function visualGroupMembers(personaId?: string) {
-  const visual = visualPersonaIdFor(personaId);
-  if (!visual) return [];
-  const members = Object.keys(VISUAL_PERSONA_BY_ACCOUNT).filter((id) => VISUAL_PERSONA_BY_ACCOUNT[id] === visual);
-  return members.length ? members : [visual];
+  if (!personaId) return [];
+  return visualGroupOf(personaId)?.members ?? [personaId];
 }
 
 function personaPoolAllows(assetPersonaId?: string | null, requestedPersonaId?: string) {

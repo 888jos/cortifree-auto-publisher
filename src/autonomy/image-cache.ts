@@ -1,3 +1,5 @@
+import { visualPersonaIdFor } from "../../app/lib/asset-selector";
+import { loadVisualGroups } from "../../app/lib/visual-groups";
 import crypto from 'node:crypto';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs, autonomyRuleValue } from '../runtime/config';
@@ -63,7 +65,14 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       .filter(Boolean),
   );
 
-  for (const account of active) {
+  // One cache per visual group, filled from the group master only: look-alike
+  // accounts share it instead of each generating its own face.
+  await loadVisualGroups();
+  const groupTargets = [...new Map(active.map((account) => {
+    const master = visualPersonaIdFor(account.persona_id) ?? account.persona_id;
+    return [master, { ...account, persona_id: master }] as const;
+  })).values()];
+  for (const account of groupTargets) {
     const [existing, inFlight] = await Promise.all([
       rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`),
       rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(PENDING,RETRY,RUNNING)&select=id&limit=100`),

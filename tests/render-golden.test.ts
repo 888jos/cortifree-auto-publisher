@@ -167,6 +167,8 @@ async function stubFetch(input: string | URL | Request, init: RequestInit = {}):
   const table = url.pathname.replace(/^\/rest\/v1\//, "");
   if (table === "assets" && method === "GET") return json(ASSETS);
   if (table === "assets" && method === "PATCH") return new Response(null, { status: 204 });
+  // No 00_VISUAL_GROUPS tab synced: the code's default groups apply.
+  if (table === "editorial_records" && method === "GET") return json([]);
   if (table === "asset_usage_history" && method === "GET") return json([]);
   if (table === "asset_usage_history" && method === "POST") return json([]);
   if (table === "carousel_slides" && method === "GET") return json(existingSlides);

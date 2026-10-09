@@ -21,15 +21,15 @@ describe('Drive persona root filtering', () => {
 });
 
 describe('asset scanner', () => {
-  it('maps sixteen accounts onto eight stable visual identities', () => {
+  it('maps sixteen accounts onto eight group masters', () => {
     assert.equal(visualPersonaIdFor('P01'), 'P01');
     assert.equal(visualPersonaIdFor('P04'), 'P01');
-    assert.equal(visualPersonaIdFor('P02'), 'P06');
-    assert.equal(visualPersonaIdFor('P11'), 'P06');
+    assert.equal(visualPersonaIdFor('P06'), 'P02');
+    assert.equal(visualPersonaIdFor('P11'), 'P02');
     assert.equal(visualPersonaIdFor('P07'), 'P03');
     assert.equal(visualPersonaIdFor('P16'), 'P05');
-    assert.equal(visualPersonaIdFor('P14'), 'P08');
-    assert.equal(visualPersonaIdFor('P15'), 'P08');
+    assert.equal(visualPersonaIdFor('P08'), 'P14');
+    assert.equal(visualPersonaIdFor('P15'), 'P14');
     assert.equal(visualPersonaIdFor('P12'), 'P09');
     assert.equal(visualPersonaIdFor('P10'), 'P10');
     assert.equal(visualPersonaIdFor('P13'), 'P13');

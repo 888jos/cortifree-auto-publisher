@@ -1,3 +1,4 @@
+import { loadVisualGroups } from "../visual-groups";
 import { chooseAssets, loadSelectableAssets, pickCarouselFace, requiresOfficialAppScreenshot, visualGroupMembers, visualPersonaIdFor, type AssetMatch, type SelectableAsset } from "../asset-selector";
 import { dataBackend } from "../data-backend";
 import { downloadDriveFile } from "../google/drive";
@@ -142,15 +143,14 @@ function referenceSceneIntent(slide: GeneratedSlide) {
   };
 }
 
-export async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string>; facePersonaId?: string }) {
+export async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
   const providerBlocker = await recentImageProviderBlocker();
   if (providerBlocker) {
     throw new Error(`MODELARK_PROVIDER_BLOCKED:${providerBlocker.reason}:slide_${options.position}`);
   }
   if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
-  // Generate with the face the carousel is locked to, so the repaired image
-  // matches the other slides even when that face is a look-alike's.
-  const visualPersonaId = options.facePersonaId ?? visualPersonaIdFor(options.input.personaId);
+  // A group's new images always come from its single master.
+  const visualPersonaId = visualPersonaIdFor(options.input.personaId);
   if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
   const [personas, mastersResponse, referencesResponse] = await Promise.all([
     loadRuntimePersonaConfigs(),
@@ -209,6 +209,7 @@ export async function generateRepairAsset(options: { input: { id: string; person
 // through ModelArk when a slide cannot be filled. Returns the final asset pool
 // because repairs reload it.
 export async function selectCarouselMatches(input: CarouselRenderInput, editorOverrides: EditorOverrides): Promise<{ assets: SelectableAsset[]; gridMatches: AssetMatch[][] }> {
+  await loadVisualGroups();
   const visualPersonaId = visualPersonaIdFor(input.personaId);
   // One face for the whole carousel, even though look-alikes share a pool.
   const faceLock: { personaId?: string } = {};
@@ -510,7 +511,10 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       // burns time/cost before failing again.
       if (!repairCanBecomeSelectable) throw error;
       repairedPositions.add(position);
-      await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds, facePersonaId: faceLock.personaId });
+      // The repair is generated from the group master, so the whole carousel
+      // is reselected on the master's face to keep a single face.
+      faceLock.personaId = visualPersonaId;
+      await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds });
       assets = await loadSelectableAssets();
     }
   }
@@ -532,6 +536,7 @@ export async function selectRevisionMatches(context: {
   usedReferenceIds: Set<string>;
 }): Promise<AssetMatch[]> {
   const { input, pool, slide, existing, previous, visualChange, usedReferenceIds } = context;
+  await loadVisualGroups();
   // Keep the face this slide already showed; otherwise the account's own face
   // when it has images, so a revised slide does not switch to a look-alike.
   const previousIds: string[] = Array.isArray(existing?.render_metadata?.asset_ids)
@@ -672,7 +677,11 @@ export async function selectRevisionMatches(context: {
           continue;
         }
         if (attempt > 0) throw error;
-        await generateRepairAsset({ input, slide, position: slide.position, usedReferenceIds, facePersonaId: faceLock.personaId });
+        // A repair has the master's face; on a carousel showing a look-alike
+        // it would mix two faces, so the operator picks an image instead.
+        const master = visualPersonaIdFor(input.personaId);
+        if (faceLock.personaId && faceLock.personaId !== master) throw new Error(`REVISION_FACE_MISMATCH:${faceLock.personaId}:slide_${slide.position}`);
+        await generateRepairAsset({ input, slide, position: slide.position, usedReferenceIds });
         pool.assets = await loadSelectableAssets();
         pool.assetMap.clear();
         pool.assets.forEach((asset) => pool.assetMap.set(String(asset.id), asset));

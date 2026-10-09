@@ -1,6 +1,7 @@
 import { dataBackend } from "../../lib/data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../../lib/workspace";
 import { loadRuntimePersonaConfigs } from "../../../src/runtime/config";
+import { loadVisualGroups } from "../../lib/visual-groups";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,9 @@ export async function GET() {
     ]);
     if (!masterResponse.ok) throw new Error(await masterResponse.text());
     const masters = await masterResponse.json() as Array<{ id: string | number; persona_id: string; public_url: string; filename: string }>;
+    const groups = await loadVisualGroups();
     return Response.json({
+      groups,
       personas: personas.map((persona) => {
         const master = masters.find((asset) => asset.persona_id === persona.id);
         return { ...persona, master: master ?? null, ready: Boolean(master?.public_url) };

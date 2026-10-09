@@ -35,7 +35,11 @@ export function isCanonicalPersonaRootFolder(name: string) {
 
 export async function walkPersonaTree(personaId?: string): Promise<WalkedFile[]> {
   const children = await listDriveChildren(PERSONAS_ROOT);
-  const personaFolders = children.filter((child) =>
+  // Personas sit at the root (legacy) or inside a look-alike group folder
+  // (G2_BLONDES__MASTER_LILY/AVA/...). Paths stay relative to the persona.
+  const groupFolders = children.filter((child) => child.mimeType === FOLDER_MIME && /^G\d+/i.test(child.name.trim()));
+  const grouped = (await Promise.all(groupFolders.map((group) => listDriveChildren(group.id)))).flat();
+  const personaFolders = [...children, ...grouped].filter((child) =>
     child.mimeType === FOLDER_MIME && isCanonicalPersonaRootFolder(child.name),
   );
   if (!personaId) {

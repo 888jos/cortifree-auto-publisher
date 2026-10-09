@@ -72,11 +72,15 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
 
   const folderTree = rootedFolders;
 
+  // Face folders sit at the root (legacy) or inside a group folder:
+  // G2_BLONDES__MASTER_P02_LILY/P06_AVA/02_HOME...
   const personaFolders = new Map<string, FolderNode>();
   for (const item of folderTree) {
-    if (item.path.length !== 1) continue;
-    const id = personaIdFromFolderPath(item.path);
-    if (id && visualPersonaIdFor(id) === id && !personaFolders.has(id)) personaFolders.set(id, item);
+    const inGroup = item.path.length === 2 && /^G\d+/i.test(item.path[0]!);
+    if (item.path.length !== 1 && !inGroup) continue;
+    const id = personaIdFromFolderPath(item.path.slice(-1));
+    if (!id) continue;
+    if (inGroup || !personaFolders.has(id)) personaFolders.set(id, item);
   }
 
   const report: Row[] = [];
@@ -103,24 +107,13 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       continue;
     }
 
-    // Historical assets generated with a now-merged-away face stay in legacy storage.
-    // Relabeling P04/Nora as P01/Emma (etc.) would corrupt identity continuity.
-    if (personaId !== visualPersonaId) {
-      report.push({
-        id: asset.id,
-        filename: asset.filename,
-        persona_id: personaId,
-        visual_persona_id: visualPersonaId,
-        status: "SKIPPED_LEGACY_NONCANONICAL",
-      });
-      continue;
-    }
-
-    const personaFolder = personaFolders.get(visualPersonaId);
+    // Each image goes to its own face's folder inside the group. Never
+    // relabel it to the group master: Ava's face must stay tagged P06.
+    const personaFolder = personaFolders.get(personaId);
     if (!personaFolder) {
       if (execute && !asset.persona_id) {
         await patchAsset(String(asset.id), {
-          persona_id: visualPersonaId,
+          persona_id: personaId,
           metadata: {
             ...metadata,
             reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null,
@@ -128,9 +121,9 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
             drive_archive_status: "PENDING_FOLDER_ACCESS",
           },
         });
-        report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "ATTRIBUTED_PENDING_DRIVE" });
+        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_PENDING_DRIVE" });
       } else {
-        report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "PERSONA_FOLDER_NOT_FOUND" });
+        report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "PERSONA_FOLDER_NOT_FOUND" });
       }
       continue;
     }
@@ -142,7 +135,7 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
       && item.path.at(-1) === targetName
     );
     if (!target) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName });
       continue;
     }
 
@@ -150,17 +143,17 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
     const storedDrivePath = String(asset.drive_path ?? metadata.drive_path ?? "").trim();
     const alreadyInRuntimePool = Boolean(storedDriveFileId) && storedDrivePath.startsWith(`${VISUAL_POOLS_ROOT_NAME}/`);
     if (alreadyInRuntimePool) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ALREADY_IN_DRIVE", drive_file_id: storedDriveFileId });
       continue;
     }
 
     if (!execute) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "READY_TO_ARCHIVE", target: [...target.path].join("/") });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "READY_TO_ARCHIVE", target: [...target.path].join("/") });
       continue;
     }
 
     const attribution = {
-      persona_id: visualPersonaId,
+      persona_id: personaId,
       metadata: {
         ...metadata,
         reconciled_from_master: (metadata.input_image_1 as Row | undefined)?.filename ?? null,
@@ -170,13 +163,13 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
     await patchAsset(String(asset.id), attribution);
 
     if (!asset.public_url) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "ATTRIBUTED_NOT_ARCHIVED" });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "ATTRIBUTED_NOT_ARCHIVED" });
       continue;
     }
 
     const image = await fetch(String(asset.public_url), { signal: AbortSignal.timeout(30_000) });
     if (!image.ok) {
-      report.push({ id: asset.id, filename: asset.filename, persona_id: visualPersonaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status });
+      report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "SOURCE_DOWNLOAD_FAILED", http_status: image.status });
       continue;
     }
 

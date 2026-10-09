@@ -37,7 +37,9 @@ export function AssetLibraryStats({ library }: { library: AssetLibrary }) {
 
 // Asset library tab: assets by source, visual references and the batch entry point.
 export function AssetLibraryPanel({ library, images }: { library: AssetLibrary; images: ImageGeneration }) {
-  const { assetTab, setAssetTab, assetQuery, setAssetQuery, referenceCategory, setReferenceCategory, visualReferences, visibleAssetGroups, filteredAssetPreviews, filteredVisualReferences } = library;
+  const { assetTab, setAssetTab, assetQuery, setAssetQuery, referenceCategory, setReferenceCategory, visualReferences, visibleAssetGroups, filteredAssetPreviews, filteredVisualReferences, visualGroups, groupFilter, setGroupFilter, assetsByGroup } = library;
+  const personaTab = assetTab === "Persona Generated" || assetTab === "Masters";
+  const nameOf = (personaId: string) => library.personas.find((persona) => persona.id === personaId)?.name ?? personaId;
   const { setBatchConfirmed, setBatchModalOpen } = images;
   return (
     <section className="panel wide">
@@ -55,6 +57,9 @@ export function AssetLibraryPanel({ library, images }: { library: AssetLibrary; 
       </div>
       <div className="assetFilters">
         <label><span>Recherche</span><input onChange={(event) => setAssetQuery(event.target.value)} placeholder="full body mirror casual bedroom" type="search" value={assetQuery} /></label>
+        {assetTab !== "Visual References" && assetTab !== "Stock" && visualGroups.length > 0 && (
+          <label><span>Groupe</span><select onChange={(event) => setGroupFilter(event.target.value)} value={groupFilter}><option value="all">Tous les groupes</option>{visualGroups.map((group) => <option key={group.id} value={group.id}>{group.id} · {group.label} · master {nameOf(group.master)}</option>)}</select></label>
+        )}
         {assetTab === "Visual References" && (
           <label><span>Catégorie</span><select onChange={(event) => setReferenceCategory(event.target.value)} value={referenceCategory}><option value="all">Toutes</option>{[...new Set(visualReferences.map((reference) => reference.category))].map((category) => <option key={category} value={category}>{displayLabel(category)}</option>)}</select></label>
         )}
@@ -74,7 +79,25 @@ export function AssetLibraryPanel({ library, images }: { library: AssetLibrary; 
       {assetTab !== "Visual References" && (
         <div className="assetLibraryMeta"><b>{filteredAssetPreviews.length}</b> image{filteredAssetPreviews.length > 1 ? "s" : ""} · {assetTab}</div>
       )}
-      {assetTab !== "Visual References" && filteredAssetPreviews.length > 0 && (
+      {personaTab && assetsByGroup.map(({ group, faces }) => (
+        <section className="assetGroup" key={group.id}>
+          <header><b>{group.id} · {group.label}</b><span>master {nameOf(group.master)} ({group.master}) · comptes {group.members.map(nameOf).join(", ")}</span></header>
+          {faces.map((face) => (
+            <div className="assetFace" key={face.personaId}>
+              <h4>{nameOf(face.personaId)} <small>{face.personaId} · {face.assets.length} image{face.assets.length > 1 ? "s" : ""}{face.isMaster ? " · master du groupe" : " · anciennes images"}</small></h4>
+              <div className="assetPreviewGrid">
+                {face.assets.map((asset) => (
+                  <figure key={asset.id}>
+                    <img alt={asset.filename} loading="lazy" src={asset.public_url} />
+                    <figcaption><b>{asset.source_type === "persona_master" ? "MASTER · " : ""}{displayLabel(asset.metadata?.asset_name || asset.subcategory, asset.filename)}</b><span>{displayLabel(asset.category)}</span></figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+      {!personaTab && assetTab !== "Visual References" && filteredAssetPreviews.length > 0 && (
         <div className="assetPreviewGrid">
           {filteredAssetPreviews.map((asset) => (
             <figure key={asset.id}>
