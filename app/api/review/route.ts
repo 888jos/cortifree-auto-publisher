@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminRequest } from "../../lib/admin-auth";
+import { isOperatorRequest } from "../../lib/admin-auth";
 import { dataBackend } from "../../lib/data-backend";
 
 type Row = Record<string, unknown>;
@@ -11,7 +11,7 @@ async function rows(resource: string): Promise<Row[]> {
 }
 
 export async function GET(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperatorRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get("status") || "AWAITING_REVIEW";
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
 
     const all = await rows(
-      "carousels?workspace_id=eq.cortifree&select=id,account_id,persona_id,topic,angle,content_type,status,review_status,review_notes,current_version,revision_count,approved_version,approved_at,rejected_at,rejection_reason_code,rejection_action,scheduled_for,spec,created_at&order=created_at.desc&limit=1000",
+      "carousels?workspace_id=eq.cortifree&select=id,account_id,persona_id,topic,angle,content_type,status,review_status,review_notes,current_version,revision_count,approved_version,approved_at,rejected_at,rejection_reason_code,rejection_action,scheduled_for,caption,created_at&order=created_at.desc&limit=1000",
     );
     const operational = all.filter((row) => String(row.status ?? "") !== "ARCHIVED");
     const summary = operational.reduce<Record<string, number>>((totals, row) => {
@@ -32,6 +32,12 @@ export async function GET(request: Request) {
       .filter((row) => String(row.review_status ?? "") === status)
       .filter((row) => status !== "AWAITING_REVIEW" || String(row.status ?? "") === "READY_FOR_REVIEW")
       .filter((row) => !persona || String(row.persona_id ?? "") === persona)
+      // Soonest publication first; unplanned drafts after, newest first.
+      .sort((left, right) => {
+        const l = left.scheduled_for ? Date.parse(String(left.scheduled_for)) : Number.POSITIVE_INFINITY;
+        const r = right.scheduled_for ? Date.parse(String(right.scheduled_for)) : Number.POSITIVE_INFINITY;
+        return l - r || String(right.created_at ?? "").localeCompare(String(left.created_at ?? ""));
+      })
       .slice(0, limit);
     const ids = new Set(queue.map((row) => String(row.id)));
     const slideRows = ids.size

@@ -188,7 +188,7 @@ export default function TemplatesPage() {
     <main className="templateLab">
       <header className="templateLabHeader">
         <div>
-          <Link className="backLink" href="/">← Retour au studio</Link>
+          <Link className="backLink" href="/?studio=1">← Retour au studio</Link>
           <p className="eyebrow">CORTIFREE · TEMPLATE LAB</p>
           <h1>Structures exactes pour les carrousels</h1>
           <p className="templateLead">Blueprints inspirés de la collection TikTok : chaque slide a un rôle, une image attendue et une zone de texte déterminée.</p>

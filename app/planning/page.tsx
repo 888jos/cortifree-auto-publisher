@@ -89,7 +89,7 @@ export default function PlanningPage(){
   }
 
   return <main className="planningShell">
-    <header className="planningTop"><div className="planningBrand"><Link href="/"><span>CF</span>CortiFree</Link><i>/</i><b>Planning</b></div><nav><Link href="/review">Review</Link><Link href="/">Studio</Link></nav></header>
+    <header className="planningTop"><div className="planningBrand"><Link href="/"><span>CF</span>CortiFree</Link><i>/</i><b>Planning</b></div><nav><Link href="/review">À valider</Link><Link href="/?studio=1">Studio</Link></nav></header>
 
     <section className="planningHero">
       <div><p>CONTENT PLANNING</p><h1>Une semaine, 16 personas, zéro devinette.</h1><span>Les carrousels validés restent en backlog tant qu’ils n’ont pas de créneau.</span></div>

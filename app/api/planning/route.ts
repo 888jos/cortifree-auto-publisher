@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminRequest } from "../../lib/admin-auth";
+import { isOperatorRequest } from "../../lib/admin-auth";
 import { dataBackend } from "../../lib/data-backend";
 import { scheduleCarousel, unscheduleCarousel } from "../../lib/planning";
 
@@ -27,7 +27,7 @@ function approvalStale(carousel: Row | undefined) {
 }
 
 export async function GET(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperatorRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const url = new URL(request.url);
     const daysCount = Math.min(21, Math.max(1, Number(url.searchParams.get("days") ?? 7)));
@@ -155,7 +155,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperatorRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json() as {
       action?: "schedule" | "unschedule";

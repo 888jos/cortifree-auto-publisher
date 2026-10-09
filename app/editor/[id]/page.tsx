@@ -127,7 +127,7 @@ export default function Editor({params}:{params:Promise<{id:string}>}){
    if(e.key==="Escape"){setEditingText(null);setPreviewMode(false);setDiagnoseMode(false);setHistoryMode(false);setGuides({})}
  }}>
   <header className="ce-top">
-   <a className="ce-back" href="/"><span>CF</span><i>←</i><b>Carrousels</b></a>
+   <a className="ce-back" href="/review"><span>CF</span><i>←</i><b>À valider</b></a>
    <div className="ce-titleblock"><strong>{carousel.topic||carousel.content_type||"Carrousel sans titre"}</strong><small>{FORMAT_MODELS.find(item=>item.id===selectedTemplate)?.name||carousel.content_type} · slide {active+1}/{generated.length}</small></div>
    <div className="ce-history-actions"><button disabled={!history.length} onClick={undo} title="Annuler">↶</button><button disabled={!future.length} onClick={redo} title="Rétablir">↷</button></div>
    <div className="ce-save-cluster"><span className={"ce-save-state "+saveState}>{saveLabel}</span>{lastSavedAt&&saveState==="saved"&&<span className="ce-last-saved">à {lastSavedAt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}</div>
