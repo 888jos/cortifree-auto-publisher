@@ -1,4 +1,4 @@
-import { chooseAssets, loadSelectableAssets, requiresOfficialAppScreenshot, visualPersonaIdFor, type AssetMatch, type SelectableAsset } from "../asset-selector";
+import { chooseAssets, loadSelectableAssets, pickCarouselFace, requiresOfficialAppScreenshot, visualGroupMembers, visualPersonaIdFor, type AssetMatch, type SelectableAsset } from "../asset-selector";
 import { dataBackend } from "../data-backend";
 import { downloadDriveFile } from "../google/drive";
 import { processImageGenerationJob, recentImageProviderBlocker } from "../image-generation";
@@ -142,13 +142,15 @@ function referenceSceneIntent(slide: GeneratedSlide) {
   };
 }
 
-export async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
+export async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string>; facePersonaId?: string }) {
   const providerBlocker = await recentImageProviderBlocker();
   if (providerBlocker) {
     throw new Error(`MODELARK_PROVIDER_BLOCKED:${providerBlocker.reason}:slide_${options.position}`);
   }
   if (!options.input.personaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
-  const visualPersonaId = visualPersonaIdFor(options.input.personaId);
+  // Generate with the face the carousel is locked to, so the repaired image
+  // matches the other slides even when that face is a look-alike's.
+  const visualPersonaId = options.facePersonaId ?? visualPersonaIdFor(options.input.personaId);
   if (!visualPersonaId) throw new Error(`MODELARK_REPAIR_REQUIRES_PERSONA:slide_${options.position}`);
   const [personas, mastersResponse, referencesResponse] = await Promise.all([
     loadRuntimePersonaConfigs(),
@@ -208,10 +210,14 @@ export async function generateRepairAsset(options: { input: { id: string; person
 // because repairs reload it.
 export async function selectCarouselMatches(input: CarouselRenderInput, editorOverrides: EditorOverrides): Promise<{ assets: SelectableAsset[]; gridMatches: AssetMatch[][] }> {
   const visualPersonaId = visualPersonaIdFor(input.personaId);
+  // One face for the whole carousel, even though look-alikes share a pool.
+  const faceLock: { personaId?: string } = {};
+  const groupMembers = new Set(visualGroupMembers(input.personaId));
   let assets = await loadSelectableAssets();
   if (!assets.length) throw new Error("No synced Drive asset is available");
+  faceLock.personaId = pickCarouselFace(assets, input.personaId, input.slides.length);
   const personaHookIds = assets
-    .filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === visualPersonaId)
+    .filter((asset) => asset.source_type === "persona_generated" && groupMembers.has(String(asset.persona_id ?? "")))
     .map((asset) => String(asset.id));
   let recentHookAssetIds = new Set<string>();
   if (input.personaId && personaHookIds.length) {
@@ -285,7 +291,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
         const locked = lockedMatchesForSlide(slide, actualIndex)[0];
         if (locked) return locked;
         try {
-          return chooseAssets({
+          return chooseAssets({ faceLock,
             assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
@@ -316,7 +322,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           const preferredSlide = { ...slide, assetType: preferPersona ? "persona" : "stock" };
           let selected: AssetMatch;
           try {
-            selected = chooseAssets({
+            selected = chooseAssets({ faceLock,
               assets,
               carouselType: input.carouselType,
               personaId: input.personaId,
@@ -325,7 +331,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
             })[0]!;
           } catch {
             try {
-              selected = chooseAssets({
+              selected = chooseAssets({ faceLock,
                 assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
@@ -337,7 +343,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
               // atmospheric support. Broaden only the visual description
               // while retaining the detected scene category and all selector
               // hard-safety/review constraints.
-              selected = chooseAssets({
+              selected = chooseAssets({ faceLock,
                 assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
@@ -359,7 +365,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
             usedRoutineAssets.add(String(locked.asset.id));
             return [locked];
           }
-          const selected = chooseAssets({
+          const selected = chooseAssets({ faceLock,
             assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
@@ -414,7 +420,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
                       role: "SUPPORT",
                       assetType: input.layout === "lifestyle-3stack" ? "persona" : "stock",
                     };
-              const next = chooseAssets({
+              const next = chooseAssets({ faceLock,
                 assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
@@ -458,7 +464,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           : gridAssetSlideForSlot(slide, 1);
         let secondary: AssetMatch;
         try {
-          secondary = chooseAssets({
+          secondary = chooseAssets({ faceLock,
             assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
@@ -470,7 +476,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           // render blocker. Reuse elsewhere is acceptable; duplicate within
           // this 2x2 slide is not.
           try {
-            secondary = chooseAssets({
+            secondary = chooseAssets({ faceLock,
               assets,
               carouselType: input.carouselType,
               personaId: input.personaId,
@@ -504,7 +510,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       // burns time/cost before failing again.
       if (!repairCanBecomeSelectable) throw error;
       repairedPositions.add(position);
-      await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds });
+      await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds, facePersonaId: faceLock.personaId });
       assets = await loadSelectableAssets();
     }
   }
@@ -526,6 +532,14 @@ export async function selectRevisionMatches(context: {
   usedReferenceIds: Set<string>;
 }): Promise<AssetMatch[]> {
   const { input, pool, slide, existing, previous, visualChange, usedReferenceIds } = context;
+  // Keep the face this slide already showed; otherwise the account's own face
+  // when it has images, so a revised slide does not switch to a look-alike.
+  const previousIds: string[] = Array.isArray(existing?.render_metadata?.asset_ids)
+    ? existing!.render_metadata!.asset_ids.map(String)
+    : existing?.asset_id != null ? [String(existing.asset_id)] : [];
+  const previousFace = previousIds.map((id) => pool.assetMap.get(id)).find((asset) => asset?.source_type === "persona_generated")?.persona_id;
+  const ownFaceAvailable = pool.assets.some((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
+  const faceLock: { personaId?: string } = { personaId: previousFace ?? (ownFaceAvailable ? input.personaId : undefined) };
   let slideMatches: AssetMatch[] = [];
   const isTextOnlyRanking = input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0;
 
@@ -579,13 +593,13 @@ export async function selectRevisionMatches(context: {
             slideMatches = [];
           } else {
             try {
-              const primary = chooseAssets({
+              const primary = chooseAssets({ faceLock,
                 assets: pool.assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
                 slides: [{ ...withoutAppScreenshotDirective(slide), assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
               })[0]!;
-              const support = chooseAssets({
+              const support = chooseAssets({ faceLock,
                 assets: pool.assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
@@ -601,14 +615,14 @@ export async function selectRevisionMatches(context: {
           }
         } else if (input.layout === "grid-2x2" && !isHook) {
           const personaAssets = pool.assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
-          const personaMatch = chooseAssets({
+          const personaMatch = chooseAssets({ faceLock,
             assets: personaAssets,
             carouselType: input.carouselType,
             personaId: input.personaId,
             slides: [{ ...withoutAppScreenshotDirective(slide), assetType: "persona" }],
           })[0]!;
           if (requiresOfficialAppScreenshot(slide)) {
-            const appMatch = chooseAssets({
+            const appMatch = chooseAssets({ faceLock,
               assets: pool.assets,
               carouselType: input.carouselType,
               personaId: input.personaId,
@@ -617,7 +631,7 @@ export async function selectRevisionMatches(context: {
             })[0]!;
             slideMatches = [personaMatch, appMatch, appMatch, personaMatch];
           } else {
-            const secondPersona = chooseAssets({
+            const secondPersona = chooseAssets({ faceLock,
               assets: personaAssets,
               carouselType: input.carouselType,
               personaId: input.personaId,
@@ -632,7 +646,7 @@ export async function selectRevisionMatches(context: {
           slideMatches = [];
           const desiredCount = input.layout === "three-rect-educational" && isHook ? 2 : 3;
           while (slideMatches.length < desiredCount) {
-            const next = chooseAssets({
+            const next = chooseAssets({ faceLock,
               assets: pool.assets,
               carouselType: input.carouselType,
               personaId: input.personaId,
@@ -643,7 +657,7 @@ export async function selectRevisionMatches(context: {
             used.add(String(next.asset.id));
           }
         } else {
-          slideMatches = chooseAssets({
+          slideMatches = chooseAssets({ faceLock,
             assets: pool.assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
@@ -658,7 +672,7 @@ export async function selectRevisionMatches(context: {
           continue;
         }
         if (attempt > 0) throw error;
-        await generateRepairAsset({ input, slide, position: slide.position, usedReferenceIds });
+        await generateRepairAsset({ input, slide, position: slide.position, usedReferenceIds, facePersonaId: faceLock.personaId });
         pool.assets = await loadSelectableAssets();
         pool.assetMap.clear();
         pool.assets.forEach((asset) => pool.assetMap.set(String(asset.id), asset));

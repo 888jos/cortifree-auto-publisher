@@ -113,10 +113,37 @@ export function visualPersonaIdFor(requestedPersonaId?: string) {
   return VISUAL_PERSONA_BY_ACCOUNT[requestedPersonaId] ?? requestedPersonaId;
 }
 
+/**
+ * The one face a carousel will show: the account's own persona when it has
+ * enough images for every slide, otherwise the look-alike with the most.
+ */
+export function pickCarouselFace(assets: Array<{ source_type?: string | null; persona_id?: string | null }>, personaId: string | undefined, neededImages: number) {
+  if (!personaId) return undefined;
+  const members = new Set(visualGroupMembers(personaId));
+  const counts = new Map<string, number>();
+  for (const asset of assets) {
+    if (asset.source_type !== "persona_generated" || !asset.persona_id || !members.has(asset.persona_id)) continue;
+    counts.set(asset.persona_id, (counts.get(asset.persona_id) ?? 0) + 1);
+  }
+  if ((counts.get(personaId) ?? 0) >= neededImages) return personaId;
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return best?.[0] ?? personaId;
+}
+
+/** Every persona sharing this persona's visual identity (look-alikes). */
+export function visualGroupMembers(personaId?: string) {
+  const visual = visualPersonaIdFor(personaId);
+  if (!visual) return [];
+  const members = Object.keys(VISUAL_PERSONA_BY_ACCOUNT).filter((id) => VISUAL_PERSONA_BY_ACCOUNT[id] === visual);
+  return members.length ? members : [visual];
+}
+
 function personaPoolAllows(assetPersonaId?: string | null, requestedPersonaId?: string) {
   if (!requestedPersonaId) return true;
   if (!assetPersonaId) return false;
-  return assetPersonaId === visualPersonaIdFor(requestedPersonaId);
+  // Look-alike personas share one image pool; chooseAssets then locks a
+  // single face per carousel so slides never mix two people.
+  return visualPersonaIdFor(assetPersonaId) === visualPersonaIdFor(requestedPersonaId);
 }
 
 const stopWords = new Set(["the", "and", "with", "this", "that", "your", "for", "from", "into", "one", "clear", "everyday", "lifestyle", "image", "photo", "slide", "natural"]);
@@ -370,9 +397,14 @@ export function chooseAssets(options: {
   personaId?: string;
   personaOnly?: boolean;
   excludedAssetIds?: Set<string>;
+  /** Shared across every chooseAssets call of one carousel: the first persona image picked fixes the face. */
+  faceLock?: { personaId?: string };
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
+  const faceLock = options.faceLock ?? {};
+  const allowsPersona = (asset: SelectableAsset) => personaPoolAllows(asset.persona_id, options.personaId)
+    && (!faceLock.personaId || asset.persona_id === faceLock.personaId);
   const usedVisualDescriptions: string[] = [];
   return options.slides.map((slide) => {
     const intent = deriveVisualIntent(slide);
@@ -389,7 +421,7 @@ export function chooseAssets(options: {
       && (
         asset.source_type === "app_screenshot"
         || isCanonicalReviewedStock(asset)
-        || (asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId))
+        || (asset.source_type === "persona_generated" && allowsPersona(asset))
       )
     );
     const constraint = sceneConstraint(slide);
@@ -398,11 +430,11 @@ export function chooseAssets(options: {
     const requested = officialAppScreenshot
       ? finalUse.filter((asset) => asset.source_type === "app_screenshot")
       : hookNeedsPersona || slide.assetType === "persona"
-        ? finalUse.filter((asset) => asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId))
+        ? finalUse.filter((asset) => asset.source_type === "persona_generated" && allowsPersona(asset))
         : slide.assetType === "stock"
           ? finalUse.filter((asset) =>
               asset.source_type === "stock"
-              || (asset.source_type === "persona_generated" && personaPoolAllows(asset.persona_id, options.personaId)),
+              || (asset.source_type === "persona_generated" && allowsPersona(asset)),
             )
           : slide.assetType === "text_only"
             ? finalUse.filter((asset) => asset.source_type === "stock")
@@ -518,6 +550,10 @@ export function chooseAssets(options: {
       // Hooks care about identity + broad content universe first. Exact micro-scene
       // similarity remains a tie-breaker, not a production gate.
       if (hookNeedsPersona && asset.source_type === "persona_generated") score += 12;
+      // Each account mostly shows its own face; look-alikes fill the gaps.
+      // A penalty on the sibling face (not a bonus on its own) leaves the
+      // persona-versus-stock balance unchanged.
+      if (asset.source_type === "persona_generated" && options.personaId && asset.persona_id !== options.personaId) score -= 6;
       const visualRepetitionPenalty = usedVisualDescriptions.some((previous) => semanticTokenOverlap(previous, visualDescription) >= 0.75) ? 10 : 0;
       const repetitionPenalty = Math.min(asset.use_count ?? 0, 12) * 1.8 + (asset.last_used_at && Date.now() - new Date(asset.last_used_at).getTime() < 21 * 86_400_000 ? 16 : 0) + visualRepetitionPenalty;
       score -= repetitionPenalty;
@@ -581,6 +617,7 @@ export function chooseAssets(options: {
       throw new Error(`LOW_CONFIDENCE_ASSET:slide_${slide.position}:score_${topScore.toFixed(1)}:required_${threshold}:candidates_${candidates.length}`);
     }
     used.add(selected.asset.id);
+    if (selected.asset.source_type === "persona_generated" && selected.asset.persona_id) faceLock.personaId ??= selected.asset.persona_id;
     const selectedDescription = visualField(selected.asset, "visual_description");
     if (selectedDescription) usedVisualDescriptions.push(String(selectedDescription));
     return {

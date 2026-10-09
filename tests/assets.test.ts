@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { scanAssets } from '../src/assets/scanner.js';
-import { chooseAssets, deriveVisualIntent, visualPersonaIdFor, type SelectableAsset } from '../app/lib/asset-selector';
+import { chooseAssets, deriveVisualIntent, pickCarouselFace, visualPersonaIdFor, type SelectableAsset } from '../app/lib/asset-selector';
 import { isAutomaticVisualReference } from '../src/visual-references';
 import { isBrowserRenderableAssetUrl } from '../app/lib/asset-public-url';
 import { isCanonicalPersonaRootFolder } from '../app/lib/sync/drive';
@@ -51,7 +51,17 @@ describe('asset scanner', () => {
       assets: [base('emma-canonical', 'P01'), base('nora-old-pool-face', 'P04')],
       slides: [{ position: 1, role: 'HOOK', headline: 'slow morning', body: '', assetType: 'persona', assetQuery: 'woman in bedroom morning', visualIntent: 'woman in bedroom in soft morning daylight' }],
     });
-    assert.equal(selected?.asset.persona_id, 'P01');
+    // Look-alikes share a pool, but each account prefers its own face.
+    assert.equal(selected?.asset.persona_id, 'P04');
+
+    // P01 has one image for a three-slide carousel, so the carousel takes the
+    // look-alike with enough images and keeps that single face throughout.
+    const pool = [base('emma-1', 'P01'), base('nora-1', 'P04'), base('nora-2', 'P04'), base('nora-3', 'P04')];
+    assert.equal(pickCarouselFace(pool, 'P01', 3), 'P04');
+    assert.equal(pickCarouselFace(pool, 'P01', 1), 'P01');
+    const slides = [1, 2, 3].map((position) => ({ position, role: position === 1 ? 'HOOK' : 'TIP', headline: `slide ${position}`, body: '', assetType: 'persona', assetQuery: 'woman in bedroom morning', visualIntent: 'woman in bedroom in soft morning daylight' }));
+    const picks = chooseAssets({ carouselType: 'F01_LIFESTYLE_GUIDE', personaId: 'P01', faceLock: { personaId: pickCarouselFace(pool, 'P01', 3) }, assets: pool, slides });
+    assert.deepEqual([...new Set(picks.map((pick) => pick.asset.persona_id))], ['P04']);
   });
 
   it('rescues a weak stock-designated slot with the same canonical visual persona when the scene is materially better', () => {

@@ -1,6 +1,6 @@
 import { dataBackend } from "../../app/lib/data-backend";
 import { refillPersonaCaches } from "./image-cache";
-import { visualPersonaIdFor } from "../../app/lib/asset-selector";
+import { visualGroupMembers, visualPersonaIdFor } from "../../app/lib/asset-selector";
 
 type Row = Record<string, unknown>;
 
@@ -41,7 +41,8 @@ export async function checkGenerationAssetReadiness(input: {
   const requiredPersonaAssets = minimumPersonaAssets(input.formatId, input.slideCount);
   const visualPersonaId = visualPersonaIdFor(input.personaId) ?? input.personaId;
   const [persona, stock, appScreens] = await Promise.all([
-    rows(`assets?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(visualPersonaId)}&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&select=id&limit=100`),
+    // Look-alike personas share one pool, so count the whole visual group.
+    rows(`assets?workspace_id=eq.cortifree&persona_id=in.(${visualGroupMembers(input.personaId).map(encodeURIComponent).join(",") || encodeURIComponent(visualPersonaId)})&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&select=id&limit=300`),
     rows("assets?workspace_id=eq.cortifree&source_type=eq.stock&enabled=eq.true&public_url=not.is.null&select=id,visual_tagging_schema,visual_review_status,visual_reviewed_at&limit=1000"),
     rows("assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&enabled=eq.true&public_url=not.is.null&select=id&limit=100"),
   ]);
