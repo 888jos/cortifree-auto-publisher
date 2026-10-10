@@ -77,7 +77,8 @@ const F05_BACKGROUND_FALLBACK_THRESHOLD = 15;
 // F03 needs one distinct same-persona photo per timed step. A lower fallback
 // is safer than repeating the same high-scoring frame: persona identity and
 // hard scene constraints have already been enforced before scoring.
-const F03_PERSONA_FALLBACK_THRESHOLD = 22;
+// Below this, a ModelArk repair of the exact step beats an unrelated photo.
+const F03_PERSONA_FALLBACK_THRESHOLD = 30;
 // F07 body slides are text-only; this applies only to the second decorative
 // teaser image on the cover after all hard visual/review constraints passed.
 const F07_COVER_SUPPORT_FALLBACK_THRESHOLD = 12;

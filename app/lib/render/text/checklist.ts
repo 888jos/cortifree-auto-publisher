@@ -63,21 +63,22 @@ export async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geo
   const startX = frame.bodyX ?? frame.checklistChoicesX ?? 165;
   const startY = Math.max(frame.bodyY ?? frame.checklistChoicesY ?? 405, (frame.headlineY ?? frame.y) + titleHeight + 34);
   const choiceWidth = frame.checklistChoicesWidth ?? 750;
-  const textWidth = choiceWidth - 54;
-  const fontSize = 23;
-  const lineHeight = 31;
-  const rowGap = 18;
+  const textWidth = choiceWidth - 66;
+  // Phone-readable Notes items (23px left most of the card empty).
+  const fontSize = frame.bodySize ?? 40;
+  const lineHeight = Math.round(fontSize * 1.32);
+  const rowGap = Math.round(fontSize * 0.75);
   let cursorY = startY;
   for (const choice of choices) {
     const circle = Buffer.from(
-      `<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="11.5" fill="none" stroke="#c7c7cc" stroke-width="2"/></svg>`,
+      `<svg width="40" height="40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="15" fill="none" stroke="#c7c7cc" stroke-width="2.5"/></svg>`,
     );
     overlays.push({ input: circle, left: startX, top: cursorY + 2 });
     const labelImage = await rasterText(choice, {
       maxLines: 2, width: textWidth, height: 2 * lineHeight + 8, size: fontSize, weight: 400,
       color: "#3b3b3b", align: "left", spacing: 0, fontFamily,
     });
-    overlays.push({ input: labelImage, left: startX + 44, top: cursorY });
+    overlays.push({ input: labelImage, left: startX + 56, top: cursorY });
     // Stack by the real rendered height so a wrapped item never overlaps the next.
     cursorY += Math.max(lineHeight, await heightOf(labelImage)) + rowGap;
   }

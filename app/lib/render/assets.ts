@@ -320,19 +320,24 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       // Masters and raw Pinterest references are never renderable output. They
       // may only enter through the ModelArk repair path above.
       const selectionSlides = input.slides;
+      // One photo appears once per carousel (a live F03 showed the same
+      // bookshop photo on two steps).
+      const usedInCarousel = new Set<string>();
       const matches = selectionSlides.map((slide, selectionIndex): AssetMatch | undefined => {
         const actualIndex = selectionIndex;
         if (input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0) return undefined;
         const locked = lockedMatchesForSlide(slide, actualIndex)[0];
-        if (locked) return locked;
+        if (locked) { usedInCarousel.add(String(locked.asset.id)); return locked; }
         try {
-          return chooseAssets({ faceLock,
+          const match = chooseAssets({ faceLock,
             assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
-            excludedAssetIds: recentHookAssetIds,
+            excludedAssetIds: new Set([...recentHookAssetIds, ...usedInCarousel]),
             slides: [primarySelectionSlide(slide)],
           })[0]!;
+          usedInCarousel.add(String(match.asset.id));
+          return match;
         } catch (error) {
           // F07 cover imagery is decorative, not structural. If no safe cover
           // image clears QA, render the already-supported text-first cover
