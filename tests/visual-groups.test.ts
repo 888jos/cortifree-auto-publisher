@@ -34,3 +34,21 @@ describe("visual groups", () => {
     assert.equal(pickCarouselFace([image("P11"), image("P11"), image("P11")], "P11", 3), "P11");
   });
 });
+
+describe("group image targets", async () => {
+  const { isProviderAccountBlockedError, isPermanentImageGenerationError } = await import("../src/image-generation/core.js");
+  it("pauses the solo groups and reads image_target from the Sheet", () => {
+    assert.equal(DEFAULT_VISUAL_GROUPS.find((group) => group.id === "G7")?.imageTarget, 0);
+    assert.equal(DEFAULT_VISUAL_GROUPS.find((group) => group.id === "G8")?.imageTarget, 0);
+    assert.ok(DEFAULT_VISUAL_GROUPS.filter((group) => group.members.length > 1).every((group) => (group.imageTarget ?? 0) >= 32));
+    assert.equal(parseVisualGroups([{ group_id: "G1", master_persona_id: "P01", member_persona_ids: "P04", image_target: "40" }])?.[0]?.imageTarget, 40);
+    assert.equal(parseVisualGroups([{ group_id: "G1", master_persona_id: "P01", member_persona_ids: "P04" }])?.[0]?.imageTarget, undefined);
+  });
+
+  it("recognises every blocked-account error so queued jobs are parked, not lost", () => {
+    assert.ok(isProviderAccountBlockedError(new Error("MODELARK_PROVIDER_BLOCKED:overdue_balance")));
+    assert.ok(isProviderAccountBlockedError(new Error('ModelArk 403: {"error":{"code":"AccountOverdueError"}}')));
+    assert.ok(!isProviderAccountBlockedError(new Error("ModelArk 400 InputImageSensitiveContentDetected")));
+    assert.ok(isPermanentImageGenerationError(new Error("ModelArk 400 InputImageSensitiveContentDetected")));
+  });
+});

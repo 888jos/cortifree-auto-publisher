@@ -3,17 +3,21 @@ import { dataBackend } from "./data-backend";
 // Look-alike personas form a visual group. Every new image of a group is
 // generated from the same master; members keep their older images, which a
 // carousel may show as long as it shows a single face.
-export type VisualGroup = { id: string; label: string; master: string; members: string[] };
+// imageTarget: how many images of the master's face the image cache keeps
+// generating towards; 0 pauses generation for the group.
+export type VisualGroup = { id: string; label: string; master: string; members: string[]; imageTarget?: number };
 
 export const DEFAULT_VISUAL_GROUPS: VisualGroup[] = [
-  { id: "G1", label: "Brunes claires", master: "P01", members: ["P01", "P04"] },
-  { id: "G2", label: "Blondes", master: "P02", members: ["P02", "P06", "P11"] },
-  { id: "G3", label: "Rousses", master: "P03", members: ["P03", "P07"] },
-  { id: "G4", label: "Châtain ondulé", master: "P05", members: ["P05", "P16"] },
-  { id: "G5", label: "Brunes olive", master: "P14", members: ["P14", "P08", "P15"] },
-  { id: "G6", label: "Brunes ondulées", master: "P09", members: ["P09", "P12"] },
-  { id: "G7", label: "Hana", master: "P10", members: ["P10"] },
-  { id: "G8", label: "Jade", master: "P13", members: ["P13"] },
+  // Targets on 2026-10-10: each master's usable images + 20. Hana and Jade
+  // are paused until the operator decides on them.
+  { id: "G1", label: "Brunes claires", master: "P01", members: ["P01", "P04"], imageTarget: 33 },
+  { id: "G2", label: "Blondes", master: "P02", members: ["P02", "P06", "P11"], imageTarget: 34 },
+  { id: "G3", label: "Rousses", master: "P03", members: ["P03", "P07"], imageTarget: 32 },
+  { id: "G4", label: "Châtain ondulé", master: "P05", members: ["P05", "P16"], imageTarget: 32 },
+  { id: "G5", label: "Brunes olive", master: "P14", members: ["P14", "P08", "P15"], imageTarget: 32 },
+  { id: "G6", label: "Brunes ondulées", master: "P09", members: ["P09", "P12"], imageTarget: 33 },
+  { id: "G7", label: "Hana", master: "P10", members: ["P10"], imageTarget: 0 },
+  { id: "G8", label: "Jade", master: "P13", members: ["P13"], imageTarget: 0 },
 ];
 
 let groups: VisualGroup[] = DEFAULT_VISUAL_GROUPS;
@@ -26,7 +30,11 @@ export function parseVisualGroups(rows: Array<Record<string, unknown>>): VisualG
     const master = String(row.master_persona_id ?? "").trim().toUpperCase();
     const members = String(row.member_persona_ids ?? "").toUpperCase().split(/[\s,;|]+/).filter((member) => /^P\d{2}$/.test(member));
     if (!/^G\d+$/.test(id) || !/^P\d{2}$/.test(master)) return [];
-    return [{ id, label: String(row.label ?? id).trim() || id, master, members: [...new Set([master, ...members])] }];
+    const target = String(row.image_target ?? "").trim();
+    return [{
+      id, label: String(row.label ?? id).trim() || id, master, members: [...new Set([master, ...members])],
+      ...(target !== "" && Number.isFinite(Number(target)) ? { imageTarget: Math.max(0, Math.round(Number(target))) } : {}),
+    }];
   });
   const seen = new Set<string>();
   // A persona in two groups would make faces ambiguous: reject the whole tab.
