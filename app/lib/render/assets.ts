@@ -188,32 +188,50 @@ export async function generateRepairAsset(options: { input: { id: string; person
   if (bestReference.score < referenceFloor) {
     throw new Error(`MODELARK_REFERENCE_LOW_CONFIDENCE:slide_${options.position}:score_${bestReference.score}:required_${referenceFloor}:candidates_${rankedReferences.length}`);
   }
-  const reference = bestReference.reference;
-  const persona = personas.find((item) => item.id === visualPersonaId);
-  if (!persona) throw new Error(`MODELARK_PERSONA_MISSING:${visualPersonaId}`);
-  const generationInput = imageGenerationInputSchema.parse({
-    persona_id: visualPersonaId, master_asset_id: master.id, visual_reference_id: reference.id,
-    carousel_id: options.input.id, slide_id: `slide_${options.position}`, scene: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
-    category: generationCategory(options.slide), framing: "portrait",
-    prompt_additions: "Automatic carousel repair. Image 1 is only the identity master and Image 2 is only the Pinterest visual reference. Never place either source image directly in the carousel. Generate a new distinct natural photo and do not repeat any previously generated scene in this carousel.",
-  });
-  const prompt = buildImagePrompt(persona, reference, generationInput);
-  const jobResponse = await dataBackend("image_generation_jobs", {
-    method: "POST", headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, persona_id: visualPersonaId, master_asset_id: master.id, visual_reference_id: reference.id, carousel_id: options.input.id, slide_id: `slide_${options.position}`, category: generationInput.category, scene: generationInput.scene, input: generationInput, prompt, provider: "modelark_seedream", model: process.env.MODELARK_MODEL_ID ?? "", status: "PENDING", attempts: 0, attempt_count: 0, metadata: {
-      automatic_repair: true,
-      source: "carousel_render",
-      visual_intent: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
-      reference_score: bestReference.score,
-      top_reference_candidates: rankedReferences.slice(0, 5).map((item) => ({ id: item.reference.id, score: item.score })),
-    } }),
-  });
-  if (!jobResponse.ok) throw new Error(`MODELARK_JOB_CREATE_FAILED:${await jobResponse.text()}`);
-  const jobs = await jobResponse.json() as Array<{ id: string | number }>;
-  if (!jobs[0]) throw new Error("MODELARK_JOB_CREATE_FAILED:no_job_id");
-  const generated = await processImageGenerationJob(String(jobs[0].id));
-  options.usedReferenceIds.add(reference.id);
-  return generated;
+  const foundPersona = personas.find((item) => item.id === visualPersonaId);
+  if (!foundPersona) throw new Error(`MODELARK_PERSONA_MISSING:${visualPersonaId}`);
+  const persona = foundPersona;
+  // ModelArk can refuse an output as sensitive (often a revealing reference
+  // outfit); try the next confident references before giving up the slide.
+  const candidates = rankedReferences.filter((item) => item.score >= referenceFloor).slice(0, 3);
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await generateRepairFromReference(candidate);
+    } catch (error) {
+      lastError = error;
+      options.usedReferenceIds.add(candidate.reference.id);
+      if (!/SensitiveContent/i.test(error instanceof Error ? error.message : String(error))) throw error;
+    }
+  }
+  throw lastError ?? new Error(`MODELARK_REFERENCE_MISSING:slide_${options.position}`);
+
+  async function generateRepairFromReference(candidate: { reference: (typeof rankedReferences)[number]["reference"]; score: number }) {
+    const reference = candidate.reference;
+    const generationInput = imageGenerationInputSchema.parse({
+      persona_id: visualPersonaId, master_asset_id: master.id, visual_reference_id: reference.id,
+      carousel_id: options.input.id, slide_id: `slide_${options.position}`, scene: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
+      category: generationCategory(options.slide), framing: "portrait",
+      prompt_additions: "Automatic carousel repair. Image 1 is only the identity master and Image 2 is only the Pinterest visual reference. Never place either source image directly in the carousel. Generate a new distinct natural photo and do not repeat any previously generated scene in this carousel.",
+    });
+    const prompt = buildImagePrompt(persona, reference, generationInput);
+    const jobResponse = await dataBackend("image_generation_jobs", {
+      method: "POST", headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, persona_id: visualPersonaId, master_asset_id: master.id, visual_reference_id: reference.id, carousel_id: options.input.id, slide_id: `slide_${options.position}`, category: generationInput.category, scene: generationInput.scene, input: generationInput, prompt, provider: "modelark_seedream", model: process.env.MODELARK_MODEL_ID ?? "", status: "PENDING", attempts: 0, attempt_count: 0, metadata: {
+        automatic_repair: true,
+        source: "carousel_render",
+        visual_intent: options.slide.visualIntent || options.slide.assetQuery || options.slide.headline,
+        reference_score: candidate.score,
+        top_reference_candidates: rankedReferences.slice(0, 5).map((item) => ({ id: item.reference.id, score: item.score })),
+      } }),
+    });
+    if (!jobResponse.ok) throw new Error(`MODELARK_JOB_CREATE_FAILED:${await jobResponse.text()}`);
+    const jobs = await jobResponse.json() as Array<{ id: string | number }>;
+    if (!jobs[0]) throw new Error("MODELARK_JOB_CREATE_FAILED:no_job_id");
+    const generated = await processImageGenerationJob(String(jobs[0].id));
+    options.usedReferenceIds.add(reference.id);
+    return generated;
+  }
 }
 
 // Picks the assets for every slide of a full render, generating a repair asset
