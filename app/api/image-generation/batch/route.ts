@@ -1,3 +1,4 @@
+import { usedReferenceIdsForPersona } from "../../../lib/image-generation";
 import { visualPersonaIdFor } from "../../../lib/asset-selector";
 import { loadVisualGroups } from "../../../lib/visual-groups";
 import { z } from 'zod';
@@ -57,11 +58,10 @@ export async function POST(request: Request) {
       .filter((result): result is { success: true; data: z.infer<typeof visualReferenceSchema> } => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
+    // Every reference a face already used (all time), plus those picked in
+    // this batch: one image per persona and Pinterest reference, ever.
     const recentByPersona = new Map<string, Set<string>>();
-    for (const personaId of batch.persona_ids) {
-      const recent = await rows<{ visual_reference_id?: string }>(`image_generation_jobs?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&persona_id=eq.${encodeURIComponent(personaId)}&status=in.(READY,DONE)&select=visual_reference_id&order=created_at.desc&limit=10`);
-      recentByPersona.set(personaId, new Set(recent.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean)));
-    }
+    for (const personaId of batch.persona_ids) recentByPersona.set(personaId, await usedReferenceIdsForPersona(personaId));
     const jobs: Record<string, unknown>[] = [];
     for (const persona of selectedPersonas) {
       const master = masters.find((item) => item.persona_id === persona.id);
@@ -71,13 +71,14 @@ export async function POST(request: Request) {
         const ranked = references
           .map((reference) => ({ reference, score: scoreVisualReferenceForScene(reference, scene) }))
           .sort((a, b) => b.score - a.score || a.reference.id.localeCompare(b.reference.id));
-        const rotated = ranked.filter((item) => !recentReferenceIds.has(item.reference.id));
-        const best = rotated[0] ?? ranked[0];
-        if (!best) throw new Error(`${scene.id} has no usable visual reference`);
-        if (best.score < 6) throw new Error(`${scene.id} has no confident visual reference (score=${best.score}, candidates=${ranked.length})`);
-        const reference = best.reference;
+        const rotated = ranked.filter((item) => !recentReferenceIds.has(item.reference.id) && item.score >= 6);
         const referenceDiagnostics = ranked.slice(0, 5).map((item) => ({ id: item.reference.id, category: item.reference.category, score: item.score }));
         for (let variation = 1; variation <= batch.variations; variation += 1) {
+          // Each variation uses its own unused reference.
+          const best = rotated[variation - 1];
+          if (!best) throw new Error(`${persona.id}/${scene.id}: no unused confident Pinterest reference left for variation ${variation} (each persona uses a reference once)`);
+          recentReferenceIds.add(best.reference.id);
+          const reference = best.reference;
           const input = imageGenerationInputSchema.parse({
             persona_id: persona.id, master_asset_id: master.id, visual_reference_id: reference.id,
             scene: scene.scene_description, category: scene.category, framing: scene.recommended_framing ?? undefined,

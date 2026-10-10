@@ -2,7 +2,7 @@ import { loadVisualGroups } from "../visual-groups";
 import { chooseAssets, loadSelectableAssets, pickCarouselFace, requiresOfficialAppScreenshot, visualGroupMembers, visualPersonaIdFor, type AssetMatch, type SelectableAsset } from "../asset-selector";
 import { dataBackend } from "../data-backend";
 import { downloadDriveFile } from "../google/drive";
-import { processImageGenerationJob, recentImageProviderBlocker } from "../image-generation";
+import { processImageGenerationJob, recentImageProviderBlocker, usedReferenceIdsForPersona } from "../image-generation";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../../src/image-generation/core";
 import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../../src/visual-references";
@@ -163,10 +163,11 @@ export async function generateRepairAsset(options: { input: { id: string; person
   const master = masters[0];
   if (!master) throw new Error(`MODELARK_MASTER_MISSING:${visualPersonaId}`);
   const referenceRows = await referencesResponse.json() as unknown[];
+  const usedByPersona = await usedReferenceIdsForPersona(visualPersonaId);
   const references = referenceRows
     .map((row) => visualReferenceSchema.safeParse(row))
     .flatMap((result) => result.success && isAutomaticVisualReference(result.data) ? [result.data] : [])
-    .filter((reference) => !options.usedReferenceIds.has(reference.id));
+    .filter((reference) => !options.usedReferenceIds.has(reference.id) && !usedByPersona.has(reference.id));
   const referenceIntent = referenceSceneIntent(options.slide);
   const rankedReferences = references
     .map((reference) => ({ reference, score: scoreVisualReferenceForScene(reference, referenceIntent) }))

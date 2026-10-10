@@ -233,3 +233,19 @@ export function getImageGenerationStatus() {
   const current = settings();
   return { configured: Boolean(current.apiKey && current.model), enabled: current.enabled, provider: "ModelArk / Seedream", model: current.model ?? null, maxRetries: current.maxRetries, dailyCapUsd: current.dailyCapUsd, monthlyCapUsd: current.monthlyCapUsd, unitCostUsd: current.unitCostUsd };
 }
+
+/**
+ * Pinterest references this persona (a group master) already produced or is
+ * producing an image from. A persona never reuses one: it would only make a
+ * near-duplicate image. Failed or cancelled jobs do not count.
+ */
+export async function usedReferenceIdsForPersona(personaId: string) {
+  const response = await dataBackend(
+    "image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID
+      + "&persona_id=eq." + encodeURIComponent(personaId)
+      + "&status=in.(PENDING,RETRY,RUNNING,READY,DONE)&visual_reference_id=not.is.null&select=visual_reference_id&limit=10000",
+  );
+  if (!response.ok) throw new Error(`USED_REFERENCES_LOOKUP_FAILED:${await response.text()}`);
+  const rows = await response.json() as Array<{ visual_reference_id?: string | null }>;
+  return new Set(rows.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean));
+}
