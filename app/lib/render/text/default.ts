@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
 import type { AssetMatch } from "../../asset-selector";
 import type { HookDesign } from "../../hook-design";
@@ -65,19 +66,21 @@ export async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Ge
     // lateral safe zone instead of covering the face or phone.
     const hookX = Math.max(64, Math.min(620, design.x ?? 88));
     const hookWidth = Math.max(360, Math.min(920, design.width ?? 904));
-    for (const [index, line] of hookHeadline.entries()) {
-      const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
-      const lineImage = await rasterText(line, { width: hookWidth, height: Math.ceil(hookSize * 1.22), size: hookSize, weight: design.weight, color: frame.headlineColor ?? "#fffaf8", align: "left", spacing: 0, fontFamily: hookFontFamily });
-      overlays.push({ input: lineImage, left: hookX, top: hookTop + index * (hookSize + Math.max(8, design.lineGap)) });
-    }
+    // One block wrapped at the real width: per-line images re-wrapped a line
+    // that was too wide and overlapped the next one.
+    const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
+    const hookImage = await rasterText(slide.headline.toLowerCase(), { maxLines: Math.max(4, hookHeadline.length), width: hookWidth, height: Math.ceil((hookSize + Math.max(8, design.lineGap)) * 5), size: hookSize, weight: design.weight, color: frame.headlineColor ?? "#fffaf8", align: "left", spacing: Math.max(8, design.lineGap), fontFamily: hookFontFamily });
+    overlays.push({ input: hookImage, left: hookX, top: hookTop });
     return overlays;
   }
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
-  const headlineImage = await rasterText(headline.join("\n"), { width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
+  const headlineImage = await rasterText(headlineText, { maxLines: frame.maxHeadlineLines ?? 3, width: frame.width, height: headline.length * headlineLineHeight + 18, size: headlineSize, weight: frame.headlineWeight ?? 700, color: frame.headlineColor ?? "#fffaf8", align, spacing: Math.max(0, headlineLineHeight - headlineSize), fontFamily });
   overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
   if (body.length) {
-    const bodyImage = await rasterText(body.join("\n"), { width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
-    const bodyTop = frame.bodyY ?? ((frame.headlineY ?? frame.y) + headline.length * headlineLineHeight + 22);
+    const bodyImage = await rasterText(slide.body, { maxLines: frame.maxBodyLines ?? 5, width: frame.width, height: body.length * bodyLineHeight + 18, size: bodySize, weight: frame.bodyWeight ?? 500, color: frame.bodyColor ?? "#fff4b8", align, spacing: Math.max(0, bodyLineHeight - bodySize), fontFamily });
+    const headlineHeight = (await sharp(headlineImage).metadata()).height ?? headline.length * headlineLineHeight;
+    // Never above the headline's real bottom, even when a fixed bodyY is set.
+    const bodyTop = Math.max(frame.bodyY ?? 0, (frame.headlineY ?? frame.y) + headlineHeight + 22);
     overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: bodyTop });
   }
   return overlays;

@@ -1,6 +1,7 @@
+import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
-import { FONT_FILES, rasterText, wrap, wrapHook } from "./shared";
+import { FONT_FILES, rasterText, wrapHook } from "./shared";
 
 function routineKicker(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body}`.toLowerCase();
@@ -38,11 +39,13 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
   const isFinal = slide.role.toUpperCase() === "CTA" || slide.role.toUpperCase() === "TAKEAWAY";
   const overlays: OverlayOptions[] = [];
-  const pushShadowed = async (text: string, opts: { left: number; top: number; width: number; height: number; size: number; weight: number; align: "left" | "center" | "right"; fontFamily: string; color?: string; spacing?: number }) => {
-    const shadow = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: "#171717", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily });
-    const foreground = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: opts.color ?? "#fffaf8", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily });
+  // Returns the rendered height so the next block can sit below it.
+  const pushShadowed = async (text: string, opts: { left: number; top: number; width: number; height: number; size: number; weight: number; align: "left" | "center" | "right"; fontFamily: string; color?: string; spacing?: number; maxLines?: number }) => {
+    const shadow = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: "#171717", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily, maxLines: opts.maxLines });
+    const foreground = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: opts.color ?? "#fffaf8", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily, maxLines: opts.maxLines });
     overlays.push({ input: shadow, left: opts.left + 3, top: opts.top + 3 });
     overlays.push({ input: foreground, left: opts.left, top: opts.top });
+    return (await sharp(foreground).metadata()).height ?? opts.height;
   };
 
   if (isHook) {
@@ -70,10 +73,13 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       fontFamily: hookFontFamily,
     });
     if (slide.body.trim()) {
+      // Narrower than the title, so center the box under it.
+      const contextWidth = Math.min(frame.width, 520);
       await pushShadowed(slide.body.trim(), {
-        left: frame.bodyX ?? frame.x,
+        maxLines: 2,
+        left: frame.bodyX ?? frame.x + Math.round((frame.width - contextWidth) / 2),
         top: frame.routineContextY ?? frame.bodyY ?? 365,
-        width: Math.min(frame.width, 520),
+        width: contextWidth,
         height: 90,
         size: frame.bodySize ?? 32,
         weight: 600,
@@ -85,10 +91,11 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
   }
 
   if (isFinal) {
-    const headline = wrap(slide.headline, 24, frame.maxHeadlineLines ?? 3).join("\n");
-    await pushShadowed(headline, {
+    const headlineTop = frame.headlineY ?? frame.y;
+    const headlineHeight = await pushShadowed(slide.headline, {
+      maxLines: frame.maxHeadlineLines ?? 3,
       left: frame.headlineX ?? frame.x,
-      top: frame.headlineY ?? frame.y,
+      top: headlineTop,
       width: frame.width,
       height: 230,
       size: frame.headlineSize ?? 58,
@@ -97,10 +104,10 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       fontFamily: hookFontFamily,
     });
     if (slide.body.trim()) {
-      const body = wrap(slide.body, 42, frame.maxBodyLines ?? 3).join("\n");
-      await pushShadowed(body, {
+      await pushShadowed(slide.body, {
+        maxLines: frame.maxBodyLines ?? 3,
         left: frame.bodyX ?? frame.x,
-        top: frame.bodyY ?? 475,
+        top: Math.max(frame.bodyY ?? 475, headlineTop + headlineHeight + 24),
         width: frame.width,
         height: 150,
         size: frame.bodySize ?? 30,
@@ -125,10 +132,11 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       fontFamily,
     });
   }
-  const action = wrap(parts.headline, 24, frame.maxHeadlineLines ?? 2).join("\n");
-  await pushShadowed(action, {
+  const actionTop = frame.headlineY ?? frame.y;
+  const actionHeight = await pushShadowed(parts.headline, {
+    maxLines: frame.maxHeadlineLines ?? 2,
     left: frame.headlineX ?? frame.x,
-    top: frame.headlineY ?? frame.y,
+    top: actionTop,
     width: frame.width,
     height: 170,
     size: frame.headlineSize ?? 30,
@@ -137,10 +145,10 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
     fontFamily,
   });
   if (slide.body.trim()) {
-    const support = wrap(slide.body, 46, frame.maxBodyLines ?? 2).join("\n");
-    await pushShadowed(support, {
+    await pushShadowed(slide.body, {
+      maxLines: frame.maxBodyLines ?? 2,
       left: frame.bodyX ?? frame.x,
-      top: frame.bodyY ?? 715,
+      top: Math.max(frame.bodyY ?? 715, actionTop + actionHeight + 16),
       width: frame.width,
       height: 120,
       size: frame.bodySize ?? 20,

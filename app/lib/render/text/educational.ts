@@ -1,21 +1,6 @@
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
-import { FONT_FILES, rasterText, wrap } from "./shared";
-
-function fitEducationalHeadline(value: string, width: number, preferredSize: number) {
-  const text = value.replace(/^\d+[.)]\s*/, "").trim();
-  const estimateCapacity = (size: number) => Math.max(8, Math.floor(width / (size * 0.56)));
-  for (let size = preferredSize; size >= 42; size -= 2) {
-    if (text.length <= estimateCapacity(size)) return { text, size, lines: 1 };
-  }
-  for (let size = Math.min(preferredSize, 54); size >= 40; size -= 2) {
-    const wrapped = wrap(text, estimateCapacity(size), 2);
-    if (wrapped.length <= 2 && !wrapped.some((line) => line.endsWith("…"))) {
-      return { text: wrapped.join("\n"), size, lines: wrapped.length };
-    }
-  }
-  return { text: wrap(text, estimateCapacity(40), 2).join("\n"), size: 40, lines: 2 };
-}
+import { FONT_FILES, rasterText } from "./shared";
 
 export async function threeRectEducationalTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
   const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
@@ -25,8 +10,9 @@ export async function threeRectEducationalTextOverlays(slide: GeneratedSlide, ge
   const isCover = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
 
   if (isCover) {
-    const title = wrap(slide.headline.replace(/^\d+[.)]\s*/, ""), 22, 3).join("\n");
+    const title = slide.headline.replace(/^\d+[.)]\s*/, "");
     const titleImage = await rasterText(title, {
+      maxLines: 3,
       width: frame.width,
       height: 270,
       size: frame.headlineSize ?? 72,
@@ -51,11 +37,12 @@ export async function threeRectEducationalTextOverlays(slide: GeneratedSlide, ge
     return overlays;
   }
 
-  const fittedSubject = fitEducationalHeadline(slide.headline, frame.width, frame.headlineSize ?? 58);
-  const subjectImage = await rasterText(fittedSubject.text, {
+  // One line when it fits at full size, else two lines at the real width.
+  const subjectImage = await rasterText(slide.headline.replace(/^\d+[.)]\s*/, "").trim(), {
+    maxLines: 2,
     width: frame.width,
-    height: fittedSubject.lines === 1 ? 90 : 150,
-    size: fittedSubject.size,
+    height: 150,
+    size: frame.headlineSize ?? 58,
     weight: frame.headlineWeight ?? 800,
     color: frame.headlineColor ?? "#2b2725",
     align: "center",
@@ -90,6 +77,8 @@ export async function threeRectEducationalTextOverlays(slide: GeneratedSlide, ge
   const bulletText = bullets.map((bullet) => `• ${bullet}`).join("\n");
   if (bulletText) {
     const bulletImage = await rasterText(bulletText, {
+      maxLines: 9,
+      preserveLines: true,
       width: frame.eduBodyWidth ?? 390,
       height: 270,
       size: frame.bodySize ?? 25,
