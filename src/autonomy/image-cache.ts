@@ -1,3 +1,4 @@
+import { usedReferenceIdsForPersona } from "../../app/lib/image-generation";
 import { visualPersonaIdFor } from "../../app/lib/asset-selector";
 import { loadVisualGroups } from "../../app/lib/visual-groups";
 import crypto from 'node:crypto';
@@ -111,10 +112,8 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       .filter((result) => result.success)
       .map((result) => result.data)
       .filter(isAutomaticVisualReference);
-    const recentJobs = await rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(DONE,READY)&select=visual_reference_id&order=created_at.desc&limit=20`);
-    const recentReferenceIds = new Set(
-      recentJobs.map((row) => String(row.visual_reference_id ?? "")).filter(Boolean),
-    );
+    // Never reuse a reference this face already used: it only makes a duplicate.
+    const recentReferenceIds = await usedReferenceIdsForPersona(account.persona_id);
     const allowedRefs = refs.filter((ref) => !rejectedReferenceIds.has(ref.id));
     const persona = personas.find((item) => item.id === account.persona_id);
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
@@ -132,11 +131,12 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       const categories = Array.isArray(scene.recommended_reference_categories) ? scene.recommended_reference_categories.map(String) : [];
       const preferred = allowedRefs.filter((ref) => categories.includes(ref.category));
       const rotated = preferred.filter((ref) => !recentReferenceIds.has(ref.id));
-      const pool = rotated.length ? rotated : preferred;
-      const reference = pool.at(index % Math.max(pool.length, 1))
-        ?? allowedRefs.find((ref) => !recentReferenceIds.has(ref.id))
-        ?? allowedRefs[index % Math.max(allowedRefs.length, 1)];
-      if (!reference) break;
+      const reference = rotated.at(index % Math.max(rotated.length, 1))
+        ?? allowedRefs.find((ref) => !recentReferenceIds.has(ref.id));
+      if (!reference) {
+        report.push({ persona_id: account.persona_id, count: existing.length, action: 'REFERENCES_EXHAUSTED' });
+        break;
+      }
       recentReferenceIds.add(reference.id);
       const input = imageGenerationInputSchema.parse({
         persona_id: account.persona_id, master_asset_id: master.id, visual_reference_id: reference.id,
