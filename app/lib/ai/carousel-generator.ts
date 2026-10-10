@@ -41,6 +41,25 @@ const invisibleFormatChars = /[\u200B-\u200F\u2060-\u206F\uFEFF]/g;
 function cleanGeneratedString(value: string) {
   return value.replace(invisibleFormatChars, "");
 }
+// A Notes row holds about 70 characters on two lines at the 40px item size.
+const NOTES_ITEM_TARGET = 70;
+
+/**
+ * Deterministic F05 list repair, so a single overlong item or a seventh item
+ * no longer blocks the whole carousel after the model's rewrites: drop an
+ * overlong aside in parentheses, then drop items still too long while at least
+ * four remain, and keep six at most.
+ */
+export function tidyChecklistBody(body: string) {
+  let items = body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
+  if (!items.length) return body;
+  items = items.map((item) => item.length > NOTES_ITEM_TARGET ? item.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s{2,}/g, " ").trim() || item : item);
+  for (let index = items.length - 1; index >= 0 && items.length > 4; index -= 1) {
+    if (items[index]!.length > NOTES_ITEM_TARGET) items.splice(index, 1);
+  }
+  return items.slice(0, 6).join(" | ");
+}
+
 export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec {
   // Consumer-facing copy never ships dash punctuation, even if every repair
   // pass still used it.
@@ -55,10 +74,10 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
     angle: cleanGeneratedString(spec.angle),
     hook: slideCopy(spec.hook),
     caption: fixHashtags(copy(spec.caption)),
-    slides: spec.slides.map((slide) => ({
+    slides: spec.slides.map((slide, index) => ({
       ...slide,
       headline: slideCopy(slide.headline),
-      body: slideCopy(slide.body),
+      body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body)) : slideCopy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
       assetQuery: cleanGeneratedString(slide.assetQuery),
     })),
