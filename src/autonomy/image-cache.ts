@@ -1,11 +1,11 @@
 import { usedReferenceIdsForPersona } from "../../app/lib/image-generation";
 import { visualPersonaIdFor } from "../../app/lib/asset-selector";
-import { loadVisualGroups } from "../../app/lib/visual-groups";
+import { loadVisualGroups, visualGroupOf } from "../../app/lib/visual-groups";
 import crypto from 'node:crypto';
 import { dataBackend } from '../lib/data-backend';
 import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimePersonaConfigs, autonomyRuleValue } from '../runtime/config';
 import { buildImagePrompt, imageGenerationInputSchema } from '../image-generation/core';
-import { isAutomaticVisualReference, visualReferenceSchema } from '../visual-references/index';
+import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from '../visual-references/index';
 import { processImageGenerationJob, recentImageProviderBlocker } from '../../app/lib/image-generation';
 
 type Row = Record<string, unknown>;
@@ -74,11 +74,19 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
     return [master, { ...account, persona_id: master }] as const;
   })).values()];
   for (const account of groupTargets) {
+    const group = visualGroupOf(account.persona_id);
+    const groupTarget = group?.imageTarget;
+    if (groupTarget === 0) {
+      report.push({ persona_id: account.persona_id, group: group?.id, action: 'GROUP_GENERATION_PAUSED' });
+      continue;
+    }
     const [existing, inFlight] = await Promise.all([
       rows(`assets?persona_id=eq.${account.persona_id}&source_type=eq.persona_generated&enabled=eq.true&select=id&limit=100`),
       rows(`image_generation_jobs?workspace_id=eq.cortifree&persona_id=eq.${encodeURIComponent(account.persona_id)}&status=in.(PENDING,RETRY,RUNNING)&select=id&limit=100`),
     ]);
-    if (existing.length >= maxCache) {
+    // A group target replaces the generic cache ceiling.
+    const ceiling = groupTarget ?? maxCache;
+    if (existing.length >= ceiling) {
       report.push({ persona_id: account.persona_id, count: existing.length, action: 'HEALTHY_MAX' });
       continue;
     }
@@ -87,7 +95,7 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
       continue;
     }
     const policy = personaCacheGenerationPolicy(existing.length, account.persona_id);
-    if (!policy.shouldGenerate && existing.length >= min) {
+    if (groupTarget === undefined && !policy.shouldGenerate && existing.length >= min) {
       report.push({
         persona_id: account.persona_id,
         count: existing.length,
@@ -119,23 +127,39 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
     if (!persona) { report.push({ persona_id: account.persona_id, action: 'MISSING_CONFIG' }); continue; }
     const policyCeiling = existing.length < 10 ? Math.min(10, maxCache) : existing.length < 20 ? Math.min(20, maxCache) : maxCache;
     const desiredCeiling = Math.max(existing.length + 1, Math.min(policyCeiling, existing.length < min ? Math.max(min, target) : policyCeiling));
-    const need = Math.min(
-      Math.max(1, desiredCeiling - existing.length),
-      existing.length < 10 ? 4 : existing.length < 20 ? 2 : 1,
-    );
+    const need = groupTarget !== undefined
+      ? Math.min(groupTarget - existing.length, 5)
+      : Math.min(
+        Math.max(1, desiredCeiling - existing.length),
+        existing.length < 10 ? 4 : existing.length < 20 ? 2 : 1,
+      );
     const jobs: Row[] = [];
-    const sceneStart = sceneRows.length ? existing.length % sceneRows.length : 0;
+    // Scenes whose category the group has the fewest images of come first
+    // (evening, morning/home and fitness were short everywhere).
+    const groupImages = await rows(`assets?workspace_id=eq.cortifree&source_type=eq.persona_generated&enabled=eq.true&persona_id=in.(${(group?.members ?? [account.persona_id]).join(',')})&select=category&limit=1000`);
+    const categoryCount = new Map<string, number>();
+    for (const image of groupImages) categoryCount.set(String(image.category ?? 'other'), (categoryCount.get(String(image.category ?? 'other')) ?? 0) + 1);
+    const scenesByNeed = [...sceneRows].sort((a, b) => (categoryCount.get(String(a.category ?? 'other')) ?? 0) - (categoryCount.get(String(b.category ?? 'other')) ?? 0));
     for (let index = 0; index < need; index += 1) {
-      const scene = sceneRows[(sceneStart + index) % Math.max(sceneRows.length, 1)];
+      const scene = scenesByNeed[index % Math.max(scenesByNeed.length, 1)];
       if (!scene) break;
-      const categories = Array.isArray(scene.recommended_reference_categories) ? scene.recommended_reference_categories.map(String) : [];
-      const preferred = allowedRefs.filter((ref) => categories.includes(ref.category));
-      const rotated = preferred.filter((ref) => !recentReferenceIds.has(ref.id));
-      const reference = rotated.at(index % Math.max(rotated.length, 1))
-        ?? allowedRefs.find((ref) => !recentReferenceIds.has(ref.id));
+      categoryCount.set(String(scene.category ?? 'other'), (categoryCount.get(String(scene.category ?? 'other')) ?? 0) + 1);
+      // Closest unused Pinterest reference for this scene (scene and
+      // reference category names differ, so match on the scene's terms).
+      const intent = {
+        category: String(scene.category ?? ''), scene_description: String(scene.scene_description ?? scene.id),
+        recommended_reference_categories: Array.isArray(scene.recommended_reference_categories) ? scene.recommended_reference_categories.map(String) : [],
+        recommended_framing: scene.recommended_framing ? String(scene.recommended_framing) : null,
+        recommended_outfit: scene.recommended_outfit ? String(scene.recommended_outfit) : null,
+      };
+      const ranked = allowedRefs
+        .filter((ref) => !recentReferenceIds.has(ref.id))
+        .map((ref) => ({ ref, score: scoreVisualReferenceForScene(ref, intent) }))
+        .sort((a, b) => b.score - a.score || a.ref.id.localeCompare(b.ref.id));
+      const reference = ranked.find((item) => item.score >= 6)?.ref;
       if (!reference) {
-        report.push({ persona_id: account.persona_id, count: existing.length, action: 'REFERENCES_EXHAUSTED' });
-        break;
+        report.push({ persona_id: account.persona_id, count: existing.length, scene: scene.id, action: ranked.length ? 'NO_CONFIDENT_REFERENCE' : 'REFERENCES_EXHAUSTED' });
+        continue;
       }
       recentReferenceIds.add(reference.id);
       const input = imageGenerationInputSchema.parse({

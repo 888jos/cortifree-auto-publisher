@@ -1,7 +1,7 @@
 import os from "node:os";
 import { dataBackend } from "../../app/lib/data-backend";
-import { processImageGenerationJob, recentImageProviderBlocker } from "../../app/lib/image-generation";
-import { isPermanentImageGenerationError } from "../image-generation/core";
+import { PROVIDER_BLOCKED_RETRY_MS, processImageGenerationJob, recentImageProviderBlocker } from "../../app/lib/image-generation";
+import { isPermanentImageGenerationError, isProviderAccountBlockedError } from "../image-generation/core";
 import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToBackend } from "../../app/lib/sync/editorial";
 import { syncGoogleDriveToBackend } from "../../app/lib/sync/drive";
@@ -510,6 +510,17 @@ async function processImageBatch() {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 2_000);
       const attempts = Number(job.worker_attempts ?? 1);
       const maxAttempts = Number(job.max_attempts ?? 3);
+      if (isProviderAccountBlockedError(error)) {
+        // The provider account is blocked (unpaid balance): park the job
+        // without spending one of its attempts, so queued work survives.
+        await patch(`image_generation_jobs?id=eq.${encodeURIComponent(String(job.id))}&status=neq.DONE`, {
+          status: "RETRY", worker_id: null, locked_at: null, worker_attempts: Math.max(0, attempts - 1),
+          next_attempt_at: new Date(Date.now() + PROVIDER_BLOCKED_RETRY_MS).toISOString(), last_error: message, finished_at: null,
+        });
+        clearInterval(lock);
+        console.warn("[worker] IMAGE PARKED (provider blocked)", job.id);
+        break;
+      }
       const retry = attempts < maxAttempts && !isPermanentImageGenerationError(error);
       const delaySeconds = Math.min(900, 15 * 2 ** Math.max(0, attempts - 1));
       // Never overwrite a job that already reached DONE (and was billed).

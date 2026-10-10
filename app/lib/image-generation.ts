@@ -78,7 +78,7 @@ export async function recentImageProviderBlocker(windowMinutes = 15) {
   const pattern = encodeURIComponent("*AccountOverdueError*");
   const response = await dataBackend(
     "image_generation_jobs?workspace_id=eq." + CORTIFREE_WORKSPACE_ID
-      + "&status=eq.FAILED"
+      + "&status=in.(FAILED,RETRY)"
       + "&updated_at=gte." + encodeURIComponent(since)
       + "&last_error=ilike." + pattern
       + "&select=id,last_error,updated_at"
@@ -224,10 +224,19 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
     if (!usage.ok) console.error("[image-generation] usage not recorded; budget caps will undercount", jobId, await usage.text());
     return asset;
   } catch (error) {
-    await patchJob(jobId, { status: "FAILED", last_error: (error instanceof Error ? error.message : String(error)).slice(0, 1_000), finished_at: new Date().toISOString() });
+    const message = (error instanceof Error ? error.message : String(error)).slice(0, 1_000);
+    // A blocked provider account (unpaid balance) is not this job's fault:
+    // keep it queued for later instead of losing it.
+    if (isProviderAccountBlockedError(error)) {
+      await patchJob(jobId, { status: "RETRY", last_error: message, next_attempt_at: new Date(Date.now() + PROVIDER_BLOCKED_RETRY_MS).toISOString() });
+    } else {
+      await patchJob(jobId, { status: "FAILED", last_error: message, finished_at: new Date().toISOString() });
+    }
     throw error;
   }
 }
+
+export const PROVIDER_BLOCKED_RETRY_MS = 30 * 60_000;
 
 export function getImageGenerationStatus() {
   const current = settings();

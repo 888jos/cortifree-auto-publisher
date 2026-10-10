@@ -95,7 +95,7 @@ export class ModelArkSeedreamProvider implements ImageGenerationProvider {
 
 export function isProviderAccountBlockedError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /AccountOverdueError|overdue balance|insufficient balance|billing.*(?:blocked|overdue)|ModelArk\s+403\b/i.test(message);
+  return /AccountOverdueError|overdue[ _]balance|insufficient balance|billing.*(?:blocked|overdue)|ModelArk\s+403\b|MODELARK_PROVIDER_BLOCKED/i.test(message);
 }
 
 export function isPermanentImageGenerationError(error: unknown) {
