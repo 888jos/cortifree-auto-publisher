@@ -74,14 +74,18 @@ export async function withImageRetry<T>(operation: (attempt: number) => Promise<
   throw lastError;
 }
 
+// Seedream 5.0 rejects "1K": sizes are "2k"/"3k"/"4k" or WIDTHxHEIGHT.
+// 1728x2160 is the carousel's 4:5 portrait at about 2K.
+export const MODELARK_IMAGE_SIZE = process.env.MODELARK_IMAGE_SIZE?.trim() || "1728x2160";
+
 export class ModelArkSeedreamProvider implements ImageGenerationProvider {
   readonly name = "modelark_seedream";
-  constructor(private readonly options: { apiKey: string; model: string; baseUrl?: string }) {}
+  constructor(private readonly options: { apiKey: string; model: string; baseUrl?: string; size?: string }) {}
   async generate(input: { prompt: string; masterUrl: string; referenceUrl: string }) {
     const response = await fetch(`${this.options.baseUrl ?? "https://ark.ap-southeast.bytepluses.com/api/v3"}/images/generations`, {
       method: "POST",
       headers: { Authorization: `Bearer ${this.options.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: this.options.model, prompt: input.prompt, image: [input.masterUrl, input.referenceUrl], size: "1K", response_format: "url", watermark: false, stream: false }),
+      body: JSON.stringify({ model: this.options.model, prompt: input.prompt, image: [input.masterUrl, input.referenceUrl], size: this.options.size ?? MODELARK_IMAGE_SIZE, response_format: "url", watermark: false, stream: false }),
       signal: AbortSignal.timeout(75_000),
     });
     if (!response.ok) throw new Error(`ModelArk ${response.status}: ${(await response.text()).slice(0, 500)}`);
