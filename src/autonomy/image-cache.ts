@@ -139,10 +139,16 @@ export async function refillPersonaCaches(options: { personaIds?: string[] } = {
     const groupImages = await rows(`assets?workspace_id=eq.cortifree&source_type=eq.persona_generated&enabled=eq.true&persona_id=in.(${(group?.members ?? [account.persona_id]).join(',')})&select=category&limit=1000`);
     const categoryCount = new Map<string, number>();
     for (const image of groupImages) categoryCount.set(String(image.category ?? 'other'), (categoryCount.get(String(image.category ?? 'other')) ?? 0) + 1);
-    const scenesByNeed = [...sceneRows].sort((a, b) => (categoryCount.get(String(a.category ?? 'other')) ?? 0) - (categoryCount.get(String(b.category ?? 'other')) ?? 0));
+    const usedScenes = new Set<string>();
     for (let index = 0; index < need; index += 1) {
-      const scene = scenesByNeed[index % Math.max(scenesByNeed.length, 1)];
+      // Re-pick each time: the category with the fewest images right now,
+      // so one short category does not take the whole batch.
+      const countOf = (row: Row) => categoryCount.get(String(row.category ?? 'other')) ?? 0;
+      const scene = [...sceneRows]
+        .filter((row) => !usedScenes.has(String(row.id)))
+        .sort((a, b) => countOf(a) - countOf(b) || String(a.id).localeCompare(String(b.id)))[0];
       if (!scene) break;
+      usedScenes.add(String(scene.id));
       categoryCount.set(String(scene.category ?? 'other'), (categoryCount.get(String(scene.category ?? 'other')) ?? 0) + 1);
       // Closest unused Pinterest reference for this scene (scene and
       // reference category names differ, so match on the scene's terms).
