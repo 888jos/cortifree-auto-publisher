@@ -381,6 +381,12 @@ export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
   return await response.json() as SelectableAsset[];
 }
 
+/** Stock photo with no recognisable face: objects, food, settings, hands, legs. */
+export function isFacelessStock(asset: { people_visibility?: string | null }) {
+  const visibility = String(asset.people_visibility ?? "").toLowerCase();
+  return visibility === "no_person" || /^hands?(_only|_partially_visible)?$/.test(visibility) || /^partial_body_via_/.test(visibility);
+}
+
 export function chooseAssets(options: {
   assets: SelectableAsset[];
   carouselType: string;
@@ -389,6 +395,8 @@ export function chooseAssets(options: {
   excludedAssetIds?: Set<string>;
   /** Shared across every chooseAssets call of one carousel: the first persona image picked fixes the face. */
   faceLock?: { personaId?: string };
+  /** Support slots beside a persona photo: stock is allowed only when no face is visible. */
+  facelessStockOnly?: boolean;
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
@@ -407,6 +415,7 @@ export function chooseAssets(options: {
       // A stock photo with a creator caption already burned in ("grocery day",
       // "my obsession rn") would clash with the carousel's own text.
       && !(asset.source_type === "stock" && /overlay/i.test(String(asset.text_in_image ?? "")))
+      && !(options.facelessStockOnly && asset.source_type === "stock" && !isFacelessStock(asset))
       && (asset.source_type === "stock" || asset.source_type === "persona_generated" || asset.source_type === "app_screenshot")
       && (
         asset.source_type === "app_screenshot"

@@ -47,17 +47,19 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
   if (isFinal) {
     const headline = slide.headline;
     const headlineImage = await rasterText(headline, { maxLines: frame.maxHeadlineLines ?? 3,
-      width: frame.width, height: 220, size: frame.headlineSize ?? 58, weight: 800,
+      width: frame.width, height: Math.round((frame.headlineSize ?? 58) * 1.35 * (frame.maxHeadlineLines ?? 3)), size: frame.headlineSize ?? 58, weight: 800,
       color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
-    overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 390 });
+    const headlineTop = frame.headlineY ?? 390;
+    overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: headlineTop });
     if (slide.body.trim()) {
       const body = slide.body.trim();
       const bodyImage = await rasterText(body, { maxLines: frame.maxBodyLines ?? 5,
-        width: frame.width, height: 220, size: frame.bodySize ?? 31, weight: 500,
+        width: frame.width, height: Math.round((frame.bodySize ?? 31) * 1.45 * (frame.maxBodyLines ?? 5)), size: frame.bodySize ?? 31, weight: 500,
         color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
       });
-      overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: frame.bodyY ?? 600 });
+      const headlineHeight = (await sharp(headlineImage).metadata()).height ?? 0;
+      overlays.push({ input: bodyImage, left: frame.bodyX ?? frame.x, top: Math.max(frame.bodyY ?? 600, headlineTop + headlineHeight + 32) });
     }
     return overlays;
   }
@@ -65,14 +67,14 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
   const { score, item } = rankingCopyParts(slide);
   const tierLabel = score ? `${score} TIER` : "TIER";
   const tierImage = await rasterText(tierLabel, {
-    width: frame.rankingScoreWidth ?? 930, height: 100, size: frame.rankingScoreSize ?? 68, weight: 850,
+    width: frame.rankingScoreWidth ?? 930, height: Math.round((frame.rankingScoreSize ?? 68) * 1.4), size: frame.rankingScoreSize ?? 68, weight: 850,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
   });
   overlays.push({ input: tierImage, left: frame.rankingScoreX ?? 100, top: frame.rankingScoreY ?? 105 });
 
   const itemText = item.toUpperCase();
   const itemImage = await rasterText(itemText, { maxLines: frame.maxHeadlineLines ?? 2,
-    width: frame.width, height: 140, size: frame.headlineSize ?? 42, weight: 800,
+    width: frame.width, height: Math.round((frame.headlineSize ?? 42) * 1.35 * (frame.maxHeadlineLines ?? 2)), size: frame.headlineSize ?? 42, weight: 800,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily,
   });
   const itemTop = frame.headlineY ?? 335;
@@ -83,8 +85,8 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
   if (slide.body.trim()) {
     const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
     const reason = paragraphs.join("\n\n");
-    const reasonImage = await rasterText(reason, { maxLines: 5,
-      width: frame.width, height: 300, size: frame.bodySize ?? 28, weight: 500,
+    const reasonImage = await rasterText(reason, { maxLines: frame.maxBodyLines ?? 5,
+      width: frame.width, height: Math.round((frame.bodySize ?? 28) * 1.45 * (frame.maxBodyLines ?? 5)), size: frame.bodySize ?? 28, weight: 500,
       color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });
     overlays.push({ input: reasonImage, left: frame.bodyX ?? frame.x, top: Math.max(frame.bodyY ?? 505, itemTop + itemHeight + 28) });

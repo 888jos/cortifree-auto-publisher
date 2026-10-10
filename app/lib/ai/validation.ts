@@ -176,7 +176,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   if (spec.slides[0]?.role !== "HOOK") issues.push({ code: "HOOK_ROLE", message: "First slide must be HOOK", slidePosition: 1, severity: "major" });
   if (!new Set(["CTA", "TAKEAWAY"]).has(spec.slides.at(-1)?.role ?? "")) issues.push({ code: "FINAL_ROLE", message: "Final slide must be CTA or TAKEAWAY", severity: "minor" });
   const genericity = scoreGenericity(spec);
-  if (genericity.score >= 3) issues.push({ code: "GENERICITY", message: genericity.issues.map((issue) => issue.message).join("; "), severity: "major" });
+  // A heuristic, so a rewrite trigger (see the generator) but never a blocker:
+  // short native copy tripped it and failed whole F08 carousels.
+  if (genericity.score >= 3) issues.push({ code: "GENERICITY", message: genericity.issues.map((issue) => issue.message).join("; "), severity: "minor" });
   return issues;
 }
 

@@ -19,13 +19,23 @@ function labeledEducationalVisual(value: string, label: "top-left" | "bottom-lef
   return match?.[1]?.replace(/^(?:proof\/example|support visual|proof|example)\s+(?:of\s+)?/i, "").trim() ?? "";
 }
 
+/** "three visuals: A, B, C" (unlabelled list) → the slot's item, or "". */
+function listedEducationalVisual(value: string, slotIndex: number) {
+  const match = value.match(/^\s*(?:three|3)\s+(?:differentiated\s+)?visuals?\s*:\s*([\s\S]+)$/i);
+  if (!match) return "";
+  const items = match[1]!.split(/\s*[;|]\s*|,\s+(?=[a-z])/i).map((item) => item.trim()).filter(Boolean);
+  return items.length >= 3 ? items[Math.min(slotIndex, items.length - 1)]! : "";
+}
+
 export function educationalAssetSlideForSlot(slide: GeneratedSlide, slotIndex: number): GeneratedSlide {
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
   if (isHook) return slide;
   const labels = ["top-left", "bottom-left", "bottom-right"] as const;
   const label = labels[Math.max(0, Math.min(labels.length - 1, slotIndex))]!;
   const visual = labeledEducationalVisual(slide.visualIntent, label)
-    || labeledEducationalVisual(slide.assetQuery, label);
+    || labeledEducationalVisual(slide.assetQuery, label)
+    || listedEducationalVisual(slide.visualIntent, slotIndex)
+    || listedEducationalVisual(slide.assetQuery, slotIndex);
   const fallback = `${slide.headline}. ${slide.body.split("|").slice(1).join(". ")}`.trim();
   const intent = visual || fallback;
   return {
@@ -231,11 +241,16 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
   }
   const usedReferenceIds = new Set<string>();
   const repairedPositions = new Set<number>();
+  // An image generated to repair a slide is used for that slide outright:
+  // re-scoring it against a slot-specific intent rejected paid repairs.
+  const repairedAssetByPosition = new Map<number, string | number>();
   const previousRendered = Array.isArray(input.spec.rendered_slides) ? input.spec.rendered_slides as Array<Record<string, unknown>> : [];
   function lockedIdsForSlide(slide: GeneratedSlide, index: number) {
     const override = editorOverrides[String(slide.position)] ?? {};
     if (override.assetIds?.length) return override.assetIds;
     if (override.assetId != null) return [override.assetId];
+    const repaired = repairedAssetByPosition.get(slide.position);
+    if (repaired != null) return [repaired];
     const previous = previousRendered.find((item) => Number(item.position) === Number(slide.position)) ?? previousRendered[index];
     const previousIds = Array.isArray(previous?.assetIds) ? previous!.assetIds as Array<string | number> : [];
     if (previousIds.length) return previousIds;
@@ -420,13 +435,17 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
                       ...withoutAppScreenshotDirective(slide),
                       position: Math.max(2, slide.position),
                       role: "SUPPORT",
-                      assetType: input.layout === "lifestyle-3stack" ? "persona" : "stock",
+                      // F01 support photos: the persona's face or faceless stock
+                      // (food, objects, settings). Persona-only needed ~19 photos
+                      // of one face per carousel and blocked most F01 renders.
+                      assetType: "stock",
                     };
               const next = chooseAssets({ faceLock,
                 assets,
                 carouselType: input.carouselType,
                 personaId: input.personaId,
                 excludedAssetIds: usedCarouselAssets,
+                facelessStockOnly: input.layout === "lifestyle-3stack",
                 slides: [supportSlide],
               })[0]!;
               selected.push(next);
@@ -506,6 +525,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
         || failedSlide.assetType === "generated"
         || input.layout === "grid-2x2"
         || input.layout === "lifestyle-3stack"
+        || input.layout === "routine-timeline"
       );
       // ModelArk repair currently creates persona-generated assets. Generating
       // one for a stock-only F04/F05 slot cannot satisfy that slot and merely
@@ -515,7 +535,8 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       // The repair is generated from the group master, so the whole carousel
       // is reselected on the master's face to keep a single face.
       faceLock.personaId = visualPersonaId;
-      await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds });
+      const repaired = await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds });
+      if (repaired?.id != null) repairedAssetByPosition.set(position, repaired.id);
       assets = await loadSelectableAssets();
     }
   }

@@ -126,7 +126,7 @@ describe("canonical carousel formats", () => {
     assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 0);
   });
 
-  it("keeps F07 tier slides compact, bold and horizontally composed", () => {
+  it("keeps F07 tier slides bold, readable and horizontally composed", () => {
     const cover = getSlideGeometry(
       { layout: "ranking", position: 1, role: "HOOK", headline: "sleep habits tier list", body: "backed by evidence" },
       true,
@@ -141,9 +141,11 @@ describe("canonical carousel formats", () => {
     );
     assert.equal(cover.text.hookSize, 62);
     assert.equal(cover.text.bodySize, 36);
-    assert.equal(body.text.rankingScoreSize, 68);
-    assert.equal(body.text.headlineSize, 42);
-    assert.equal(body.text.bodySize, 28);
+    // Phone-readable tier slides, block centred in the slide.
+    assert.equal(body.text.rankingScoreSize, 96);
+    assert.equal(body.text.headlineSize, 58);
+    assert.equal(body.text.bodySize, 40);
+    assert.ok(body.text.rankingScoreY >= 300);
     assert.equal(body.text.width, 930);
   });
 
