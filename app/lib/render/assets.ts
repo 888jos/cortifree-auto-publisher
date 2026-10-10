@@ -322,7 +322,10 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       const selectionSlides = input.slides;
       // One photo appears once per carousel (a live F03 showed the same
       // bookshop photo on two steps).
-      const usedInCarousel = new Set<string>();
+      // Locked photos (repairs, operator picks) are reserved for their own
+      // slide first: a live F03 cover took the repair made for step 5.
+      const usedInCarousel = new Set<string>(selectionSlides.flatMap((slide, index) =>
+        lockedMatchesForSlide(slide, index).map((match) => String(match.asset.id))));
       const matches = selectionSlides.map((slide, selectionIndex): AssetMatch | undefined => {
         const actualIndex = selectionIndex;
         if (input.layout === "ranking" && rankingAssetCountForSlide(slide) === 0) return undefined;
@@ -541,22 +544,31 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           })[0]!;
         } catch {
           // Prefer carousel-wide novelty, but do not make novelty itself a
-          // render blocker. Reuse elsewhere is acceptable; duplicate within
-          // this 2x2 slide is not.
+          // render blocker. The closest unused photo comes first (a live F08
+          // otherwise repeated one bed photo on five slides); reuse elsewhere
+          // is the last resort, a duplicate within this 2x2 slide never.
+          const closest = (excluded: Set<string>) => chooseAssets({ faceLock,
+            assets,
+            carouselType: input.carouselType,
+            personaId: input.personaId,
+            excludedAssetIds: excluded,
+            facelessStockOnly: true,
+            acceptBest: true,
+            slides: [supportSlide],
+          })[0];
+          let unused: AssetMatch | undefined;
           try {
-            secondary = chooseAssets({ faceLock,
-              assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: new Set([String(primary.asset.id)]),
-              facelessStockOnly: true,
-              acceptBest: true,
-              slides: [supportSlide],
-            })[0]!;
+            unused = closest(new Set([...usedGridAssets, String(primary.asset.id)]));
+          } catch {
+            unused = undefined;
+          }
+          try {
+            secondary = unused ?? closest(new Set([String(primary.asset.id)]))!;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`${message}:slide_${slide.position}`);
           }
+          if (!secondary) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
         }
         usedGridAssets.add(String(secondary.asset.id));
         return [primary, secondary, secondary, primary];

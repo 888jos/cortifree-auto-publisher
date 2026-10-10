@@ -71,12 +71,14 @@ function routineTextFrame(isCover, isFinal, typography) {
 function educationalThreeRectTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 190, y: 455, width: 700, align: "center",
-      headlineY: 455, bodyY: 720,
-      headlineSize: 72, bodySize: 22, hookSize: 72,
+      // Title starts below the top-right photo (ends at y 480); the subtitle
+      // stacks under the measured title, above the bottom-left photo (y 880).
+      x: 190, y: 505, width: 700, align: "center",
+      headlineY: 505, bodyY: 720,
+      headlineSize: 68, bodySize: 28, hookSize: 68,
       headlineWeight: 800, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 1,
-      eduBodyX: 390, eduBodyY: 735, eduBodyWidth: 300,
+      eduBodyX: 240, eduBodyY: 735, eduBodyWidth: 600,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
