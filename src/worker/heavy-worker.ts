@@ -1,6 +1,6 @@
 import os from "node:os";
 import { dataBackend } from "../../app/lib/data-backend";
-import { PROVIDER_BLOCKED_RETRY_MS, processImageGenerationJob, recentImageProviderBlocker } from "../../app/lib/image-generation";
+import { PROVIDER_BLOCKED_RETRY_MS, processImageGenerationJob, recentImageProviderBlocker, retagGeneratedAssets } from "../../app/lib/image-generation";
 import { isPermanentImageGenerationError, isProviderAccountBlockedError } from "../image-generation/core";
 import { renderCarousel } from "../../app/lib/render-carousel";
 import { syncEditorialSheetToBackend } from "../../app/lib/sync/editorial";
@@ -91,7 +91,7 @@ async function heartbeat() {
       worker_id: WORKER_ID,
       workspace_id: CORTIFREE_WORKSPACE_ID,
       version: VERSION,
-      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "DRAFT_PIPELINE", "ACCEPTANCE_SAMPLE", "PERSONA_CACHE_REFILL", "SCHEDULER_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "MODELARK"],
+      capabilities: ["HEALTHCHECK", "APPLY_REVIEW_PATCH", "SCHEDULE_APPROVED_POST", "RENDER_CAROUSEL", "GOOGLE_SYNC", "PERSONA_ASSET_ARCHIVE", "MODELARK_ORPHAN_RECOVERY", "AUTONOMY_RUN", "DRAFT_PIPELINE", "ACCEPTANCE_SAMPLE", "PERSONA_CACHE_REFILL", "SCHEDULER_RUN", "OPS_REFRESH", "BAD_REFERENCE_CLEANUP", "GENERATED_ASSET_RETAG", "MODELARK"],
       last_seen_at: new Date().toISOString(),
       metadata: {
         hostname: os.hostname(),
@@ -427,6 +427,7 @@ async function executeWorkerJob(job: WorkerJob) {
   if (job.kind === "PERSONA_CACHE_REFILL") return refillPersonaCaches({ personaIds: Array.isArray(job.payload?.persona_ids) ? job.payload.persona_ids.map(String) : undefined });
   if (job.kind === "SCHEDULER_RUN") return runScheduler();
   if (job.kind === "BAD_REFERENCE_CLEANUP") return cleanupNonUserReferenceAssets();
+  if (job.kind === "GENERATED_ASSET_RETAG") return retagGeneratedAssets({ limit: Number(job.payload?.limit ?? 400) });
   throw new Error(`Unsupported worker job kind: ${job.kind}`);
 }
 

@@ -12,6 +12,8 @@ import {
 } from "../../src/image-generation/core";
 import { isAutomaticVisualReference, visualReferenceSchema } from "../../src/visual-references";
 import { uploadFile } from "./storage";
+import { OpenAIStockAssetAnalyzer, type StockAssetVision } from "./ai/stock-asset-analyzer";
+import { getAIConfig } from "./ai/config";
 import { backendMode, dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
@@ -104,6 +106,67 @@ async function outputBytes(result: { url?: string; base64?: string }) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+async function observeGeneratedImage(url: string): Promise<StockAssetVision | null> {
+  try {
+    const config = getAIConfig();
+    if (!config.OPENAI_API_KEY) return null;
+    return (await new OpenAIStockAssetAnalyzer(config.OPENAI_MODEL_QA, config.OPENAI_TIMEOUT_MS).analyze(url)).data;
+  } catch (error) {
+    console.warn("[image-generation] vision tagging failed, keeping prompt description", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+function observedAssetFields(seen: StockAssetVision) {
+  return {
+    visual_description: seen.visual_description,
+    visible_actions: seen.visible_actions,
+    visible_objects: seen.visible_objects,
+    setting: seen.setting,
+    body_parts_visible: seen.body_parts_visible,
+    composition: seen.composition.join(" | "),
+    camera_angle: seen.camera_angle,
+    lighting: seen.lighting,
+    dominant_colors: seen.dominant_colors,
+    text_in_image: seen.text_in_image,
+    specific_details: seen.specific_details.join(" | "),
+    good_for: seen.good_for,
+    ...(seen.visible_actions[0] ? { activity: seen.visible_actions[0] } : {}),
+    visual_tagging_schema: "observable_v2",
+  };
+}
+
+/**
+ * Re-describes already generated persona images from their pixels (they were
+ * indexed with the prompt text, not what ModelArk drew). Idempotent: skips
+ * rows already tagged observable_v2.
+ */
+export async function retagGeneratedAssets(options: { limit?: number } = {}) {
+  const limit = Math.min(Math.max(Number(options.limit ?? 400), 1), 1000);
+  const response = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&or=(visual_tagging_schema.is.null,visual_tagging_schema.neq.observable_v2)&select=id,public_url,visual_description&order=id.desc&limit=" + limit);
+  if (!response.ok) throw new Error("Retag listing failed: " + (await response.text()).slice(0, 300));
+  const rows = await response.json() as Array<{ id: number | string; public_url: string; visual_description: string | null }>;
+  const report: Array<{ id: number | string; status: string; before?: string; after?: string }> = [];
+  let cursor = 0;
+  async function worker() {
+    while (cursor < rows.length) {
+      const row = rows[cursor++]!;
+      const seen = await observeGeneratedImage(row.public_url);
+      if (!seen) { report.push({ id: row.id, status: "VISION_FAILED" }); continue; }
+      const patch = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + row.id, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify(observedAssetFields(seen)),
+      });
+      report.push(patch.ok
+        ? { id: row.id, status: "RETAGGED", before: String(row.visual_description ?? "").slice(0, 120), after: seen.visual_description.slice(0, 160) }
+        : { id: row.id, status: "PATCH_FAILED:" + patch.status });
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, worker));
+  return { ok: true, total: rows.length, retagged: report.filter((item) => item.status === "RETAGGED").length, report };
+}
+
 async function uploadGeneratedAsset(options: {
   bytes: Buffer; personaId: string; personaName: string; category: string; scene: string;
   reference: ReturnType<typeof visualReferenceSchema.parse>; jobId: string;
@@ -143,6 +206,10 @@ async function uploadGeneratedAsset(options: {
     options.reference.lighting ? `lighting: ${options.reference.lighting}` : "",
   ].filter(Boolean).join(". ");
 
+  // Describe what ModelArk actually drew. Seedream often keeps the reference
+  // scene over the prompt, and the prompt text as description sent a kitchen
+  // photo to a "coffee by the window" step.
+  const seen = await observeGeneratedImage(publicUrl);
   const row = {
     workspace_id: CORTIFREE_WORKSPACE_ID, path: `${backendMode()}://${storagePath}`, relative_path: storagePath, filename,
     category: options.category, subcategory: options.scene.toLowerCase().replace(/[^a-z0-9]+/g, "_"), persona_id: options.personaId,
@@ -176,6 +243,7 @@ async function uploadGeneratedAsset(options: {
     },
     scene: options.scene, pose: options.reference.pose, outfit: options.reference.outfit, environment: options.reference.environment,
     good_for: options.reference.good_for, enabled: true,
+    ...(seen ? observedAssetFields(seen) : {}),
   };
   const insert = await dataBackend("assets?on_conflict=path", {
     method: "POST",
