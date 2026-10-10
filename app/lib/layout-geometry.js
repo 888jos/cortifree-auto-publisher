@@ -43,23 +43,25 @@ function routineTextFrame(isCover, isFinal, typography) {
   }
   if (isFinal) {
     return {
-      x: 120, y: 390, width: 840, align: "center",
+      x: 90, y: 390, width: 900, align: "center",
       headlineY: 390, bodyY: 535,
-      headlineSize: 34, bodySize: 20, hookSize: 34,
-      headlineWeight: 600, bodyWeight: 400,
+      headlineSize: 52, bodySize: 34, hookSize: 52,
+      headlineWeight: 700, bodyWeight: 500,
       maxHeadlineLines: 2, maxBodyLines: 2,
-      routineTimeX: 120, routineTimeY: 340, routineTimeWidth: 560, routineTimeSize: 28,
+      routineTimeX: 90, routineTimeY: 320, routineTimeWidth: 900, routineTimeSize: 42,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Inter Tight",
     };
   }
+  // Step text centred on the slide at phone-readable sizes (30px in a
+  // left-shifted 560px box was illegible on a phone).
   return {
-    x: 120, y: 355, width: 560, align: "center",
-    headlineY: 355, bodyY: 435,
-    headlineSize: 30, bodySize: 20, hookSize: 30,
-    headlineWeight: 600, bodyWeight: 400,
+    x: 90, y: 360, width: 900, align: "center",
+    headlineY: 360, bodyY: 500,
+    headlineSize: 52, bodySize: 34, hookSize: 52,
+    headlineWeight: 700, bodyWeight: 500,
     maxHeadlineLines: 2, maxBodyLines: 2,
-    routineTimeX: 120, routineTimeY: 305, routineTimeWidth: 560, routineTimeSize: 28,
+    routineTimeX: 90, routineTimeY: 290, routineTimeWidth: 900, routineTimeSize: 42,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Inter Tight",
   };

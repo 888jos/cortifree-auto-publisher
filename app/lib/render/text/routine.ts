@@ -125,7 +125,7 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       left: frame.routineTimeX ?? 390,
       top: frame.routineTimeY ?? 110,
       width: frame.routineTimeWidth ?? 300,
-      height: 58,
+      height: Math.round((frame.routineTimeSize ?? 28) * 1.5),
       size: frame.routineTimeSize ?? 28,
       weight: 600,
       align: "center",
