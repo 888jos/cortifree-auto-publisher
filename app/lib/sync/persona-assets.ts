@@ -1,6 +1,7 @@
 import { dataBackend } from "../data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";
-import { listDriveChildren, uploadDriveFile } from "../google/drive";
+import { createDriveFolder, listDriveChildren, uploadDriveFile } from "../google/drive";
+import { visualGroupOf } from "../visual-groups";
 import { personaAssetFolder } from "../../../src/image-generation/core";
 import { visualPersonaIdFor } from "../asset-selector";
 
@@ -109,7 +110,19 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
 
     // Each image goes to its own face's folder inside the group. Never
     // relabel it to the group master: Ava's face must stay tagged P06.
-    const personaFolder = personaFolders.get(personaId);
+    let personaFolder = personaFolders.get(personaId);
+    if (!personaFolder && execute) {
+      // A look-alike's face folder is created inside its group folder.
+      const groupId = visualGroupOf(personaId)?.id;
+      const groupFolder = groupId ? folderTree.find((item) => item.path.length === 1 && item.path[0]!.toUpperCase().startsWith(`${groupId}_`)) : undefined;
+      const name = Object.entries(PERSONA_BY_NAME).find(([, id]) => id === personaId)?.[0];
+      if (groupFolder && name) {
+        const created = await createDriveFolder(`${personaId}_${name}`, groupFolder.id);
+        personaFolder = { id: created.id, path: [...groupFolder.path, `${personaId}_${name}`] };
+        folderTree.push(personaFolder);
+        personaFolders.set(personaId, personaFolder);
+      }
+    }
     if (!personaFolder) {
       if (execute && !asset.persona_id) {
         await patchAsset(String(asset.id), {
@@ -129,11 +142,16 @@ export async function syncPersonaGeneratedAssetsToDrive(options: { execute?: boo
     }
 
     const targetName = categoryFolder(asset.category);
-    const target = folderTree.find((item) =>
+    let target = folderTree.find((item) =>
       item.path.length === personaFolder.path.length + 1
       && item.path.slice(0, personaFolder.path.length).join("/") === personaFolder.path.join("/")
       && item.path.at(-1) === targetName
     );
+    if (!target && execute) {
+      const created = await createDriveFolder(targetName, personaFolder.id);
+      target = { id: created.id, path: [...personaFolder.path, targetName] };
+      folderTree.push(target);
+    }
     if (!target) {
       report.push({ id: asset.id, filename: asset.filename, persona_id: personaId, status: "CATEGORY_FOLDER_NOT_FOUND", target: targetName });
       continue;
