@@ -61,7 +61,9 @@ export async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geo
 
   const choices = checklistChoices(slide).slice(0, 6);
   const startX = frame.bodyX ?? frame.checklistChoicesX ?? 165;
-  const startY = Math.max(frame.bodyY ?? frame.checklistChoicesY ?? 405, (frame.headlineY ?? frame.y) + titleHeight + 34);
+  // A two-line title needs the same breathing room as a one-line title gets from bodyY.
+  const titleGap = Math.round((frame.headlineSize ?? 38) * 0.9);
+  const startY = Math.max(frame.bodyY ?? frame.checklistChoicesY ?? 405, (frame.headlineY ?? frame.y) + titleHeight + titleGap);
   const choiceWidth = frame.checklistChoicesWidth ?? 750;
   const textWidth = choiceWidth - 66;
   // Phone-readable Notes items (23px left most of the card empty).
