@@ -524,11 +524,14 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           : gridAssetSlideForSlot(slide, 1);
         let secondary: AssetMatch;
         try {
+          // Same rule as F01 supports: the locked face or faceless stock,
+          // never a stranger's face next to the persona's.
           secondary = chooseAssets({ faceLock,
             assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
             excludedAssetIds: new Set([...usedGridAssets, String(primary.asset.id)]),
+            facelessStockOnly: true,
             slides: [supportSlide],
           })[0]!;
         } catch {
@@ -541,6 +544,8 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
               carouselType: input.carouselType,
               personaId: input.personaId,
               excludedAssetIds: new Set([String(primary.asset.id)]),
+              facelessStockOnly: true,
+              acceptBest: true,
               slides: [supportSlide],
             })[0]!;
           } catch (error) {
