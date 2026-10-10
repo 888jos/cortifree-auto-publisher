@@ -370,13 +370,14 @@ describe("CortiFree AI schemas and generation", () => {
     };
     const checklist = createFallbackCarousel(checklistInput);
     const items = [
-      "turn off notifications you never act on and keep only the people you actually need to hear from",
-      "leave distracting apps somewhere less immediate so opening them becomes an intentional choice",
-      "give yourself one part of the morning where you do not have to check or answer anything",
-      "decide when you will come back to messages instead of letting every new alert choose the timing",
-      "notice which apps leave you more drained than before you opened them and shorten those sessions",
+      "turn off notifications you never act on, keep the people you need",
+      "move distracting apps off the home screen so opening them is a choice",
+      "keep one part of the morning where i do not check or answer anything",
+      "pick when i come back to messages instead of letting alerts decide",
+      "notice which apps leave me more drained and shorten those sessions",
+      "leave my phone in the other room during the first coffee (yes, really)",
     ];
-    assert.ok(items.every((item) => item.length <= 96));
+    assert.ok(items.every((item) => item.length <= 82));
     const body = items.join(" | ");
     assert.ok(body.length > 280);
     checklist.slides[1]!.headline = "Make your phone less demanding";

@@ -134,7 +134,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       const isNotesBody = index > 0;
       const choices = slide.body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
       if (isNotesBody && (choices.length < 4 || choices.length > 6)) issues.push({ code: "CHECKLIST_OPTIONS", message: "F05 Notes body must contain 4-6 complete useful list items", slidePosition: slide.position, severity: "major" });
-      if (isNotesBody && choices.some((choice) => choice.length > 96)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes item is too long for a readable two-line checklist row; rewrite it rather than truncating it", slidePosition: slide.position, severity: "major" });
+      if (isNotesBody && choices.some((choice) => choice.length > 82)) issues.push({ code: "CHECKLIST_OPTION_LENGTH", message: "F05 Notes item is too long for a readable two-line checklist row; rewrite it rather than truncating it", slidePosition: slide.position, severity: "major" });
       const f05Headline = slide.headline.trim().replace(/[.!?]+$/, "");
       const f05Words = f05Headline.split(/\s+/).filter(Boolean);
       const f05BareCategories = new Set(["notifications","notification","check-in","checkin","focus","morning","mornings","breaks","break","apps","limits","app limits","phone parking","stress","sleep","routine","routines"]);
