@@ -67,3 +67,19 @@ export function nativeStyleIssues(spec: CarouselSpec): string[] {
   if (body.length >= 4 && shaped >= Math.ceil(body.length / 2)) issues.push(`REPETITIVE_SHAPE: ${shaped} slides use the same "..., so i..." sentence; vary the shapes`);
   return issues;
 }
+
+const TITLE_NOUN = "(?:reset|routine|guide|plan|system|method|checklist|habits?|tips|rituals?|edit)";
+
+/**
+ * Blog/Pinterest-style hooks that label the content instead of sounding like
+ * a person ("my simple reset when everything feels like too much"). The
+ * operator rejected this shape repeatedly. Used for a rewrite, never a block.
+ */
+export function titleHookReason(hook: string): string | undefined {
+  const text = hook.toLowerCase().replace(/[“”"]/g, "").trim();
+  if (new RegExp(`^(?:my|a|the|your)\\s+(?:[a-z'-]+\\s+){0,3}${TITLE_NOUN}\\s+(?:when|for|to)\\b`).test(text)) {
+    return "reads like a content title (\"my/a [adjective] reset/routine/guide when/for ...\")";
+  }
+  if (/\bwhen (?:everything|it all|life) (?:feels?|gets?|is)\b/.test(text)) return "uses a vague feeling instead of a concrete moment";
+  return undefined;
+}
