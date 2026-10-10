@@ -370,3 +370,21 @@ describe('asset scanner', () => {
     assert.equal(selected?.asset.id, 'reviewed');
   });
 });
+
+describe('faceless stock for support slots', async () => {
+  const { isFacelessStock } = await import('../app/lib/asset-selector');
+  it('accepts objects, hands and legs, never a face', () => {
+    for (const visibility of ['no_person', 'hand_only', 'hands_only', 'hand_partially_visible', 'partial_body_via_leg_and_shadow']) assert.ok(isFacelessStock({ people_visibility: visibility }), visibility);
+    for (const visibility of ['one_person', 'partial_body', 'multiple_people', 'one_person_partial', '']) assert.ok(!isFacelessStock({ people_visibility: visibility }), visibility);
+  });
+});
+
+describe('F04 slot intents', async () => {
+  const { educationalAssetSlideForSlot } = await import('../app/lib/render/assets');
+  it('splits an unlabelled "three visuals" list into one scene per slot', () => {
+    const slide = { position: 2, role: 'STEP', layout: 'three-rect-educational', headline: 'h', body: 'HOW TO | a', assetType: 'stock', visualIntent: 'three visuals: woman working without phone, phone placed across the desk, simple written check-in time on paper', assetQuery: 'q' } as never;
+    assert.equal(educationalAssetSlideForSlot(slide, 0).visualIntent, 'woman working without phone');
+    assert.equal(educationalAssetSlideForSlot(slide, 1).visualIntent, 'phone placed across the desk');
+    assert.equal(educationalAssetSlideForSlot(slide, 2).visualIntent, 'simple written check-in time on paper');
+  });
+});

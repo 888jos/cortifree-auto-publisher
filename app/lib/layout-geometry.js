@@ -213,20 +213,22 @@ function rankingTextFrame(isCover, isFinal, typography) {
     return {
       x: 150, y: 390, width: 780, align: "center",
       headlineY: 390, bodyY: 600,
-      headlineSize: 58, bodySize: 31, hookSize: 58,
+      headlineSize: 64, bodySize: 40, hookSize: 64,
       headlineWeight: 800, bodyWeight: 500,
       maxHeadlineLines: 3, maxBodyLines: 5,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
+  // Tier, item and reason sit as one block in the middle of the slide, at
+  // phone-readable sizes (42/28px left two thirds of the slide empty).
   return {
-    x: 75, y: 300, width: 930, align: "center",
-    headlineY: 300, bodyY: 430,
-    headlineSize: 42, bodySize: 28, hookSize: 42,
+    x: 75, y: 470, width: 930, align: "center",
+    headlineY: 470, bodyY: 640,
+    headlineSize: 58, bodySize: 40, hookSize: 58,
     headlineWeight: 800, bodyWeight: 500,
-    maxHeadlineLines: 2, maxBodyLines: 6,
-    rankingScoreX: 75, rankingScoreY: 105, rankingScoreWidth: 930, rankingScoreSize: 68,
+    maxHeadlineLines: 2, maxBodyLines: 5,
+    rankingScoreX: 75, rankingScoreY: 320, rankingScoreWidth: 930, rankingScoreSize: 96,
     rankingKickerX: 100, rankingKickerY: 72, rankingKickerWidth: 880, rankingKickerSize: 18,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",

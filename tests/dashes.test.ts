@@ -18,3 +18,11 @@ describe("dash punctuation", () => {
     assert.equal(stripDashPunctuation("my low-effort reset - honestly works"), "my low-effort reset, honestly works");
   });
 });
+
+describe("dash bullets", () => {
+  it("keeps one item per line when a list uses dash bullets", () => {
+    assert.equal(stripDashPunctuation("- wash my face\n- drink water\n- phone away"), "wash my face\ndrink water\nphone away");
+    assert.equal(hasDashPunctuation("- wash my face\n- drink water"), false);
+    assert.equal(hasDashPunctuation("wash my face — then sleep"), true);
+  });
+});

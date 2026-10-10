@@ -7,7 +7,7 @@ import { carouselSpecSchema, type CarouselReview, type CarouselSpec } from "./sc
 import { reviewCarouselDraft, shouldRunQA } from "./carousel-reviewer";
 import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
-import { assertValidCarouselSpec } from "./validation";
+import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
 import { fixHashtags, nativeCase, nativeStyleIssues } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
@@ -220,6 +220,8 @@ export async function generateCarousel(
         const copied = copiedReferencePhrase(candidate, referenceTexts(input));
         if (copied && styleAttempt) throw new Error(`COPIED_REFERENCE: "${copied}"`);
         if (isVoicelessChecklist(candidate) && styleAttempt) throw new Error("VOICELESS_CHECKLIST: most Notes items are bare commands");
+        const generic = validateCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout }).find((issue) => issue.code === "GENERICITY");
+        if (generic && styleAttempt) throw new Error(`GENERICITY: ${generic.message}`);
         const styleIssues = nativeStyleIssues(candidate);
         if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
         spec = candidate;

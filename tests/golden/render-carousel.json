@@ -6,12 +6,12 @@
     "F04_AESTHETIC_EDUCATIONAL": "0f976932983461b279f4fdb7ecfe052f22dc275f1a31d85249d5967c8481bfec",
     "F05_INTERACTIVE_CHECKLIST": "fae0cfe9e583bca188a8b58c36dda4997e3ab3f7a44412a27020dbb23cd95570",
     "F06_PERSONA_EXPLAINER": "af9b1f74ad597ca2932bc1e7113eae7598405a14e0c82277f47257bf8162b3cd",
-    "F07_RANKING": "558817a7bdaedec2c2396c065650cf74692194ff93f6200468fd260b1b68de17",
+    "F07_RANKING": "29318d8dd1824e7c07e4561242339928ac96fbc490b3d43b828fc3b639dabf41",
     "F08_2X2": "723e468b49627f8dc9c9b8fd9838d0e204cc67215388fb3df61bb6b6692a1c63",
     "SINGLE_IMAGE": "04b0cd03951a5c1e0aded4ad0024936f97ffd993514dcf9865796c65ba2fc242",
     "REVISION_F04_AESTHETIC_EDUCATIONAL": "147e5dac474955c6c482578ecb3289bc71843b2ce8265463f7688f3a2d24a959",
     "REVISION_F05_INTERACTIVE_CHECKLIST": "67b0ae756c6a614f4154e17259fff479a231608df364c5bb8353c644fc3bfe1f",
-    "REVISION_F07_RANKING": "1b879cd181f2919c13b96e6b29ffc6b445487ea4f83a6b41d7849fd5cb2ae165",
+    "REVISION_F07_RANKING": "75007da0b72f2f98005e2bdeded520280321326af7a79582d94a80ac1ba5ff14",
     "REVISION_F08_2X2": "637e73a010c6c7858e77a314949ae6600a8f420a72371326612b72d099f6fe51",
     "REVISION_SINGLE_IMAGE": "5b88f7befcf1c909ca7303f373989a855b9006c454198ebb2590fe775ba88757"
   },
@@ -182,19 +182,19 @@
         },
         {
           "position": 2,
-          "sha256": "257fc33d493b07287a5646159c46572ff4d382edd2ba03c5f5704b1152074462",
+          "sha256": "85376469bab4b9845e2018fce79f83be4de77622ac9c2ae8088b714b9ebffe6b",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "570081891250a4bbdcfee24ddfb7010f833697ad75c7ad131af0c397da344eaa",
+          "sha256": "fd86c483f69b22dec290fad3cfd2e12ddb1d38b56812424490698f2860454bb2",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "9611d2b26db2c56ac7e37a365849f96d3b4b2618607610f31eb72f084cb55794",
+          "sha256": "9c7fcc25597ea7d1807117aa2f48291f859f310b22c55d6272eab2d500738995",
           "width": 1080,
           "height": 1350
         }
@@ -282,7 +282,7 @@
         },
         {
           "position": 2,
-          "sha256": "257fc33d493b07287a5646159c46572ff4d382edd2ba03c5f5704b1152074462",
+          "sha256": "85376469bab4b9845e2018fce79f83be4de77622ac9c2ae8088b714b9ebffe6b",
           "width": 1080,
           "height": 1350
         }
