@@ -1,0 +1,144 @@
+HANDOFF CORTIFREE AUTO-PUBLISHER
+État au 10/10/2026, ~20h30 (heure de Paris = UTC+2)
+À coller au début d'un nouveau chat.
+
+================================================================
+1. LE PROJET EN BREF
+================================================================
+Générateur automatique de carrousels TikTok pour CortiFree.
+Fonctionnement : l'IA écrit le texte, choisit ou génère les photos (ModelArk / Seedream), rend les slides, l'opérateur valide sur le dashboard, puis publication auto (Upload-Post, pas encore activé).
+
+Repo GitHub : 888jos/cortifree-auto-publisher (branche main, on merge par PR squash)
+  Clone de travail de l'ancien chat (temporaire, peut disparaître) :
+  /private/tmp/claude-501/-Users-jos-app-Quieto/4f49e318-35f7-4e20-a920-055445d009c3/scratchpad/cortifree-auto-publisher
+  → Dans un nouveau chat : refaire un `gh repo clone 888jos/cortifree-auto-publisher` dans le scratchpad.
+  Ne pas committer les scripts locaux non suivis (sheet-urls.mjs, triptych.mjs).
+
+Infra :
+  Vercel = dashboard Next.js, déploiement AUTO à chaque merge sur main.
+  Railway = worker lourd (génération, rendu, images). Déploiement MANUEL :
+    l'utilisateur fait Cmd+K → « Deploy latest commit » dans Railway.
+    project 34698f81-1807-4a28-aa90-07089e8ca2a2
+    service 9bf56ad2-89fa-465c-a5f7-093a4c580a80
+    env     ffdad127-f772-4ce4-bd34-ecb30531ab6e
+  Supabase = base + stockage, projet adwyqshphctqbdfckvno.
+  ModelArk : modèle seedream-5-0-260128, taille 1728x2160.
+
+Tests : `npm test` (node --test, PAS vitest). 239 tests, tous verts.
+  Goldens de rendu : tests/render-golden.test.ts
+    UPDATE_RENDER_GOLDEN=1 → régénère
+    RENDER_GOLDEN_DUMP=<dossier> → écrit les PNG pour les regarder
+  Toujours regarder les PNG avant de régénérer les goldens.
+
+Lancer un test des 6 formats (job worker) en SQL Supabase :
+  insert into worker_jobs (workspace_id, kind, idempotency_key, payload, priority, max_attempts)
+  values ('cortifree','ACCEPTANCE_SAMPLE','e2e-six-formats-<DATE>-<LETTRE>',
+  '{"batch_id":"E2E_SIX_<DATE><LETTRE>","format_ids":["F01_LIFESTYLE_GUIDE","F03_ROUTINE_TIMELINE","F04_AESTHETIC_EDUCATIONAL","F05_INTERACTIVE_CHECKLIST","F07_RANKING","F08_2X2"]}',9,3);
+  (status par défaut = PENDING ; ne pas mettre 'QUEUED', refusé)
+  Résultat : worker_jobs.result->'drafts' (status + render_error par format).
+  Rendus : table carousel_slides (rendered_url), carousel_id LIKE 'CF_AUTO_CF_E2E_IDEA_<batch>%'.
+  Erreurs de génération : carousel_ideas.last_error.
+  Durée : 10 à 20 min (plus long s'il y a des réparations d'images ModelArk).
+  Ne PAS redéployer Railway pendant un test : ça coupe le job.
+
+================================================================
+2. RÈGLES FIXÉES PAR L'UTILISATEUR (à respecter)
+================================================================
+- Texte : ton natif TikTok, fille Gen Z, sans argot forcé. Minuscules, lignes courtes, sens concret avant tout, PAS de métaphores. AUCUN tiret (sauf dans les mots composés).
+- 6 formats doivent être parfaits : F01, F03, F04, F05, F07, F08. F02 et F06 existent encore mais ne sont plus générés.
+- Affichage : pas de retour à la ligne bizarre, pas de chevauchement, texte lisible et centré, jamais coupé en « … ».
+- Personas : 16 comptes regroupés en 8 groupes de sosies, 1 master par groupe :
+  G1 P01 Emma, G2 P02 Lily, G3 P03 Maya, G4 P05 Grace, G5 P14 Sofia, G6 P09 Camila, G7 P10 Hana, G8 P13 Jade.
+  Toute génération d'image d'un groupe passe par son master.
+  Groupes au-dessus des individus partout (Sheet, dashboard, Drive).
+- Images : jamais 2 fois le même couple persona + référence Pinterest (règle en code + trigger DB).
+  Peau naturelle, pas trop lisse (« ça fait IA »), mais pas de boutons ajoutés.
+  Génération en pause pour G7 Hana et G8 Jade (image_target = 0).
+- SÉCURITÉ : ne jamais saisir de clé API ou token dans Railway/Vercel/etc., même si l'utilisateur insiste. Il les colle lui-même. La config non secrète (ex. MODELARK_MODEL_ID) est OK.
+- Communication avec l'utilisateur : en français, accord au genre choisi, jamais d'écriture inclusive « ·e ».
+
+================================================================
+3. CE QUI A ÉTÉ FAIT AUJOURD'HUI (PR mergées sur main)
+================================================================
+#182 à #193 : ModelArk réparé (modèle, taille), prompt identité + peau naturelle, réparations d'images pour tous les formats, photos secondaires F01/F04/F08 sans visage étranger, archivage Drive, etc.
+#194 : une photo apparaît une seule fois par carrousel ; seuil de réparation F03 relevé à 30 ; texte des cartes Notes F05 agrandi (titre 52 px, items 40 px).
+#195 : titres non coupés (maxLines décide seul) ; couverture F03 en 3 lignes libres ; couverture F04 sans chevauchement (titre y 505, photo du bas y 880) ; F08 prend d'abord une 2e photo non utilisée ; photos réparées réservées à leur slide. Ajout des cas golden LONG_F03/F04/F05 avec de vrais textes.
+#196 : les images générées sont décrites d'après leurs pixels (analyseur vision, OPENAI_MODEL_QA) au lieu du prompt. Nouveau job worker GENERATED_ASSET_RETAG ({limit}) pour redécrire les anciennes.
+  (Cause trouvée : Seedream garde souvent la scène de la référence Pinterest ; une photo de cuisine décrite « coffee by a window » partait sur la mauvaise étape du F03.)
+#197 : réparation déterministe des listes F05 (retire l'aparté entre parenthèses, supprime l'item trop long s'il en reste ≥ 4, max 6 items ; validateur 82 caractères ; prompt < 70) ; upload Supabase avec 3 retries sur 5xx/429.
+#198 : flowText mesure un vrai bloc de N lignes (« Ág » ×N) pour décider si le texte tient. Corrige les titres encore coupés en « … » sur le worker (interligne des polices Linux). Non reproductible en local.
+
+Déployé sur Railway : #198 (déployé vers 20h16 UTC le 10/10). Tout ce qui précède est donc en prod.
+
+Autres jobs terminés :
+- Archivage Drive (PERSONA_ASSET_ARCHIVE 4bdf0697-…) : 85 images archivées, 153 déjà présentes, 370 désactivées ignorées, 0 échec.
+- Recharge d'images (PERSONA_CACHE_REFILL 50affbad-…) : 5 images par master mises en file ; ~41 faites, 1 échec.
+
+================================================================
+4. EN COURS AU MOMENT DU HANDOFF
+================================================================
+Job GENERATED_ASSET_RETAG id 05662d4e-0b05-4825-93a1-fd130ac2586e : TERMINÉ, 284/284 images redécrites, 0 échec.
+Test des 6 formats série F lancé : worker_jobs id ac772d69-7a15-42eb-bea0-7f8d384ccbb6 (batch E2E_SIX_20261010F), vers 20h30 UTC.
+  → Étape suivante = §5 B (vérifier ce test). L'étape §5 A est faite.
+
+(Historique du retag :) redécrit les images persona_generated.
+  Vérifier : select status, result->>'retagged', result->>'total', last_error from worker_jobs where id='05662d4e-0b05-4825-93a1-fd130ac2586e';
+  Contrôle : select count(*) filter (where visual_tagging_schema='observable_v2'), count(*) from assets where source_type='persona_generated' and enabled;
+  Les premiers résultats sont bons (2401 = « woman at a cooktop stirring pasta »).
+  Si des lignes sont en VISION_FAILED, relancer le même job (il est idempotent et saute celles déjà faites).
+
+================================================================
+5. CE QU'IL RESTE À FAIRE (dans l'ordre)
+================================================================
+A. Quand le retag est DONE : lancer le test des 6 formats, série F (batch_id E2E_SIX_20261010F, voir requête §1).
+
+B. Vérifier le test F :
+   - les 6 doivent être READY_FOR_REVIEW ;
+   - puis REGARDER les rendus (télécharger les rendered_url, faire une bande de 7 slides par format) ;
+   - points à contrôler en priorité :
+     • aucun titre coupé en « … » (F03 dernière slide, F04 titres, F05 titres) → valide la #198 ;
+     • photos du F03 cohérentes avec chaque étape → valide la #196 + retag ;
+     • F08 : photos moins répétées d'une slide à l'autre (encore 2 à 3 répétitions en série E) ;
+     • F05 : plus d'échec GENERATION_BLOCKED ; F01 : plus d'échec d'upload.
+   Rappel série E (sur #195) : F03, F04, F07, F08 OK ; F05 bloqué (item trop long) ; F01 erreur Supabase 520.
+
+C. Points connus encore imparfaits :
+   - F08 : chaque slide montre 2 photos en damier (primaire, secondaire, secondaire, primaire). Les photos se répètent entre slides car le pool sans visage est petit. Option : pool plus grand ou 4 photos distinctes.
+   - F08 : le texte est posé sur la jointure des photos. Question ouverte à l'utilisateur : centré sur la jointure ou aligné à gauche ?
+   - F05 : petit espace serré entre un titre sur 2 lignes et le premier item (cosmétique).
+   - F07 : OK, rien à signaler.
+
+D. Après un test F propre :
+   - Re-rendre les carrousels déjà « À valider » avec la nouvelle mise en page.
+   - Montrer à l'utilisateur une planche de validation des images par groupe, dont ~18 anciennes images à peau trop lisse. Proposer de les désactiver ; ne rien supprimer sans son accord visuel.
+
+E. Questions ouvertes à poser à l'utilisateur :
+   - Alignement du texte F08 (voir C).
+   - Cadence de publication.
+   - Quand relancer la génération pour Hana (G7) et Jade (G8).
+
+F. À faire par l'utilisateur lui-même (ne pas le faire à sa place) :
+   - Coller l'onglet 00_VISUAL_GROUPS dans le Google Sheet (contenu avec la colonne image_target déjà fourni).
+   - Activer l'auto-deploy Railway (sinon chaque PR demande un « Deploy latest commit »).
+   - Choisir un plan Railway.
+   - Clé Upload-Post + DRY_RUN=false quand il est prêt à publier.
+   - Faire tourner (régénérer) la clé ModelArk : elle a été exposée dans le chat.
+
+================================================================
+6. FICHIERS CLÉS
+================================================================
+app/lib/render/text/shared.ts      rasterText / flowText (mise en ligne, réduction, « … »)
+app/lib/render/text/*.ts            rendu texte par format (routine=F03, educational=F04, checklist=F05, ranking=F07, lifestyle=F01)
+app/lib/layout-geometry.js          positions et tailles par format
+app/lib/render/slide.ts             placement des photos
+app/lib/render/assets.ts            choix des photos par slide, réparations ModelArk, damier F08
+app/lib/asset-selector.ts           scoring des photos, seuils (F03 = 30, support = 15)
+app/lib/image-generation.ts         génération ModelArk, description vision, retagGeneratedAssets
+src/image-generation/core.ts        prompt identité / peau
+src/autonomy/image-cache.ts         recharge auto par master de groupe
+app/lib/visual-groups.ts            les 8 groupes et leurs masters
+app/lib/ai/prompts.ts               prompts texte
+app/lib/ai/carousel-generator.ts    génération texte, nettoyage (tirets, minuscules, listes F05)
+app/lib/ai/validation.ts            règles qui bloquent un brouillon
+app/lib/storage.ts                  upload Supabase (avec retry)
+src/worker/heavy-worker.ts          dispatch des jobs worker
