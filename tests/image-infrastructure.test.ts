@@ -107,6 +107,8 @@ describe('persona image infrastructure', () => {
     assert.match(prompt, /replace only the most prominent one and leave everyone else exactly as they are/);
     assert.match(prompt, /do not keep any facial feature, skin tone or hair of the person in Image 2/);
     assert.match(prompt, /no text, no logo, no watermark/);
+    assert.match(prompt, /No airbrushed, glowing, glossy or porcelain skin/);
+    assert.match(prompt, /no acne/);
     assert.match(prompt, /full body/);
   });
 
