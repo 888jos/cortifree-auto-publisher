@@ -107,10 +107,13 @@ async function flowText(options: RasterTextOptions, text: string) {
   const paragraphs = options.preserveLines ? 1 : text.split("\n\n").length;
   for (const factor of [1, 0.94, 0.88, 0.82]) {
     const size = Math.round(options.size * factor);
-    const line = await pangoText("Ag", options, size, false);
-    // maxLines alone decides: callers' box heights were often sized for fewer
-    // lines and silently cut live headlines to one line plus "…".
-    const limit = Math.ceil(line.height * (maxLines + paragraphs - 1) + options.spacing * (maxLines + paragraphs)) + 4;
+    // maxLines alone decides (callers' box heights were often sized for fewer
+    // lines). Measure a real block of that many lines: one line times N
+    // under-counts the line gap of some fonts on the worker, which cut live
+    // two-line headlines to one line plus "…".
+    const probeLines = maxLines + paragraphs - 1;
+    const probe = await pangoText(Array.from({ length: probeLines }, () => "Ág").join("\n"), options, size, false);
+    const limit = probe.height + Math.ceil(size * 0.15) + 4;
     const rendered = await pangoText(text, options, size, false);
     if (rendered.height <= limit) return rendered;
     if (factor === 0.82) {
