@@ -133,13 +133,13 @@
         },
         {
           "position": 2,
-          "sha256": "5f787e928fd843318d2438d3d580a46ef518cdf8270e3e94e7aae90a3c869301",
+          "sha256": "17ac23285ebdd27c56a687c0d5c0b96eb33bbff40ddcf0e7090db55f3ae55077",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "cbcbaa403e2afed36fc6684ecde16dc9a6c0ddb0c8318e9c81d661288ea3ff35",
+          "sha256": "991f07e158e01ed82cf5ea4bab660496d2b83e23f73b1fd550488d6da368f707",
           "width": 1080,
           "height": 1350
         },
@@ -303,13 +303,13 @@
         },
         {
           "position": 2,
-          "sha256": "4a33aab7ce4308f8639c880d01fc10424c6c1d646ecc9fe3e87a05f46684a0d7",
+          "sha256": "2af1c6bb21217d78492a552a58afaef7cc171349e6a3278997323dfea812ce35",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "bf0bb2e688d463bf6af1100620eff85dcf2ce0adb5fd377850f5aa612371cb39",
+          "sha256": "aa2d6a67453ea9761aaae0e05dc04b3a63c7b5cd0777a6c9ed7c7d760a7cdada",
           "width": 1080,
           "height": 1350
         }
@@ -331,7 +331,7 @@
       "REVISION_F05_INTERACTIVE_CHECKLIST": [
         {
           "position": 2,
-          "sha256": "5f787e928fd843318d2438d3d580a46ef518cdf8270e3e94e7aae90a3c869301",
+          "sha256": "17ac23285ebdd27c56a687c0d5c0b96eb33bbff40ddcf0e7090db55f3ae55077",
           "width": 1080,
           "height": 1350
         }
