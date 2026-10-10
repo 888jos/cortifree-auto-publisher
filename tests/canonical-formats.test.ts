@@ -116,8 +116,8 @@ describe("canonical carousel formats", () => {
       {},
     );
     assert.equal(cover.text.hookSize, 50);
-    assert.equal(body.text.headlineSize, 38);
-    assert.equal(body.text.bodySize, 23);
+    assert.equal(body.text.headlineSize, 52);
+    assert.equal(body.text.bodySize, 40);
     assert.equal(body.text.maxBodyLines, 6);
     assert.equal(body.text.checklistPanelWidth, 778);
     assert.equal(body.text.checklistPanelHeight, 940);

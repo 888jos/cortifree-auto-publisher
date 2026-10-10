@@ -132,7 +132,7 @@ function checklistTextFrame(isCover, isFinal, typography) {
   return {
     x: 187, y: 330, width: 706, align: "left",
     headlineY: 330, bodyY: 435,
-    headlineSize: 38, bodySize: 23, hookSize: 50,
+    headlineSize: 52, bodySize: 40, hookSize: 50,
     headlineWeight: 700, bodyWeight: 400,
     maxHeadlineLines: 2, maxBodyLines: 6,
     checklistPanelX: 151, checklistPanelY: 205, checklistPanelWidth: 778, checklistPanelHeight: 940,
