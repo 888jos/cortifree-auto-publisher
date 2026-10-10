@@ -88,3 +88,13 @@ export async function deleteDriveFile(fileId: string) {
   if (!response.ok) throw new Error(`Google Drive delete failed ${response.status}: ${await response.text()}`);
   return { deleted: true, missing: false };
 }
+
+/** Creates a folder (as the operator when user OAuth is set up, like uploads). */
+export async function createDriveFolder(name: string, parentId: string): Promise<DriveFile> {
+  const response = await driveFetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name,mimeType,parents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }),
+  });
+  return await response.json() as DriveFile;
+}
