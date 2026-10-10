@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
-import { FONT_FILES, rasterText, wrapHook } from "./shared";
+import { FONT_FILES, rasterText } from "./shared";
 
 function routineKicker(slide: GeneratedSlide) {
   const text = `${slide.headline} ${slide.body}`.toLowerCase();
@@ -61,12 +61,14 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       fontFamily: "TikTok Sans",
       spacing: 2,
     });
-    const lines = wrapHook(routineCoverTitle(slide), 2, 2).join("\n");
-    await pushShadowed(lines, {
+    // Flowed at the real width (a fixed 2 words x 2 lines cut live titles to "HOW I TAKE A…").
+    const titleTop = frame.headlineY ?? frame.y;
+    const titleHeight = await pushShadowed(routineCoverTitle(slide), {
+      maxLines: 3,
       left: frame.headlineX ?? frame.x,
-      top: frame.headlineY ?? frame.y,
+      top: titleTop,
       width: frame.width,
-      height: 240,
+      height: 360,
       size: frame.hookSize ?? 76,
       weight: 800,
       align: "center",
@@ -78,7 +80,7 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       await pushShadowed(slide.body.trim(), {
         maxLines: 2,
         left: frame.bodyX ?? frame.x + Math.round((frame.width - contextWidth) / 2),
-        top: frame.routineContextY ?? frame.bodyY ?? 365,
+        top: Math.max(frame.routineContextY ?? frame.bodyY ?? 365, titleTop + titleHeight + 24),
         width: contextWidth,
         height: 90,
         size: frame.bodySize ?? 32,

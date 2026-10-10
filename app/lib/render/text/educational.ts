@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
 import { FONT_FILES, rasterText } from "./shared";
@@ -23,9 +24,11 @@ export async function threeRectEducationalTextOverlays(slide: GeneratedSlide, ge
       fontFamily: hookFontFamily,
     });
     overlays.push({ input: titleImage, left: frame.x, top: frame.headlineY ?? frame.y });
+    const titleBottom = (frame.headlineY ?? frame.y) + ((await sharp(titleImage).metadata()).height ?? 0);
     const accentImage = await rasterText(slide.body.trim() || "✦ · ✧", {
+      maxLines: 2,
       width: frame.eduBodyWidth ?? 300,
-      height: 48,
+      height: 80,
       size: frame.bodySize ?? 22,
       weight: 600,
       color: frame.accentColor ?? "#8a6659",
@@ -33,7 +36,7 @@ export async function threeRectEducationalTextOverlays(slide: GeneratedSlide, ge
       spacing: 1,
       fontFamily,
     });
-    overlays.push({ input: accentImage, left: frame.eduBodyX ?? 390, top: frame.eduBodyY ?? 735 });
+    overlays.push({ input: accentImage, left: frame.eduBodyX ?? 390, top: Math.max(frame.eduBodyY ?? 735, titleBottom + 18) });
     return overlays;
   }
 

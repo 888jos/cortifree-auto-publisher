@@ -122,6 +122,22 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(3, "TIP", "2) write it down", "Get the loop out of your head and onto paper.", "woman writing in a notebook at a desk"),
     slide(4, "CTA", "save this", "Try it next time the afternoon spikes.", "cup of herbal tea on a wooden table", "stock"),
   ] },
+  // Real live copy (batch E2E_SIX_20261010D) whose headlines were cut to one line plus "…".
+  { key: "LONG_F03_ROUTINE_TIMELINE", carouselType: "F03_ROUTINE_TIMELINE", slides: [
+    slide(1, "HOOK", "how i take a real lunch break", "12:00 - 1:00", "woman drinking coffee by a kitchen window"),
+    slide(2, "STEP", "12:40 - 12:50 · sit quietly without opening another app", "", "woman walking in a park in daylight"),
+    slide(3, "CTA", "12:50 - 1:00 · write your next task and return", "", "woman writing in a notebook at a desk"),
+  ] },
+  { key: "LONG_F04_AESTHETIC_EDUCATIONAL", carouselType: "F04_AESTHETIC_EDUCATIONAL", slides: [
+    slide(1, "HOOK", "my focus boundaries when i still need to be reachable", "small boundaries for messages, tabs and desk time", "woman writing in a notebook at a desk"),
+    slide(2, "TIP", "take a break without new messages or information", "MISTAKES | scrolling at your desk and treating it as a break | checking messages before standing up | using every free minute for another task", "phone face down beside a laptop, cup of herbal tea, woman walking in a park"),
+    slide(3, "CTA", "set a boundary you can actually explain", "BENEFITS | choose when you answer quickly | leave one clear way to contact you about urgent things | return to regular messages after your task ends", "woman drinking coffee by a kitchen window"),
+  ] },
+  { key: "LONG_F05_INTERACTIVE_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
+    slide(1, "HOOK", "“my bedtime checklist when work is still open”", "", "woman reading in bed with a lamp"),
+    slide(2, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
+    slide(3, "CTA", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
+  ] },
 ];
 
 // Assets locked per slide (via previous renders) so every multi-image slot is

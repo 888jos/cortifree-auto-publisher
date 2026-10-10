@@ -88,7 +88,7 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     const placements = isHook
       ? [
           { left: 690, top: 90, width: 300, height: 390 },
-          { left: 90, top: 830, width: 300, height: 390 },
+          { left: 90, top: 880, width: 300, height: 390 },
         ]
       : [
           { left: 80, top: 110, width: 450, height: 430 },
