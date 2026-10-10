@@ -442,10 +442,11 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           const selected: AssetMatch[] = locked.length ? locked.slice(0, desiredCount) : [primary];
           selected.forEach((match) => usedCarouselAssets.add(String(match.asset.id)));
           while (selected.length < desiredCount) {
+            let supportSlide: GeneratedSlide = slide;
             try {
               const needsAppScreenshot = requiresOfficialAppScreenshot(slide);
               const alreadyHasAppScreenshot = selected.some((match) => match.asset.source_type === "app_screenshot");
-              const supportSlide = needsAppScreenshot && !alreadyHasAppScreenshot
+              supportSlide = needsAppScreenshot && !alreadyHasAppScreenshot
                 ? slide
                 : input.layout === "three-rect-educational"
                   ? educationalAssetSlideForSlot(slide, selected.length)
@@ -472,6 +473,26 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
               // Ranking cover photos are optional. One missing decorative
               // support image must never create an image-generation dependency.
               if (input.layout === "ranking") return [];
+              // A support photo is decorative: the closest eligible image (the
+              // locked face or faceless stock) beats blocking the carousel.
+              try {
+                const best = chooseAssets({ faceLock,
+                  assets,
+                  carouselType: input.carouselType,
+                  personaId: input.personaId,
+                  excludedAssetIds: usedCarouselAssets,
+                  facelessStockOnly: input.layout === "lifestyle-3stack",
+                  acceptBest: true,
+                  slides: [supportSlide],
+                })[0];
+                if (best) {
+                  selected.push({ ...best, thresholdBypassed: true });
+                  usedCarouselAssets.add(String(best.asset.id));
+                  continue;
+                }
+              } catch {
+                // Fall through to the rerender fallback below.
+              }
               const fallback = rerenderSupportFallback(primary, usedCarouselAssets);
               if (fallback) {
                 selected.push(fallback);
