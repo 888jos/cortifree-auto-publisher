@@ -102,12 +102,11 @@ describe('persona image infrastructure', () => {
       persona_id: 'P02', master_asset_id: 'master-1', visual_reference_id: reference.id,
       scene: 'opening the curtains', category: 'home', framing: 'full body',
     });
-    assert.match(prompt, /Image 1 defines the exact identity/);
-    assert.match(prompt, /Image 2 is only the visual reference/);
-    assert.match(prompt, /face-swap exactly one person/);
-    assert.match(prompt, /Never face-swap, merge, duplicate or alter the second person's face/);
-    assert.match(prompt, /Do not copy the identity/);
-    assert.match(prompt, /No text\. No logos\. No watermark/);
+    assert.match(prompt, /Image 1 gives the person: her exact face/);
+    assert.match(prompt, /Image 2 gives ONLY the scene/);
+    assert.match(prompt, /replace only the most prominent one and leave everyone else exactly as they are/);
+    assert.match(prompt, /do not keep any facial feature, skin tone or hair of the person in Image 2/);
+    assert.match(prompt, /no text, no logo, no watermark/);
     assert.match(prompt, /full body/);
   });
 
