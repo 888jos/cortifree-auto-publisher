@@ -337,8 +337,10 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (/walk|walking|outside|outdoors|street|commute/.test(text)) { requiredActions.add("walking"); requiredSettings.add("outdoors"); ["gym", "bedroom", "bathroom"].forEach((value) => avoid.add(value)); }
   if (/treadmill/.test(text)) { requiredActions.add("running_on_treadmill"); requiredSettings.add("commercial_gym"); }
   if (/grocery|shopping.*produce|produce.*shopping/.test(text)) { requiredActions.add("grocery_shopping"); requiredSettings.add("grocery_store"); }
-  if (/journal|brain dump|notebook|writing/.test(text)) { requiredActions.add("writing"); requiredObjects.add("notebook"); }
-  if (/(journal|brain dump|notebook|writing)/.test(text) && /\b(bed|bedroom)\b/.test(text)) requiredSettings.add("bedroom");
+  // A notebook on its own is a static object; only real writing words require the action.
+  if (/\b(?:journal|journaling|brain dump|notebook|planner|write|writing)\b/.test(text)) requiredObjects.add("notebook");
+  if (/\b(?:journaling|brain dump|write|writing)\b/.test(text)) requiredActions.add("writing");
+  if (/\b(?:journal|journaling|brain dump|notebook|planner|write|writing)\b/.test(text) && /\b(bed|bedroom)\b/.test(text)) requiredSettings.add("bedroom");
   if (/\b(home|at home)\b/.test(text) && /\b(pilates|yoga|workout|exercise)\b/.test(text)) requiredSettings.add("indoor_room");
   if (/pilates mat|yoga mat/.test(text)) { requiredObjects.add("exercise_mat"); }
   return {
