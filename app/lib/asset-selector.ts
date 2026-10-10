@@ -81,6 +81,9 @@ const F03_PERSONA_FALLBACK_THRESHOLD = 22;
 // F07 body slides are text-only; this applies only to the second decorative
 // teaser image on the cover after all hard visual/review constraints passed.
 const F07_COVER_SUPPORT_FALLBACK_THRESHOLD = 12;
+// F01/F04 support photos sit beside the slide's main image; a related
+// faceless stock photo is better than blocking the whole carousel.
+const SUPPORT_SLOT_FALLBACK_THRESHOLD = 15;
 const MIN_SCENE_COMPATIBLE_POOL = 8;
 // Known anatomy/reflection defect. Keep the file for auditability, but never
 // allow it into an automatically rendered carousel.
@@ -599,7 +602,11 @@ export function chooseAssets(options: {
     const isF07CoverSupport = options.carouselType === "F07_RANKING"
       && slide.role?.toUpperCase() === "SUPPORT"
       && slide.assetType === "stock";
-    const fallbackThreshold = options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
+    const isSupportSlot = (options.carouselType === "F01_LIFESTYLE_GUIDE" || options.carouselType === "F04_AESTHETIC_EDUCATIONAL")
+      && slide.role?.toUpperCase() === "SUPPORT";
+    const fallbackThreshold = isSupportSlot
+      ? SUPPORT_SLOT_FALLBACK_THRESHOLD
+      : options.carouselType === "F05_INTERACTIVE_CHECKLIST" && !criticalSlide(slide)
       ? F05_BACKGROUND_FALLBACK_THRESHOLD
       : isF03PersonaStep
         ? F03_PERSONA_FALLBACK_THRESHOLD
