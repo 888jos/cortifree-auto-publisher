@@ -519,17 +519,10 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       if (!position || repairedPositions.has(position)) throw error;
       const failedSlide = input.slides[position - 1]!;
       const isHook = failedSlide.position === 1 || failedSlide.role.toUpperCase() === "HOOK";
-      const repairCanBecomeSelectable = input.layout !== "interactive-checklist" && (
-        isHook
-        || failedSlide.assetType === "persona"
-        || failedSlide.assetType === "generated"
-        || input.layout === "grid-2x2"
-        || input.layout === "lifestyle-3stack"
-        || input.layout === "routine-timeline"
-      );
-      // ModelArk repair currently creates persona-generated assets. Generating
-      // one for a stock-only F04/F05 slot cannot satisfy that slot and merely
-      // burns time/cost before failing again.
+      // A repaired image is locked onto its slide (repairedAssetByPosition),
+      // so every format can be repaired, including stock-led F04 main images
+      // and F05 backgrounds that the stock bank cannot cover.
+      const repairCanBecomeSelectable = input.layout !== "ranking" || isHook;
       if (!repairCanBecomeSelectable) throw error;
       repairedPositions.add(position);
       // The repair is generated from the group master, so the whole carousel
