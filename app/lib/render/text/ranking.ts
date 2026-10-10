@@ -1,7 +1,7 @@
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
 import sharp from "sharp";
-import { FONT_FILES, rasterText, wrap, wrapHook } from "./shared";
+import { FONT_FILES, rasterText } from "./shared";
 
 export function rankingCopyParts(slide: GeneratedSlide) {
   const source = String(slide.headline ?? "").trim();
@@ -27,15 +27,15 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
   const overlays: OverlayOptions[] = [];
 
   if (isHook) {
-    const hook = wrapHook(slide.headline.toLowerCase(), 5, 3).join("\n");
-    const hookImage = await rasterText(hook, {
+    const hook = slide.headline.toLowerCase();
+    const hookImage = await rasterText(hook, { maxLines: 3,
       width: frame.width, height: 235, size: frame.hookSize ?? 68, weight: 800,
       color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
     overlays.push({ input: hookImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 120 });
     if (slide.body.trim()) {
-      const body = wrap(slide.body.trim(), 52, frame.maxBodyLines ?? 2).join("\n");
-      const bodyImage = await rasterText(body, {
+      const body = slide.body.trim();
+      const bodyImage = await rasterText(body, { maxLines: frame.maxBodyLines ?? 2,
         width: frame.width, height: 105, size: frame.bodySize ?? 29, weight: 500,
         color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 2, fontFamily,
       });
@@ -45,15 +45,15 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
   }
 
   if (isFinal) {
-    const headline = wrap(slide.headline, 30, frame.maxHeadlineLines ?? 3).join("\n");
-    const headlineImage = await rasterText(headline, {
+    const headline = slide.headline;
+    const headlineImage = await rasterText(headline, { maxLines: frame.maxHeadlineLines ?? 3,
       width: frame.width, height: 220, size: frame.headlineSize ?? 58, weight: 800,
       color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily: hookFontFamily,
     });
     overlays.push({ input: headlineImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? 390 });
     if (slide.body.trim()) {
-      const body = wrap(slide.body.trim(), 46, frame.maxBodyLines ?? 5).join("\n");
-      const bodyImage = await rasterText(body, {
+      const body = slide.body.trim();
+      const bodyImage = await rasterText(body, { maxLines: frame.maxBodyLines ?? 5,
         width: frame.width, height: 220, size: frame.bodySize ?? 31, weight: 500,
         color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
       });
@@ -70,8 +70,8 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
   });
   overlays.push({ input: tierImage, left: frame.rankingScoreX ?? 100, top: frame.rankingScoreY ?? 105 });
 
-  const itemText = wrap(item.toUpperCase(), 34, frame.maxHeadlineLines ?? 2).join("\n");
-  const itemImage = await rasterText(itemText, {
+  const itemText = item.toUpperCase();
+  const itemImage = await rasterText(itemText, { maxLines: frame.maxHeadlineLines ?? 2,
     width: frame.width, height: 140, size: frame.headlineSize ?? 42, weight: 800,
     color: frame.headlineColor ?? "#211d1f", align: "center", spacing: 0, fontFamily,
   });
@@ -82,8 +82,8 @@ export async function rankingTextOverlays(slide: GeneratedSlide, geometry: Geome
 
   if (slide.body.trim()) {
     const paragraphs = slide.body.split(/\n+|\s*\|\s*/).map((p) => p.trim()).filter(Boolean).slice(0, 3);
-    const reason = paragraphs.map((p) => wrap(p, 58, 3).join("\n")).join("\n\n");
-    const reasonImage = await rasterText(reason, {
+    const reason = paragraphs.join("\n\n");
+    const reasonImage = await rasterText(reason, { maxLines: 5,
       width: frame.width, height: 300, size: frame.bodySize ?? 28, weight: 500,
       color: frame.bodyColor ?? "#4b4145", align: "center", spacing: 5, fontFamily,
     });

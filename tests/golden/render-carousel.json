@@ -26,13 +26,13 @@
         },
         {
           "position": 2,
-          "sha256": "31c94949a710dddddac998f87071f613dcb36c8fc8ace21ae7f7e1365497eabc",
+          "sha256": "a999f5c8c1832984a7a772e0b051db0a087d9f38061877dbf582982fc4ee9851",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "92822870d6f969085a212d992e83180857030a5061afa3fa05869f86212b24a9",
+          "sha256": "f5b5690eb2434896e7a849840d7ddc7d292fe5a5215002407bdea6227af17606",
           "width": 1080,
           "height": 1350
         },
@@ -72,25 +72,25 @@
       "F03_ROUTINE_TIMELINE": [
         {
           "position": 1,
-          "sha256": "393c2eb61a6e3d01bd396ec26252ce5c07a9d91448001feb142c08a1457fdc97",
+          "sha256": "d7a59e4ce238f7b8df41a7ca2b1ae991e3c1dd8507d403ea253141582078dac0",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "b082ee0b5fc28e198a703c0a09cbf26293cad80297e3a8e314c7b433aca9222e",
+          "sha256": "b2a22374afe8a197e976cf576b76cc3e88c0db4d9bd8c02572aaf4af0f9dc1ba",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "1c1cf25a4ba5afff01eb30145eadeabf6b73b0248428e936b177b718fc0176bf",
+          "sha256": "23fabf9b835fc43b4c9dadaaafdbac9f31c5fe97f172caae1b984edf66c1c9ff",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "f2cc1eb0e6d3541e1a2195e7bc3d2fcc381ab522bba4d8c257b45e3bfe0ff69e",
+          "sha256": "a54063e3af877c3c45fb2594d02ebea732779d5b774dacb2fe2b6f26e6c44179",
           "width": 1080,
           "height": 1350
         }
@@ -98,25 +98,25 @@
       "F04_AESTHETIC_EDUCATIONAL": [
         {
           "position": 1,
-          "sha256": "91d4070b23159c0b1c20fbb878a5aefdb5244c13e3776e185f047c8a9205e9fe",
+          "sha256": "11f4fc91eca8110f540ef66968970a14c19027f378b76237223a038c05373f3e",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "edd655b22cb7aa1a6001fdc762513fd1685f3ad48160df7d9f6bb75b549dc433",
+          "sha256": "11d28a7905944f9a8dd4dc7c2c73e17a03d5e735cd3d47c4160f7d7256cf13f0",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "df59a80a4c4d00efe6a0beae4092bcb0a7468c3e4da0b7a7e551bb677d25d476",
+          "sha256": "4b4bfd49b3b088190f573883aaf9cc3f4ce90c9976def9f60e8b655cc24e3df0",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "3688b18cb96ab7dba63d8e24495b140efb4eeb7ea39e3f20555ad7fca7ed6992",
+          "sha256": "762d6f9775dd7109330ec7b20de2a5c04456a30489d27fc3092eb5bed0d26a88",
           "width": 1080,
           "height": 1350
         }
@@ -124,7 +124,7 @@
       "F05_INTERACTIVE_CHECKLIST": [
         {
           "position": 1,
-          "sha256": "0d0c55448d55e0092e0791c5d8047f8fb2ad1c9e705e10db59bd0f5b83883d9a",
+          "sha256": "dcb1d6906b540b41e84284569ebbf01a637da4b27f2493df221d9a28aa9e6a97",
           "width": 1080,
           "height": 1350
         },
@@ -176,25 +176,25 @@
       "F07_RANKING": [
         {
           "position": 1,
-          "sha256": "1b2ae1e9d5b2d41ca59cf3b588b5e5f018f298ffa58d4fd1fda8300354dc9b0f",
+          "sha256": "66f6d6da4a89492a4c3d9fb8ce22a7c4153f5cde6877b39b9375d37a7b414d0f",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "5517f025255adc32e948edfb3355998a548194726ef8d4c339293d547a76ebaf",
+          "sha256": "257fc33d493b07287a5646159c46572ff4d382edd2ba03c5f5704b1152074462",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "c174543b39b594c690ee3574a8b2fb04964e014fbc4e943717aada2e5f735e86",
+          "sha256": "570081891250a4bbdcfee24ddfb7010f833697ad75c7ad131af0c397da344eaa",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "e7df1fd1f9721a7d504e4f2219d9752a827db358ed5da7e6869fda2a7ad2e908",
+          "sha256": "9611d2b26db2c56ac7e37a365849f96d3b4b2618607610f31eb72f084cb55794",
           "width": 1080,
           "height": 1350
         }
@@ -208,19 +208,19 @@
         },
         {
           "position": 2,
-          "sha256": "197200ff44104096a71c65ec39c76c931e5cbde32389f52aaa513a7dad1f856b",
+          "sha256": "90dc4b5e61d447a52cbd461b28e54339a87034c8485bc38670db10e56858b270",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "454bf3656749247137945227e54c3c122fa45b7e1dd2108716e56fcf6b2afad6",
+          "sha256": "d8342a9e2d7d3cebeae74e82d4282e41b534d1aac706bcb60081b9831398ead5",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "cbf6bfeff2be54ccedb1d8444ac77de0ac9c29af47658bd1f453ebb4368b17fc",
+          "sha256": "dcf42a8eecef47e359e0de08e630721d6c8adf8b0d065f108b643113a47974cf",
           "width": 1080,
           "height": 1350
         }
@@ -228,19 +228,19 @@
       "SINGLE_IMAGE": [
         {
           "position": 1,
-          "sha256": "1c9b38140db641fa01fc6ebebdc7e5a6379a5120d7fd9429ba25699d14f98325",
+          "sha256": "5dc9217943ead2ee298011272b8413f785c89f9d073edc2c99ba2a919f6c8016",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "a4ae036e4301986290fc8a10d697db7b468bc5c517fb4e9846c9c5f7ad8fc4b3",
+          "sha256": "4ea2b247dfec2b8ad24e6c04f07b2d9a121428c91b84314d7f2d77fdc3250e5c",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "c8767b426ae4986a170be29081a15b63e6412f5beb809ec5ed42eebf884d1a7e",
+          "sha256": "eaa4db2207f405126fa858b1d8dfaf7b8c39586d563a7a3a7c85bb08c6bd60ec",
           "width": 1080,
           "height": 1350
         },
@@ -254,13 +254,13 @@
       "REVISION_F04_AESTHETIC_EDUCATIONAL": [
         {
           "position": 2,
-          "sha256": "edd655b22cb7aa1a6001fdc762513fd1685f3ad48160df7d9f6bb75b549dc433",
+          "sha256": "11d28a7905944f9a8dd4dc7c2c73e17a03d5e735cd3d47c4160f7d7256cf13f0",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "30b673cdbb4ad8aa25a05302cccb46fe8086344f642269aeb4c78126bf4b6637",
+          "sha256": "676834a997294b120bf28fb397ca3f7248b34ae8ca0bdcf1bd1a874830c77783",
           "width": 1080,
           "height": 1350
         }
@@ -276,13 +276,13 @@
       "REVISION_F07_RANKING": [
         {
           "position": 1,
-          "sha256": "229115643f570d8c993c1c38cf83372544544e2f60a0af7f1ad40d97312a043d",
+          "sha256": "8ee0f799a76ddbc9794607154dc196280c35d018c389685130e887bd378bee45",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "5517f025255adc32e948edfb3355998a548194726ef8d4c339293d547a76ebaf",
+          "sha256": "257fc33d493b07287a5646159c46572ff4d382edd2ba03c5f5704b1152074462",
           "width": 1080,
           "height": 1350
         }
@@ -296,7 +296,7 @@
         },
         {
           "position": 2,
-          "sha256": "ff9bf396415e9509c455389687c658f539d716ee61d7ca01659ade4b3e0df8eb",
+          "sha256": "c0bb29824c4617bd083ba64592bac9d9b8a04929b10019a38bda7cf569a7402e",
           "width": 1080,
           "height": 1350
         }
@@ -304,7 +304,7 @@
       "REVISION_SINGLE_IMAGE": [
         {
           "position": 2,
-          "sha256": "a4ae036e4301986290fc8a10d697db7b468bc5c517fb4e9846c9c5f7ad8fc4b3",
+          "sha256": "4ea2b247dfec2b8ad24e6c04f07b2d9a121428c91b84314d7f2d77fdc3250e5c",
           "width": 1080,
           "height": 1350
         },

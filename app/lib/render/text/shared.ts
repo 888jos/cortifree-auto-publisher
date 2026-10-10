@@ -73,17 +73,70 @@ export function pangoFontDescription(family: string, weight: number, size: numbe
   return `${family}${style} ${size}px`;
 }
 
-export async function rasterText(text: string, options: { width: number; height: number; size: number; weight: number; color: string; align: "left" | "center" | "right"; spacing: number; fontFamily?: string }) {
+type RasterTextOptions = {
+  width: number; height: number; size: number; weight: number; color: string;
+  align: "left" | "center" | "right"; spacing: number; fontFamily?: string;
+  /**
+   * Flow mode: the text is wrapped once, at the real pixel width, by Pango.
+   * Single line breaks from a character-count wrap() are undone first (they
+   * disagreed with the real width and left orphan words); blank lines stay as
+   * paragraph breaks. Up to maxLines lines fit in `height`; otherwise the size
+   * steps down to 82% and only then the end is cut with an ellipsis.
+   */
+  maxLines?: number;
+  /** Flow mode for lists: keep every line break (one item per line) and still wrap long items at the real width. */
+  preserveLines?: boolean;
+};
+
+async function pangoText(text: string, options: RasterTextOptions, size: number, fixedHeight: boolean) {
   const fontPath = resolveFontPath(options.fontFamily, options.weight);
-  const font = pangoFontDescription(options.fontFamily ?? "TikTok Sans", options.weight, options.size);
-  const input = { text: { text, font, fontfile: fontPath, width: options.width, height: options.height, align: options.align, rgba: true, spacing: options.spacing } };
-  const textBuffer = await sharp(input).ensureAlpha().png().toBuffer();
-  const metadata = await sharp(textBuffer).metadata();
-  const width = metadata.width ?? options.width;
-  const height = metadata.height ?? options.height;
-  const alpha = await sharp(textBuffer).extractChannel(3).raw().toBuffer();
+  const font = pangoFontDescription(options.fontFamily ?? "TikTok Sans", options.weight, size);
+  const input = { text: { text: xml(text), font, fontfile: fontPath, width: options.width, ...(fixedHeight ? { height: options.height } : {}), align: options.align, rgba: true, spacing: options.spacing } };
+  const buffer = await sharp(input).ensureAlpha().png().toBuffer();
+  const metadata = await sharp(buffer).metadata();
+  return { buffer, width: metadata.width ?? options.width, height: metadata.height ?? 0 };
+}
+
+/** Collapses wrap()'s single line breaks; keeps blank-line paragraph breaks. */
+export function unwrapLines(text: string) {
+  return text.split(/\n{2,}/).map((paragraph) => paragraph.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean).join("\n\n");
+}
+
+async function flowText(options: RasterTextOptions, text: string) {
+  const maxLines = options.maxLines!;
+  const paragraphs = options.preserveLines ? 1 : text.split("\n\n").length;
+  for (const factor of [1, 0.94, 0.88, 0.82]) {
+    const size = Math.round(options.size * factor);
+    const line = await pangoText("Ag", options, size, false);
+    const limit = Math.min(options.height, Math.ceil(line.height * (maxLines + paragraphs - 1) + options.spacing * (maxLines + paragraphs)) + 4);
+    const rendered = await pangoText(text, options, size, false);
+    if (rendered.height <= limit) return rendered;
+    if (factor === 0.82) {
+      // Still too long at the smallest size: cut whole words, never mid-word.
+      const words = text.split(" ");
+      for (let count = words.length - 1; count > 0; count -= 1) {
+        const cut = await pangoText(`${words.slice(0, count).join(" ").replace(/[,.;:!?]+$/, "")}…`, options, size, false);
+        if (cut.height <= limit) return cut;
+      }
+      return rendered;
+    }
+  }
+  throw new Error("unreachable");
+}
+
+export async function rasterText(text: string, options: RasterTextOptions) {
+  const flowing = options.maxLines !== undefined;
+  const rendered = flowing ? await flowText(options, options.preserveLines ? text.trim() : unwrapLines(text)) : await pangoText(text, options, options.size, true);
+  const { width, height } = rendered;
+  const alpha = await sharp(rendered.buffer).extractChannel(3).raw().toBuffer();
   const hex = options.color.replace("#", "");
   const color = { r: Number.parseInt(hex.slice(0, 2), 16), g: Number.parseInt(hex.slice(2, 4), 16), b: Number.parseInt(hex.slice(4, 6), 16) };
   const textLayer = await sharp({ create: { width, height, channels: 3, background: color } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
-  return textLayer;
+  // Pango returns an image only as wide as the text, so a centered block
+  // was placed against the frame's left edge. Pad it to the frame width so
+  // the alignment applies to the whole frame.
+  const free = Math.max(0, options.width - width);
+  if (!free || options.align === "left") return textLayer;
+  const left = options.align === "center" ? Math.floor(free / 2) : free;
+  return sharp(textLayer).extend({ left, right: free - left, top: 0, bottom: 0, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
 }
