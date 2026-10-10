@@ -392,6 +392,8 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
                 personaId: input.personaId,
                 excludedAssetIds: new Set([...recentHookAssetIds, ...usedChecklistAssets]),
                 slides: [checklistBackgroundFallbackSlide(slide)],
+                // Last resort for a decorative Notes background: never block the carousel.
+                acceptBest: true,
               })[0]!;
             }
           }
