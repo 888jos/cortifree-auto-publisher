@@ -37,9 +37,12 @@ describe("canonical carousel formats", () => {
     );
     assert.equal(cover.text.hookSize, 76);
     assert.equal(cover.text.headlineWeight, 800);
-    assert.equal(body.text.routineTimeSize, 28);
-    assert.equal(body.text.headlineSize, 30);
-    assert.equal(body.text.bodySize, 20);
+    // The hook stays dominant; step text is phone-readable and centred.
+    assert.equal(body.text.routineTimeSize, 42);
+    assert.equal(body.text.headlineSize, 52);
+    assert.equal(body.text.bodySize, 34);
+    assert.ok(cover.text.hookSize > body.text.headlineSize);
+    assert.equal(body.text.x + body.text.width / 2, 540);
     assert.equal(body.text.maxBodyLines, 2);
   });
 
