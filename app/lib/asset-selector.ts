@@ -400,6 +400,8 @@ export function chooseAssets(options: {
   faceLock?: { personaId?: string };
   /** Support slots beside a persona photo: stock is allowed only when no face is visible. */
   facelessStockOnly?: boolean;
+  /** Decorative support slots: take the best eligible candidate whatever its score. */
+  acceptBest?: boolean;
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
@@ -617,7 +619,7 @@ export function chooseAssets(options: {
       && (slide.assetType !== "persona" || isF03PersonaStep)
       ? candidates.find((candidate) => candidate.score >= fallbackThreshold)
       : undefined;
-    const selected = selectedCandidate ?? fallbackCandidate;
+    const selected = selectedCandidate ?? fallbackCandidate ?? (options.acceptBest ? candidates[0] : undefined);
     if (!selected) {
       const topScore = candidates[0]?.score ?? 0;
       throw new Error(`LOW_CONFIDENCE_ASSET:slide_${slide.position}:score_${topScore.toFixed(1)}:required_${threshold}:candidates_${candidates.length}`);
