@@ -9,7 +9,7 @@ import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
-import { fixHashtags, nativeCase, nativeStyleIssues } from "./native-style";
+import { fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
 
 export type GenerateCarouselResult = {
@@ -43,6 +43,7 @@ function cleanGeneratedString(value: string) {
 }
 // A Notes row holds about 70 characters on two lines at the 40px item size.
 const NOTES_ITEM_TARGET = 70;
+const CTA_ITEM = /\b(?:save (?:this|it|for later)|follow (?:me|for)|share (?:this|it) with|link in bio|screenshot (?:this|it))\b/i;
 
 /**
  * Deterministic F05 list repair, so a single overlong item or a seventh item
@@ -53,6 +54,9 @@ const NOTES_ITEM_TARGET = 70;
 export function tidyChecklistBody(body: string) {
   let items = body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
   if (!items.length) return body;
+  // "save this" / "follow for more" never belongs in a Note.
+  const ctaItems = items.filter((item) => CTA_ITEM.test(item));
+  if (ctaItems.length && items.length - ctaItems.length >= 4) items = items.filter((item) => !CTA_ITEM.test(item));
   items = items.map((item) => item.length > NOTES_ITEM_TARGET ? item.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s{2,}/g, " ").trim() || item : item);
   for (let index = items.length - 1; index >= 0 && items.length > 4; index -= 1) {
     if (items[index]!.length > NOTES_ITEM_TARGET) items.splice(index, 1);
@@ -76,6 +80,9 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
     caption: fixHashtags(copy(spec.caption)),
     slides: spec.slides.map((slide, index) => ({
       ...slide,
+      // F05 ends on one more Note, never a CTA card: a last Notes slide the
+      // model labelled CTA is relabelled instead of blocking the carousel.
+      role: slide.layout === "interactive-checklist" && index > 0 && index === spec.slides.length - 1 && slide.role === "CTA" ? "TAKEAWAY" : slide.role,
       headline: slideCopy(slide.headline),
       body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body)) : slideCopy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
@@ -206,14 +213,17 @@ export async function generateCarousel(
         const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
           ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
           : "";
-        const specificityRepair = /Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
+        const titleHookRepair = /TITLE_HOOK/.test(repairIssues)
+          ? "\nHOOK REPAIR: The hook reads like a blog or Pinterest title that labels the content. Rewrite ONLY the hook (and slide 1 headline) as something a girl would actually say on TikTok: a confession, a specific moment, a strong opinion, a \"you\" call-out or a real question about the same topic. Name the concrete moment instead of a vague feeling."
+          : "";
+        const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${titleHookRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -243,6 +253,8 @@ export async function generateCarousel(
         if (generic && styleAttempt) throw new Error(`GENERICITY: ${generic.message}`);
         const styleIssues = nativeStyleIssues(candidate);
         if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        const titleHook = titleHookReason(candidate.hook);
+        if (titleHook && styleAttempt) throw new Error(`TITLE_HOOK: "${candidate.hook}" ${titleHook}`);
         spec = candidate;
         break;
       } catch (error) {

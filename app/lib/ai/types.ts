@@ -63,6 +63,7 @@ export type EditorialContext = {
   voice_examples?: GoldenExampleReference[];
   /** The operator's own corrections (generated → kept) on recent carousels of this format. */
   operator_edits?: Array<{ field: "headline" | "body"; before: string; after: string }>;
+  operator_rules?: string[];
   concept_id?: string;
   topic_id: string;
   hook_id: string;

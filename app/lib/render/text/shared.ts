@@ -86,6 +86,11 @@ type RasterTextOptions = {
   maxLines?: number;
   /** Flow mode for lists: keep every line break (one item per line) and still wrap long items at the real width. */
   preserveLines?: boolean;
+  /**
+   * Flow mode: never cut with "…". When the text still needs more than
+   * maxLines at the smallest size, it is drawn whole on extra lines.
+   */
+  neverCut?: boolean;
 };
 
 async function pangoText(text: string, options: RasterTextOptions, size: number, fixedHeight: boolean) {
@@ -117,6 +122,7 @@ async function flowText(options: RasterTextOptions, text: string) {
     const rendered = await pangoText(text, options, size, false);
     if (rendered.height <= limit) return rendered;
     if (factor === 0.82) {
+      if (options.neverCut) return rendered;
       // Still too long at the smallest size: cut whole words, never mid-word.
       const words = text.split(" ");
       for (let count = words.length - 1; count > 0; count -= 1) {
@@ -129,9 +135,22 @@ async function flowText(options: RasterTextOptions, text: string) {
   throw new Error("unreachable");
 }
 
+/**
+ * Renders the whole text at exactly `options.size`, wrapped at the real width
+ * on as many lines as it needs: never shrunk, never cut. Callers size the
+ * space around it from the returned height.
+ */
+export async function rasterWholeText(text: string, options: RasterTextOptions) {
+  return colorText(await pangoText(unwrapLines(text), options, options.size, false), options);
+}
+
 export async function rasterText(text: string, options: RasterTextOptions) {
   const flowing = options.maxLines !== undefined;
   const rendered = flowing ? await flowText(options, options.preserveLines ? text.trim() : unwrapLines(text)) : await pangoText(text, options, options.size, true);
+  return colorText(rendered, options);
+}
+
+async function colorText(rendered: { buffer: Buffer; width: number; height: number }, options: RasterTextOptions) {
   const { width, height } = rendered;
   const alpha = await sharp(rendered.buffer).extractChannel(3).raw().toBuffer();
   const hex = options.color.replace("#", "");

@@ -16,7 +16,9 @@
     "REVISION_SINGLE_IMAGE": "5b88f7befcf1c909ca7303f373989a855b9006c454198ebb2590fe775ba88757",
     "LONG_F03_ROUTINE_TIMELINE": "71fa63f913bfaae714ac2d43d37864c612428e8b59e7918aaac9eab8135e0cf5",
     "LONG_F04_AESTHETIC_EDUCATIONAL": "016fb5b69526e8ae8a8751a9478d317cb99cc50cbfb7f214866ed17e69e14a1b",
-    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1"
+    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1",
+    "LIVE_F05_BEDTIME_CHECKLIST": "561b08c1a37f872b989f3c76a5b0cdba74f9f72b73b3589e015ff342c5739ffe",
+    "MAX_F05_INTERACTIVE_CHECKLIST": "4dd963345cb0f5b83f9ee247f941a501d1df1289331848b4b0e43cd5efade0b7"
   },
   "renders": {
     "darwin-arm64-vips8.18.7": {
@@ -133,19 +135,19 @@
         },
         {
           "position": 2,
-          "sha256": "5f787e928fd843318d2438d3d580a46ef518cdf8270e3e94e7aae90a3c869301",
+          "sha256": "ecdb78e4e26f36b0d4996e00386a79cab60c3c5849bf6d3d956db8d7b584c603",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "cbcbaa403e2afed36fc6684ecde16dc9a6c0ddb0c8318e9c81d661288ea3ff35",
+          "sha256": "f36d4399e3ffa3277d9d8c85b17181e359cf5870c26344a3c8bedf72f7a415c2",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "11eb398d3bd79b7ddf153fa89d972fea75c0d897a4d1426eb371ebc3e0b7b475",
+          "sha256": "e7031f22e7542b29848f8f913afd2c374d17bd399a00cffa27b87cde5167305b",
           "width": 1080,
           "height": 1350
         }
@@ -303,13 +305,77 @@
         },
         {
           "position": 2,
-          "sha256": "4a33aab7ce4308f8639c880d01fc10424c6c1d646ecc9fe3e87a05f46684a0d7",
+          "sha256": "12cf397bfd5200d1284eeaf721922933dd76b019533dbee5b854a4ae2820c995",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "bf0bb2e688d463bf6af1100620eff85dcf2ce0adb5fd377850f5aa612371cb39",
+          "sha256": "6b0e34664a89827bdd4d804d6d08fba5e7f1c4dab3e640b4fc5401945fa8a8ef",
+          "width": 1080,
+          "height": 1350
+        }
+      ],
+      "LIVE_F05_BEDTIME_CHECKLIST": [
+        {
+          "position": 1,
+          "sha256": "5f8678a6e7c17239ba909dae83ff7af4c29fd96fda163bc6769273865fd42b9a",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 2,
+          "sha256": "cf620c1ba1873033bca762d0f6605745548e76007ec331dea127b7b18ab17998",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 3,
+          "sha256": "052dcee5f560e0f45a3c1f71501ec822f19d2a0d222ee25acba8cf695014f64c",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 4,
+          "sha256": "fbe991227d0f627658e295481ddcac203040d6383b7837c008f5ef0feee65f30",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 5,
+          "sha256": "248a884aa0ffcc8c9008600c596670a9a27b6d85953ce1af73b1098591756c13",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 6,
+          "sha256": "4438a1edbb45743168417530794a222913da3b902a5f40eba83dda3a8eae4910",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 7,
+          "sha256": "e7583da80aced32b7e0c9485afb159175a82cc90256acd0ebcc9fabb9b023a8d",
+          "width": 1080,
+          "height": 1350
+        }
+      ],
+      "MAX_F05_INTERACTIVE_CHECKLIST": [
+        {
+          "position": 1,
+          "sha256": "1b2a9d79f11c26357fb583fe37c70ac0ea7ec43fbf142e56df587d018a8a1fd0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 2,
+          "sha256": "21650e8498fc6898b7e8a69c8df876cd433031903564d235662f10e796d6bf53",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 3,
+          "sha256": "3db8d109d0df429bf248cc99bdf9281a8183d17c940625bf313768fc1862261c",
           "width": 1080,
           "height": 1350
         }
@@ -331,7 +397,7 @@
       "REVISION_F05_INTERACTIVE_CHECKLIST": [
         {
           "position": 2,
-          "sha256": "5f787e928fd843318d2438d3d580a46ef518cdf8270e3e94e7aae90a3c869301",
+          "sha256": "ecdb78e4e26f36b0d4996e00386a79cab60c3c5849bf6d3d956db8d7b584c603",
           "width": 1080,
           "height": 1350
         }

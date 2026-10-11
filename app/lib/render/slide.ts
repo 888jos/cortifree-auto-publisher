@@ -4,7 +4,7 @@ import { analyzeHookComposition, type HookDesign } from "../hook-design";
 import { uploadFile } from "../storage";
 import { selectedAssetBytes } from "./assets";
 import { defaultGeometry, HEIGHT, WIDTH, type Frame, type GeneratedSlide, type Geometry } from "./types";
-import { checklistPanel, checklistTextOverlays } from "./text/checklist";
+import { checklistTextOverlays } from "./text/checklist";
 import { geometryForVisualMetadata, makeRasterTextOverlays } from "./text/default";
 import { editorialAsymTextOverlays } from "./text/editorial-asym";
 import { threeRectEducationalTextOverlays } from "./text/educational";
@@ -189,12 +189,7 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
         top: 0,
       });
     }
-    if (imageFrame.mode === "interactive-checklist" && !isHook) {
-      const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
-      const panelWidth = frame.checklistPanelWidth ?? 850;
-      const panelHeight = frame.checklistPanelHeight ?? 930;
-      composites.push({ input: await checklistPanel(panelWidth, panelHeight), left: frame.checklistPanelX ?? 115, top: frame.checklistPanelY ?? 235 });
-    }
+    // F05: the Notes card is drawn with its text (checklistTextOverlays) so it can grow with it.
   }
 
   const forceDark = imageFrame.mode === "three-rect-educational" || imageFrame.mode === "editorial-asym-hero" || imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";

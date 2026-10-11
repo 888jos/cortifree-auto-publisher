@@ -11,6 +11,8 @@ export type GeneratedSlide = {
   assetQuery: string;
   visualIntent: string;
   assetType?: string;
+  /** F05: optional CortiFree line drawn under the Notes checklist. */
+  cortifreeNote?: string;
 };
 
 export type Frame = {
