@@ -340,7 +340,11 @@ async function syncSheetRecordKind(input: {
       synced_at: syncedAt,
     }];
   });
-  if (!records.length) throw new Error(`Refusing to replace ${input.kind} with an empty Sheet read`);
+  if (!records.length) {
+    // An optional tab with only its header keeps the current rules.
+    if (input.optional) return 0;
+    throw new Error(`Refusing to replace ${input.kind} with an empty Sheet read`);
+  }
   await upsert("editorial_records", "kind,key", records);
 
   const existingResponse = await dataBackend(`editorial_records?kind=eq.${encodeURIComponent(input.kind)}&select=key&limit=5000`);

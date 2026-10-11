@@ -11,6 +11,7 @@ Replace the figurative part with the plain, concrete fact a viewer could act on,
 Line 1 is the hook. If it does not clearly say what the carousel is about (e.g. "when i need to wash up, i check my bathroom first" for a carousel about not shopping on a bad day), rewrite it into a short, natural hook that names the topic, in the same voice (e.g. "things i try before buying another product on a bad day").
 Leave every other line EXACTLY as it is, character for character, including tier prefixes ("S · "), section labels ("HOW TO |"), " | " separators, times ("10:15 - 10:20 · ") and hashtags.
 Never add dashes, emoji, new advice or health claims.
+Keep every mention of the app "cortifree" in the line where it is.
 `.trim();
 
 export const plainLanguageSchema = z.object({ lines: z.array(z.string()) });

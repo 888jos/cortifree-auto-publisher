@@ -80,6 +80,8 @@ export type EditorialContext = {
     app_screen_category?: string;
     app_screen_asset_id?: string | null;
     copy_bank_seed_id?: string | null;
+    /** Where this format puts the CortiFree mention (src/content/cortifree-integration.ts). */
+    placement?: string;
   };
 };
 export type HealthGuardrails = {

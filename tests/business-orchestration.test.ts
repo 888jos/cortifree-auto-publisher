@@ -79,11 +79,11 @@ describe("business orchestration v1", () => {
     assert.match(sync, /table: "content_accounts"/);
   });
 
-  it("keeps product integration conditional instead of forcing CortiFree into every post", async () => {
+  it("follows the idea's CortiFree plan instead of hard-coding the integration", async () => {
     const processor = await fs.readFile(path.join(process.cwd(), "src/autonomy/processor.ts"), "utf8");
     const prompt = await fs.readFile(path.join(process.cwd(), "app/lib/ai/prompts.ts"), "utf8");
     assert.match(processor, /const brandRequired = idea\.brand_required === true/);
-    assert.match(prompt, /If editorialContext\.brand_integration\.required is false, do NOT mention CortiFree/);
+    assert.match(prompt, /When required is false, do not mention CortiFree at all/);
     assert.doesNotMatch(processor, /brand_integration: \{ required: true, mention: 'CortiFree', screenshot_required: true \}/);
   });
 
