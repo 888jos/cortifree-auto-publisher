@@ -10,7 +10,7 @@ import {
   type ImageGenerationInput,
   type ImageGenerationProvider,
 } from "../../src/image-generation/core";
-import { isAutomaticVisualReference, visualReferenceSchema } from "../../src/visual-references";
+import { isAutomaticVisualReference, isCollageDescription, visualReferenceSchema } from "../../src/visual-references";
 import { uploadFile } from "./storage";
 import { OpenAIStockAssetAnalyzer, type StockAssetVision } from "./ai/stock-asset-analyzer";
 import { getAIConfig } from "./ai/config";
@@ -117,7 +117,21 @@ async function observeGeneratedImage(url: string): Promise<StockAssetVision | nu
   }
 }
 
-function observedAssetFields(seen: StockAssetVision) {
+export const GENERATED_VISION_SCHEMA = "observable_v3";
+
+/** True when the vision analysis sees several photos or panels in one image. */
+export function isCollageVision(seen: Pick<StockAssetVision, "image_layout" | "visual_description" | "composition" | "specific_details">) {
+  return seen.image_layout === "collage_or_multi_panel" || isCollageDescription(seen.visual_description, seen.composition, seen.specific_details);
+}
+
+/**
+ * Asset columns from a vision analysis. The framing box and layout are merged
+ * into the existing metadata (never replacing it); a collage is disabled with
+ * its reason, never deleted.
+ */
+export function observedAssetFields(seen: StockAssetVision, metadata: Record<string, unknown> = {}) {
+  const collage = isCollageVision(seen);
+  const { kind, left, top, right, bottom } = seen.subject_box;
   return {
     visual_description: seen.visual_description,
     visible_actions: seen.visible_actions,
@@ -132,20 +146,49 @@ function observedAssetFields(seen: StockAssetVision) {
     specific_details: seen.specific_details.join(" | "),
     good_for: seen.good_for,
     ...(seen.visible_actions[0] ? { activity: seen.visible_actions[0] } : {}),
-    visual_tagging_schema: "observable_v2",
+    visual_tagging_schema: GENERATED_VISION_SCHEMA,
+    metadata: {
+      ...metadata,
+      image_layout: seen.image_layout,
+      subject_box: kind === "none" ? null : { kind, left, top, right, bottom },
+      vision_framed_at: new Date().toISOString(),
+      ...(collage ? { disabled_reason: "COLLAGE_MULTI_PANEL: the vision analysis sees several photos or panels in one image", disabled_at: new Date().toISOString() } : {}),
+    } as Record<string, unknown>,
+    ...(collage ? { enabled: false } : {}),
   };
 }
 
 /**
+ * A reference whose output came back as a collage is itself a collage (or a
+ * layout Seedream copies): it is refused for automatic generation from now on.
+ * disabled_reason survives the Sheet sync, which rewrites enabled and qa_flag.
+ */
+async function refuseCollageReference(referenceId: string, assetId: string | number) {
+  const response = await dataBackend("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(referenceId) + "&select=metadata");
+  if (!response.ok) return;
+  const [row] = await response.json() as Array<{ metadata?: Record<string, unknown> | null }>;
+  if (!row) return;
+  await dataBackend("visual_references?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + encodeURIComponent(referenceId), {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      enabled: false,
+      metadata: { ...(row.metadata ?? {}), image_layout: "collage_or_multi_panel", disabled_reason: `COLLAGE_REFERENCE: generated asset ${assetId} came back as a collage`, disabled_at: new Date().toISOString() },
+    }),
+  }).catch(() => undefined);
+}
+
+/**
  * Re-describes already generated persona images from their pixels (they were
- * indexed with the prompt text, not what ModelArk drew). Idempotent: skips
- * rows already tagged observable_v2.
+ * indexed with the prompt text, not what ModelArk drew) and records where the
+ * face is. Idempotent: skips rows already tagged with the current schema.
+ * Collages found on the way are disabled, and so is their reference.
  */
 export async function retagGeneratedAssets(options: { limit?: number } = {}) {
   const limit = Math.min(Math.max(Number(options.limit ?? 400), 1), 1000);
-  const response = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&or=(visual_tagging_schema.is.null,visual_tagging_schema.neq.observable_v2)&select=id,public_url,visual_description&order=id.desc&limit=" + limit);
+  const response = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&source_type=eq.persona_generated&enabled=eq.true&public_url=not.is.null&or=(visual_tagging_schema.is.null,visual_tagging_schema.neq." + GENERATED_VISION_SCHEMA + ")&select=id,public_url,visual_description,metadata&order=id.desc&limit=" + limit);
   if (!response.ok) throw new Error("Retag listing failed: " + (await response.text()).slice(0, 300));
-  const rows = await response.json() as Array<{ id: number | string; public_url: string; visual_description: string | null }>;
+  const rows = await response.json() as Array<{ id: number | string; public_url: string; visual_description: string | null; metadata?: Record<string, unknown> | null }>;
   const report: Array<{ id: number | string; status: string; before?: string; after?: string }> = [];
   let cursor = 0;
   async function worker() {
@@ -153,18 +196,28 @@ export async function retagGeneratedAssets(options: { limit?: number } = {}) {
       const row = rows[cursor++]!;
       const seen = await observeGeneratedImage(row.public_url);
       if (!seen) { report.push({ id: row.id, status: "VISION_FAILED" }); continue; }
+      const fields = observedAssetFields(seen, row.metadata ?? {});
       const patch = await dataBackend("assets?workspace_id=eq." + CORTIFREE_WORKSPACE_ID + "&id=eq." + row.id, {
         method: "PATCH",
         headers: { Prefer: "return=minimal" },
-        body: JSON.stringify(observedAssetFields(seen)),
+        body: JSON.stringify(fields),
       });
+      const collage = fields.enabled === false;
+      const referenceId = String(row.metadata?.visual_reference_id ?? "");
+      if (patch.ok && collage && referenceId) await refuseCollageReference(referenceId, row.id);
       report.push(patch.ok
-        ? { id: row.id, status: "RETAGGED", before: String(row.visual_description ?? "").slice(0, 120), after: seen.visual_description.slice(0, 160) }
+        ? { id: row.id, status: collage ? "DISABLED_COLLAGE" : "RETAGGED", before: String(row.visual_description ?? "").slice(0, 120), after: seen.visual_description.slice(0, 160) }
         : { id: row.id, status: "PATCH_FAILED:" + patch.status });
     }
   }
   await Promise.all(Array.from({ length: 4 }, worker));
-  return { ok: true, total: rows.length, retagged: report.filter((item) => item.status === "RETAGGED").length, report };
+  return {
+    ok: true,
+    total: rows.length,
+    retagged: report.filter((item) => item.status === "RETAGGED").length,
+    disabled_collages: report.filter((item) => item.status === "DISABLED_COLLAGE").length,
+    report,
+  };
 }
 
 async function uploadGeneratedAsset(options: {
@@ -210,6 +263,14 @@ async function uploadGeneratedAsset(options: {
   // scene over the prompt, and the prompt text as description sent a kitchen
   // photo to a "coffee by the window" step.
   const seen = await observeGeneratedImage(publicUrl);
+  const assetMetadata = {
+    generation_job_id: options.jobId,
+    visual_reference_id: options.reference.id,
+    storage_id: storageId,
+    storage_backend: backendMode(),
+    generated_visual_metadata: true,
+    specific_details: specificDetails,
+  };
   const row = {
     workspace_id: CORTIFREE_WORKSPACE_ID, path: `${backendMode()}://${storagePath}`, relative_path: storagePath, filename,
     category: options.category, subcategory: options.scene.toLowerCase().replace(/[^a-z0-9]+/g, "_"), persona_id: options.personaId,
@@ -233,17 +294,10 @@ async function uploadGeneratedAsset(options: {
     visual_tagging_schema: "generated_from_reference_v1",
     visual_review_status: "GENERATED_PERSONA",
     visual_reviewed_at: new Date().toISOString(),
-    metadata: {
-      generation_job_id: options.jobId,
-      visual_reference_id: options.reference.id,
-      storage_id: storageId,
-      storage_backend: backendMode(),
-      generated_visual_metadata: true,
-      specific_details: specificDetails,
-    },
+    metadata: assetMetadata,
     scene: options.scene, pose: options.reference.pose, outfit: options.reference.outfit, environment: options.reference.environment,
     good_for: options.reference.good_for, enabled: true,
-    ...(seen ? observedAssetFields(seen) : {}),
+    ...(seen ? observedAssetFields(seen, assetMetadata) : {}),
   };
   const insert = await dataBackend("assets?on_conflict=path", {
     method: "POST",
@@ -253,7 +307,7 @@ async function uploadGeneratedAsset(options: {
   if (!insert.ok) throw new Error("Asset index failed: " + (await insert.text()).slice(0, 500));
   const asset = (await insert.json() as Array<{ id: string | number }>)[0];
   if (!asset) throw new Error("Asset index returned no row");
-  return { id: asset.id, url: publicUrl, filename, storagePath };
+  return { id: asset.id, url: publicUrl, filename, storagePath, collage: row.enabled === false };
 }
 
 export async function processImageGenerationJob(jobId: string, injectedProvider?: ImageGenerationProvider) {
@@ -290,6 +344,12 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
     const usage = await dataBackend("image_generation_usage", { method: "POST", body: JSON.stringify({ workspace_id: CORTIFREE_WORKSPACE_ID, job_id: jobId, persona_id: persona.id, provider: provider.name, model: result.model, images_generated: 1, estimated_cost_usd: current.unitCostUsd }) });
     // The image is already paid for: keep the asset, but make the missing spend visible.
     if (!usage.ok) console.error("[image-generation] usage not recorded; budget caps will undercount", jobId, await usage.text());
+    // Seedream copied a collage layout: the asset is already disabled; refuse
+    // the reference and let the caller try another one.
+    if (asset.collage) {
+      await refuseCollageReference(reference.id, asset.id);
+      throw new Error(`${GENERATED_COLLAGE_ERROR}:${reference.id}:asset_${asset.id}`);
+    }
     return asset;
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 1_000);
@@ -305,6 +365,7 @@ export async function processImageGenerationJob(jobId: string, injectedProvider?
 }
 
 export const PROVIDER_BLOCKED_RETRY_MS = 30 * 60_000;
+export const GENERATED_COLLAGE_ERROR = "GENERATED_COLLAGE";
 
 export function getImageGenerationStatus() {
   const current = settings();

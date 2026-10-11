@@ -1,4 +1,5 @@
 import { loadVisualGroups } from "../visual-groups";
+import { orderLifestyleBands } from "./framing";
 import { chooseAssets, loadSelectableAssets, pickCarouselFace, requiresOfficialAppScreenshot, visualGroupMembers, visualPersonaIdFor, type AssetMatch, type SelectableAsset } from "../asset-selector";
 import { dataBackend } from "../data-backend";
 import { downloadDriveFile } from "../google/drive";
@@ -201,7 +202,9 @@ export async function generateRepairAsset(options: { input: { id: string; person
     } catch (error) {
       lastError = error;
       options.usedReferenceIds.add(candidate.reference.id);
-      if (!/SensitiveContent/i.test(error instanceof Error ? error.message : String(error))) throw error;
+      // A refused output (sensitive, or a collage copied from the
+      // reference) costs this reference only: try the next one.
+      if (!/SensitiveContent|GENERATED_COLLAGE/i.test(error instanceof Error ? error.message : String(error))) throw error;
     }
   }
   throw lastError ?? new Error(`MODELARK_REFERENCE_MISSING:slide_${options.position}`);
@@ -294,6 +297,13 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
     const asset = ranked[0];
     return asset ? { asset, score: 0, matchedTerms: [], fallbackPath: "rerender_support_fallback", thresholdBypassed: true } as AssetMatch : null;
   }
+  // F01 body photos are cropped into 1080x450 bands: a close-up face that
+  // cannot fit whole is never picked for them.
+  function lifestyleBandFrame(slide: GeneratedSlide) {
+    return input.layout === "lifestyle-3stack" && slide.position !== 1 && slide.role.toUpperCase() !== "HOOK"
+      ? { width: 1080, height: 450 }
+      : undefined;
+  }
   const multiImageLayout = input.layout === "three-rect-educational"
     || input.layout === "editorial-asym-hero"
     || input.layout === "editorial-collage"
@@ -337,6 +347,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
             carouselType: input.carouselType,
             personaId: input.personaId,
             excludedAssetIds: new Set([...recentHookAssetIds, ...usedInCarousel]),
+            frame: lifestyleBandFrame(slide),
             slides: [primarySelectionSlide(slide)],
           })[0]!;
           usedInCarousel.add(String(match.asset.id));
@@ -473,6 +484,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
                 personaId: input.personaId,
                 excludedAssetIds: usedCarouselAssets,
                 facelessStockOnly: input.layout === "lifestyle-3stack",
+                frame: lifestyleBandFrame(slide),
                 slides: [supportSlide],
               })[0]!;
               selected.push(next);
@@ -490,6 +502,7 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
                   personaId: input.personaId,
                   excludedAssetIds: usedCarouselAssets,
                   facelessStockOnly: input.layout === "lifestyle-3stack",
+                  frame: lifestyleBandFrame(slide),
                   acceptBest: true,
                   slides: [supportSlide],
                 })[0];
@@ -511,7 +524,9 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
               throw new Error(`${message}:slide_${slide.position}`);
             }
           }
-          return selected;
+          // F01: the text sits on the middle band, so the photo that best
+          // takes it goes there (a face under the text was unreadable).
+          return input.layout === "lifestyle-3stack" && !locked.length ? orderLifestyleBands(selected) : selected;
         });
         break;
       }

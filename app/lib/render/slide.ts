@@ -3,6 +3,7 @@ import type { AssetMatch } from "../asset-selector";
 import { analyzeHookComposition, type HookDesign } from "../hook-design";
 import { uploadFile } from "../storage";
 import { selectedAssetBytes } from "./assets";
+import { focusCrop, subjectBox } from "./framing";
 import { defaultGeometry, HEIGHT, WIDTH, type Frame, type GeneratedSlide, type Geometry } from "./types";
 import { checklistPanel, checklistTextOverlays } from "./text/checklist";
 import { geometryForVisualMetadata, makeRasterTextOverlays } from "./text/default";
@@ -12,6 +13,13 @@ import { lifestyleThreeStackTextOverlays } from "./text/lifestyle";
 import { personaExplainerTextOverlays } from "./text/persona-explainer";
 import { rankingCopyParts, rankingTextOverlays } from "./text/ranking";
 import { routineTextOverlays } from "./text/routine";
+
+// F01 body slides: three edge-to-edge horizontal bands.
+export const LIFESTYLE_BANDS = [
+  { left: 0, top: 0, width: 1080, height: 450 },
+  { left: 0, top: 450, width: 1080, height: 450 },
+  { left: 0, top: 900, width: 1080, height: 450 },
+];
 
 async function roundedPhoto(bytes: Buffer, width: number, height: number, radius = 24) {
   const resized = await sharp(bytes)
@@ -128,23 +136,25 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     }
     averageLuminance = 220;
   } else if (imageFrame.mode === "lifestyle-3stack") {
+    // Without an operator crop, each photo is framed on its face or main
+    // subject (vision subject_box); the centre crop cut faces in the bands.
+    const framed = async (match: AssetMatch, index: number, fallback: { left: number; top: number; width: number; height: number }) => {
+      const imageBytes = await selectedAssetBytes(match);
+      const place = editorSlot(geometry, index, fallback);
+      if (!geometry.imageSlots?.[index]) {
+        const source = await sharp(imageBytes).rotate().metadata();
+        Object.assign(place, focusCrop({ width: source.width ?? place.width, height: source.height ?? place.height }, place, subjectBox(match.asset.metadata)));
+      }
+      return { imageBytes, place, fitted: await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place }) };
+    };
     if (isHook) {
-      const imageBytes = await selectedAssetBytes(matches[0]!);
+      const { imageBytes, place, fitted } = await framed(matches[0]!, 0, { left: 0, top: 0, width: 1080, height: 1350 });
       const stats = await sharp(imageBytes).stats();
       averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
-      const place = editorSlot(geometry, 0, { left: 0, top: 0, width: 1080, height: 1350 });
-      const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       composites.push({ input: fitted, left: place.left, top: place.top });
     } else {
-      const placements = [
-        { left: 0, top: 0, width: 1080, height: 450 },
-        { left: 0, top: 450, width: 1080, height: 450 },
-        { left: 0, top: 900, width: 1080, height: 450 },
-      ];
       for (const [index, match] of matches.slice(0, 3).entries()) {
-        const imageBytes = await selectedAssetBytes(match);
-        const place = editorSlot(geometry, index, placements[index]!);
-        const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
+        const { place, fitted } = await framed(match, index, LIFESTYLE_BANDS[index]!);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
       averageLuminance = 100;

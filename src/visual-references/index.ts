@@ -30,6 +30,18 @@ export const visualReferenceSchema = z.object({
 });
 export type VisualReference = z.infer<typeof visualReferenceSchema>;
 
+// Wording the vision analysis uses for an image made of several photos.
+// Plain "panel" is not enough: glass shower panels, wood panels and door
+// panels are ordinary single photos.
+const COLLAGE_PATTERN = /(?<![a-z])(?:collage|triptych|diptych|split[ _-]?screen|multi[ _-]?panel|photo[ _-]?grid|grid of (?:photos|images|pictures)|(?:two|three|four|five|six|several|multiple|[2-6])[ _-](?:(?:separate|vertical|horizontal|square|portrait)[ _-])?(?:panels?|photos|photographs|images|pictures|frames)(?![a-z])(?! of\b)|(?:photos|photographs|images|panels) (?:are )?(?:arranged|stacked|placed|shown) (?:side by side|in a grid)|separate (?:portrait |vertical |square )?photographs|photo[ _-]panels?|panel[ _-](?:dividers?|borders?)|(?:white|thin)[ _-](?:vertical[ _-]|horizontal[ _-])?dividers?|panels? separated by|(?:left|right|center|centre|middle|upper|lower|top|bottom)[ _-](?:photo[ _-])?panel(?![a-z])|stacked[ _-](?:right|left)[ _-]panels)/i;
+
+export const COLLAGE_QA_FLAG = "COLLAGE_AUTO_DISABLED";
+
+/** True when a vision description says the image is several photos or panels put together. */
+export function isCollageDescription(...texts: Array<string | string[] | null | undefined>) {
+  return COLLAGE_PATTERN.test(texts.flat().filter(Boolean).join(" \n "));
+}
+
 /**
  * Sheet moderation is authoritative for automatic generation. Keep the
  * status fields in metadata so the existing table remains backwards
@@ -45,6 +57,13 @@ export function isAutomaticVisualReference(
   const qaFlag = String(metadata.qa_flag ?? "").trim().toUpperCase();
   if (reviewStatus === "DUPLICATE" || reviewStatus === "REVIEW") return false;
   if (qaFlag === "MULTI_PERSON_AUTO_DISABLED") return false;
+  // Disabled by the pipeline or the operator outside the Sheet (the Sheet
+  // sync rewrites enabled and qa_flag, but keeps other metadata keys).
+  if (String(metadata.disabled_reason ?? "").trim()) return false;
+  // A collage reference makes ModelArk draw a collage (VR029 gave three).
+  if (qaFlag === COLLAGE_QA_FLAG || String(metadata.image_layout ?? "") === "collage_or_multi_panel") return false;
+  const described = reference as Partial<Pick<VisualReference, "pose" | "framing" | "environment" | "tags">>;
+  if (isCollageDescription(described.pose, described.framing, described.environment, described.tags, String(metadata.visual_description ?? ""))) return false;
 
   // Runtime rows always include provenance. Keep this helper compatible with
   // moderation-only unit tests that intentionally pass a minimal object.
