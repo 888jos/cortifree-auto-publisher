@@ -1,0 +1,121 @@
+hook_id,hook_family,formula,emotion,intensity,compatible_formats,compatible_pillars,persona_fit,weight,cooldown_days,use_count,last_used_at,active,runtime_use,source,source_views,source_saves
+TT_F01_001,authority confession + list,weird hacks from my therapist that actually calmed my cortisol,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@anxiousgirliediaries_,3000000,113071
+TT_F01_002,paradox list,high maintenance habits i do so my hormones stay low maintenance,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@beautywithmari,19100000,640827
+TT_F01_003,comparison claim,6 habits that did more for my hormones than any supplement,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@iheartliver,229600,12529
+TT_F01_004,authority confession,simple anxiety hacks my therapist taught me (that actually helped),,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@nourbur.1,374400,10847
+TT_F01_005,identity list,self care habits i live by as a girl with high cortisol,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@lilybayliss_,197100,3761
+TT_F01_006,regret list,wellness habits i wish i started at 20,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@m.adeleinejane,192200,13135
+TT_F01_007,niche + timeframe,niche habits that changed my mood in two weeks,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@better.with.ava,284800,14920
+TT_F01_008,small habits,small habits that healed my nervous system long term,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@holistclotus,241900,12748
+TT_F01_009,playful reframe,the real chill pills: habits that calm my body down,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@forlovergirlz,650700,44486
+TT_F01_010,ranked teaser,top 5 ways i relieve stress (number 5 is so underrated),,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ysa.berenaa,3000000,30928
+TT_F01_011,outcome promise,how lowering my cortisol made me feel prettier and more confident,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@psychpremed,1900000,87529
+TT_F01_012,constraint list,5 ways i take care of my mental health without therapy money,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@selfcaremastermind,1700000,73406
+TT_F01_013,reframe,glow up habits that are secretly hormone habits,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@diarywithglow,2600000,101341
+TT_F01_014,anti-cliche,actual niche cortisol tips instead of the 5 same ones,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@shyfortzu,184500,8828
+TT_F01_015,stopped list,things i stopped doing once i learned about cortisol,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rockyjune00,137100,5471
+TT_F01_016,transformation story,how i rebuilt my brain after burnout (when everyone said i'd never be the same),,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@emily.mentalhealth,125100,3562
+TT_F01_017,deadline,your glow up before 2026 ends starts with your nervous system,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@fallwithem,1200000,78367
+TT_F01_018,result list,habits that made my anxiety so much quieter,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@theeverydaygirlsguide,485500,15281
+TT_F01_019,low effort,little things that lowered my cortisol without trying hard,,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@aliceinlace_,137000,5542
+TT_F01_020,actually + contrast,how to actually lower your cortisol (not the obvious stuff),,,F01_LIFESTYLE_GUIDE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@motiondreambig,107900,4180
+TT_F03_021,routine + goal,my morning routine to lower cortisol,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@claiirecosta,249700,10843
+TT_F03_022,identity routine,pcos girl night routine,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@thegirlshubuk,203100,2980
+TT_F03_023,routine + result,morning routine that keeps my cortisol low all day,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@fa_4355,1900000,31443
+TT_F03_024,problem routine,my night routine when my brain won't shut off,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@wellnessabyv,1300000,38439
+TT_F03_025,routine + result,the morning routine that fixed my hormones,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@chasingpeaks0,276200,11917
+TT_F03_026,routine + rule,my low cortisol morning (no coffee for 90 min),,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@30glowup.app,787900,29692
+TT_F03_027,pov identity,pov: you're a pcos girl balancing your hormones before bed,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@thegirlshubuk,203100,2980
+TT_F03_028,identity routine,my morning routine as someone with anxiety,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@claiirecosta,249700,10843
+TT_F03_029,first hour,what i do the first hour after waking up to keep cortisol low,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@chasingpeaks0,276200,11917
+TT_F03_030,cycle routine,my luteal phase evening routine,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rorareset,1400000,75127
+TT_F03_031,reset ritual,my sunday reset for my nervous system,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@beautywithmari,19100000,640827
+TT_F03_032,result routine,the night routine that finally fixed my sleep,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@wellnessabyv,1300000,38439
+TT_F03_033,problem routine,my after-work routine so i don't stay in fight or flight,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@wagamamalover,229700,14314
+TT_F03_034,condition routine,my morning routine on days my anxiety is loud,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@realtalkwithang,322100,5469
+TT_F03_035,realistic + rule,realistic morning routine for hormone balance (no 5am),,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@toriwaterss_,632300,7844
+TT_F03_036,cycle routine,my period week routine for less cramps and moods,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@humanoptimizationlab,1200000,88690
+TT_F03_037,change routine,how i spend my evenings since i stopped doomscrolling,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@motiondreambig,107900,4180
+TT_F03_038,endorsement,the cortisol-friendly morning i swear by,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@caroline__mchugh,2200000,68215
+TT_F03_039,short routine,my 10 minute nervous system reset before bed,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@bina.frequencies,2200000,32758
+TT_F03_040,healing diary,day in my life healing burnout,,,F03_ROUTINE_TIMELINE,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@emily.mentalhealth,125100,3562
+TT_F04_041,self-diagnosis,signs your cortisol is high (no test needed),,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@mimii_unfiltered,1100000,4688
+TT_F04_042,taboo knowledge,important things women aren't taught about their hormones,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rorareset,1400000,75127
+TT_F04_043,signs + contrast,5 signs you're burnt out (and not just tired),,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@things_explained0,1200000,26901
+TT_F04_044,self-diagnosis,signs your hormones are a mess,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@siuelaclub,340500,4191
+TT_F04_045,reframe statement,"women aren't under-eating, they're under-nourished",,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@humanoptimizationlab,1200000,88690
+TT_F04_046,explainer,3 hormones your body releases and how to trigger them naturally,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rhea.cycle,138700,7816
+TT_F04_047,causes list,8 things that quietly mess up your hormones,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@liz_oma,1100000,3020
+TT_F04_048,visible effect,what high cortisol does to your face,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ouad.ez,2600000,5989
+TT_F04_049,quiz,find your stress belly type,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@liloubites,7800000,36569
+TT_F04_050,insider,how to balance your hormones naturally (what your doctor might not tell you),,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@thenourishingplate,161100,10255
+TT_F04_051,lived authority,"how to regulate your nervous system, from someone who had a dysregulated one",,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@wagamamalover,229700,14314
+TT_F04_052,consequence,this happens when you take magnesium every night,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@anxietyfree.tv,276400,2479
+TT_F04_053,diagnosis story,"i was diagnosed with pcos 4 years ago, here's everything i wish i knew",,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@maya.tipss,245500,9919
+TT_F04_054,beginner guide,how to meditate (for beginners who can't sit still),,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@monk.mogul,1100000,61831
+TT_F04_055,provocation,"your hormones are running your life, here's how to take it back",,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rhea.cycle,138700,7816
+TT_F04_056,authority list,5 nervous system hacks my therapist taught me,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@forlovergirlz,650700,44486
+TT_F04_057,symptom explainer,why you're tired but wired at night,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rhea.cycle,138700,7816
+TT_F04_058,foods list,cortisol reducing foods i actually eat,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@naturallywellness,1300000,33081
+TT_F04_059,myth bust,your menstrual cycle isn't just about periods,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rorareset,1400000,75127
+TT_F04_060,mechanism,what burnout actually does to your brain,,,F04_AESTHETIC_EDUCATIONAL,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@things_explained0,1200000,26901
+TT_F05_061,quoted thought,“i want to lower my cortisol but idk where to start”,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@caroline__mchugh,2200000,68215
+TT_F05_062,steal my list,steal my master list of the easiest ways to calm my hormones,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@katieleexoxoxo,1700000,121728
+TT_F05_063,quoted thought,“i want to fix my hormones but i don't know where to begin”,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@primustheino,10600,719
+TT_F05_064,notes app list,my notes app list for when my anxiety spikes,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@realtalkwithang,322100,5469
+TT_F05_065,save-for-later,save this for when your cortisol is through the roof,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@realtalkwithang,322100,5469
+TT_F05_066,quoted problem,“why am i so tired when i slept 8 hours”,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@things_explained0,1200000,26901
+TT_F05_067,challenge list,"my 10 day cortisol reset list (no supplements, no bs)",,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@30glowup.app,787900,29692
+TT_F05_068,challenge,10 days hormone glow up challenge,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@thatgirl_guide0,1300000,50988
+TT_F05_069,two lists,the silent face puffers list vs the face debloat list,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@glowsy.debloat,266200,3061
+TT_F05_070,quoted wish,“i want to feel calm again without quitting my life”,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@caroline__mchugh,2200000,68215
+TT_F05_071,lazy girl,the lazy girl hormone checklist,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@girlsonlyfinds,1922,57
+TT_F05_072,screenshot list,my pcos grocery list (screenshot this),,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@maya.tipss,245500,9919
+TT_F05_073,daily list,things i do every day for my nervous system,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@selfcaremastermind,1700000,73406
+TT_F05_074,quoted problem,“my cortisol face is back again”,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@sarazelko,2700000,2514
+TT_F05_075,if i had to,everything i'd do if i had to fix burnout from zero,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@emily.mentalhealth,125100,3562
+TT_F05_076,notes app,my anti-anxiety notes for bad days,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@anxiousgirliediaries_,3000000,113071
+TT_F05_077,screenshot cta hook,screenshot this if your hormones feel out of control,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@katieleexoxoxo,1700000,121728
+TT_F05_078,quoted symptom,“i feel wired all day and exhausted at night”,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@mimii_unfiltered,1100000,4688
+TT_F05_079,letter to self,what i'd tell my 20 year old self about hormones,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@rorareset,1400000,75127
+TT_F05_080,notes app,my sleep checklist for when my brain won't stop,,,F05_INTERACTIVE_CHECKLIST,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@wellnessabyv,1300000,38439
+TT_F07_081,tier + science,evening habits tier list for your cortisol (backed by science),,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ryestetics,1100000,35930
+TT_F07_082,tier + science,sleep habits tier list (backed by science),,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@sched.ai,74700,946
+TT_F07_083,tier + honesty,"tier list of mental health habits, ranked by how much they actually help",,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@mentalapp,105100,1825
+TT_F07_084,ranking range,ranking stress relief habits from useless to life changing,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ysa.berenaa,3000000,30928
+TT_F07_085,tier + identity,workouts tier list for women with high cortisol,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@bnhealth,817100,7183
+TT_F07_086,tier,morning habits tier list for your hormones,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@primal_eur,301000,3972
+TT_F07_087,tier + actually,cortisol tier list: what actually lowers it,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@primal_eur,1500000,10704
+TT_F07_088,ranking as someone who,ranking viral wellness trends as someone with pcos,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@primal_eur,266100,5510
+TT_F07_089,tier + warning,anxiety hacks tier list (some of these are useless),,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@theeverydaygirlsguide,485500,15281
+TT_F07_090,tier,caffeine habits tier list for your cortisol,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ryestetics,1100000,35930
+TT_F07_091,tier + honest,supplements tier list for hormones (honest),,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@anxietyfree.tv,276400,2479
+TT_F07_092,ranking range,ranking self care trends by what actually moved my mood,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@beautywithmari,19100000,640827
+TT_F07_093,tier,breakfast tier list for steady energy,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@zexxicek_,355400,4914
+TT_F07_094,tier,phone habits tier list for your nervous system,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@mentalapp,105100,1825
+TT_F07_095,tier,period symptoms relief tier list,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@humanoptimizationlab,1200000,88690
+TT_F07_096,versus ranking,"ranking walks, pilates, hiit and yoga for high cortisol",,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@bnhealth,817100,7183
+TT_F07_097,tier + lived,sleep tricks tier list from someone who used to sleep 4 hours,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@sched.ai,74700,946
+TT_F07_098,tier,environment tier list for a calm brain,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@primal_eur,133800,1977
+TT_F07_099,tier,evening drinks tier list for better sleep,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ryestetics,1100000,35930
+TT_F07_100,ranking for haters,ranking meditation styles for people who hate meditating,,,F07_RANKING,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@yasmin.1199,612700,43698
+TT_F08_101,before / now,my face before i managed my cortisol vs now,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@raquelallenn,670700,3107
+TT_F08_102,versus,low cortisol vs rising cortisol,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@ouad.ez,2600000,5989
+TT_F08_103,fear + proof,"girls scared of aging, this is what lower cortisol did to my face",,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@elizabethashlen,3600000,2884
+TT_F08_104,before / after,before cortisol face vs after cortisol face,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@sarazelko,2700000,2514
+TT_F08_105,before / after (fr),"avant : cortisol élevé, après : cortisol bas",,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@nuclever,731800,1794
+TT_F08_106,identity before / now,pcos core before vs now,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@linae7777,204300,2755
+TT_F08_107,versus habits,high cortisol habits vs low cortisol habits,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@takeprince,196900,1748
+TT_F08_108,versus self,anxious me vs regulated me,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@wagamamalover,229700,14314
+TT_F08_109,habit + before/after,"10,000 steps every day: my body before vs after 3 months",,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@fallwithem,1200000,78367
+TT_F08_110,versus food,what i ate when i was burnt out vs what i eat now,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@humanoptimizationlab,1200000,88690
+TT_F08_111,versus routine,my mornings at high cortisol vs my mornings now,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@claiirecosta,249700,10843
+TT_F08_112,starter pack,stressed girl starter pack vs calm girl starter pack,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@takeprince,196900,1748
+TT_F08_113,timeframe result,after 3 months of fixing my hormones,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@amina.beautyy,1000000,6974
+TT_F08_114,versus habit,doomscrolling at 1am vs reading at 10pm,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@motiondreambig,107900,4180
+TT_F08_115,before / now,my skin on high cortisol vs my skin now,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@elizabethashlen,3600000,2884
+TT_F08_116,versus swap,coffee on an empty stomach vs matcha after breakfast,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@whatieatinaday604,67800,1964
+TT_F08_117,two lists,the silent cortisol spikers vs the calming swaps,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@glowsy.debloat,266200,3061
+TT_F08_118,versus self,burnt out me vs healing me,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@emily.mentalhealth,125100,3562
+TT_F08_119,before / after,my period week before cycle syncing vs after,,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@thatgirlstore.com,792,26
+TT_F08_120,deadline grid,"your glow up before 2026 ends, cortisol edition",,,F08_2X2,all,ALL,1,7,0,,TRUE,STYLE_REFERENCE,@fallwithem,1200000,78367
