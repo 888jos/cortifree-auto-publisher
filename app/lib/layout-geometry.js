@@ -254,7 +254,7 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         ...routineTextFrame(isCover, isFinal, typography),
         headlineColor: "#fffaf8",
         bodyColor: "#f5f5f5",
-        accentColor: "#fff27a",
+        accentColor: typography.accentColor ?? "#FFE873",
       },
       overlay: { color: "#0b0b0b", opacity: 0 },
       chrome: {
