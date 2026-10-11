@@ -101,9 +101,11 @@ export async function selectedAssetBytes(match: AssetMatch) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-export function rankingAssetCountForSlide(slide: Pick<GeneratedSlide, "position" | "role">) {
-  const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
-  return isHook ? 2 : 0;
+// F07: up to two photos under the text of every slide (the cover's teasers,
+// each tier's item, the final slide's scene). Every F07 photo is optional: a
+// slide that finds none renders text-only.
+export function rankingAssetCountForSlide(_slide: Pick<GeneratedSlide, "position" | "role">) {
+  return 2;
 }
 
 export function generationCategory(slide: GeneratedSlide) {
@@ -309,6 +311,12 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
     const normalized = (multiImageLayout || input.layout === "grid-2x2")
       ? withoutAppScreenshotDirective(slotAware)
       : slotAware;
+    if (input.layout === "ranking" && normalized.assetType === "text_only") {
+      // Older F07 drafts asked for text-only tier slides ("text-only slide;
+      // no image asset"): look for a photo of the item itself instead.
+      const item = normalized.headline.replace(/^(?:SS\+?|[SABCDEF][+-]?)(?:\s+tier)?\s*[·•|—–:\-]\s*/i, "").trim();
+      return { ...normalized, assetType: "stock", assetQuery: item, visualIntent: `photo of ${item}` };
+    }
     return normalized.assetType === "generated"
       ? { ...normalized, assetType: "persona" }
       : normalized;
@@ -459,9 +467,11 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
                 : input.layout === "three-rect-educational"
                   ? educationalAssetSlideForSlot(slide, selected.length)
                   : {
-                      ...withoutAppScreenshotDirective(slide),
+                      ...(input.layout === "ranking" ? primarySelectionSlide(slide) : withoutAppScreenshotDirective(slide)),
                       position: Math.max(2, slide.position),
-                      role: "SUPPORT",
+                      // An F07 tier photo must show the item: the low cover
+                      // support floor only applies to the cover.
+                      role: input.layout === "ranking" && index > 0 && slide.role.toUpperCase() !== "HOOK" ? "TIER_SUPPORT" : "SUPPORT",
                       // F01 support photos: the persona's face or faceless stock
                       // (food, objects, settings). Persona-only needed ~19 photos
                       // of one face per carousel and blocked most F01 renders.
@@ -478,9 +488,9 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
               selected.push(next);
               usedCarouselAssets.add(String(next.asset.id));
             } catch (error) {
-              // Ranking cover photos are optional. One missing decorative
-              // support image must never create an image-generation dependency.
-              if (input.layout === "ranking") return [];
+              // Ranking photos are optional: a missing second photo leaves
+              // one, and never creates an image-generation dependency.
+              if (input.layout === "ranking") return selected;
               // A support photo is decorative: the closest eligible image (the
               // locked face or faceless stock) beats blocking the carousel.
               try {
@@ -680,14 +690,19 @@ export async function selectRevisionMatches(context: {
                 personaId: input.personaId,
                 slides: [{ ...withoutAppScreenshotDirective(slide), assetType: slide.assetType === "text_only" ? "stock" : (slide.assetType ?? "stock") }],
               })[0]!;
-              const support = chooseAssets({ faceLock,
-                assets: pool.assets,
-                carouselType: input.carouselType,
-                personaId: input.personaId,
-                excludedAssetIds: new Set([String(primary.asset.id)]),
-                slides: [{ ...withoutAppScreenshotDirective(slide), position: Math.max(2, slide.position), role: "SUPPORT", assetType: "stock" }],
-              })[0]!;
-              slideMatches = [primary, support];
+              slideMatches = [primary];
+              try {
+                const support = chooseAssets({ faceLock,
+                  assets: pool.assets,
+                  carouselType: input.carouselType,
+                  personaId: input.personaId,
+                  excludedAssetIds: new Set([String(primary.asset.id)]),
+                  slides: [{ ...withoutAppScreenshotDirective(slide), position: Math.max(2, slide.position), role: isHook ? "SUPPORT" : "TIER_SUPPORT", assetType: "stock" }],
+                })[0]!;
+                slideMatches = [primary, support];
+              } catch {
+                // One photo of the item is enough.
+              }
             } catch {
               // Same contract as the main renderer: F07 can always fall back
               // to its text-first cover during review edits/rerenders.

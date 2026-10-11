@@ -65,6 +65,9 @@ export type Geometry = {
     rankingKickerY?: number;
     rankingKickerWidth?: number;
     rankingKickerSize?: number;
+    rankingLadderY?: number;
+    rankingPhotoY?: number;
+    rankingTextOnlyShift?: number;
     checklistPanelX?: number;
     checklistPanelY?: number;
     checklistPanelWidth?: number;

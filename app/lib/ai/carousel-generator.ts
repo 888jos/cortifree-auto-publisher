@@ -11,6 +11,7 @@ import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
 import { fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
+import { sortRankingSlides } from "./ranking-order";
 
 export type GenerateCarouselResult = {
   spec: CarouselSpec;
@@ -67,7 +68,7 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
   // Slide text is drawn with fonts that have no colour emoji (♡ is fine);
   // the caption is posted as text, so it keeps them.
   const slideCopy = (value: string) => copy(value).replace(/(?!♡)\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/\s{2,}/g, " ").trim();
-  return {
+  const cleaned: CarouselSpec = {
     ...spec,
     title: slideCopy(spec.title),
     topic: cleanGeneratedString(spec.topic),
@@ -82,6 +83,10 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
       assetQuery: cleanGeneratedString(slide.assetQuery),
     })),
   };
+  // F07 always climbs from the worst tier (slide 2) to the best (last).
+  return cleaned.slides.some((slide) => slide.layout === "ranking")
+    ? { ...cleaned, slides: sortRankingSlides(cleaned.slides) }
+    : cleaned;
 }
 
 const referenceWords = (value: string) => value.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).filter(Boolean);

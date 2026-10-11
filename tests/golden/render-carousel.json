@@ -6,17 +6,18 @@
     "F04_AESTHETIC_EDUCATIONAL": "5fc871f733b74cd6ebe8493ef75e145103f9cd9b6ff46ff6a2564cf07bf39d77",
     "F05_INTERACTIVE_CHECKLIST": "b3058169c9f713cce983a01cc03eb260999f4c48e3094ab51c5d10c24d476110",
     "F06_PERSONA_EXPLAINER": "af9b1f74ad597ca2932bc1e7113eae7598405a14e0c82277f47257bf8162b3cd",
-    "F07_RANKING": "29318d8dd1824e7c07e4561242339928ac96fbc490b3d43b828fc3b639dabf41",
+    "F07_RANKING": "b714baaf8740d4331f4b59ff2f0e46b16504ad4304c5ce1b56b38ae2c004f114",
     "F08_2X2": "723e468b49627f8dc9c9b8fd9838d0e204cc67215388fb3df61bb6b6692a1c63",
     "SINGLE_IMAGE": "04b0cd03951a5c1e0aded4ad0024936f97ffd993514dcf9865796c65ba2fc242",
     "REVISION_F04_AESTHETIC_EDUCATIONAL": "147e5dac474955c6c482578ecb3289bc71843b2ce8265463f7688f3a2d24a959",
     "REVISION_F05_INTERACTIVE_CHECKLIST": "ea46485eb7548487538234d585646d57fc153e40f42210944be0f0e1105ba0d5",
-    "REVISION_F07_RANKING": "75007da0b72f2f98005e2bdeded520280321326af7a79582d94a80ac1ba5ff14",
+    "REVISION_F07_RANKING": "7c7d181bf83f1bb0e9270907b6a00ff55e7446e36547b324f6abc574dc47d8a6",
     "REVISION_F08_2X2": "637e73a010c6c7858e77a314949ae6600a8f420a72371326612b72d099f6fe51",
     "REVISION_SINGLE_IMAGE": "5b88f7befcf1c909ca7303f373989a855b9006c454198ebb2590fe775ba88757",
     "LONG_F03_ROUTINE_TIMELINE": "71fa63f913bfaae714ac2d43d37864c612428e8b59e7918aaac9eab8135e0cf5",
     "LONG_F04_AESTHETIC_EDUCATIONAL": "016fb5b69526e8ae8a8751a9478d317cb99cc50cbfb7f214866ed17e69e14a1b",
-    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1"
+    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1",
+    "LONG_F07_RANKING": "be172b3884c7fb6da524657a23106edce8d4913f5d234b45faac5881816edb72"
   },
   "renders": {
     "darwin-arm64-vips8.18.7": {
@@ -179,25 +180,25 @@
       "F07_RANKING": [
         {
           "position": 1,
-          "sha256": "66f6d6da4a89492a4c3d9fb8ce22a7c4153f5cde6877b39b9375d37a7b414d0f",
+          "sha256": "77317f07931dc83d22d37e7a7acf0f36965347aa2f741f2e90d8e20a5a243948",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "85376469bab4b9845e2018fce79f83be4de77622ac9c2ae8088b714b9ebffe6b",
+          "sha256": "c6078e391612dd0b89d583d5d409d294ac79413ee84f2c67cc471cad70c9f29f",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "fd86c483f69b22dec290fad3cfd2e12ddb1d38b56812424490698f2860454bb2",
+          "sha256": "b4c455282037ddeedecf90db96dff22cbb1c0f50c8f13420855e5204b5f93ec9",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "9c7fcc25597ea7d1807117aa2f48291f859f310b22c55d6272eab2d500738995",
+          "sha256": "65d55b0d5107e575a38b224de821279584be733a54e71f1ddd7873da18b1fb0a",
           "width": 1080,
           "height": 1350
         }
@@ -314,6 +315,44 @@
           "height": 1350
         }
       ],
+      "LONG_F07_RANKING": [
+        {
+          "position": 1,
+          "sha256": "1c24c9992889440892f89e98de4c012c9df4dd79bac07b58bf919288478d3126",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 2,
+          "sha256": "a11f4bbe28c0ed02f2996ec076bdc98332b584af02703c57b08ba286c1b3bbc1",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 3,
+          "sha256": "99eac8f306a5b8b6c7d8597c5d7fafe33a3a27fe2175ebbd7a32ece9c5ffdaa8",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 4,
+          "sha256": "c8465b7cb0cc34c290cfa6a31f3e6601a4dff6751f06d3d75edf672a68e13914",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 5,
+          "sha256": "374134201c827c7b3ae46776091eac781a4dec8d3ed936719697dd4ac5e10302",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 6,
+          "sha256": "f4b81ba80a46ec9e951fd403bc8f3a639e7d1f734e23599f0efc6cafb45e444f",
+          "width": 1080,
+          "height": 1350
+        }
+      ],
       "REVISION_F04_AESTHETIC_EDUCATIONAL": [
         {
           "position": 2,
@@ -339,13 +378,13 @@
       "REVISION_F07_RANKING": [
         {
           "position": 1,
-          "sha256": "8ee0f799a76ddbc9794607154dc196280c35d018c389685130e887bd378bee45",
+          "sha256": "f85e2c39459a98cbc130eac709f14f6b5df720bbd2ab8bb5191fed5c115f2b82",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "85376469bab4b9845e2018fce79f83be4de77622ac9c2ae8088b714b9ebffe6b",
+          "sha256": "c6078e391612dd0b89d583d5d409d294ac79413ee84f2c67cc471cad70c9f29f",
           "width": 1080,
           "height": 1350
         }

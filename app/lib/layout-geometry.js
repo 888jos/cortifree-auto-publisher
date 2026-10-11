@@ -202,38 +202,42 @@ function personaExplainerTextFrame(isCover, isFinal, typography) {
 }
 
 function rankingTextFrame(isCover, isFinal, typography) {
+  // Text sits high on every F07 slide; the lower part holds the photos.
   if (isCover) {
     return {
-      x: 90, y: 120, width: 900, align: "center",
-      headlineY: 120, bodyY: 285,
-      headlineSize: 62, bodySize: 36, hookSize: 62,
-      headlineWeight: 700, bodyWeight: 600,
+      x: 80, y: 92, width: 920, align: "center",
+      headlineY: 92, bodyY: 330,
+      headlineSize: 74, bodySize: 36, hookSize: 74,
+      headlineWeight: 800, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 2,
+      rankingLadderY: 0, rankingPhotoY: 540,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
   if (isFinal) {
     return {
-      x: 150, y: 390, width: 780, align: "center",
-      headlineY: 390, bodyY: 600,
-      headlineSize: 64, bodySize: 40, hookSize: 64,
+      x: 80, y: 220, width: 920, align: "center",
+      headlineY: 220, bodyY: 400,
+      headlineSize: 66, bodySize: 42, hookSize: 66,
       headlineWeight: 800, bodyWeight: 500,
-      maxHeadlineLines: 3, maxBodyLines: 5,
+      maxHeadlineLines: 2, maxBodyLines: 4,
+      rankingLadderY: 96, rankingPhotoY: 790, rankingTextOnlyShift: 200,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
-  // Tier, item and reason sit as one block in the middle of the slide, at
-  // phone-readable sizes (42/28px left two thirds of the slide empty).
+  // Tier badge, item and reason at the top; one or two photos of the item
+  // under them, never lower than rankingPhotoY. Without photos the block
+  // moves down a little.
   return {
-    x: 75, y: 470, width: 930, align: "center",
-    headlineY: 470, bodyY: 640,
-    headlineSize: 58, bodySize: 40, hookSize: 58,
+    x: 80, y: 290, width: 920, align: "center",
+    headlineY: 290, bodyY: 470,
+    headlineSize: 64, bodySize: 42, hookSize: 64,
     headlineWeight: 800, bodyWeight: 500,
     maxHeadlineLines: 2, maxBodyLines: 5,
-    rankingScoreX: 75, rankingScoreY: 320, rankingScoreWidth: 930, rankingScoreSize: 96,
-    rankingKickerX: 100, rankingKickerY: 72, rankingKickerWidth: 880, rankingKickerSize: 18,
+    rankingScoreX: 0, rankingScoreY: 96, rankingScoreWidth: 1080, rankingScoreSize: 92,
+    rankingPhotoY: 790, rankingTextOnlyShift: 200,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
   };

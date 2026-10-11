@@ -105,10 +105,10 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(4, "CTA", "follow for the rest", "Part two is about weekends.", "woman walking in a park"),
   ] },
   { key: "F07_RANKING", carouselType: "F07_RANKING", slides: [
-    slide(1, "HOOK", "sleep habits tier list", "backed by evidence", "woman reading in bed at night"),
-    slide(2, "TIP", "S · CONSISTENT SLEEP", "Strong practical evidence. | Same wake time matters most.", "", "text_only"),
-    slide(3, "TIP", "Tier: C late caffeine", "Half-life is longer than you think.", "", "text_only"),
-    slide(4, "TAKEAWAY", "start at the top", "Fix the S tier before buying anything.", "", "text_only"),
+    slide(1, "HOOK", "what i actually do when work stress follows me home, ranked", "", "woman reading in bed at night"),
+    slide(2, "TIP", "Tier: C late caffeine", "Half-life is longer than you think.", "cup of herbal tea on a wooden table", "stock"),
+    slide(3, "TIP", "S · PHONE OUT OF THE BEDROOM", "i charge it in the kitchen. | the first night is weird, then i fall asleep faster", "phone face down beside a laptop on a quiet desk", "stock"),
+    slide(4, "TAKEAWAY", "start at the top", "fix the S tier before buying anything.", "", "text_only"),
   ] },
   { key: "F08_2X2", carouselType: "F08_2X2", slides: [
     slide(1, "HOOK", "keep skincare very boring", "simple routine", "woman applying moisturizer at a bathroom sink"),
@@ -137,6 +137,15 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(1, "HOOK", "“my bedtime checklist when work is still open”", "", "woman reading in bed with a lamp"),
     slide(2, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
     slide(3, "CTA", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
+  ] },
+  // Live F07 copy (batch E2E_SIX_20261010F) in climbing order, with its longest reasons.
+  { key: "LONG_F07_RANKING", carouselType: "F07_RANKING", slides: [
+    slide(1, "HOOK", "my busy-day meal backups, ranked by how much effort they take", "", "woman drinking coffee by a kitchen window"),
+    slide(2, "TIP", "C · smoothie from scratch", "i like it when the fruit is frozen and the blender is clean. i still have to blend it and wash the blender after", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(3, "TIP", "B · sandwich or wrap at home", "i use whatever bread, cheese and vegetables are already open. it works well, but i still have to assemble it", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(4, "TIP", "A · leftovers in a clear container", "i portion dinner before putting the rest away, so lunch is already visible the next day. reheating is the tradeoff", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(5, "TIP", "S · grocery-store shortcut meal", "i grab a sandwich, fruit and a drink in one stop when i need lunch quickly. no recipe or extra dishes. the tradeoff: i still have to leave the house", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(6, "TAKEAWAY", "keep two backups you will actually eat", "i keep one no-cook option and one leftover option ready for rushed days. which two would work in your kitchen?", "", "text_only"),
   ] },
 ];
 
