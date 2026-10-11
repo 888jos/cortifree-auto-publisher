@@ -14,6 +14,7 @@ import { isAutomaticVisualReference, isCollageDescription, visualReferenceSchema
 import { uploadFile } from "./storage";
 import { OpenAIStockAssetAnalyzer, type StockAssetVision } from "./ai/stock-asset-analyzer";
 import { getAIConfig } from "./ai/config";
+import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./ai/usage";
 import { backendMode, dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
 import { loadRuntimePersonaConfigs } from "../../src/runtime/config";
@@ -110,7 +111,18 @@ async function observeGeneratedImage(url: string): Promise<StockAssetVision | nu
   try {
     const config = getAIConfig();
     if (!config.OPENAI_API_KEY) return null;
-    return (await new OpenAIStockAssetAnalyzer(config.OPENAI_MODEL_QA, config.OPENAI_TIMEOUT_MS).analyze(url)).data;
+    // Vision calls count toward the monthly cap like text calls: unlogged, a
+    // 284-image retag on the QA model emptied the OpenAI balance (2026-10-10).
+    assertWithinMonthlyCap((await getMonthlyUsage()).costUsd, config.OPENAI_MAX_MONTHLY_USD);
+    const model = config.OPENAI_MODEL_VISION;
+    try {
+      const { data, usage } = await new OpenAIStockAssetAnalyzer(model, config.OPENAI_TIMEOUT_MS).analyze(url);
+      await logAIUsage({ operation: "vision.generated_asset", model, usage, success: true });
+      return data;
+    } catch (error) {
+      await logAIUsage({ operation: "vision.generated_asset", model, success: false, error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
   } catch (error) {
     console.warn("[image-generation] vision tagging failed, keeping prompt description", error instanceof Error ? error.message : error);
     return null;
