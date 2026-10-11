@@ -206,7 +206,10 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     ...geometry.text,
     headlineColor: manualText.editorHeadlineColor ?? readablePalette.headlineColor,
     bodyColor: manualText.editorBodyColor ?? readablePalette.bodyColor,
-    accentColor: manualText.editorAccentColor ?? readablePalette.accentColor,
+    // F03 text is always white with a shadow plus the carousel's pastel
+    // accent; the luminance palette would turn the accent white or grey.
+    accentColor: manualText.editorAccentColor
+      ?? (imageFrame.mode === "routine-timeline" ? geometry.text.accentColor ?? readablePalette.accentColor : readablePalette.accentColor),
   } : geometry.text } as Geometry;
   const textFrame = readableGeometry.text;
   const layoutHookDesign: HookDesign | undefined = isHook && forceDark && textFrame

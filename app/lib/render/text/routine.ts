@@ -3,24 +3,33 @@ import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
 import { FONT_FILES, rasterText } from "./shared";
 
-function routineKicker(slide: GeneratedSlide) {
+// The small line above the cover title. The operator rejected "THAT GIRL"
+// on every routine: it now only appears when the hook itself says it, and
+// otherwise the kicker says something literal about the routine or is "MY".
+export function routineKicker(slide: Pick<GeneratedSlide, "headline" | "body">) {
   const text = `${slide.headline} ${slide.body}`.toLowerCase();
-  if (/college|school|class/.test(text)) return "COLLEGE GIRL";
-  if (/sunday/.test(text)) return "SUNDAY";
-  if (/realistic/.test(text)) return "MY REALISTIC";
-  return "THAT GIRL";
+  if (/\bthat girl\b/.test(text)) return "THAT GIRL";
+  if (/\bclean girl\b/.test(text)) return "CLEAN GIRL";
+  if (/\b(?:college|uni|university|school|class(?:es)?|exams?)\b/.test(text)) return "COLLEGE GIRL";
+  if (/\bsunday\b/.test(text)) return "SUNDAY";
+  if (/\b(?:work|office|9\s*(?:-|to)\s*5|desk job|shift)\b/.test(text)) return /morning|a\.m\.|before work/.test(text) ? "WORK DAY" : "AFTER WORK";
+  if (/\brealistic\b/.test(text)) return "MY REALISTIC";
+  if (/\b(?:tired|exhausted|low energy|lazy)\b/.test(text)) return "LOW ENERGY";
+  return "MY";
 }
 
-function routineCoverTitle(slide: GeneratedSlide) {
+export function routineCoverTitle(slide: Pick<GeneratedSlide, "headline">) {
   const text = String(slide.headline ?? "").trim();
-  if (/night|bedtime|evening/i.test(text)) return "NIGHT ROUTINE";
+  if (/night|bedtime|before bed/i.test(text)) return "NIGHT ROUTINE";
+  if (/evening|after work|after class|work-to|wind[ -]?down/i.test(text)) return "EVENING ROUTINE";
   if (/day in (?:my|the) life|day-in-the-life/i.test(text)) return "DAY IN MY LIFE";
   if (/morning|a\.m\.|\bam\b/i.test(text)) return "MORNING ROUTINE";
+  if (/lunch/i.test(text)) return "LUNCH BREAK ROUTINE";
   if (/reset/i.test(text)) return "RESET ROUTINE";
   return text.replace(/^(?:my|that girl|realistic)\s+/i, "").toUpperCase().slice(0, 42) || "DAILY ROUTINE";
 }
 
-function routineCopyParts(slide: GeneratedSlide) {
+export function routineCopyParts(slide: GeneratedSlide) {
   const source = String(slide.headline ?? "").trim();
   const time = "(?:[01]?\\d|2[0-3])(?::[0-5]\\d)?\\s*(?:AM|PM)?|(?:[01]?\\d|2[0-3])h(?:[0-5]\\d)?";
   const range = new RegExp(`^((?:${time})\\s*(?:-|–|—|→)\\s*(?:${time}))\\s*(?:[·•|:]|\\s{2,})?\\s*(.*)$`, "i");
@@ -37,12 +46,24 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";
   const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
-  const isFinal = slide.role.toUpperCase() === "CTA" || slide.role.toUpperCase() === "TAKEAWAY";
+  // A last step that still carries its time range reads like every other step
+  // (a live F03 set "6:35 - 6:40 · eat..." as one bold title).
+  const isFinal = (slide.role.toUpperCase() === "CTA" || slide.role.toUpperCase() === "TAKEAWAY") && !routineCopyParts(slide).time;
+  const accent = frame.accentColor ?? "#FFE873";
   const overlays: OverlayOptions[] = [];
   // Returns the rendered height so the next block can sit below it.
   const pushShadowed = async (text: string, opts: { left: number; top: number; width: number; height: number; size: number; weight: number; align: "left" | "center" | "right"; fontFamily: string; color?: string; spacing?: number; maxLines?: number }) => {
     const shadow = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: "#171717", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily, maxLines: opts.maxLines });
     const foreground = await rasterText(text, { width: opts.width, height: opts.height, size: opts.size, weight: opts.weight, color: opts.color ?? "#fffaf8", align: opts.align, spacing: opts.spacing ?? 0, fontFamily: opts.fontFamily, maxLines: opts.maxLines });
+    // A soft dark halo under the crisp drop shadow keeps white and pastel
+    // text readable on bright photos (TikTok-style text shadow).
+    const pad = Math.max(8, Math.round(opts.size / 3));
+    const halo = await sharp(shadow)
+      .extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .blur(Math.max(3, opts.size / 9))
+      .png()
+      .toBuffer();
+    if (opts.left - pad >= 0 && opts.top - pad >= 0) overlays.push({ input: halo, left: opts.left - pad, top: opts.top - pad + 2 });
     overlays.push({ input: shadow, left: opts.left + 3, top: opts.top + 3 });
     overlays.push({ input: foreground, left: opts.left, top: opts.top });
     return (await sharp(foreground).metadata()).height ?? opts.height;
@@ -51,12 +72,13 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
   if (isHook) {
     const kicker = routineKicker(slide);
     await pushShadowed(kicker, {
+      color: accent,
       left: frame.routineKickerX ?? 78,
       top: frame.routineKickerY ?? 96,
       width: frame.routineKickerWidth ?? 430,
       height: 70,
       size: frame.routineKickerSize ?? 44,
-      weight: 400,
+      weight: 600,
       align: "center",
       fontFamily: "TikTok Sans",
       spacing: 2,
@@ -78,6 +100,7 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
       // Narrower than the title, so center the box under it.
       const contextWidth = Math.min(frame.width, 520);
       await pushShadowed(slide.body.trim(), {
+        color: accent,
         maxLines: 2,
         left: frame.bodyX ?? frame.x + Math.round((frame.width - contextWidth) / 2),
         top: Math.max(frame.routineContextY ?? frame.bodyY ?? 365, titleTop + titleHeight + 24),
@@ -124,6 +147,7 @@ export async function routineTextOverlays(slide: GeneratedSlide, geometry: Geome
   const parts = routineCopyParts(slide);
   if (parts.time) {
     await pushShadowed(parts.time, {
+      color: accent,
       left: frame.routineTimeX ?? 390,
       top: frame.routineTimeY ?? 110,
       width: frame.routineTimeWidth ?? 300,

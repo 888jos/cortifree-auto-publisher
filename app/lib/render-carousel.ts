@@ -123,6 +123,9 @@ export async function renderCarouselRevision(input: RevisionRenderInput) {
       previous: previousByPosition.get(slide.position),
       visualChange: visualChanges.has(slide.position),
       usedReferenceIds,
+      otherSlideAssetIds: new Set(existingRows
+        .filter((row) => Number(row.position) !== slide.position)
+        .flatMap((row) => Array.isArray(row.render_metadata?.asset_ids) ? row.render_metadata!.asset_ids.map(String) : row.asset_id != null ? [String(row.asset_id)] : [])),
     });
 
     const slideLayout = input.layout === "grid-2x2" && (slide.position === 1 || slide.role.toUpperCase() === "HOOK")

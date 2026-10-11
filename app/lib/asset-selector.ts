@@ -1,6 +1,7 @@
 import { visualGroupOf } from "./visual-groups";
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
+import { assetShowsStepAction, routineStepAction, stepActionFamilies, stepActionMatchCount, withoutNegatedMentions } from "../../src/visual-references/step-actions";
 
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
@@ -195,6 +196,15 @@ function assetText(asset: SelectableAsset) {
   return `${assetVisualText(asset)} ${observedAssetName} ${appScreenIdentity} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
 }
 
+/** What the photo observably shows being done: actions, objects, description. Never folder or category names. */
+function assetActionText(asset: SelectableAsset) {
+  const flat = (value: unknown) => Array.isArray(value) ? value.join(" ") : String(value ?? "");
+  return [
+    visualField(asset, "visible_actions"), visualField(asset, "visible_objects"),
+    visualField(asset, "visual_description"), visualField(asset, "specific_details"),
+  ].map(flat).join(" ");
+}
+
 function runtimeVisualMetadata(asset: SelectableAsset) {
   const metadata = asset.metadata ?? {};
   return {
@@ -301,7 +311,11 @@ function includesAny(text: string, words: string[]) {
 /** Convert slide copy into observable visual requirements, never abstract
  * wellness concepts. This intentionally stays deterministic and local. */
 export function deriveVisualIntent(slide: { headline: string; body: string; assetQuery: string; visualIntent: string }): VisualIntent {
-  const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  // An F03 step ("6:35 - 6:40 · eat at the table before checking work") shows
+  // its main action only, and objects the copy puts away ("laptop and work
+  // bag away") are not wanted in the photo.
+  const headline = slide.headline.includes("·") ? routineStepAction(slide.headline) : slide.headline;
+  const text = withoutNegatedMentions(`${headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`).toLowerCase();
   const objects = new Set<string>();
   const actions = new Set<string>();
   const settings = new Set<string>();
@@ -453,7 +467,18 @@ export function chooseAssets(options: {
     if ((hookNeedsPersona || slide.assetType === "persona") && requested.length === 0) {
       throw new Error(`PERSONA_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
-    const usableRequested = requested;
+    // An F03 step photo must show the step's action (walking, eating, washing
+    // her face...). No candidate showing it → this throws and the render
+    // generates the step from a reference showing that action.
+    const isF03Step = options.carouselType === "F03_ROUTINE_TIMELINE" && !officialAppScreenshot
+      && slide.position !== 1 && slide.role?.toUpperCase() !== "HOOK";
+    const stepFamilies = isF03Step ? stepActionFamilies(slide.headline) : [];
+    const usableRequested = stepFamilies.length
+      ? requested.filter((asset) => assetShowsStepAction(stepFamilies, assetActionText(asset)))
+      : requested;
+    if (stepFamilies.length && !usableRequested.length) {
+      throw new Error(`LOW_CONFIDENCE_ASSET:slide_${slide.position}:step_action_${stepFamilies.map((family) => family.key).join("+")}:candidates_0`);
+    }
     if (options.personaOnly && usableRequested.length < options.slides.length) {
       throw new Error(`PERSONA_ASSETS_REQUIRED:${options.personaId ?? "unknown"}:need_${options.slides.length}:found_${usableRequested.length}`);
     }
@@ -548,6 +573,8 @@ export function chooseAssets(options: {
       if (officialAppScreenshot && asset.source_type === "app_screenshot") score += 100;
       if (slide.assetType === "stock" && asset.source_type === "stock") score += 6;
       if (exactGeneratedSceneMatch) score += 60;
+      // F03: "tea and a book on the couch" prefers the mug on the sofa.
+      if (stepFamilies.length) score += 8 * stepActionMatchCount(slide.headline, assetActionText(asset));
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
