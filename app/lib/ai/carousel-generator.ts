@@ -9,8 +9,11 @@ import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
-import { fixHashtags, nativeCase, nativeStyleIssues } from "./native-style";
+import { abstractHeadlines, fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
+import { aiPhrasingIssues, isSlogan } from "./ai-phrasing";
+import { sortRankingSlides } from "./ranking-order";
+import { cortifreeIntegrationIssues } from "../../../src/content/cortifree-integration";
 
 export type GenerateCarouselResult = {
   spec: CarouselSpec;
@@ -43,6 +46,7 @@ function cleanGeneratedString(value: string) {
 }
 // A Notes row holds about 70 characters on two lines at the 40px item size.
 const NOTES_ITEM_TARGET = 70;
+const CTA_ITEM = /\b(?:save (?:this|it|for later)|follow (?:me|for)|share (?:this|it) with|link in bio|screenshot (?:this|it))\b/i;
 
 /**
  * Deterministic F05 list repair, so a single overlong item or a seventh item
@@ -53,11 +57,27 @@ const NOTES_ITEM_TARGET = 70;
 export function tidyChecklistBody(body: string) {
   let items = body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
   if (!items.length) return body;
+  // "save this" / "follow for more" never belongs in a Note.
+  const ctaItems = items.filter((item) => CTA_ITEM.test(item));
+  if (ctaItems.length && items.length - ctaItems.length >= 4) items = items.filter((item) => !CTA_ITEM.test(item));
   items = items.map((item) => item.length > NOTES_ITEM_TARGET ? item.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s{2,}/g, " ").trim() || item : item);
+  // The planned CortiFree item is never the one dropped.
+  const isBrand = (item: string) => /cortifree/i.test(item);
   for (let index = items.length - 1; index >= 0 && items.length > 4; index -= 1) {
-    if (items[index]!.length > NOTES_ITEM_TARGET) items.splice(index, 1);
+    if (items[index]!.length > NOTES_ITEM_TARGET && !isBrand(items[index]!)) items.splice(index, 1);
   }
-  return items.slice(0, 6).join(" | ");
+  while (items.length > 6) {
+    const drop = items.findLastIndex((item) => !isBrand(item));
+    items.splice(drop < 0 ? items.length - 1 : drop, 1);
+  }
+  return items.join(" | ");
+}
+
+// The F04 cover line is decoration; a noun slogan there ("phone nearby.
+// attention protected") reads as AI, so the renderer's accent replaces it.
+function f04CoverLine(body: string) {
+  const parts = body.split(/\s*[.|/,]\s*/).filter(Boolean);
+  return parts.length && parts.every(isSlogan) ? "" : body;
 }
 
 export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec {
@@ -67,7 +87,7 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
   // Slide text is drawn with fonts that have no colour emoji (♡ is fine);
   // the caption is posted as text, so it keeps them.
   const slideCopy = (value: string) => copy(value).replace(/(?!♡)\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/\s{2,}/g, " ").trim();
-  return {
+  const cleaned: CarouselSpec = {
     ...spec,
     title: slideCopy(spec.title),
     topic: cleanGeneratedString(spec.topic),
@@ -76,12 +96,21 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
     caption: fixHashtags(copy(spec.caption)),
     slides: spec.slides.map((slide, index) => ({
       ...slide,
+      // F05 ends on one more Note, never a CTA card: a last Notes slide the
+      // model labelled CTA is relabelled instead of blocking the carousel.
+      role: slide.layout === "interactive-checklist" && index > 0 && index === spec.slides.length - 1 && slide.role === "CTA" ? "TAKEAWAY" : slide.role,
       headline: slideCopy(slide.headline),
-      body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body)) : slideCopy(slide.body),
+      body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body))
+        : slide.layout === "three-rect-educational" && index === 0 ? f04CoverLine(slideCopy(slide.body))
+        : slideCopy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
       assetQuery: cleanGeneratedString(slide.assetQuery),
     })),
   };
+  // F07 always climbs from the worst tier (slide 2) to the best (last).
+  return cleaned.slides.some((slide) => slide.layout === "ranking")
+    ? { ...cleaned, slides: sortRankingSlides(cleaned.slides) }
+    : cleaned;
 }
 
 const referenceWords = (value: string) => value.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).filter(Boolean);
@@ -171,6 +200,15 @@ export async function generateCarousel(
   assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, input.bypassMonthlyCap === true);
 
   const request: CarouselStructuredRequest = dependencies.structuredRequest ?? requestStructured;
+  const brandPlan = input.editorialContext?.brand_integration;
+  const formatId = input.formatId ?? input.carouselType;
+  // A later pass (plain language, AI QA) may not remove the planned mention.
+  const losesBrand = (before: CarouselSpec, after: CarouselSpec) =>
+    cortifreeIntegrationIssues(after, brandPlan, formatId).length > cortifreeIntegrationIssues(before, brandPlan, formatId).length;
+  const brandWarning = (final: CarouselSpec) => {
+    const issues = cortifreeIntegrationIssues(final, brandPlan, formatId);
+    return issues.length ? `CORTIFREE_INTEGRATION: ${issues.join("; ")}` : null;
+  };
   // Tokens from rejected attempts are still billed, so they are logged on failure too.
   let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
   let usageLogged = false;
@@ -198,7 +236,10 @@ export async function generateCarousel(
           ? "\nCHECKLIST VOICE REPAIR: The Notes items read like a generic command list. Give a few of them her own touch (first person or a short aside in parentheses, e.g. \"phone charges in the kitchen (i will cave otherwise)\"), keep the rest as short plain notes, 4-12 words each, 4-5 items per Note."
           : "";
         const nativeRepair = /NATIVE_STYLE/.test(repairIssues)
-          ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers, and vary sentence shapes: do not explain every action with \"..., so i...\". Say it the way she would say it to a friend."
+          ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers, and vary sentence shapes: do not explain every action with \"..., so i...\". Say it the way she would say it to a friend. Never start a headline with a label such as \"before:\", \"now:\" or \"the switch:\"; write the actual thing she does."
+          : "";
+        const routineRepair = /ROUTINE_STEP_|ROUTINE_THAT_GIRL/.test(repairIssues)
+          ? "\nF03 STEP REPAIR: Each step after the time is ONE simple action a photo can show, 2-6 words, said the way a girl types it: \"walk around the block\", \"make a protein + fiber dinner\", \"eat dinner at the table\", \"shower and skincare\", \"stretch on my mat\", \"read in bed\". No second clause (before/after/until/then), no detail nobody needs (\"with one pan\"), no task with nothing to see (\"save my work\"). Its assetQuery and visualIntent show her DOING that action, nothing else. No \"that girl\" unless the post is about that trend."
           : "";
         const dashRepair = /DASH_PUNCTUATION/.test(repairIssues)
           ? "\nDASH REPAIR: Remove every em dash, en dash and spaced hyphen used as punctuation. Use a comma, a colon, a new short sentence, or \" / \" like a person typing on her phone. Hyphens inside words (low-effort) and F03 time ranges stay."
@@ -206,14 +247,26 @@ export async function generateCarousel(
         const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
           ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
           : "";
-        const specificityRepair = /Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
+        const titleHookRepair = /TITLE_HOOK/.test(repairIssues)
+          ? "\nHOOK REPAIR: The hook reads like a blog or Pinterest title that labels the content. Rewrite ONLY the hook (and slide 1 headline) as something a girl would actually say on TikTok: a confession, a specific moment, a strong opinion, a \"you\" call-out or a real question about the same topic. Name the concrete moment instead of a vague feeling."
+          : "";
+        const headlineRepair = /ABSTRACT_HEADLINE/.test(repairIssues)
+          ? "\nHEADLINE REPAIR: Some slide headlines (quoted in the reasons) use an abstract word, so nobody understands what to do. Rewrite those headlines as the plain action she does, in 2-6 everyday words a friend would say (e.g. \"phone on do not disturb\", \"i clear one corner of my desk\", \"tea instead of scrolling\"). Keep the body and the photos' meaning."
+          : "";
+        const phrasingRepair = /AI_PHRASING/.test(repairIssues)
+          ? "\nAI PHRASING REPAIR: The lines quoted in the reasons read like a ChatGPT checklist. Rewrite each one as a plain sentence a 22-year-old would type, first person where it fits: \"silence alerts that can wait\" becomes \"i prefer to silence alerts that can wait\", \"give your phone one clear place\" becomes \"put your phone in another room when you work\". No coined labels (\"message check\", \"stopping point\", \"reply window\"), no noun slogans (\"phone nearby. attention protected\"). Keep the same advice and the same structure."
+          : "";
+        const brandRepair = /CORTIFREE_INTEGRATION/.test(repairIssues)
+          ? `\nCORTIFREE REPAIR: ${input.editorialContext?.brand_integration.placement ?? "Mention cortifree on one body slide."} End the LAST slide with one sentence: the problem, then "try cortifree", then what she does in it. Nowhere else on the slides, never the cover, and once casually in the caption. No ad wording, no health outcome.`
+          : "";
+        const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${routineRepair}${titleHookRepair}${headlineRepair}${phrasingRepair}${brandRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -232,17 +285,34 @@ export async function generateCarousel(
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         bestValid = candidate;
         // Ask for a natural rewrite first; sanitizing is only the safety net.
+        // Every style issue is sent back at once: one at a time, an early
+        // issue used up both rewrites and a title hook was never fixed.
+        const styleProblems: string[] = [];
         const dashed = [parsed.hook, parsed.caption, ...parsed.slides.flatMap((slide) => [slide.headline, slide.body])].some(hasDashPunctuation);
-        if (dashed && styleAttempt) throw new Error("DASH_PUNCTUATION: copy uses dashes as punctuation");
+        if (dashed) styleProblems.push("DASH_PUNCTUATION: copy uses dashes as punctuation");
         // Copying a reference is worth a rewrite, but never a dead end: the
         // last attempt is kept even if it still echoes a reference.
         const copied = copiedReferencePhrase(candidate, referenceTexts(input));
-        if (copied && styleAttempt) throw new Error(`COPIED_REFERENCE: "${copied}"`);
-        if (isVoicelessChecklist(candidate) && styleAttempt) throw new Error("VOICELESS_CHECKLIST: most Notes items are bare commands");
+        if (copied) styleProblems.push(`COPIED_REFERENCE: "${copied}"`);
+        if (isVoicelessChecklist(candidate)) styleProblems.push("VOICELESS_CHECKLIST: most Notes items are bare commands");
         const generic = validateCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout }).find((issue) => issue.code === "GENERICITY");
-        if (generic && styleAttempt) throw new Error(`GENERICITY: ${generic.message}`);
+        if (generic) styleProblems.push(`GENERICITY: ${generic.message}`);
         const styleIssues = nativeStyleIssues(candidate);
-        if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        if (styleIssues.length) styleProblems.push(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        const unclear = abstractHeadlines(candidate);
+        if (unclear.length) styleProblems.push(`ABSTRACT_HEADLINE: ${unclear.map((headline) => `"${headline}"`).join(", ")} use an abstract word instead of the concrete action`);
+        const titleHook = titleHookReason(candidate.hook) ?? titleHookReason(candidate.slides[0]?.headline ?? "");
+        if (titleHook) styleProblems.push(`TITLE_HOOK: "${candidate.hook}" ${titleHook}`);
+        // The hook decides whether anyone stops scrolling: it keeps a third
+        // rewrite, the last attempt stays for hard failures.
+        if (titleHook && !styleAttempt && attempt < maxAttempts) throw new Error(styleProblems.filter((problem) => problem.startsWith("TITLE_HOOK")).join("\n"));
+        if (styleProblems.length && styleAttempt) throw new Error(styleProblems.join("\n"));
+        const phrasing = input.layout === "three-rect-educational" ? aiPhrasingIssues(candidate) : [];
+        if (phrasing.length && styleAttempt) throw new Error(`AI_PHRASING: ${phrasing.join("; ")}`);
+        // The planned CortiFree mention gets every rewrite but the last, which
+        // keeps the draft rather than losing the carousel.
+        const brandIssues = cortifreeIntegrationIssues(candidate, brandPlan, formatId);
+        if (brandIssues.length && attempt < maxAttempts) throw new Error(`CORTIFREE_INTEGRATION: ${brandIssues.join("; ")}`);
         spec = candidate;
         break;
       } catch (error) {
@@ -259,7 +329,9 @@ export async function generateCarousel(
     const plainRequest = dependencies.plainLanguageRequest ?? (dependencies.structuredRequest ? undefined : requestStructured);
     if (plainRequest) {
       try {
-        const plain = await plainLanguageEdit(spec, plainRequest, config.OPENAI_MODEL_PRIMARY);
+        // Lines the style rewrites left AI-sounding get a last plain rewrite.
+        const flagged = input.layout === "three-rect-educational" ? aiPhrasingIssues(spec) : [];
+        const plain = await plainLanguageEdit(spec, plainRequest, config.OPENAI_MODEL_PRIMARY, flagged);
         usage = {
           inputTokens: usage.inputTokens + plain.usage.inputTokens,
           cachedInputTokens: usage.cachedInputTokens + plain.usage.cachedInputTokens,
@@ -267,8 +339,13 @@ export async function generateCarousel(
         };
         if (plain.spec) {
           const edited = sanitizeGeneratedCarouselSpec(plain.spec);
+          // The clarity pass may not turn a native hook back into a title.
+          if (titleHookReason(edited.hook) && !titleHookReason(spec.hook)) {
+            edited.hook = spec.hook;
+            if (edited.slides[0] && spec.slides[0]) edited.slides[0].headline = spec.slides[0].headline;
+          }
           assertValidCarouselSpec(edited, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-          spec = edited;
+          if (!losesBrand(spec, edited)) spec = edited;
         }
       } catch (error) {
         console.warn("[ai] plain-language pass skipped", error instanceof Error ? error.message : error);
@@ -288,10 +365,12 @@ export async function generateCarousel(
       if (qa.correctedSpec) {
         const corrected = sanitizeGeneratedCarouselSpec(qa.correctedSpec);
         assertValidCarouselSpec(corrected, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        return { spec: corrected, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+        if (!losesBrand(spec, corrected)) {
+          return { spec: corrected, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: brandWarning(corrected), qa };
+        }
       }
     }
-    return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+    return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: brandWarning(spec), qa };
   } catch (error) {
     if (!usageLogged) await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
     if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError(error instanceof Error ? error.message : "OpenAI request failed");

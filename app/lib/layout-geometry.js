@@ -147,20 +147,21 @@ function checklistTextFrame(isCover, isFinal, typography) {
 function lifestyleThreeStackTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 90, y: 690, width: 760, align: "left",
-      headlineY: 690, bodyY: 865,
-      headlineSize: 58, bodySize: 27, hookSize: 58,
-      headlineWeight: 700, bodyWeight: 550,
+      x: 72, y: 700, width: 900, align: "left",
+      headlineY: 700, bodyY: 880,
+      headlineSize: 66, bodySize: 36, hookSize: 66,
+      headlineWeight: 700, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 2,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
+  // No headlineY/bodyY: the renderer centres the block on the middle band
+  // (an editor override of headlineY still wins).
   return {
-    x: 70, y: 655, width: 690, align: "left",
-    headlineY: 655, bodyY: 735,
-    headlineSize: 43, bodySize: 27, hookSize: 43,
-    headlineWeight: 700, bodyWeight: 550,
+    x: 64, y: 480, width: 900, align: "left",
+    headlineSize: 58, bodySize: 38, hookSize: 58,
+    headlineWeight: 700, bodyWeight: 600,
     maxHeadlineLines: 2, maxBodyLines: 4,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
@@ -202,38 +203,42 @@ function personaExplainerTextFrame(isCover, isFinal, typography) {
 }
 
 function rankingTextFrame(isCover, isFinal, typography) {
+  // Text sits high on every F07 slide; the lower part holds the photos.
   if (isCover) {
     return {
-      x: 90, y: 120, width: 900, align: "center",
-      headlineY: 120, bodyY: 285,
-      headlineSize: 62, bodySize: 36, hookSize: 62,
-      headlineWeight: 700, bodyWeight: 600,
+      x: 80, y: 92, width: 920, align: "center",
+      headlineY: 92, bodyY: 330,
+      headlineSize: 74, bodySize: 36, hookSize: 74,
+      headlineWeight: 800, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 2,
+      rankingLadderY: 0, rankingPhotoY: 540,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
   if (isFinal) {
     return {
-      x: 150, y: 390, width: 780, align: "center",
-      headlineY: 390, bodyY: 600,
-      headlineSize: 64, bodySize: 40, hookSize: 64,
+      x: 80, y: 220, width: 920, align: "center",
+      headlineY: 220, bodyY: 400,
+      headlineSize: 66, bodySize: 42, hookSize: 66,
       headlineWeight: 800, bodyWeight: 500,
-      maxHeadlineLines: 3, maxBodyLines: 5,
+      maxHeadlineLines: 2, maxBodyLines: 4,
+      rankingLadderY: 96, rankingPhotoY: 790, rankingTextOnlyShift: 200,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
-  // Tier, item and reason sit as one block in the middle of the slide, at
-  // phone-readable sizes (42/28px left two thirds of the slide empty).
+  // Tier badge, item and reason at the top; one or two photos of the item
+  // under them, never lower than rankingPhotoY. Without photos the block
+  // moves down a little.
   return {
-    x: 75, y: 470, width: 930, align: "center",
-    headlineY: 470, bodyY: 640,
-    headlineSize: 58, bodySize: 40, hookSize: 58,
+    x: 80, y: 290, width: 920, align: "center",
+    headlineY: 290, bodyY: 470,
+    headlineSize: 64, bodySize: 42, hookSize: 64,
     headlineWeight: 800, bodyWeight: 500,
     maxHeadlineLines: 2, maxBodyLines: 5,
-    rankingScoreX: 75, rankingScoreY: 320, rankingScoreWidth: 930, rankingScoreSize: 96,
-    rankingKickerX: 100, rankingKickerY: 72, rankingKickerWidth: 880, rankingKickerSize: 18,
+    rankingScoreX: 0, rankingScoreY: 96, rankingScoreWidth: 1080, rankingScoreSize: 92,
+    rankingPhotoY: 790, rankingTextOnlyShift: 200,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
   };
@@ -253,7 +258,7 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         ...routineTextFrame(isCover, isFinal, typography),
         headlineColor: "#fffaf8",
         bodyColor: "#f5f5f5",
-        accentColor: "#fff27a",
+        accentColor: typography.accentColor ?? "#FFE873",
       },
       overlay: { color: "#0b0b0b", opacity: 0 },
       chrome: {
@@ -264,6 +269,32 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
         final: Boolean(isFinal),
         cover: Boolean(isCover),
       },
+    };
+  }
+
+  if (layout === "grid-2x2") {
+    // F08 body: four edge-to-edge photos. The renderer moves the text block to
+    // the calmest band of the photos; white headline, one pastel accent line,
+    // both outlined in black so they read on any photo.
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        x: 72, y: 840, width: 936, align: "center",
+        headlineY: 840, bodyY: 990,
+        headlineSize: 58, bodySize: 36, hookSize: typography.hookSize ?? 44,
+        headlineWeight: 700, bodyWeight: 600,
+        headlineColor: "#ffffff",
+        bodyColor: typography.accentColor ?? "#ffd6e5",
+        accentColor: typography.accentColor ?? "#ffd6e5",
+        textStroke: 6,
+        fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+        hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+        maxHeadlineLines: 3, maxBodyLines: 3,
+      },
+      overlay: { color: "#122019", opacity: 0 },
+      chrome: { panel: false, editorial: false, ranking: false, final: Boolean(isFinal), cover: Boolean(isCover) },
     };
   }
 
@@ -320,9 +351,10 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
       image,
       text: {
         ...lifestyleThreeStackTextFrame(isCover, isFinal, typography),
-        headlineColor: "#fff3a8",
-        bodyColor: "#fff3a8",
-        accentColor: "#fff3a8",
+        // White text plus one pastel accent (the headline).
+        headlineColor: "#ffe27a",
+        bodyColor: "#ffffff",
+        accentColor: "#ffe27a",
       },
       overlay: { color: "#111111", opacity: 0 },
       chrome: {
@@ -422,7 +454,7 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
       bodyWeight: 500,
       headlineColor: "#fffaf8",
       bodyColor: "#fff4b8",
-      accentColor: layout === "grid-2x2" ? "#ffd86b" : "#ffb6c8",
+      accentColor: "#ffb6c8",
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
       hookSize: typography.hookSize ?? 44,

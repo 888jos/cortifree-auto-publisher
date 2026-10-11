@@ -11,6 +11,8 @@ export type GeneratedSlide = {
   assetQuery: string;
   visualIntent: string;
   assetType?: string;
+  /** F05: optional CortiFree line drawn under the Notes checklist. */
+  cortifreeNote?: string;
 };
 
 export type Frame = {
@@ -41,6 +43,8 @@ export type Geometry = {
     hookFontFamily?: string;
     hookSize?: number;
     shadow?: string;
+    /** Black outline width in px (F08: text over busy photos). */
+    textStroke?: number;
     routineKickerX?: number;
     routineKickerY?: number;
     routineKickerWidth?: number;
@@ -65,6 +69,9 @@ export type Geometry = {
     rankingKickerY?: number;
     rankingKickerWidth?: number;
     rankingKickerSize?: number;
+    rankingLadderY?: number;
+    rankingPhotoY?: number;
+    rankingTextOnlyShift?: number;
     checklistPanelX?: number;
     checklistPanelY?: number;
     checklistPanelWidth?: number;

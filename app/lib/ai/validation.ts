@@ -1,5 +1,7 @@
 import type { CarouselSpec } from "./schemas";
 import { scoreGenericity } from "./genericity";
+import { isRankingAscending } from "./ranking-order";
+import { cortifreeClaimReason } from "../../../src/content/cortifree-integration";
 
 export type ValidationIssue = { code: string; message: string; slidePosition?: number; severity: "minor" | "major" };
 
@@ -115,6 +117,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       const wordCount = slide.body.trim().split(/\s+/).filter(Boolean).length;
       if (isBodyRankingSlide && wordCount > 45) issues.push({ code: "RANKING_BODY_LENGTH", message: "F07 explanation should be one or two plain-English sentences", slidePosition: slide.position, severity: "minor" });
       if (isBodyRankingSlide && /\d+(?:\.\d+)?\s*\/\s*10/.test(slide.headline)) issues.push({ code: "RANKING_NUMERIC_SCORE", message: "F07 uses tier labels, not X/10 scores", slidePosition: slide.position, severity: "minor" });
+      if (index === 0 && !isRankingAscending(spec.slides)) issues.push({ code: "RANKING_ORDER", message: "F07 tiers must climb from the worst tier on slide 2 to the best tier at the end", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "lifestyle-3stack") {
       const isCover = index === 0;
@@ -153,7 +156,9 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
     if (seen.has(normalized)) issues.push({ code: "EXACT_DUPLICATE", message: "Exact duplicate slide copy", slidePosition: slide.position, severity: "major" });
     seen.add(normalized);
     if (/placeholder|lorem ipsum|what to (show|say)|asset à choisir/i.test(normalized)) issues.push({ code: "PLACEHOLDER", message: "Placeholder copy detected", slidePosition: slide.position, severity: "major" });
-    const slideHealthReason = unsafeHealthReason(normalized);
+    // Headline and body are checked apart: a topic headline may name cortisol
+    // while the body only says what she does in the app.
+    const slideHealthReason = unsafeHealthReason(normalized) ?? cortifreeClaimReason(slide.headline) ?? cortifreeClaimReason(slide.body);
     if (slideHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${slideHealthReason}`, slidePosition: slide.position, severity: "major" });
   });
   if (expected.layout === "routine-timeline" && routineItinerarySignals >= 2) {
@@ -171,7 +176,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
   if (hasUnexpectedScript(allCopy, expected.language)) {
     issues.push({ code: "UNEXPECTED_SCRIPT", message: "English carousel contains stray non-Latin script", severity: "major" });
   }
-  const topLevelHealthReason = unsafeHealthReason(allCopy);
+  const topLevelHealthReason = unsafeHealthReason(allCopy) ?? cortifreeClaimReason(spec.caption);
   if (topLevelHealthReason) issues.push({ code: "HEALTH_CLAIM", message: `Unsafe health claim: ${topLevelHealthReason}`, severity: "major" });
   if (spec.slides[0]?.role !== "HOOK") issues.push({ code: "HOOK_ROLE", message: "First slide must be HOOK", slidePosition: 1, severity: "major" });
   if (!new Set(["CTA", "TAKEAWAY"]).has(spec.slides.at(-1)?.role ?? "")) issues.push({ code: "FINAL_ROLE", message: "Final slide must be CTA or TAKEAWAY", severity: "minor" });

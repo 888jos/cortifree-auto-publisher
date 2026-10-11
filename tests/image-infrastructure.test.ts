@@ -102,8 +102,10 @@ describe('persona image infrastructure', () => {
       persona_id: 'P02', master_asset_id: 'master-1', visual_reference_id: reference.id,
       scene: 'opening the curtains', category: 'home', framing: 'full body',
     });
-    assert.match(prompt, /Image 1 gives the person: her exact face/);
-    assert.match(prompt, /Image 2 gives ONLY the scene/);
+    assert.match(prompt, /Image 1 is only an identity photo: take from it her facial features/);
+    assert.match(prompt, /straight-into-the-lens stare, its flat studio light and its front-on head position must NOT carry over/);
+    assert.match(prompt, /AND her facial expression, where she is looking, how open her eyes are/);
+    assert.match(prompt, /Never wide-open, staring, glassy/);
     assert.match(prompt, /replace only the most prominent one and leave everyone else exactly as they are/);
     assert.match(prompt, /do not keep any facial feature, skin tone or hair of the person in Image 2/);
     assert.match(prompt, /no text, no logo, no watermark/);

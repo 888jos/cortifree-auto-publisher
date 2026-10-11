@@ -1,6 +1,9 @@
 import { visualGroupOf } from "./visual-groups";
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
+import { faceFitsFrame } from "./render/framing";
+import { isCollageDescription } from "../../src/visual-references";
+import { assetShowsStepAction, routineStepAction, stepActionFamilies, stepActionMatchCount, withoutNegatedMentions } from "../../src/visual-references/step-actions";
 
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
@@ -11,6 +14,7 @@ export type SelectableAsset = {
   lighting?: string; dominant_colors?: string[]; text_in_image?: string; specific_details?: string;
   visual_tagging_schema?: string; visual_review_status?: string; visual_reviewed_at?: string | null;
   metadata?: Record<string, unknown>;
+  width?: number | null; height?: number | null;
 };
 
 export type JitSelectableAsset = SelectableAsset & { source_type?: string; persona_id?: string | null };
@@ -172,6 +176,54 @@ function visualTerms(value: unknown) {
       : String(input ?? "").split(/[|,\s]+/).filter(Boolean);
   return [...new Set(flatten(value).map(normalizeVisualTerm).filter((term) => term.length > 2))];
 }
+// Words that say where or how a photo looks, not what it shows. "keys and
+// wallet on a table" must match keys or a wallet, not any photo of a table.
+const SCENE_FILLER = new Set([
+  "woman", "women", "girl", "person", "people", "someone", "her", "she", "their", "hand", "finger", "arm",
+  "photo", "image", "picture", "shot", "close", "closeup", "view", "top", "detail", "four", "two", "plus",
+  "simple", "soft", "warm", "light", "lighting", "morning", "evening", "night", "day", "daylight", "cozy", "calm",
+  "clean", "neat", "small", "large", "little", "big", "beside", "near", "next", "front", "behind", "inside", "under",
+  "over", "table", "counter", "surface", "shelf", "floor", "wall", "room", "home", "kitchen", "bathroom", "bedroom",
+  "living", "corner", "window", "background", "white", "cream", "neutral", "beige", "pink", "color", "tone",
+  "aesthetic", "candid", "editorial", "lifestyle", "scene", "setup", "set", "using", "holding", "getting", "look",
+  "minimal", "organized", "laid", "placed", "sitting", "standing", "real", "life", "quick", "ready", "easy", "basic",
+]);
+function stemTerm(term: string) {
+  return term.replace(/ies$/, "y").replace(/(?<=[a-z]{4})(?:ing|ed)$/, "").replace(/(?<=[a-z]{3})(?:es|s)$/, "");
+}
+function contentTerms(value: string) {
+  return [...new Set(terms(value).map(stemTerm).filter((term) => term.length > 2 && !SCENE_FILLER.has(term)))];
+}
+// Photos filed as food or gym only fit a scene that is about food or the gym:
+// "jar" matched a counter full of vegetables, "bag" a gym duffel.
+const FOOD_SCENE = /\b(?:food|meals?|breakfast|lunch|dinner|snacks?|eat|eating|cook|cooking|groceries|grocery|fruit|vegetables?|salad|recipe|smoothie|coffee|tea|matcha|yogurt|oats)\b/;
+const FITNESS_SCENE = /\b(?:gym|workout|exercise|fitness|pilates|yoga|run|running|stretch|stretching|dumbbells?|mat|training|sweat)\b/;
+const FOOD_PHOTO = /\b(?:plates?|eggs?|toast|salad|vegetables?|produce|fruit|berries|meal|breakfast|lunch|dinner|pasta|soup|sandwich|groceries)\b/;
+const FITNESS_PHOTO = /\b(?:gym|workout|exercise mat|dumbbells?|treadmill|locker room|weights?)\b/;
+function categoryFitsScene(asset: SelectableAsset, sceneText: string) {
+  const category = String(asset.category ?? "").toLowerCase();
+  const description = String(visualField(asset, "visual_description") ?? "").toLowerCase();
+  if ((category === "food" || FOOD_PHOTO.test(description)) && !FOOD_SCENE.test(sceneText)) return false;
+  if ((category === "fitness" || FITNESS_PHOTO.test(description)) && !FITNESS_SCENE.test(sceneText)) return false;
+  return true;
+}
+// Places or actions alone ("by the door", "hanging") never make a photo relevant.
+const PLACE_TERMS = new Set(["door", "bed", "chair", "sink", "mirror", "desk", "sofa", "couch", "hallway", "entryway", "bench"]);
+
+/** Share of the scene's concrete words (objects, actions) the photo visibly shows. */
+export function keyTermMatch(scene: string, asset: SelectableAsset) {
+  const wanted = contentTerms(scene);
+  // Words the scene wrote as -ing/-ed ("hanging", "folded") are actions: a
+  // towel that "hangs" is not a tote bag.
+  const actions = new Set(terms(scene).filter((term) => /(?:ing|ed)$/.test(term)).map(stemTerm));
+  const shown = new Set(contentTerms([
+    visualField(asset, "visual_description"), visualField(asset, "specific_details"),
+    visualField(asset, "visible_objects"), visualField(asset, "visible_actions"),
+  ].map((value) => Array.isArray(value) ? value.join(" ") : String(value ?? "")).join(" ")));
+  const matched = wanted.filter((term) => shown.has(term));
+  if (!matched.some((term) => !PLACE_TERMS.has(term) && !actions.has(term))) return { coverage: 0, matched: [] as string[] };
+  return { coverage: wanted.length ? matched.length / wanted.length : 0, matched };
+}
 function visualField(asset: SelectableAsset, field: string): unknown {
   const direct = (asset as unknown as Record<string, unknown>)[field];
   return direct !== undefined && direct !== null && direct !== "" ? direct : asset.metadata?.[field];
@@ -193,6 +245,15 @@ function assetText(asset: SelectableAsset) {
     ? `${asset.filename} ${asset.subcategory} ${asset.category}`
     : "";
   return `${assetVisualText(asset)} ${observedAssetName} ${appScreenIdentity} ${asset.framing} ${asset.activity} ${asset.mood} ${(asset.good_for ?? []).join(" ")} ${(asset.tags ?? []).join(" ")}`.toLowerCase();
+}
+
+/** What the photo observably shows being done: actions, objects, description. Never folder or category names. */
+function assetActionText(asset: SelectableAsset) {
+  const flat = (value: unknown) => Array.isArray(value) ? value.join(" ") : String(value ?? "");
+  return [
+    visualField(asset, "visible_actions"), visualField(asset, "visible_objects"),
+    visualField(asset, "visual_description"), visualField(asset, "specific_details"),
+  ].map(flat).join(" ");
 }
 
 function runtimeVisualMetadata(asset: SelectableAsset) {
@@ -294,14 +355,29 @@ function compatibleWithScene(asset: SelectableAsset, constraint: SceneConstraint
   return !constraint.forbidden(text) && constraint.required(text);
 }
 
+// Whole words (plus plural/-ing/-ed): a substring test read "eat" in
+// "repeated" and "neat", so every F08 intent ("photos repeated diagonally")
+// asked for food and a bathroom slide got a frying pan.
+const wordPatterns = new Map<string, RegExp>();
 function includesAny(text: string, words: string[]) {
-  return words.some((word) => text.includes(word));
+  return words.some((word) => {
+    let pattern = wordPatterns.get(word);
+    if (!pattern) {
+      pattern = new RegExp(`(?<![a-z])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es|ing|ed)?(?![a-z])`);
+      wordPatterns.set(word, pattern);
+    }
+    return pattern.test(text);
+  });
 }
 
 /** Convert slide copy into observable visual requirements, never abstract
  * wellness concepts. This intentionally stays deterministic and local. */
 export function deriveVisualIntent(slide: { headline: string; body: string; assetQuery: string; visualIntent: string }): VisualIntent {
-  const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  // An F03 step ("6:35 - 6:40 · eat at the table before checking work") shows
+  // its main action only, and objects the copy puts away ("laptop and work
+  // bag away") are not wanted in the photo.
+  const headline = slide.headline.includes("·") ? routineStepAction(slide.headline) : slide.headline;
+  const text = withoutNegatedMentions(`${headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`).toLowerCase();
   const objects = new Set<string>();
   const actions = new Set<string>();
   const settings = new Set<string>();
@@ -319,10 +395,11 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (includesAny(text, ["walk", "walking", "commute"])) actions.add("walking");
   if (includesAny(text, ["run", "running", "treadmill"])) actions.add("running_on_treadmill");
   if (includesAny(text, ["write", "writing", "journal", "brain dump", "plan"])) actions.add("writing");
-  if (includesAny(text, ["prepare", "make", "cook", "pack", "meal prep"])) actions.add("preparing_food");
+  // Food words only: "pack the bag" or "make mornings easier" are not cooking.
+  if (includesAny(text, ["cook", "meal prep", "prepare food", "prepare a meal", "prepare breakfast", "preparing food", "preparing a meal", "preparing breakfast", "pack lunch", "pack a lunch", "packed lunch", "make breakfast", "make lunch", "make dinner", "making breakfast", "making lunch", "making dinner"])) actions.add("preparing_food");
   if (includesAny(text, ["phone down", "put down", "stop checking", "unplug", "scroll"])) actions.add("putting_phone_down");
   if (includesAny(text, ["morning", "wake", "waking", "breakfast"])) settings.add("morning_home");
-  if (includesAny(text, ["home", "room", "inside", "indoor", "sofa", "couch"])) settings.add("indoor_room");
+  if (includesAny(text, ["home", "room", "bedroom", "bathroom", "living room", "kitchen", "inside", "indoor", "sofa", "couch"])) settings.add("indoor_room");
   if (includesAny(text, ["outside", "outdoors", "street", "walk", "commute"])) settings.add("outdoors");
   if (objects.has("exercise_mat") || objects.has("foam_roller") || objects.has("dumbbells")) compositions.add("equipment_layout");
   if (actions.size || includesAny(text, ["woman", "person", "girl", "hands", "holding"])) compositions.add("person_activity_scene");
@@ -337,8 +414,10 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (/walk|walking|outside|outdoors|street|commute/.test(text)) { requiredActions.add("walking"); requiredSettings.add("outdoors"); ["gym", "bedroom", "bathroom"].forEach((value) => avoid.add(value)); }
   if (/treadmill/.test(text)) { requiredActions.add("running_on_treadmill"); requiredSettings.add("commercial_gym"); }
   if (/grocery|shopping.*produce|produce.*shopping/.test(text)) { requiredActions.add("grocery_shopping"); requiredSettings.add("grocery_store"); }
-  if (/journal|brain dump|notebook|writing/.test(text)) { requiredActions.add("writing"); requiredObjects.add("notebook"); }
-  if (/(journal|brain dump|notebook|writing)/.test(text) && /\b(bed|bedroom)\b/.test(text)) requiredSettings.add("bedroom");
+  // A notebook on its own is a static object; only real writing words require the action.
+  if (/\b(?:journal|journaling|brain dump|notebook|planner|write|writing)\b/.test(text)) requiredObjects.add("notebook");
+  if (/\b(?:journaling|brain dump|write|writing)\b/.test(text)) requiredActions.add("writing");
+  if (/\b(?:journal|journaling|brain dump|notebook|planner|write|writing)\b/.test(text) && /\b(bed|bedroom)\b/.test(text)) requiredSettings.add("bedroom");
   if (/\b(home|at home)\b/.test(text) && /\b(pilates|yoga|workout|exercise)\b/.test(text)) requiredSettings.add("indoor_room");
   if (/pilates mat|yoga mat/.test(text)) { requiredObjects.add("exercise_mat"); }
   return {
@@ -380,7 +459,7 @@ function semanticTokenOverlap(desired: string, actual: string) {
 }
 
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
-  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,drive_file_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata&enabled=eq.true&public_url=not.is.null&limit=1000`);
+  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,drive_file_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata,width,height&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
   return await response.json() as SelectableAsset[];
 }
@@ -389,6 +468,12 @@ export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
 export function isFacelessStock(asset: { people_visibility?: string | null }) {
   const visibility = String(asset.people_visibility ?? "").toLowerCase();
   return visibility === "no_person" || /^hands?(_only|_partially_visible)?$/.test(visibility) || /^partial_body_via_/.test(visibility);
+}
+
+/** An image made of several photos or panels (ModelArk copies collage references). Never a carousel photo. */
+export function isCollageAsset(asset: SelectableAsset) {
+  return asset.metadata?.image_layout === "collage_or_multi_panel"
+    || isCollageDescription(String(asset.visual_description ?? ""), String(asset.composition ?? ""), String(asset.specific_details ?? ""));
 }
 
 export function chooseAssets(options: {
@@ -403,6 +488,14 @@ export function chooseAssets(options: {
   facelessStockOnly?: boolean;
   /** Decorative support slots: take the best eligible candidate whatever its score. */
   acceptBest?: boolean;
+  /** Frame the photo is cropped into (F01 bands): a face too tall for it is never picked. */
+  frame?: { width: number; height: number };
+  /**
+   * Keep only photos that show at least this share (and at least one) of the
+   * scene's concrete words, ranked by that share (F08 photos must show what
+   * the slide says).
+   */
+  keyTermFloor?: number;
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
@@ -418,6 +511,7 @@ export function chooseAssets(options: {
     const finalUse = options.assets.filter((asset) =>
       !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename)
       && !options.excludedAssetIds?.has(String(asset.id))
+      && !isCollageAsset(asset)
       // A stock photo with a creator caption already burned in ("grocery day",
       // "my obsession rn") would clash with the carousel's own text.
       && !(asset.source_type === "stock" && /overlay/i.test(String(asset.text_in_image ?? "")))
@@ -432,7 +526,7 @@ export function chooseAssets(options: {
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = !officialAppScreenshot && (slide.position === 1 || slide.role?.toUpperCase() === "HOOK");
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
-    const requested = officialAppScreenshot
+    const requestedAny = officialAppScreenshot
       ? finalUse.filter((asset) => asset.source_type === "app_screenshot")
       : hookNeedsPersona || slide.assetType === "persona"
         ? finalUse.filter((asset) => asset.source_type === "persona_generated" && allowsPersona(asset))
@@ -444,6 +538,11 @@ export function chooseAssets(options: {
           : slide.assetType === "text_only"
             ? finalUse.filter((asset) => asset.source_type === "stock")
             : finalUse;
+    // In a wide band a close-up face always loses its forehead or chin: keep
+    // only photos whose face fits, unless none does (never a dead end that
+    // would send the slide to ModelArk).
+    const fitting = options.frame ? requestedAny.filter((asset) => faceFitsFrame(asset, options.frame!)) : requestedAny;
+    const requested = fitting.length ? fitting : requestedAny;
     // Persona-required slides must preserve identity. Never silently
     // downgrade them to stock just to make a draft renderable. Throwing here
     // intentionally hands control back to render-carousel's ModelArk repair path.
@@ -453,7 +552,18 @@ export function chooseAssets(options: {
     if ((hookNeedsPersona || slide.assetType === "persona") && requested.length === 0) {
       throw new Error(`PERSONA_ASSET_REQUIRED:${options.personaId ?? "unknown"}:slide_${slide.position}`);
     }
-    const usableRequested = requested;
+    // An F03 step photo must show the step's action (walking, eating, washing
+    // her face...). No candidate showing it → this throws and the render
+    // generates the step from a reference showing that action.
+    const isF03Step = options.carouselType === "F03_ROUTINE_TIMELINE" && !officialAppScreenshot
+      && slide.position !== 1 && slide.role?.toUpperCase() !== "HOOK";
+    const stepFamilies = isF03Step ? stepActionFamilies(slide.headline) : [];
+    const usableRequested = stepFamilies.length
+      ? requested.filter((asset) => assetShowsStepAction(stepFamilies, assetActionText(asset)))
+      : requested;
+    if (stepFamilies.length && !usableRequested.length) {
+      throw new Error(`LOW_CONFIDENCE_ASSET:slide_${slide.position}:step_action_${stepFamilies.map((family) => family.key).join("+")}:candidates_0`);
+    }
     if (options.personaOnly && usableRequested.length < options.slides.length) {
       throw new Error(`PERSONA_ASSETS_REQUIRED:${options.personaId ?? "unknown"}:need_${options.slides.length}:found_${usableRequested.length}`);
     }
@@ -548,6 +658,8 @@ export function chooseAssets(options: {
       if (officialAppScreenshot && asset.source_type === "app_screenshot") score += 100;
       if (slide.assetType === "stock" && asset.source_type === "stock") score += 6;
       if (exactGeneratedSceneMatch) score += 60;
+      // F03: "tea and a book on the couch" prefers the mug on the sofa.
+      if (stepFamilies.length) score += 8 * stepActionMatchCount(slide.headline, assetActionText(asset));
       // Legacy metadata remains useful only as a weak tie-breaker.
       score += Math.min(3, fieldTerms(asset.good_for).filter((term) => intent.desired_settings.includes(normalizeVisualTerm(term))).length);
       score += asset.orientation === "portrait" ? 2 : asset.orientation === "square" ? 1 : 0;
@@ -577,6 +689,12 @@ export function chooseAssets(options: {
         exactGeneratedSceneMatch ? "generated_exact_scene" : "",
       ].filter(Boolean);
       return { asset, score, matchedTerms: matchedObjects.concat(matchedActions), matchedDimensions, matchedObjects, matchedActions, matchedSettings, matchedCompositions, semanticScore, categoryBonus, descriptionScore: semanticScore, objectScore, actionScore, settingScore, compositionScore, repetitionPenalty };
+    }).flatMap((candidate) => {
+      if (options.keyTermFloor === undefined) return [candidate];
+      const related = keyTermMatch(intent.description, candidate.asset);
+      if (!related.matched.length || related.coverage < options.keyTermFloor) return [];
+      if (!categoryFitsScene(candidate.asset, `${slide.headline} ${slide.body} ${intent.description}`.toLowerCase())) return [];
+      return [{ ...candidate, score: candidate.score + related.coverage * 30, matchedTerms: [...new Set([...candidate.matchedTerms, ...related.matched])] }];
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
     // In a persona-only 2x2 slide, identity continuity is already enforced by
     // the persona asset pool. Sparse legacy scene tags must not block a valid

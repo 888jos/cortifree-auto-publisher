@@ -1,4 +1,5 @@
 import type { CarouselSpec } from "./schemas";
+import { stepActionFamilies } from "../../../src/visual-references/step-actions";
 
 // On-screen TikTok text is lowercase and rarely ends with a period. Kept as
 // written: all-caps tokens (F04 section labels, acronyms), the F07 tier
@@ -41,6 +42,9 @@ export function fixHashtags(caption: string) {
 
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
+/** "before: ...", "the switch: ...", "now: ..." headlines read like a template, not a person. */
+const LABEL_HEADLINE = /^(?:the\s+)?(?:before|after|now|then|switch|change|old me|new me|step \d+|tip|fix|result)\s*:/i;
+
 /**
  * Style issues that make copy read as AI-written rather than posted by a
  * 20-year-old. Used for a rewrite pass, never to block generation.
@@ -65,5 +69,75 @@ export function nativeStyleIssues(spec: CarouselSpec): string[] {
   // The same sentence shape on every slide ("i do X, so Y") reads generated.
   const shaped = body.filter((slide) => /,\s*so\s+(?:i|you|the|my)\b|\bso\s+i\b/i.test(slide.body)).length;
   if (body.length >= 4 && shaped >= Math.ceil(body.length / 2)) issues.push(`REPETITIVE_SHAPE: ${shaped} slides use the same "..., so i..." sentence; vary the shapes`);
+  issues.push(...routineStepIssues(spec));
+  // The operator called F08 "before: decide everything in the morning" and
+  // "the switch: keep easy defaults together" incomprehensible.
+  const labelled = body.filter((slide) => LABEL_HEADLINE.test(slide.headline.trim()));
+  if (labelled.length) issues.push(`LABEL_HEADLINE: ${labelled.map((slide) => `"${slide.headline}"`).join(", ")} start with a label; say the actual thing in plain words`);
   return issues;
+}
+
+/**
+ * F03 steps the operator rejected: "eat at the table before checking work
+ * again" (two ideas), "make an easy dinner with one pan" (a detail nobody
+ * needs), "put the laptop and charger in my work bag" (nothing to photograph).
+ * A step is one simple action a photo can show.
+ */
+export function routineStepIssues(spec: CarouselSpec): string[] {
+  const issues: string[] = [];
+  spec.slides.forEach((slide, index) => {
+    if (index === 0 || slide.layout !== "routine-timeline" || !slide.headline.includes("·")) return;
+    const action = slide.headline.slice(slide.headline.indexOf("·") + 1).trim().toLowerCase();
+    const quoted = `slide ${slide.position} "${action}"`;
+    if (/\b(?:before|after|until|so that|instead of|then)\b/.test(action)) issues.push(`ROUTINE_STEP_TWO_IDEAS: ${quoted} chains a second idea; keep only the action`);
+    else if (words(action) > 7) issues.push(`ROUTINE_STEP_LONG: ${quoted} is ${words(action)} words; keep 2-6`);
+    if (/\b(?:with|in|using) (?:one|a single|1) (?:pan|pot|bowl|tray|plate)\b/.test(action)) issues.push(`ROUTINE_STEP_DETAIL: ${quoted} adds a detail nobody needs`);
+    if (!stepActionFamilies(slide.headline).length) issues.push(`ROUTINE_STEP_NOT_VISIBLE: ${quoted} is not an action a photo can show (walk, cook, eat, shower, skincare, stretch, read, journal, tea, bed)`);
+  });
+  if (/\bthat girl\b/i.test([spec.hook, ...spec.slides.map((slide) => slide.headline)].join(" ")) && spec.slides.some((slide) => slide.layout === "routine-timeline")) {
+    issues.push("ROUTINE_THAT_GIRL: drop \"that girl\" unless the post is literally about the that-girl trend");
+  }
+  return issues;
+}
+
+const TITLE_NOUN = "(?:reset|routine|guide|plan|system|method|checklist|habits?|tips|rituals?|edit|ideas|steps|reminders)";
+const LIST_NOUN = "(?:ways|tips|steps|habits|ideas|rules|reminders|rituals)";
+/** Nouns that only label a list ("my normal-day getting-ready defaults"). */
+const LABEL_NOUN = "(?:defaults|staples|essentials|basics|non-negotiables|systems|formulas)";
+
+/**
+ * Blog/Pinterest-style hooks that label the content instead of sounding like
+ * a person ("my simple reset when everything feels like too much"). The
+ * operator rejected this shape repeatedly. Used for a rewrite, never a block.
+ */
+export function titleHookReason(hook: string): string | undefined {
+  const text = hook.toLowerCase().replace(/[“”"]/g, "").trim();
+  if (new RegExp(`^(?:my|a|the|your)\\s+(?:[a-z0-9'-]+\\s+){0,3}${TITLE_NOUN}\\s+(?:when|for|to|on|after|before|if)\\b`).test(text)) {
+    return "reads like a content title (\"my/a [adjective] reset/routine/guide when/for ...\")";
+  }
+  if (new RegExp(`^(?:\\d+|a few|some)\\s+(?:[a-z'-]+\\s+){0,2}${LIST_NOUN}\\s+(?:to|for)\\b`).test(text) || /^how to\b/.test(text)) {
+    return "reads like a how-to article title (\"5 simple ways to ...\", \"how to ...\")";
+  }
+  if (/\bwhen (?:everything|it all|life|things) (?:feels?|gets?|is|are)\b/.test(text) || /\b(?:feels?|is) (?:like )?(?:too much|a lot)\s*$/.test(text)) {
+    return "uses a vague feeling instead of a concrete moment";
+  }
+  if (new RegExp(`^(?:my|a|the|your)\\s+(?:[a-z'-]+\\s+){0,4}${LABEL_NOUN}$`).test(text.replace(/[.!?♡\s]+$/, ""))) {
+    return "only labels a list (\"my [adjectives] defaults/essentials\") instead of saying something";
+  }
+  return undefined;
+}
+
+// Abstract nouns that make a short F01 headline unclear ("pause the extra
+// input", "keep the reset small"): the operator could not tell what to do.
+const ABSTRACT_HEADLINE_WORDS = /\b(?:input|inputs|reset|bandwidth|capacity|energy|intention|intentions|mindset|nervous system|overstimulation|stimulation|(?<!white )noise|boundaries|vibe)\b/;
+
+/**
+ * F01 body headlines must name the concrete action in words a friend would
+ * use. Returns the offending headlines; used for a rewrite, never a block.
+ */
+export function abstractHeadlines(spec: CarouselSpec): string[] {
+  return spec.slides
+    .filter((slide, index) => index > 0 && slide.layout === "lifestyle-3stack")
+    .map((slide) => slide.headline.toLowerCase().trim())
+    .filter((headline) => ABSTRACT_HEADLINE_WORDS.test(headline));
 }

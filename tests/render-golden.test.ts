@@ -105,10 +105,10 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(4, "CTA", "follow for the rest", "Part two is about weekends.", "woman walking in a park"),
   ] },
   { key: "F07_RANKING", carouselType: "F07_RANKING", slides: [
-    slide(1, "HOOK", "sleep habits tier list", "backed by evidence", "woman reading in bed at night"),
-    slide(2, "TIP", "S · CONSISTENT SLEEP", "Strong practical evidence. | Same wake time matters most.", "", "text_only"),
-    slide(3, "TIP", "Tier: C late caffeine", "Half-life is longer than you think.", "", "text_only"),
-    slide(4, "TAKEAWAY", "start at the top", "Fix the S tier before buying anything.", "", "text_only"),
+    slide(1, "HOOK", "what i actually do when work stress follows me home, ranked", "", "woman reading in bed at night"),
+    slide(2, "TIP", "Tier: C late caffeine", "Half-life is longer than you think.", "cup of herbal tea on a wooden table", "stock"),
+    slide(3, "TIP", "S · PHONE OUT OF THE BEDROOM", "i charge it in the kitchen. | the first night is weird, then i fall asleep faster", "phone face down beside a laptop on a quiet desk", "stock"),
+    slide(4, "TAKEAWAY", "start at the top", "fix the S tier before buying anything.", "", "text_only"),
   ] },
   { key: "F08_2X2", carouselType: "F08_2X2", slides: [
     slide(1, "HOOK", "keep skincare very boring", "simple routine", "woman applying moisturizer at a bathroom sink"),
@@ -133,10 +133,51 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(2, "TIP", "take a break without new messages or information", "MISTAKES | scrolling at your desk and treating it as a break | checking messages before standing up | using every free minute for another task", "phone face down beside a laptop, cup of herbal tea, woman walking in a park"),
     slide(3, "CTA", "set a boundary you can actually explain", "BENEFITS | choose when you answer quickly | leave one clear way to contact you about urgent things | return to regular messages after your task ends", "woman drinking coffee by a kitchen window"),
   ] },
+  // Real live copy (batch E2E_SIX_20261010F) with the longest F01 bodies: nothing may end in "…".
+  { key: "LONG_F01_LIFESTYLE_GUIDE", carouselType: "F01_LIFESTYLE_GUIDE", slides: [
+    slide(1, "HOOK", "what i do when i have 14 tabs open and my brain just stops", "too many tabs, sounds, messages, and tasks at once", "woman drinking coffee by a kitchen window"),
+    slide(2, "TIP", "phone on do not disturb", "i silence non-urgent notifications and close every tab except the one i need", "phone face down beside a laptop on a quiet desk", "stock"),
+    slide(3, "CTA", "pick just one of these", "which one helps when you have too many tasks and notifications at once?", "woman writing in a notebook at a calm desk"),
+  ] },
   { key: "LONG_F05_INTERACTIVE_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
     slide(1, "HOOK", "“my bedtime checklist when work is still open”", "", "woman reading in bed with a lamp"),
     slide(2, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
     slide(3, "CTA", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
+  ] },
+  // Target F04 tone after the operator's review: first-person headlines,
+  // concrete bullets, a human aside on the cover.
+  { key: "NATIVE_F04_AESTHETIC_EDUCATIONAL", carouselType: "F04_AESTHETIC_EDUCATIONAL", slides: [
+    slide(1, "HOOK", "i can't focus with my phone in the room", "still reachable for my mom lol", "woman writing in a notebook at a desk"),
+    slide(2, "TIP", "i prefer to silence alerts that can wait", "HOW TO | do not disturb on from 9 to 12 | my mom and bf still get through | group chats on mute (sorry besties)", "phone face down beside a laptop, cup of herbal tea, woman walking in a park"),
+    slide(3, "TIP", "put your phone in another room when you work", "WHAT TO USE | it charges in the kitchen till lunch | laptop on full screen, one tab open | first two days were rough ngl", "phone face down beside a laptop, woman writing in a notebook, made bed"),
+    slide(4, "TAKEAWAY", "i only answer texts on my lunch break", "MISTAKES | checking every time it buzzed | replying in the middle of a task | keeping tiktok on my home screen", "woman drinking coffee by a kitchen window"),
+  ] },
+  // Full live carousel (batch E2E_SIX_20261010D, F05): items were cut with "…",
+  // shrank one by one, and the last title lost its end.
+  { key: "LIVE_F05_BEDTIME_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
+    slide(1, "HOOK", "“my bedtime checklist when work is still open”", "", "woman reading in bed with a lamp"),
+    slide(2, "TIP", "close the workday before bed", "write down the task i keep replaying | close the laptop fully | put the notebook in a drawer | choose tomorrow's first task | leave the desk area before pajamas", "woman writing in a notebook at a calm desk"),
+    slide(3, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
+    slide(4, "TIP", "lower the input after dinner", "turn off work notifications for the night | keep group chats out of bedtime | dim the brightest room lights | skip opening a new work tab | choose a book before i feel tired", "phone face down beside a laptop on a quiet desk", "stock"),
+    slide(5, "TIP", "use the phone without delaying bedtime", "charge it across the room | check one thing before unlocking it | leave the app when the reason is done | keep the charger in the same spot | pick up the book instead (it is less tempting)", "woman reading in bed with a warm lamp at night"),
+    slide(6, "TIP", "write down unfinished thoughts before bed", "keep a small notepad by the bed | write one sentence, not the whole plan | add tomorrow beside it if needed | put the pen down after writing | let the rest wait until morning", "woman writing in a notebook at a calm desk"),
+    slide(7, "TAKEAWAY", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
+  ] },
+  // Worst case the validator lets through: a 58 character title and six items
+  // close to the 82 character limit. Nothing may be cut or shrunk per item.
+  { key: "MAX_F05_INTERACTIVE_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
+    slide(1, "HOOK", "“the evening list i wish i had started two years ago”", "", "woman reading in bed with a lamp"),
+    slide(2, "TIP", "give the evening a clear end even when work is still open", "write the one task i keep replaying on a sticky note by the door | close every work tab before dinner so nothing is waiting when i sit down | put my phone on the charger in the kitchen (yes, the kitchen, every night) | choose tomorrow's first task before i start thinking about everything else | leave the desk area completely once i change into something comfortable | keep the lights low after nine so the room already feels like bedtime", "woman writing in a notebook at a calm desk"),
+    slide(3, "TAKEAWAY", "wind down with the same three things every single night", "wash my face before getting under the covers | read a few pages of a paper book instead of scrolling | let bedtime be finished when the routine is done, not when i feel ready", "made bed with soft morning light", "stock"),
+  ] },
+  // Live F07 copy (batch E2E_SIX_20261010F) in climbing order, with its longest reasons.
+  { key: "LONG_F07_RANKING", carouselType: "F07_RANKING", slides: [
+    slide(1, "HOOK", "my busy-day meal backups, ranked by how much effort they take", "", "woman drinking coffee by a kitchen window"),
+    slide(2, "TIP", "C · smoothie from scratch", "i like it when the fruit is frozen and the blender is clean. i still have to blend it and wash the blender after", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(3, "TIP", "B · sandwich or wrap at home", "i use whatever bread, cheese and vegetables are already open. it works well, but i still have to assemble it", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(4, "TIP", "A · leftovers in a clear container", "i portion dinner before putting the rest away, so lunch is already visible the next day. reheating is the tradeoff", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(5, "TIP", "S · grocery-store shortcut meal", "i grab a sandwich, fruit and a drink in one stop when i need lunch quickly. no recipe or extra dishes. the tradeoff: i still have to leave the house", "simple breakfast bowl with yogurt and fruit", "stock"),
+    slide(6, "TAKEAWAY", "keep two backups you will actually eat", "i keep one no-cook option and one leftover option ready for rushed days. which two would work in your kitchen?", "", "text_only"),
   ] },
 ];
 

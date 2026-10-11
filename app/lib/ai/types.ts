@@ -63,6 +63,7 @@ export type EditorialContext = {
   voice_examples?: GoldenExampleReference[];
   /** The operator's own corrections (generated → kept) on recent carousels of this format. */
   operator_edits?: Array<{ field: "headline" | "body"; before: string; after: string }>;
+  operator_rules?: string[];
   concept_id?: string;
   topic_id: string;
   hook_id: string;
@@ -79,6 +80,8 @@ export type EditorialContext = {
     app_screen_category?: string;
     app_screen_asset_id?: string | null;
     copy_bank_seed_id?: string | null;
+    /** Where this format puts the CortiFree mention (src/content/cortifree-integration.ts). */
+    placement?: string;
   };
 };
 export type HealthGuardrails = {

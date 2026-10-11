@@ -272,6 +272,36 @@ describe("CortiFree AI schemas and generation", () => {
     assert.match(seenInstructions[3] ?? "", /positions 1 through 7/);
   });
 
+  it("keeps a third rewrite for a blog-title hook and never lets the clarity pass bring one back", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.AI_GENERATION_ENABLED = "true";
+    process.env.OPENAI_QA_ENABLED = "false";
+    const titled = validSpec();
+    titled.hook = "my simple reset when everything feels like too much";
+    titled.slides[0]!.headline = titled.hook;
+    const native = validSpec();
+    native.hook = "what i do when i have 14 tabs open and my brain just stops";
+    native.slides[0]!.headline = native.hook;
+    const seenInstructions: string[] = [];
+    let calls = 0;
+    const result = await generateCarousel(baseInput, {
+      monthlyUsage: async () => ({ costUsd: 0, calls: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }),
+      structuredRequest: async (options) => {
+        calls += 1;
+        seenInstructions.push(options.instructions);
+        return { data: structuredClone(calls < 4 ? titled : native), usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 } };
+      },
+      plainLanguageRequest: async (options) => ({
+        data: { lines: options.input.split("\n").map((line, index) => index === 0 ? "1. my calm morning routine for busy days" : line) },
+        usage: { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 },
+      }),
+    });
+    assert.equal(calls, 4);
+    assert.match(seenInstructions[3] ?? "", /HOOK REPAIR/);
+    assert.equal(result.spec.hook, native.hook);
+    assert.equal(result.spec.slides[0]?.headline, native.hook);
+  });
+
   it("retries retryable failures with exponential retry boundaries", async () => {
     let calls = 0;
     const result = await withRetry(async () => {

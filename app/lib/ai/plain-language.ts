@@ -9,8 +9,10 @@ Rewrite ONLY a line that relies on a metaphor, personification, an exaggerated i
 (e.g. "my brain is actually online", "moving like a sleepy ghost", "outfit indecision has stolen my mornings", "motivation does not send calendar invites", "zero personality before 9am").
 Replace the figurative part with the plain, concrete fact a viewer could act on, keeping her casual voice, the first person, the same rough length, all lowercase, no final period.
 Line 1 is the hook. If it does not clearly say what the carousel is about (e.g. "when i need to wash up, i check my bathroom first" for a carousel about not shopping on a bad day), rewrite it into a short, natural hook that names the topic, in the same voice (e.g. "things i try before buying another product on a bad day").
+Line 1 must never read like a blog or Pinterest title ("my simple reset when everything feels like too much", "5 easy ways to feel calmer"). If it does, rewrite it as something a girl would actually say: a specific moment, a confession or a "you" call-out (e.g. "what i do when i have 12 tabs open and zero brain left").
 Leave every other line EXACTLY as it is, character for character, including tier prefixes ("S · "), section labels ("HOW TO |"), " | " separators, times ("10:15 - 10:20 · ") and hashtags.
 Never add dashes, emoji, new advice or health claims.
+Keep every mention of the app "cortifree" in the line where it is.
 `.trim();
 
 export const plainLanguageSchema = z.object({ lines: z.array(z.string()) });
@@ -42,7 +44,7 @@ function fields(spec: CarouselSpec): Field[] {
  * edit is unusable (wrong line count, or a structural marker went missing),
  * so callers keep the original draft.
  */
-export async function plainLanguageEdit(spec: CarouselSpec, request: PlainRequest, model: string) {
+export async function plainLanguageEdit(spec: CarouselSpec, request: PlainRequest, model: string, flagged: string[] = []) {
   const list = fields(spec);
   const lines = list.map((field) => field.get(spec));
   const input = lines.map((line, index) => `${index + 1}. ${line}`).join("\n");
@@ -50,7 +52,7 @@ export async function plainLanguageEdit(spec: CarouselSpec, request: PlainReques
     model,
     schema: plainLanguageSchema,
     schemaName: "cortifree_plain_language",
-    instructions: PLAIN_LANGUAGE_INSTRUCTIONS,
+    instructions: flagged.length ? `${PLAIN_LANGUAGE_INSTRUCTIONS}\nALSO rewrite these flagged parts, which read as AI-written, into the plain sentence she would type (first person where it fits, same advice, same separators): ${flagged.join("; ")}` : PLAIN_LANGUAGE_INSTRUCTIONS,
     input,
     maxOutputTokens: 2_400,
   });

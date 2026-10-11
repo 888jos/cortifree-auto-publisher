@@ -329,6 +329,29 @@ export type OperatorEdit = { field: "headline" | "body"; before: string; after: 
  * generated slide text versus what she kept in the editor. They are the most
  * direct signal of the voice she wants, so the generator imitates them.
  */
+/**
+ * Standing rules the operator writes in the Sheet tab 00_OPERATOR_RULES (one
+ * rule per row, columns rule_id | rule | formats | active). They are the source
+ * of truth for copy/visual rules, so a correction made once applies to every
+ * future carousel, whichever tool or chat generates it. formats is "ALL" or a
+ * "|" list of format ids.
+ */
+export async function loadRuntimeOperatorRules(formatId: string): Promise<string[]> {
+  if (!backendConfigured()) return [];
+  try {
+    return (await editorialRecords("operator_rules"))
+      .filter((row) => isTrue(row.active))
+      .filter((row) => {
+        const formats = splitList(row.formats).map((item) => item.toUpperCase());
+        return !formats.length || formats.includes("ALL") || formats.includes(formatId.toUpperCase());
+      })
+      .map((row) => String(row.rule ?? "").trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export async function loadRuntimeOperatorEdits(formatId: string, limit = 8): Promise<OperatorEdit[]> {
   if (!backendConfigured()) return [];
   try {

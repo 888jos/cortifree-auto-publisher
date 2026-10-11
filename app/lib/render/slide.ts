@@ -3,15 +3,25 @@ import type { AssetMatch } from "../asset-selector";
 import { analyzeHookComposition, type HookDesign } from "../hook-design";
 import { uploadFile } from "../storage";
 import { selectedAssetBytes } from "./assets";
+import { focusCrop, subjectBox } from "./framing";
 import { defaultGeometry, HEIGHT, WIDTH, type Frame, type GeneratedSlide, type Geometry } from "./types";
-import { checklistPanel, checklistTextOverlays } from "./text/checklist";
+import { checklistTextOverlays } from "./text/checklist";
 import { geometryForVisualMetadata, makeRasterTextOverlays } from "./text/default";
+import { gridTextOverlays, type GridTile } from "./text/grid";
 import { editorialAsymTextOverlays } from "./text/editorial-asym";
 import { threeRectEducationalTextOverlays } from "./text/educational";
 import { lifestyleThreeStackTextOverlays } from "./text/lifestyle";
 import { personaExplainerTextOverlays } from "./text/persona-explainer";
 import { rankingCopyParts, rankingTextOverlays } from "./text/ranking";
+import { rankingPalette, type RankingPalette } from "./ranking-palette";
 import { routineTextOverlays } from "./text/routine";
+
+// F01 body slides: three edge-to-edge horizontal bands.
+export const LIFESTYLE_BANDS = [
+  { left: 0, top: 0, width: 1080, height: 450 },
+  { left: 0, top: 450, width: 1080, height: 450 },
+  { left: 0, top: 900, width: 1080, height: 450 },
+];
 
 async function roundedPhoto(bytes: Buffer, width: number, height: number, radius = 24) {
   const resized = await sharp(bytes)
@@ -67,11 +77,17 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   let hookDesign: HookDesign | undefined;
   let averageLuminance = 128;
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  let rankingColors: RankingPalette | undefined;
+  let rankingText: OverlayOptions[] = [];
 
+  let gridPhoto: { bytes: Buffer; tiles: GridTile[] } | undefined;
   if (imageFrame.mode === "grid-2x2") {
-    const tileWidth = 500;
-    const tileHeight = 635;
-    const positions = [[32, 32], [548, 32], [32, 683], [548, 683]];
+    // Four photos edge to edge, no white frame or gutter (operator feedback).
+    const tileWidth = WIDTH / 2;
+    const tileHeight = HEIGHT / 2;
+    const positions = [[0, 0], [tileWidth, 0], [0, tileHeight], [tileWidth, tileHeight]];
+    const tiles: GridTile[] = [];
+    const tileComposites: OverlayOptions[] = [];
     for (const [index, match] of matches.slice(0, 4).entries()) {
       const imageBytes = await selectedAssetBytes(match);
       if (index === 0) {
@@ -82,8 +98,15 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
       const place = editorSlot(geometry, index, { left: fallbackLeft, top: fallbackTop, width: tileWidth, height: tileHeight });
       const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       if (index === 0) hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
-      composites.push({ input: fitted, left: place.left, top: place.top });
+      tileComposites.push({ input: fitted, left: place.left, top: place.top });
+      const people = String(match.asset.people_visibility ?? (match.asset.source_type === "persona_generated" ? "person" : "")).toLowerCase();
+      tiles.push({ ...place, hasPerson: match.asset.source_type === "persona_generated" || Boolean(people && !/no_person/.test(people)) });
     }
+    composites.push(...tileComposites);
+    gridPhoto = {
+      bytes: await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: "#f7f3eb" } }).composite(tileComposites).png().toBuffer(),
+      tiles,
+    };
   } else if (imageFrame.mode === "three-rect-educational") {
     const placements = isHook
       ? [
@@ -128,51 +151,71 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     }
     averageLuminance = 220;
   } else if (imageFrame.mode === "lifestyle-3stack") {
+    // Without an operator crop, each photo is framed on its face or main
+    // subject (vision subject_box); the centre crop cut faces in the bands.
+    const framed = async (match: AssetMatch, index: number, fallback: { left: number; top: number; width: number; height: number }) => {
+      const imageBytes = await selectedAssetBytes(match);
+      const place = editorSlot(geometry, index, fallback);
+      if (!geometry.imageSlots?.[index]) {
+        const source = await sharp(imageBytes).rotate().metadata();
+        Object.assign(place, focusCrop({ width: source.width ?? place.width, height: source.height ?? place.height }, place, subjectBox(match.asset.metadata)));
+      }
+      return { imageBytes, place, fitted: await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place }) };
+    };
     if (isHook) {
-      const imageBytes = await selectedAssetBytes(matches[0]!);
+      const { imageBytes, place, fitted } = await framed(matches[0]!, 0, { left: 0, top: 0, width: 1080, height: 1350 });
       const stats = await sharp(imageBytes).stats();
       averageLuminance = (stats.channels[0]?.mean ?? 128) * 0.2126 + (stats.channels[1]?.mean ?? 128) * 0.7152 + (stats.channels[2]?.mean ?? 128) * 0.0722;
-      const place = editorSlot(geometry, 0, { left: 0, top: 0, width: 1080, height: 1350 });
-      const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       composites.push({ input: fitted, left: place.left, top: place.top });
     } else {
-      const placements = [
-        { left: 0, top: 0, width: 1080, height: 450 },
-        { left: 0, top: 450, width: 1080, height: 450 },
-        { left: 0, top: 900, width: 1080, height: 450 },
-      ];
       for (const [index, match] of matches.slice(0, 3).entries()) {
-        const imageBytes = await selectedAssetBytes(match);
-        const place = editorSlot(geometry, index, placements[index]!);
-        const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
+        const { place, fitted } = await framed(match, index, LIFESTYLE_BANDS[index]!);
         composites.push({ input: fitted, left: place.left, top: place.top });
       }
       averageLuminance = 100;
     }
   } else if (imageFrame.mode === "ranking") {
     const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
-    const tier = rankingCopyParts(slide).score.toUpperCase();
-    const tierWash: Record<string, string> = {
-      F: "#FCE7E7", D: "#FDEBE5", C: "#FFF0E2", B: "#FFF8DD",
-      A: "#EDF4FF", S: "#EAF7EC", SS: "#F5EFFF",
-    };
-    const wash = isHook || isFinal ? "#ffffff" : (tierWash[tier] ?? "#ffffff");
-    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="g" cx="50%" cy="50%" r="72%"><stop offset="0%" stop-color="#ffffff"/><stop offset="72%" stop-color="#ffffff"/><stop offset="100%" stop-color="${wash}"/></radialGradient></defs><rect width="1080" height="1350" fill="url(#g)"/></svg>`), left: 0, top: 0 });
-    if (isHook && matches.length >= 2) {
-      const placements = [
-        { left: 70, top: 650, width: 450, height: 420 },
-        { left: 560, top: 650, width: 450, height: 420 },
-      ];
-      for (const [index, match] of matches.slice(0, 2).entries()) {
-        const imageBytes = await selectedAssetBytes(match);
-        const place = editorSlot(geometry, index, placements[index]!);
-        const fitted = geometry.imageSlots?.[index]
-          ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
-          : await roundedPhoto(imageBytes, place.width, place.height, 24);
-        composites.push({ input: fitted, left: place.left, top: place.top });
-      }
+    rankingColors = rankingPalette({ tier: rankingCopyParts(slide).score, cover: isHook, final: isFinal });
+    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${rankingColors.background}"/><stop offset="100%" stop-color="${rankingColors.backgroundEnd}"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#g)"/></svg>`), left: 0, top: 0 });
+    // One or two photos under the text: the cover's teasers, each tier's item.
+    const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+    const photos = matches.slice(0, 2);
+    // Text first, so the photos can sit right under it: a short reason
+    // left a wide empty band above fixed-position photos.
+    const manualText = (geometry.text ?? {}) as Record<string, unknown>;
+    const textGeometry = { ...geometry, text: geometry.text ? {
+      ...geometry.text,
+      headlineColor: manualText.editorHeadlineColor ?? rankingColors.text,
+      bodyColor: manualText.editorBodyColor ?? rankingColors.subtext,
+      accentColor: manualText.editorAccentColor ?? rankingColors.accentText,
+    } : geometry.text } as Geometry;
+    rankingText = await rankingTextOverlays(slide, textGeometry, { photoCount: photos.length, palette: rankingColors });
+    let textBottom = 0;
+    for (const overlay of rankingText) {
+      const height = (await sharp(overlay.input as Buffer).metadata()).height ?? 0;
+      textBottom = Math.max(textBottom, (overlay.top ?? 0) + height);
     }
-    // Body and final tier slides are intentionally text-first. No decorative image by default.
+    const photoBottom = 1270;
+    const lowestTop = frame.rankingPhotoY ?? (isHook ? 540 : 790);
+    const highestTop = isHook ? 470 : 600;
+    const photoTop = Math.min(lowestTop, Math.max(highestTop, textBottom + 60));
+    const photoHeight = photoBottom - photoTop;
+    const placements = photos.length === 2
+      ? [{ left: 70, top: photoTop, width: 455, height: photoHeight }, { left: 555, top: photoTop, width: 455, height: photoHeight }]
+      : [{ left: 230, top: photoTop, width: 620, height: photoHeight }];
+    for (const [index, match] of photos.entries()) {
+      const imageBytes = await selectedAssetBytes(match);
+      const place = editorSlot(geometry, index, placements[index]!);
+      const fitted = geometry.imageSlots?.[index]
+        ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
+        : await roundedPhoto(imageBytes, place.width, place.height, 30);
+      if (!geometry.imageSlots?.[index]) {
+        // A thin white frame keeps the photo apart from the strong color.
+        composites.push({ input: Buffer.from(`<svg width="${place.width + 16}" height="${place.height + 16}" xmlns="http://www.w3.org/2000/svg"><rect width="${place.width + 16}" height="${place.height + 16}" rx="36" ry="36" fill="#ffffff"/></svg>`), left: place.left - 8, top: place.top - 8 });
+      }
+      composites.push({ input: fitted, left: place.left, top: place.top });
+    }
     averageLuminance = 235;
   } else {
     const match = matches[0]!;
@@ -189,16 +232,16 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
         top: 0,
       });
     }
-    if (imageFrame.mode === "interactive-checklist" && !isHook) {
-      const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
-      const panelWidth = frame.checklistPanelWidth ?? 850;
-      const panelHeight = frame.checklistPanelHeight ?? 930;
-      composites.push({ input: await checklistPanel(panelWidth, panelHeight), left: frame.checklistPanelX ?? 115, top: frame.checklistPanelY ?? 235 });
-    }
+    // F05: the Notes card is drawn with its text (checklistTextOverlays) so it can grow with it.
   }
 
   const forceDark = imageFrame.mode === "three-rect-educational" || imageFrame.mode === "editorial-asym-hero" || imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";
-  const readablePalette = forceDark || averageLuminance > 158
+  // Outlined text (F08) stays white: the black outline already separates it
+  // from a bright photo, dark text on a black outline would be unreadable.
+  const outlined = Boolean(geometry.text?.textStroke);
+  const readablePalette = rankingColors
+    ? { headlineColor: rankingColors.text, bodyColor: rankingColors.subtext, accentColor: rankingColors.accentText }
+    : !outlined && (forceDark || averageLuminance > 158)
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
   const manualText = (geometry.text ?? {}) as Record<string, unknown>;
@@ -206,7 +249,10 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     ...geometry.text,
     headlineColor: manualText.editorHeadlineColor ?? readablePalette.headlineColor,
     bodyColor: manualText.editorBodyColor ?? readablePalette.bodyColor,
-    accentColor: manualText.editorAccentColor ?? readablePalette.accentColor,
+    // F03 text is always white with a shadow plus the carousel's pastel
+    // accent; the luminance palette would turn the accent white or grey.
+    accentColor: manualText.editorAccentColor
+      ?? (imageFrame.mode === "routine-timeline" ? geometry.text.accentColor ?? readablePalette.accentColor : readablePalette.accentColor),
   } : geometry.text } as Geometry;
   const textFrame = readableGeometry.text;
   const layoutHookDesign: HookDesign | undefined = isHook && forceDark && textFrame
@@ -234,11 +280,15 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   } else if (imageFrame.mode === "editorial-asym-hero") {
     composites.push(...await editorialAsymTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "ranking") {
-    composites.push(...await rankingTextOverlays(slide, readableGeometry));
+    composites.push(...rankingText);
   } else if (imageFrame.mode === "interactive-checklist") {
     composites.push(...await checklistTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "persona-explainer") {
     composites.push(...await personaExplainerTextOverlays(slide, readableGeometry));
+  } else if (gridPhoto) {
+    // Own palette (white + the carousel's pastel accent, black outline): the
+    // luminance palette above would turn the text dark on a bright photo.
+    composites.push(...await gridTextOverlays(slide, geometry, gridPhoto.bytes, gridPhoto.tiles));
   } else {
     composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   }
