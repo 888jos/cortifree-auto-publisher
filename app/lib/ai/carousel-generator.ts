@@ -13,6 +13,7 @@ import { abstractHeadlines, fixHashtags, nativeCase, nativeStyleIssues, titleHoo
 import { plainLanguageEdit } from "./plain-language";
 import { aiPhrasingIssues, isSlogan } from "./ai-phrasing";
 import { sortRankingSlides } from "./ranking-order";
+import { cortifreeIntegrationIssues } from "../../../src/content/cortifree-integration";
 
 export type GenerateCarouselResult = {
   spec: CarouselSpec;
@@ -60,10 +61,16 @@ export function tidyChecklistBody(body: string) {
   const ctaItems = items.filter((item) => CTA_ITEM.test(item));
   if (ctaItems.length && items.length - ctaItems.length >= 4) items = items.filter((item) => !CTA_ITEM.test(item));
   items = items.map((item) => item.length > NOTES_ITEM_TARGET ? item.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s{2,}/g, " ").trim() || item : item);
+  // The planned CortiFree item is never the one dropped.
+  const isBrand = (item: string) => /cortifree/i.test(item);
   for (let index = items.length - 1; index >= 0 && items.length > 4; index -= 1) {
-    if (items[index]!.length > NOTES_ITEM_TARGET) items.splice(index, 1);
+    if (items[index]!.length > NOTES_ITEM_TARGET && !isBrand(items[index]!)) items.splice(index, 1);
   }
-  return items.slice(0, 6).join(" | ");
+  while (items.length > 6) {
+    const drop = items.findLastIndex((item) => !isBrand(item));
+    items.splice(drop < 0 ? items.length - 1 : drop, 1);
+  }
+  return items.join(" | ");
 }
 
 // The F04 cover line is decoration; a noun slogan there ("phone nearby.
@@ -193,6 +200,15 @@ export async function generateCarousel(
   assertWithinMonthlyCap(monthly.costUsd, config.OPENAI_MAX_MONTHLY_USD, input.bypassMonthlyCap === true);
 
   const request: CarouselStructuredRequest = dependencies.structuredRequest ?? requestStructured;
+  const brandPlan = input.editorialContext?.brand_integration;
+  const formatId = input.formatId ?? input.carouselType;
+  // A later pass (plain language, AI QA) may not remove the planned mention.
+  const losesBrand = (before: CarouselSpec, after: CarouselSpec) =>
+    cortifreeIntegrationIssues(after, brandPlan, formatId).length > cortifreeIntegrationIssues(before, brandPlan, formatId).length;
+  const brandWarning = (final: CarouselSpec) => {
+    const issues = cortifreeIntegrationIssues(final, brandPlan, formatId);
+    return issues.length ? `CORTIFREE_INTEGRATION: ${issues.join("; ")}` : null;
+  };
   // Tokens from rejected attempts are still billed, so they are logged on failure too.
   let usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
   let usageLogged = false;
@@ -240,6 +256,9 @@ export async function generateCarousel(
         const phrasingRepair = /AI_PHRASING/.test(repairIssues)
           ? "\nAI PHRASING REPAIR: The lines quoted in the reasons read like a ChatGPT checklist. Rewrite each one as a plain sentence a 22-year-old would type, first person where it fits: \"silence alerts that can wait\" becomes \"i prefer to silence alerts that can wait\", \"give your phone one clear place\" becomes \"put your phone in another room when you work\". No coined labels (\"message check\", \"stopping point\", \"reply window\"), no noun slogans (\"phone nearby. attention protected\"). Keep the same advice and the same structure."
           : "";
+        const brandRepair = /CORTIFREE_INTEGRATION/.test(repairIssues)
+          ? `\nCORTIFREE REPAIR: ${input.editorialContext?.brand_integration.placement ?? "Mention cortifree on one body slide."} End the LAST slide with one sentence: the problem, then "try cortifree", then what she does in it. Nowhere else on the slides, never the cover, and once casually in the caption. No ad wording, no health outcome.`
+          : "";
         const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
@@ -247,7 +266,7 @@ export async function generateCarousel(
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${routineRepair}${titleHookRepair}${headlineRepair}${phrasingRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${routineRepair}${titleHookRepair}${headlineRepair}${phrasingRepair}${brandRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -290,6 +309,10 @@ export async function generateCarousel(
         if (styleProblems.length && styleAttempt) throw new Error(styleProblems.join("\n"));
         const phrasing = input.layout === "three-rect-educational" ? aiPhrasingIssues(candidate) : [];
         if (phrasing.length && styleAttempt) throw new Error(`AI_PHRASING: ${phrasing.join("; ")}`);
+        // The planned CortiFree mention gets every rewrite but the last, which
+        // keeps the draft rather than losing the carousel.
+        const brandIssues = cortifreeIntegrationIssues(candidate, brandPlan, formatId);
+        if (brandIssues.length && attempt < maxAttempts) throw new Error(`CORTIFREE_INTEGRATION: ${brandIssues.join("; ")}`);
         spec = candidate;
         break;
       } catch (error) {
@@ -322,7 +345,7 @@ export async function generateCarousel(
             if (edited.slides[0] && spec.slides[0]) edited.slides[0].headline = spec.slides[0].headline;
           }
           assertValidCarouselSpec(edited, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-          spec = edited;
+          if (!losesBrand(spec, edited)) spec = edited;
         }
       } catch (error) {
         console.warn("[ai] plain-language pass skipped", error instanceof Error ? error.message : error);
@@ -342,10 +365,12 @@ export async function generateCarousel(
       if (qa.correctedSpec) {
         const corrected = sanitizeGeneratedCarouselSpec(qa.correctedSpec);
         assertValidCarouselSpec(corrected, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
-        return { spec: corrected, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+        if (!losesBrand(spec, corrected)) {
+          return { spec: corrected, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: brandWarning(corrected), qa };
+        }
       }
     }
-    return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: null, qa };
+    return { spec: spec, source: "openai", model: config.OPENAI_MODEL_PRIMARY, generatedAt, warning: brandWarning(spec), qa };
   } catch (error) {
     if (!usageLogged) await logAIUsage({ operation: `carousel.generate:${CAROUSEL_GENERATOR_PROMPT_VERSION}`, model: config.OPENAI_MODEL_PRIMARY, carouselId: context.carouselId, usage, success: false, error: error instanceof Error ? error.message : "Unknown generation error" });
     if (input.requireCanonicalContext) throw new CanonicalGenerationBlockedError(error instanceof Error ? error.message : "OpenAI request failed");

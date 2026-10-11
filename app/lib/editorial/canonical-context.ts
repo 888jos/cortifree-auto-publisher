@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
 import { dataBackend } from "../data-backend";
-import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeGoldenExamples, loadRuntimeOperatorEdits, loadRuntimeOperatorRules, loadRuntimePersonaConfigs, loadRuntimeVoiceReferences } from "../../../src/runtime/config";
+import { autonomyRuleValue, loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeGoldenExamples, loadRuntimeOperatorEdits, loadRuntimeOperatorRules, loadRuntimePersonaConfigs, loadRuntimeVoiceReferences } from "../../../src/runtime/config";
 import { selectEditorial, type SelectionHistory } from "../../../src/autonomy/selection";
 import type { EditorialContext } from "../ai/types";
 import { ACTIVE_FORMAT_IDS } from "../../../src/content/formats";
+import { planCortifreeIntegration } from "../../../src/content/cortifree-integration";
 
 type Row = Record<string, unknown>;
 
@@ -51,10 +52,14 @@ export async function resolveCanonicalEditorialContext(input: {
   let personas: Awaited<ReturnType<typeof loadRuntimePersonaConfigs>>;
   let formats: Row[];
   let historyRows: Row[];
+  let brandPatterns: Row[];
+  let appScreens: Row[];
   try {
-    [editorial, accounts, personas, formats, historyRows] = await Promise.all([
+    [editorial, accounts, personas, formats, historyRows, brandPatterns, appScreens] = await Promise.all([
       loadRuntimeEditorial(), loadRuntimeAccounts(), loadRuntimePersonaConfigs(),
       rows("content_formats?limit=200"), rows("carousel_ideas?order=created_at.desc&limit=2000").catch(() => []),
+      rows("editorial_records?kind=eq.brand_integrations&active=eq.true&select=data&limit=100").catch(() => []),
+      rows("assets?workspace_id=eq.cortifree&source_type=eq.app_screenshot&enabled=eq.true&public_url=not.is.null&select=id,filename,subcategory,drive_file_id&limit=100").catch(() => []),
     ]);
   } catch (error) {
     throw new Error(`CANONICAL_CONTEXT_UNAVAILABLE:${error instanceof Error ? error.message : String(error)}`);
@@ -114,9 +119,12 @@ export async function resolveCanonicalEditorialContext(input: {
     operator_rules: await loadRuntimeOperatorRules(input.formatId),
     topic_id: topic.topic_id, hook_id: hook.hook_id, format_id: input.formatId,
     account_id: input.accountId, persona_id: input.personaId,
-    // Manual Studio generation is editorial-first by default.
-    // Product integration is enabled only by an explicit slot/planning decision.
-    brand_integration: { required: false, mention: "", screenshot_required: false },
+    // CortiFree is integrated on every format, in Studio as in autonomy.
+    brand_integration: planCortifreeIntegration({
+      seed: `${selection.seed}:${Date.now()}`, formatId: input.formatId, patterns: brandPatterns, appScreens,
+      integrationRatio: autonomyRuleValue(editorial.autonomyRules, "cortifree_integration_ratio", 1),
+      screenshotRatio: autonomyRuleValue(editorial.autonomyRules, "cortifree_screenshot_ratio", 0.35),
+    }),
   };
   return { topicId: topic.topic_id, hookId: hook.hook_id, formatId: input.formatId, personaId: input.personaId, accountId: input.accountId, preferredHook: undefined, editorialContext: context };
 }

@@ -1,6 +1,7 @@
 import type { CarouselGeneratorInput } from "./types";
+import { CORTIFREE_APP_FEATURES } from "../../../src/content/cortifree-integration";
 
-export const CAROUSEL_GENERATOR_PROMPT_VERSION = "carousel-generator-v7-ranking-order";
+export const CAROUSEL_GENERATOR_PROMPT_VERSION = "carousel-generator-v8-integrated";
 export const CAROUSEL_REVIEWER_PROMPT_VERSION = "carousel-reviewer-v1";
 export const PERFORMANCE_ANALYZER_PROMPT_VERSION = "performance-analyzer-v1";
 
@@ -89,7 +90,13 @@ COPY RULES
 - Write for GENZ_GIRLY_US as described in VOICE: conversational US creator language for Gen Z and younger millennial women, personal and specific, anchored on hook_style_references and voice_examples.
 - Avoid generic Pinterest/wellness-coach language. Do not use phrases such as "tiny steps count", "come back gently", "nourish your body", "prioritize yourself", "wellness journey", "a routine you can repeat", or "feel more grounded".
 - The copy must make the practical behavior obvious: what to do, when, where, or what to stop doing. Abstract encouragement alone is not useful.
-- PRODUCT INTEGRATION IS CONDITIONAL. If editorialContext.brand_integration.required is false, do NOT mention CortiFree, do NOT add an app slide, and do NOT invent a product CTA. If required is true, integrate CortiFree naturally according to integration_type/intensity and keep it secondary unless the plan explicitly says product-led. Only use an app screenshot when screenshot_required is true AND app_screen_asset_id is present. In that case, exactly one relevant slide should explicitly request a REAL OFFICIAL CORTIFREE screenshot matching editorialContext.brand_integration.app_screen_category in both visualIntent and assetQuery; never ask the image model to recreate UI. Never invent a fake screenshot.
+- CORTIFREE INTEGRATION. CortiFree is the app she actually uses; on slides write it lowercase, "cortifree", like all on-screen text. When editorialContext.brand_integration.required is true (the default on every format), mention it natively, like a friend naming the app she uses, never like an ad:
+  - The carousel stays about the problem and stays useful without the app. Then the LAST slide ends with ONE sentence: the problem of this carousel, then "try cortifree", then what she does in it (e.g. "if your brain won't switch off at night either, try cortifree, i do its 5 min slow breathing with the lights off"). Follow editorialContext.brand_integration.placement for where that sentence sits in this format. Never on the hook/cover, never on another slide. This one sentence is the only allowed exception to "no promotional ending".
+  - Only these real features exist: ${CORTIFREE_APP_FEATURES.join("; ")}. Never invent another feature (no tracking, stats, streaks, scores, cortisol measurement, sleep data).
+  - Behavior only, never an outcome: the app never lowers cortisol, balances hormones, fixes sleep, treats anxiety or "works". No "download", "link in bio", code, discount, "best app" or product CTA.
+  - The caption mentions cortifree once, casually, in her voice (e.g. "the breathing one i use is in cortifree"). No ad hashtags.
+  - Only use an app screenshot when screenshot_required is true AND app_screen_asset_id is present. Then the last slide requests a REAL OFFICIAL CORTIFREE screenshot matching editorialContext.brand_integration.app_screen_category in both visualIntent and assetQuery (e.g. "real official cortifree app screenshot, breathing session, do not recreate ui"); never ask the image model to recreate UI and never invent a fake screenshot.
+  - When required is false, do not mention CortiFree at all.
 - When a reference includes a slide blueprint, preserve its exact slide count, order, role rhythm, image zone, text zone, and text alignment. Write original CortiFree copy and original asset queries inside that geometry.
 
 HEALTH SAFETY
@@ -115,7 +122,7 @@ export const CAROUSEL_REVIEWER_INSTRUCTIONS = `
 You are CortiFree's strict editorial and health-safety reviewer.
 Review the supplied carousel for hook quality, repetition, mobile text length, slide-to-slide coherence, natural English/French, health claims, CTA quality, type/layout compliance, and placeholders.
 Never approve diagnosis, treatment, guaranteed outcomes, invented numbers/studies, or unsupported causal cortisol/hormone claims.
-- Reject generic Pinterest-wellness copy, abstract motivational lines, repeated slide copy, missing concrete behaviors, or language that does not make literal sense. Do NOT require CortiFree integration or forced originality.
+- Reject generic Pinterest-wellness copy, abstract motivational lines, repeated slide copy, missing concrete behaviors, or language that does not make literal sense. Do NOT require forced originality. A planned CortiFree mention (one sentence at the end of the last slide plus the caption) is intended: keep it, only check that it is natural, describes what she does in the app and makes no health claim.
 - Reject lines that do not mean something concrete (metaphors, personification, cute abstractions such as "motivation does not send calendar invites") and copy that reads like a generic AI checklist with no person behind it; the carousel must sound like the persona talking to her friends (native TikTok, girly Gen Z, not cringe).
 - For F07 specifically, reject hooks stacked with modifiers that add no meaning; a personal, opinionated title is fine. Reject explanations with dangling or vague clauses. A reader must immediately understand what the item is, why it received that tier, and what the tradeoff is.
 For minor issues, return a complete correctedSpec. For major health/safety or unusable-content issues, approved must be false and correctedSpec must be null.

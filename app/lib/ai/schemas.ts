@@ -34,6 +34,8 @@ export const editorialContextSchema = z.object({
     slides: z.array(z.string()).max(12), toneNotes: z.string(), whyItWorks: z.string(), visualDirection: z.string(),
   })).max(3).optional(),
   operator_edits: z.array(z.object({ field: z.enum(["headline", "body"]), before: z.string(), after: z.string() })).max(12).optional(),
+  // Without this key zod stripped the Sheet rules from autonomous generation.
+  operator_rules: z.array(z.string().max(1_000)).max(80).optional(),
   concept_id: z.string().optional(), topic_id: z.string(), hook_id: z.string(), format_id: z.string(),
   account_id: z.string(), persona_id: z.string(),
   brand_integration: z.object({
@@ -41,6 +43,7 @@ export const editorialContextSchema = z.object({
     integration_type: z.string().optional(), slide: z.string().optional(), intensity: z.number().optional(),
     app_screen_category: z.string().optional(), app_screen_asset_id: z.string().nullable().optional(),
     copy_bank_seed_id: z.string().nullable().optional(),
+    placement: z.string().max(600).optional(),
   }),
 });
 export const healthGuardrailsSchema = z.object({

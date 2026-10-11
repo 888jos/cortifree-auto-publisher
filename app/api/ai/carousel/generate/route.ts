@@ -4,6 +4,7 @@ import { carouselGeneratorInputSchema } from "../../../../lib/ai/schemas";
 import { MonthlyCapExceededError } from "../../../../lib/ai/usage";
 import { getRecentCarousels, saveGeneratedCarousel } from "../../../../lib/carousel-store";
 import { resolveCanonicalEditorialContext } from "../../../../lib/editorial/canonical-context";
+import { loadHealthGuardrails } from "../../../../../src/autonomy/health-context";
 
 export const runtime = "nodejs";
 // Up to four drafting passes (repairs) plus the QA review.
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
       bypassMonthlyCap: false,
       accountId, personaId, topicId: canonical.topicId, hookId: canonical.hookId, formatId: canonical.formatId,
       editorialContext: canonical.editorialContext, requireCanonicalContext: true,
+      // Same claim rules as autonomous generation (content_claim_rules).
+      healthGuardrails: body.healthGuardrails ?? await loadHealthGuardrails().catch(() => undefined),
     };
     const result = await generateCarousel(input, {}, { carouselId: id });
     if (body.requireAI && result.source !== "openai") {

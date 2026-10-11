@@ -12,6 +12,7 @@ Line 1 is the hook. If it does not clearly say what the carousel is about (e.g. 
 Line 1 must never read like a blog or Pinterest title ("my simple reset when everything feels like too much", "5 easy ways to feel calmer"). If it does, rewrite it as something a girl would actually say: a specific moment, a confession or a "you" call-out (e.g. "what i do when i have 12 tabs open and zero brain left").
 Leave every other line EXACTLY as it is, character for character, including tier prefixes ("S · "), section labels ("HOW TO |"), " | " separators, times ("10:15 - 10:20 · ") and hashtags.
 Never add dashes, emoji, new advice or health claims.
+Keep every mention of the app "cortifree" in the line where it is.
 `.trim();
 
 export const plainLanguageSchema = z.object({ lines: z.array(z.string()) });
