@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 
-// CortiFree is mentioned natively in every active format: one slide where the
-// persona uses the app as part of the habit, plus one casual line in the
-// caption. Patterns (07_BRAND_INTEGRATIONS) and official screenshots
+// CortiFree is mentioned natively in every active format: one sentence at the
+// end of the last slide (the problem, then the app as her solution), plus one
+// casual line in the caption. Patterns (07_BRAND_INTEGRATIONS) and official screenshots
 // (app_screenshot assets) come from the Sheet/Drive; this module only decides
 // where each format puts the mention and which pattern/screenshot it uses.
 
@@ -40,50 +40,56 @@ type FormatIntegration = {
   placement: string;
 };
 
+// Model that performs in the research (PR #206): the carousel stays about the
+// problem, then the LAST slide ends with one sentence that names the app as
+// the solution ("if you struggle w this, try ..., it's ..."), no hard sell.
+const FINAL_TYPES = ['FINAL_SOLUTION'];
+const SENTENCE = 'one sentence in her voice: the problem of this carousel, then "try cortifree", then what she does in it';
+
 export const CORTIFREE_FORMAT_INTEGRATION: Record<string, FormatIntegration> = {
   F01_LIFESTYLE_GUIDE: {
-    types: ['HABIT_IN_LIST', 'BTW_ASIDE', 'TOOL_I_ACTUALLY_USE', 'PROBLEM_TO_APP'],
-    fallbackType: 'HABIT_IN_LIST',
-    slide: 'slide_3|slide_4|slide_5',
+    types: FINAL_TYPES,
+    fallbackType: 'FINAL_SOLUTION',
+    slide: 'final_slide',
     screenshot: true,
-    placement: 'One body slide (never the cover, never the last slide) is a habit where she uses cortifree, written like her other habits: the headline names the habit, the body says how she does it in first person (e.g. headline "5 min of slow breathing before bed", body "i put on the slow breathing session in cortifree with the lights off").',
+    placement: `The LAST slide's body ends with ${SENTENCE} (e.g. "if your brain won't switch off at night either, try cortifree, i do its 5 min slow breathing with the lights off"). Its headline stays a habit like the other slides.`,
   },
   F03_ROUTINE_TIMELINE: {
-    types: ['ROUTINE_STEP'],
-    fallbackType: 'ROUTINE_STEP',
-    slide: 'slide_3|slide_4|slide_5',
+    types: FINAL_TYPES,
+    fallbackType: 'FINAL_SOLUTION',
+    slide: 'final_slide',
     screenshot: true,
-    placement: 'One timed routine step (never the cover, never the first step) is her using cortifree, in the same "start - end · action" headline as the other steps (e.g. "10:05 - 10:10 · box breathing in cortifree").',
+    placement: `The LAST routine step keeps its "start - end · action" headline; its short body is ${SENTENCE} (e.g. "if evenings feel this loud for you too, try cortifree, i do the slow breathing one in bed").`,
   },
   F04_AESTHETIC_EDUCATIONAL: {
-    types: ['HABIT_IN_LIST', 'TOOL_I_ACTUALLY_USE'],
-    fallbackType: 'HABIT_IN_LIST',
-    slide: 'slide_3|slide_4',
+    types: FINAL_TYPES,
+    fallbackType: 'FINAL_SOLUTION',
+    slide: 'final_slide',
     screenshot: true,
-    placement: 'One bullet of one body slide says how she does that step with cortifree (e.g. "i follow the 4-7-8 breathing in cortifree"). The cover and every headline stay about the topic, never the app.',
+    placement: `The LAST bullet of the LAST slide is ${SENTENCE} (e.g. "stressed before bed? try cortifree, i follow its 4-7-8 breathing"). The cover and every headline stay about the topic, never the app.`,
   },
   F05_INTERACTIVE_CHECKLIST: {
-    types: ['HABIT_IN_LIST'],
-    fallbackType: 'HABIT_IN_LIST',
-    slide: 'slide_2|slide_3|slide_4',
+    types: FINAL_TYPES,
+    fallbackType: 'FINAL_SOLUTION',
+    slide: 'final_slide',
     // The Notes card covers most of the background photo.
     screenshot: false,
-    placement: 'Exactly one Notes item, on a body Note, is a habit with cortifree, as short as the other items and under 70 characters (e.g. "5 min slow breathing in cortifree (lights off)"). Never the cover thought, never a Note title.',
+    placement: `The LAST item of the LAST Note is ${SENTENCE}, under 70 characters (e.g. "if this is you, try cortifree (i do the 5 min breathing)"). Never the cover thought, never a Note title.`,
   },
   F07_RANKING: {
-    types: ['HABIT_IN_LIST', 'TOOL_I_ACTUALLY_USE'],
-    fallbackType: 'HABIT_IN_LIST',
-    slide: 'slide_5|slide_6',
+    types: FINAL_TYPES,
+    fallbackType: 'FINAL_SOLUTION',
+    slide: 'final_slide',
     // Tier slides are text only.
     screenshot: false,
-    placement: 'One ranked item is a habit she does with cortifree (e.g. "A · box breathing in cortifree"). The ranking goes from worst to best, so it sits in the better half (A, S or SS), never a low tier, with the same honest one-line reason as the other items. Never the cover.',
+    placement: `The LAST slide's body ends with ${SENTENCE} (e.g. "if your sleep is a mess too, try cortifree, the box breathing is what i actually stick to"). If the last slide is a tier, it is the best one (the ranking goes from worst to best), never a low tier.`,
   },
   F08_2X2: {
-    types: ['BEFORE_AFTER', 'HABIT_IN_LIST'],
-    fallbackType: 'BEFORE_AFTER',
-    slide: 'slide_3|slide_4|slide_5',
+    types: FINAL_TYPES,
+    fallbackType: 'FINAL_SOLUTION',
+    slide: 'final_slide',
     screenshot: true,
-    placement: 'On one body slide, the "now:" side (the habit she kept) uses cortifree (e.g. "now: 5 min slow breathing in cortifree before bed"). Never the cover, never the "before:" side.',
+    placement: `The LAST slide ends with ${SENTENCE} (e.g. "if you're stuck in the before, try cortifree, i do its 5 min slow breathing"). Never the cover, never the "before:" side.`,
   },
 };
 
@@ -180,8 +186,8 @@ const SALESY = /\b(?:download|link in (?:my )?bio|use (?:my )?code|discount|prom
 const TIER = /^\s*(SS|[SABCDF][+-]?)\s*·/i;
 
 /**
- * Checks a draft against its CortiFree plan: one body slide mentions the app
- * (never the hook), the caption mentions it once, no sales wording, and on
+ * Checks a draft against its CortiFree plan: the last slide, and only it,
+ * mentions the app (never the hook), the caption mentions it once, no sales wording, and on
  * F07 the item sits in the better half of the worst-to-best ranking.
  * Returns readable reasons for the rewrite pass; empty means it is fine.
  */
@@ -197,8 +203,10 @@ export function cortifreeIntegrationIssues(
     issues.push('the hook/cover mentions cortifree; keep the cover about the topic');
   }
   const mentions = spec.slides.slice(1).filter((slide) => BRAND.test(`${slide.headline} ${slide.body}`));
-  if (!mentions.length) issues.push('no body slide mentions cortifree; add it on one slide as the placement says');
-  if (mentions.length > 1) issues.push(`cortifree appears on ${mentions.length} slides; keep it on exactly one`);
+  const last = spec.slides.at(-1);
+  if (!mentions.length) issues.push('no slide mentions cortifree; end the last slide with one sentence: the problem, then "try cortifree", then what she does in it');
+  else if (last && !mentions.includes(last)) issues.push('cortifree is not on the last slide; move it to one sentence at the end of the last slide');
+  if (mentions.length > 1) issues.push(`cortifree appears on ${mentions.length} slides; keep it on the last slide only`);
   if (!BRAND.test(spec.caption)) issues.push('the caption does not mention cortifree once, casually');
   const salesy = [spec.caption, ...mentions.map((slide) => `${slide.headline} ${slide.body}`)].find((text) => BRAND.test(text) && SALESY.test(text));
   if (salesy) issues.push(`the cortifree mention sounds like an ad ("${salesy.match(SALESY)?.[0]}"); say what she does in the app, nothing to buy or download`);

@@ -55,7 +55,9 @@ describe("docs/OPERATOR_RULES.csv", () => {
       /hook natif tiktok.*jamais un titre/i, /textes simples/i, /jamais de « … ».*finir les phrases.*2 lignes/i, /that girl/i,
       /fond blanc.*pastel \(jaune, rose, vert ou bleu\)/i, /exactement ce que dit le texte/i, /même image deux fois/i,
       /regard.*peau/i, /pas de collage/i, /du pire au meilleur.*\[F07_RANKING\]/i, /même taille de police.*\[F05_INTERACTIVE_CHECKLIST\]/i,
-      /pas de cadre blanc.*contour noir.*\[F08_2X2\]/i, /cortifree sur chaque format.*\[ALL\]/i, /aucun tiret/i, /minuscules/i, /métaphore/i,
+      /pas de cadre blanc.*contour noir.*\[F08_2X2\]/i, /cortifree sur chaque format.*\[ALL\]/i,
+      /grand public.*hormones chez la femme.*things i did to regulate my hormones as a woman.*jamais de logistique de niche.*\[ALL\]/i,
+      /dernière slide finit par une seule phrase.*try cortifree/i, /aucun tiret/i, /minuscules/i, /métaphore/i,
     ]) assert.match(text, expected);
   });
 });

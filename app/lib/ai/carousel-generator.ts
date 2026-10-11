@@ -226,7 +226,7 @@ export async function generateCarousel(
           ? "\nHOOK REPAIR: The hook reads like a blog or Pinterest title that labels the content. Rewrite ONLY the hook (and slide 1 headline) as something a girl would actually say on TikTok: a confession, a specific moment, a strong opinion, a \"you\" call-out or a real question about the same topic. Name the concrete moment instead of a vague feeling."
           : "";
         const brandRepair = /CORTIFREE_INTEGRATION/.test(repairIssues)
-          ? `\nCORTIFREE REPAIR: ${input.editorialContext?.brand_integration.placement ?? "Mention cortifree on one body slide."} Mention cortifree on exactly ONE body slide (never the cover) as something she does in the app, and once casually in the caption. No ad wording, no health outcome.`
+          ? `\nCORTIFREE REPAIR: ${input.editorialContext?.brand_integration.placement ?? "Mention cortifree on one body slide."} End the LAST slide with one sentence: the problem, then "try cortifree", then what she does in it. Nowhere else on the slides, never the cover, and once casually in the caption. No ad wording, no health outcome.`
           : "";
         const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."

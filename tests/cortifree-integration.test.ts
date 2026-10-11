@@ -18,10 +18,10 @@ afterEach(() => { process.env = { ...originalEnv }; });
 
 const patterns = [
   { data: { integration_id: "CF_INT_01", integration_type: "HABIT_IN_LIST", weight_pct: 25, intensity: 1, active: "TRUE", allowed_screen_categories: "breathing|stress_reset" } },
-  { data: { integration_id: "CF_INT_03", integration_type: "ROUTINE_STEP", weight_pct: 15, intensity: 2, active: "TRUE", allowed_screen_categories: "sleep|routine|breathing" } },
+  { data: { integration_id: "CF_INT_12", integration_type: "FINAL_SOLUTION", weight_pct: 15, intensity: 2, active: "TRUE", allowed_screen_categories: "sleep|routine|breathing" } },
   { data: { integration_id: "CF_INT_06", integration_type: "BEFORE_AFTER", weight_pct: 7, intensity: 3, active: "TRUE" } },
   { data: { integration_id: "CF_INT_10", integration_type: "PRODUCT_LED", weight_pct: 90, intensity: 5, active: "TRUE" } },
-  { data: { integration_id: "CF_INT_11", integration_type: "ROUTINE_STEP", weight_pct: 99, intensity: 4, active: "FALSE" } },
+  { data: { integration_id: "CF_INT_13", integration_type: "FINAL_SOLUTION", weight_pct: 99, intensity: 4, active: "FALSE" } },
 ];
 const screens = [
   { id: 1935, filename: "CF_APP_SCREEN_05_BREATHING_LIBRARY_01.jpeg", subcategory: "breathing_library" },
@@ -29,12 +29,13 @@ const screens = [
 ];
 
 describe("CortiFree integration plan", () => {
-  it("integrates CortiFree on every active format by default, with a format-specific placement", () => {
+  it("integrates CortiFree on every active format by default, at the end of the last slide", () => {
     for (const formatId of ACTIVE_FORMAT_IDS) {
       const plan = planCortifreeIntegration({ seed: `slot:${formatId}`, formatId, patterns, appScreens: screens });
       assert.equal(plan.required, true, formatId);
       assert.equal(plan.mention, "cortifree");
-      assert.ok(plan.placement && plan.placement.length > 40, formatId);
+      assert.match(plan.placement ?? "", /LAST/, formatId);
+      assert.match(plan.placement ?? "", /try cortifree/, formatId);
       assert.ok(CORTIFREE_FORMAT_INTEGRATION[formatId]!.types.includes(plan.integration_type ?? ""), `${formatId}:${plan.integration_type}`);
       // Product-led posts stay out of the default rotation.
       assert.notEqual(plan.integration_type, "PRODUCT_LED");
@@ -45,11 +46,13 @@ describe("CortiFree integration plan", () => {
   it("uses the format's own pattern, ignores inactive rows and falls back without a Sheet bank", () => {
     for (let index = 0; index < 20; index += 1) {
       const routine = planCortifreeIntegration({ seed: `r${index}`, formatId: "F03_ROUTINE_TIMELINE", patterns });
-      assert.equal(routine.integration_type, "ROUTINE_STEP");
-      assert.equal(routine.intensity, 2, "the inactive ROUTINE_STEP row is never picked");
+      assert.equal(routine.integration_type, "FINAL_SOLUTION");
+      assert.equal(routine.slide, "final_slide");
+      assert.equal(routine.intensity, 2, "the inactive FINAL_SOLUTION row is never picked");
     }
     const bare = planCortifreeIntegration({ seed: "bare", formatId: "F08_2X2" });
-    assert.equal(bare.integration_type, "BEFORE_AFTER");
+    assert.equal(bare.integration_type, "FINAL_SOLUTION");
+    assert.equal(bare.intensity, 1);
     assert.equal(bare.screenshot_required, false);
   });
 
@@ -88,31 +91,36 @@ const withMention = () => spec([
   ["my brain won't switch off at night so i do this", ""],
   ["phone on the desk at 10", "i leave it charging across the room"],
   ["lamp instead of the big light", "the room feels like bedtime"],
-  ["5 min of slow breathing", "i put on the slow breathing session in cortifree with the lights off"],
+  ["5 min of slow breathing", "i put on a slow breathing session with the lights off"],
   ["same playlist every night", "i know what comes next"],
   ["book until i yawn", "paper only, no kindle"],
-  ["that's it, nothing fancy", "pick one and try it tonight"],
+  ["that's it, nothing fancy", "if your brain won't switch off either, try cortifree, i do its 5 min slow breathing in bed"],
 ], "my boring night routine that actually works for me. the breathing one i use is in cortifree");
 
 describe("CortiFree mention checks", () => {
   const plan = { required: true };
 
-  it("accepts one native body mention plus the caption", () => {
+  it("accepts one sentence on the last slide plus the caption", () => {
     assert.deepEqual(cortifreeIntegrationIssues(withMention(), plan, "F01_LIFESTYLE_GUIDE"), []);
     assert.deepEqual(cortifreeIntegrationIssues(withMention(), { required: false }), []);
   });
 
   it("flags a missing, repeated, cover or ad-like mention", () => {
     const missing = withMention();
-    missing.slides[3]!.body = "i breathe slowly with the lights off";
+    missing.slides[6]!.body = "pick one and try it tonight";
     missing.caption = "my boring night routine";
     const issues = cortifreeIntegrationIssues(missing, plan);
-    assert.ok(issues.some((issue) => /no body slide/.test(issue)));
+    assert.ok(issues.some((issue) => /no slide mentions cortifree/.test(issue)));
     assert.ok(issues.some((issue) => /caption/.test(issue)));
 
     const twice = withMention();
     twice.slides[5]!.body = "then cortifree again for the sleep sounds";
     assert.ok(cortifreeIntegrationIssues(twice, plan).some((issue) => /2 slides/.test(issue)));
+
+    const early = withMention();
+    early.slides[6]!.body = "pick one and try it tonight";
+    early.slides[3]!.body = "i do the slow breathing one in cortifree";
+    assert.ok(cortifreeIntegrationIssues(early, plan).some((issue) => /not on the last slide/.test(issue)));
 
     const cover = withMention();
     cover.hook = "how cortifree saved my nights";
@@ -123,12 +131,11 @@ describe("CortiFree mention checks", () => {
     assert.ok(cortifreeIntegrationIssues(ad, plan).some((issue) => /sounds like an ad/.test(issue)));
   });
 
-  it("keeps the F07 CortiFree item in the better half of a worst-to-best ranking", () => {
+  it("never ends an F07 on a low tier when the CortiFree sentence sits on a tier slide", () => {
     const ranking = withMention();
-    ranking.slides[3]!.headline = "C · box breathing in cortifree";
-    ranking.slides[3]!.body = "fine but i forget to open it";
+    ranking.slides[6]!.headline = "C · box breathing";
     assert.ok(cortifreeIntegrationIssues(ranking, plan, "F07_RANKING").some((issue) => /low tier/.test(issue)));
-    ranking.slides[3]!.headline = "A · box breathing in cortifree";
+    ranking.slides[6]!.headline = "S · box breathing";
     assert.deepEqual(cortifreeIntegrationIssues(ranking, plan, "F07_RANKING"), []);
   });
 
@@ -140,7 +147,7 @@ describe("CortiFree mention checks", () => {
     assert.equal(cortifreeClaimReason("i do the 4-7-8 one in cortifree before bed"), null);
 
     const unsafe = withMention();
-    unsafe.slides[3]!.body = "cortifree lowers my cortisol before bed";
+    unsafe.slides[6]!.body = "try cortifree, it lowers my cortisol before bed";
     assert.ok(validateCarouselSpec(unsafe, { slideCount: 7, language: "en", layout: "single-image" }).some((issue) => issue.code === "HEALTH_CLAIM"));
     const safe = withMention();
     safe.topic = "cortisol and stress at night";
@@ -169,6 +176,7 @@ describe("CortiFree mention checks", () => {
     assert.match(CAROUSEL_GENERATOR_INSTRUCTIONS, /guided breathing sessions/);
     assert.match(CAROUSEL_GENERATOR_INSTRUCTIONS, /Never invent another feature/);
     assert.match(CAROUSEL_GENERATOR_INSTRUCTIONS, /Never on the hook\/cover/);
+    assert.match(CAROUSEL_GENERATOR_INSTRUCTIONS, /LAST slide ends with ONE sentence/);
   });
 });
 
@@ -197,7 +205,7 @@ describe("CortiFree in generation", () => {
   };
   const without = () => {
     const draft = withMention();
-    draft.slides[3]!.body = "i breathe slowly with the lights off";
+    draft.slides[6]!.body = "pick one and try it tonight";
     draft.caption = "my boring night routine that actually works for me";
     return draft;
   };
@@ -208,8 +216,8 @@ describe("CortiFree in generation", () => {
     const result = await generateCarousel(input, deps([without(), withMention()], seen));
     assert.ok(seen.length >= 2);
     assert.match(seen.at(-1)!, /CORTIFREE REPAIR/);
-    assert.match(seen.at(-1)!, /never the last slide/, "the repair repeats the format placement");
-    assert.ok(result.spec.slides.some((slide) => /cortifree/.test(slide.body)));
+    assert.match(seen.at(-1)!, /The LAST slide's body ends with/, "the repair repeats the format placement");
+    assert.match(result.spec.slides.at(-1)!.body, /try cortifree/);
     assert.equal(result.warning, null);
   });
 
