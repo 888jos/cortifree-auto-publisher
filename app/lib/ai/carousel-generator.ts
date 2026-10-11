@@ -198,7 +198,7 @@ export async function generateCarousel(
           ? "\nCHECKLIST VOICE REPAIR: The Notes items read like a generic command list. Give a few of them her own touch (first person or a short aside in parentheses, e.g. \"phone charges in the kitchen (i will cave otherwise)\"), keep the rest as short plain notes, 4-12 words each, 4-5 items per Note."
           : "";
         const nativeRepair = /NATIVE_STYLE/.test(repairIssues)
-          ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers, and vary sentence shapes: do not explain every action with \"..., so i...\". Say it the way she would say it to a friend."
+          ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers, and vary sentence shapes: do not explain every action with \"..., so i...\". Say it the way she would say it to a friend. Never start a headline with a label such as \"before:\", \"now:\" or \"the switch:\"; write the actual thing she does."
           : "";
         const dashRepair = /DASH_PUNCTUATION/.test(repairIssues)
           ? "\nDASH REPAIR: Remove every em dash, en dash and spaced hyphen used as punctuation. Use a comma, a colon, a new short sentence, or \" / \" like a person typing on her phone. Hyphens inside words (low-effort) and F03 time ranges stay."

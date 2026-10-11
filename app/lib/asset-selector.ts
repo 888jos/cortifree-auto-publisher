@@ -172,6 +172,54 @@ function visualTerms(value: unknown) {
       : String(input ?? "").split(/[|,\s]+/).filter(Boolean);
   return [...new Set(flatten(value).map(normalizeVisualTerm).filter((term) => term.length > 2))];
 }
+// Words that say where or how a photo looks, not what it shows. "keys and
+// wallet on a table" must match keys or a wallet, not any photo of a table.
+const SCENE_FILLER = new Set([
+  "woman", "women", "girl", "person", "people", "someone", "her", "she", "their", "hand", "finger", "arm",
+  "photo", "image", "picture", "shot", "close", "closeup", "view", "top", "detail", "four", "two", "plus",
+  "simple", "soft", "warm", "light", "lighting", "morning", "evening", "night", "day", "daylight", "cozy", "calm",
+  "clean", "neat", "small", "large", "little", "big", "beside", "near", "next", "front", "behind", "inside", "under",
+  "over", "table", "counter", "surface", "shelf", "floor", "wall", "room", "home", "kitchen", "bathroom", "bedroom",
+  "living", "corner", "window", "background", "white", "cream", "neutral", "beige", "pink", "color", "tone",
+  "aesthetic", "candid", "editorial", "lifestyle", "scene", "setup", "set", "using", "holding", "getting", "look",
+  "minimal", "organized", "laid", "placed", "sitting", "standing", "real", "life", "quick", "ready", "easy", "basic",
+]);
+function stemTerm(term: string) {
+  return term.replace(/ies$/, "y").replace(/(?<=[a-z]{4})(?:ing|ed)$/, "").replace(/(?<=[a-z]{3})(?:es|s)$/, "");
+}
+function contentTerms(value: string) {
+  return [...new Set(terms(value).map(stemTerm).filter((term) => term.length > 2 && !SCENE_FILLER.has(term)))];
+}
+// Photos filed as food or gym only fit a scene that is about food or the gym:
+// "jar" matched a counter full of vegetables, "bag" a gym duffel.
+const FOOD_SCENE = /\b(?:food|meals?|breakfast|lunch|dinner|snacks?|eat|eating|cook|cooking|groceries|grocery|fruit|vegetables?|salad|recipe|smoothie|coffee|tea|matcha|yogurt|oats)\b/;
+const FITNESS_SCENE = /\b(?:gym|workout|exercise|fitness|pilates|yoga|run|running|stretch|stretching|dumbbells?|mat|training|sweat)\b/;
+const FOOD_PHOTO = /\b(?:plates?|eggs?|toast|salad|vegetables?|produce|fruit|berries|meal|breakfast|lunch|dinner|pasta|soup|sandwich|groceries)\b/;
+const FITNESS_PHOTO = /\b(?:gym|workout|exercise mat|dumbbells?|treadmill|locker room|weights?)\b/;
+function categoryFitsScene(asset: SelectableAsset, sceneText: string) {
+  const category = String(asset.category ?? "").toLowerCase();
+  const description = String(visualField(asset, "visual_description") ?? "").toLowerCase();
+  if ((category === "food" || FOOD_PHOTO.test(description)) && !FOOD_SCENE.test(sceneText)) return false;
+  if ((category === "fitness" || FITNESS_PHOTO.test(description)) && !FITNESS_SCENE.test(sceneText)) return false;
+  return true;
+}
+// Places or actions alone ("by the door", "hanging") never make a photo relevant.
+const PLACE_TERMS = new Set(["door", "bed", "chair", "sink", "mirror", "desk", "sofa", "couch", "hallway", "entryway", "bench"]);
+
+/** Share of the scene's concrete words (objects, actions) the photo visibly shows. */
+export function keyTermMatch(scene: string, asset: SelectableAsset) {
+  const wanted = contentTerms(scene);
+  // Words the scene wrote as -ing/-ed ("hanging", "folded") are actions: a
+  // towel that "hangs" is not a tote bag.
+  const actions = new Set(terms(scene).filter((term) => /(?:ing|ed)$/.test(term)).map(stemTerm));
+  const shown = new Set(contentTerms([
+    visualField(asset, "visual_description"), visualField(asset, "specific_details"),
+    visualField(asset, "visible_objects"), visualField(asset, "visible_actions"),
+  ].map((value) => Array.isArray(value) ? value.join(" ") : String(value ?? "")).join(" ")));
+  const matched = wanted.filter((term) => shown.has(term));
+  if (!matched.some((term) => !PLACE_TERMS.has(term) && !actions.has(term))) return { coverage: 0, matched: [] as string[] };
+  return { coverage: wanted.length ? matched.length / wanted.length : 0, matched };
+}
 function visualField(asset: SelectableAsset, field: string): unknown {
   const direct = (asset as unknown as Record<string, unknown>)[field];
   return direct !== undefined && direct !== null && direct !== "" ? direct : asset.metadata?.[field];
@@ -294,8 +342,19 @@ function compatibleWithScene(asset: SelectableAsset, constraint: SceneConstraint
   return !constraint.forbidden(text) && constraint.required(text);
 }
 
+// Whole words (plus plural/-ing/-ed): a substring test read "eat" in
+// "repeated" and "neat", so every F08 intent ("photos repeated diagonally")
+// asked for food and a bathroom slide got a frying pan.
+const wordPatterns = new Map<string, RegExp>();
 function includesAny(text: string, words: string[]) {
-  return words.some((word) => text.includes(word));
+  return words.some((word) => {
+    let pattern = wordPatterns.get(word);
+    if (!pattern) {
+      pattern = new RegExp(`(?<![a-z])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es|ing|ed)?(?![a-z])`);
+      wordPatterns.set(word, pattern);
+    }
+    return pattern.test(text);
+  });
 }
 
 /** Convert slide copy into observable visual requirements, never abstract
@@ -319,10 +378,11 @@ export function deriveVisualIntent(slide: { headline: string; body: string; asse
   if (includesAny(text, ["walk", "walking", "commute"])) actions.add("walking");
   if (includesAny(text, ["run", "running", "treadmill"])) actions.add("running_on_treadmill");
   if (includesAny(text, ["write", "writing", "journal", "brain dump", "plan"])) actions.add("writing");
-  if (includesAny(text, ["prepare", "make", "cook", "pack", "meal prep"])) actions.add("preparing_food");
+  // Food words only: "pack the bag" or "make mornings easier" are not cooking.
+  if (includesAny(text, ["cook", "meal prep", "prepare food", "prepare a meal", "prepare breakfast", "preparing food", "preparing a meal", "preparing breakfast", "pack lunch", "pack a lunch", "packed lunch", "make breakfast", "make lunch", "make dinner", "making breakfast", "making lunch", "making dinner"])) actions.add("preparing_food");
   if (includesAny(text, ["phone down", "put down", "stop checking", "unplug", "scroll"])) actions.add("putting_phone_down");
   if (includesAny(text, ["morning", "wake", "waking", "breakfast"])) settings.add("morning_home");
-  if (includesAny(text, ["home", "room", "inside", "indoor", "sofa", "couch"])) settings.add("indoor_room");
+  if (includesAny(text, ["home", "room", "bedroom", "bathroom", "living room", "kitchen", "inside", "indoor", "sofa", "couch"])) settings.add("indoor_room");
   if (includesAny(text, ["outside", "outdoors", "street", "walk", "commute"])) settings.add("outdoors");
   if (objects.has("exercise_mat") || objects.has("foam_roller") || objects.has("dumbbells")) compositions.add("equipment_layout");
   if (actions.size || includesAny(text, ["woman", "person", "girl", "hands", "holding"])) compositions.add("person_activity_scene");
@@ -403,6 +463,12 @@ export function chooseAssets(options: {
   facelessStockOnly?: boolean;
   /** Decorative support slots: take the best eligible candidate whatever its score. */
   acceptBest?: boolean;
+  /**
+   * Keep only photos that show at least this share (and at least one) of the
+   * scene's concrete words, ranked by that share (F08 photos must show what
+   * the slide says).
+   */
+  keyTermFloor?: number;
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
@@ -577,6 +643,12 @@ export function chooseAssets(options: {
         exactGeneratedSceneMatch ? "generated_exact_scene" : "",
       ].filter(Boolean);
       return { asset, score, matchedTerms: matchedObjects.concat(matchedActions), matchedDimensions, matchedObjects, matchedActions, matchedSettings, matchedCompositions, semanticScore, categoryBonus, descriptionScore: semanticScore, objectScore, actionScore, settingScore, compositionScore, repetitionPenalty };
+    }).flatMap((candidate) => {
+      if (options.keyTermFloor === undefined) return [candidate];
+      const related = keyTermMatch(intent.description, candidate.asset);
+      if (!related.matched.length || related.coverage < options.keyTermFloor) return [];
+      if (!categoryFitsScene(candidate.asset, `${slide.headline} ${slide.body} ${intent.description}`.toLowerCase())) return [];
+      return [{ ...candidate, score: candidate.score + related.coverage * 30, matchedTerms: [...new Set([...candidate.matchedTerms, ...related.matched])] }];
     }).sort((a, b) => b.score - a.score || a.asset.use_count - b.asset.use_count);
     // In a persona-only 2x2 slide, identity continuity is already enforced by
     // the persona asset pool. Sparse legacy scene tags must not block a valid

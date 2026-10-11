@@ -145,3 +145,39 @@ export async function rasterText(text: string, options: RasterTextOptions) {
   const left = options.align === "center" ? Math.floor(free / 2) : free;
   return sharp(textLayer).extend({ left, right: free - left, top: 0, bottom: 0, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
 }
+
+/**
+ * Puts a solid outline behind a text layer from rasterText so it stays
+ * readable on any photo (F08 text on busy 2x2 photos was illegible). The
+ * result is `stroke` px larger on every side: place it at left/top - stroke.
+ */
+export async function outlineText(layer: Buffer, stroke: number, color = "#000000") {
+  const padded = await sharp(layer)
+    .extend({ top: stroke, bottom: stroke, left: stroke, right: stroke, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const { width = 0, height = 0 } = await sharp(padded).metadata();
+  const alpha = await sharp(padded).extractChannel(3).raw().toBuffer();
+  const hex = color.replace("#", "");
+  const rgb = { r: Number.parseInt(hex.slice(0, 2), 16), g: Number.parseInt(hex.slice(2, 4), 16), b: Number.parseInt(hex.slice(4, 6), 16) };
+  const glyphs = await sharp({ create: { width, height, channels: 3, background: rgb } })
+    .joinChannel(alpha, { raw: { width, height, channels: 1 } })
+    .png()
+    .toBuffer();
+  // Copies of the glyphs shifted around two circles (radius stroke and half
+  // of it): a round, even outline. sharp's dilate() shrank the white glyph
+  // mask instead of growing it, so it is not used.
+  const offsets: Array<[number, number]> = [];
+  for (const radius of [stroke, stroke / 2]) {
+    for (let step = 0; step < 16; step += 1) {
+      const angle = (step / 16) * Math.PI * 2;
+      offsets.push([Math.round(Math.cos(angle) * radius), Math.round(Math.sin(angle) * radius)]);
+    }
+  }
+  const unique = [...new Map(offsets.map(([x, y]) => [`${x},${y}`, [x, y] as const])).values()];
+  const outline = await sharp({ create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite(unique.map(([left, top]) => ({ input: glyphs, left, top })))
+    .png()
+    .toBuffer();
+  return sharp(outline).composite([{ input: padded, left: 0, top: 0 }]).png().toBuffer();
+}

@@ -18,7 +18,7 @@ describe('carousel editor runtime resilience', () => {
     assert.match(source, /typographyForCarousel/);
     assert.match(source, /getSlideGeometry\(\{\.\.\.gen,layout\},isHook,isVisualFinal,typographyForCarousel\(id\)\)/);
     assert.match(source, /three-rect-educational.*\{x:80,y:110,width:450,height:430\}/s);
-    assert.match(source, /grid-2x2.*\{x:32,y:32,width:500,height:635\}/s);
+    assert.match(source, /grid-2x2.*\{x:0,y:0,width:540,height:675\}/s);
   });
 
   it('keeps the v6 editor hierarchy focused on canvas and contextual actions', async () => {

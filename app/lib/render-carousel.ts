@@ -18,6 +18,12 @@ export type { GeneratedSlide } from "./render/types";
 export { educationalAssetSlideForSlot, generationCategory, gridAssetSlideForSlot, rankingAssetCountForSlide } from "./render/assets";
 export { makeTextOverlay } from "./render/text/default";
 
+// The F08 cover is a single photo; its hook gets the same black outline as
+// the 2x2 slides so it reads on any photo.
+function gridHookText(carouselLayout: string, slideLayout: string) {
+  return carouselLayout === "grid-2x2" && slideLayout !== "grid-2x2" ? { textStroke: 5, headlineColor: "#ffffff" } : {};
+}
+
 export async function renderCarousel(input: CarouselRenderInput) {
   assertCortiFreeCarouselId(input.id);
   input = { ...input, layout: canonicalLayoutFor(input.carouselType, input.layout) };
@@ -56,7 +62,7 @@ export async function renderCarousel(input: CarouselRenderInput) {
       ...baseGeometry,
       image: { ...(baseGeometry.image ?? {}), ...slotZeroImage, ...(override.image ?? {}) },
       imageSlots: override.imageSlots,
-      text: { ...(baseGeometry.text ?? {}), ...(override.text ?? {}) },
+      text: { ...(baseGeometry.text ?? {}), ...gridHookText(input.layout, slideLayout), ...(override.text ?? {}) },
     } as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
@@ -123,17 +129,21 @@ export async function renderCarouselRevision(input: RevisionRenderInput) {
       previous: previousByPosition.get(slide.position),
       visualChange: visualChanges.has(slide.position),
       usedReferenceIds,
+      reservedAssetIds: new Set(existingRows
+        .filter((row) => Number(row.position) !== slide.position)
+        .flatMap((row) => Array.isArray(row.render_metadata?.asset_ids) ? row.render_metadata!.asset_ids.map(String) : row.asset_id != null ? [String(row.asset_id)] : [])),
     });
 
     const slideLayout = input.layout === "grid-2x2" && (slide.position === 1 || slide.role.toUpperCase() === "HOOK")
       ? "single-image"
       : input.layout;
-    const geometry = getSlideGeometry(
+    const baseGeometry = getSlideGeometry(
       { ...slide, layout: slideLayout },
       slide.position === 1,
       slide.position === input.slides.length,
       typography,
     ) as Geometry;
+    const geometry = { ...baseGeometry, text: { ...(baseGeometry.text ?? {}), ...gridHookText(input.layout, slideLayout) } } as Geometry;
     const bytes = await renderSlide(slide, slideMatches, geometry);
     const upload = await uploadRender(input.id, slide.position, bytes);
     const primaryMatch = slideMatches[0];

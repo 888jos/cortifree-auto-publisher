@@ -3,7 +3,7 @@ import type { OverlayOptions } from "sharp";
 import type { AssetMatch } from "../../asset-selector";
 import type { HookDesign } from "../../hook-design";
 import { defaultGeometry, HEIGHT, WIDTH, type Frame, type GeneratedSlide, type Geometry } from "../types";
-import { embeddedFontForFamily, FONT_FILES, rasterText, textBlock, wrap, wrapHook, xml } from "./shared";
+import { embeddedFontForFamily, FONT_FILES, outlineText, rasterText, textBlock, wrap, wrapHook, xml } from "./shared";
 
 export function geometryForVisualMetadata(geometry: Geometry, match: AssetMatch | undefined): Geometry {
   if (!match) return geometry;
@@ -70,7 +70,10 @@ export async function makeRasterTextOverlays(slide: GeneratedSlide, geometry: Ge
     // that was too wide and overlapped the next one.
     const hookFontFamily = FONT_FILES[frame.hookFontFamily ?? ""] ? frame.hookFontFamily! : "Bricolage Grotesque";
     const hookImage = await rasterText(slide.headline.toLowerCase(), { maxLines: Math.max(4, hookHeadline.length), width: hookWidth, height: Math.ceil((hookSize + Math.max(8, design.lineGap)) * 5), size: hookSize, weight: design.weight, color: frame.headlineColor ?? "#fffaf8", align: "left", spacing: Math.max(8, design.lineGap), fontFamily: hookFontFamily });
-    overlays.push({ input: hookImage, left: hookX, top: hookTop });
+    const stroke = Math.round(frame.textStroke ?? 0);
+    overlays.push(stroke
+      ? { input: await outlineText(hookImage, stroke), left: hookX - stroke, top: hookTop - stroke }
+      : { input: hookImage, left: hookX, top: hookTop });
     return overlays;
   }
   const fontFamily = FONT_FILES[frame.fontFamily ?? ""] ? frame.fontFamily! : "TikTok Sans";

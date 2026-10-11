@@ -41,6 +41,8 @@ export type Geometry = {
     hookFontFamily?: string;
     hookSize?: number;
     shadow?: string;
+    /** Black outline width in px (F08: text over busy photos). */
+    textStroke?: number;
     routineKickerX?: number;
     routineKickerY?: number;
     routineKickerWidth?: number;
