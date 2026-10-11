@@ -59,7 +59,7 @@ export const canonicalFormats = [
   { id:"F05_INTERACTIVE_CHECKLIST", short:"F05", name:"Notes Master List", mode:"Notes card + shared photo", concepts:"Lists · wellness · glow-up", status:"READY" },
   { id:"F06_PERSONA_EXPLAINER", short:"F06", name:"Persona Explainer", mode:"Persona-led explainer", concepts:"Signs · before/after · how-to", status:"READY" },
   { id:"F07_RANKING", short:"F07", name:"Girly Tier List", mode:"Tier ranking", concepts:"Ranking · habits", status:"READY" },
-  { id:"F08_2X2", short:"F08", name:"2×2 Contrast", mode:"Diagonal 2-image grid", concepts:"Before/after · contrasts", status:"READY" },
+  { id:"F08_2X2", short:"F08", name:"2×2 Contrast", mode:"4 edge-to-edge photos", concepts:"Before/after · contrasts", status:"READY" },
 ] as const;
 export const canonicalFormatById = new Map(canonicalFormats.map(format => [format.id, format]));
 

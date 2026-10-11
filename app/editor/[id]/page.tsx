@@ -30,7 +30,7 @@ function defaultSlots(layout:string,isHook:boolean,count:number):Frame[]{
  if(layout==="three-rect-educational")return isHook?[{x:690,y:90,width:300,height:390},{x:90,y:830,width:300,height:390}]:[{x:80,y:110,width:450,height:430},{x:90,y:820,width:390,height:390},{x:600,y:820,width:390,height:390}];
  if(layout==="editorial-asym-hero")return [{x:60,y:190,width:590,height:770},{x:690,y:215,width:310,height:310},{x:690,y:555,width:310,height:310}];
  if(layout==="editorial-collage")return isHook?[{x:42,y:70,width:570,height:760},{x:610,y:210,width:420,height:600}]:[{x:50,y:70,width:500,height:700},{x:560,y:150,width:470,height:620}];
- if(layout==="grid-2x2"&&!isHook)return [{x:32,y:32,width:500,height:635},{x:548,y:32,width:500,height:635},{x:32,y:683,width:500,height:635},{x:548,y:683,width:500,height:635}];
+ if(layout==="grid-2x2"&&!isHook)return [{x:0,y:0,width:540,height:675},{x:540,y:0,width:540,height:675},{x:0,y:675,width:540,height:675},{x:540,y:675,width:540,height:675}];
  if(layout==="ranking")return isHook?[{x:70,y:650,width:450,height:420},{x:560,y:650,width:450,height:420}]:[{x:330,y:900,width:420,height:300}];
  return Array.from({length:Math.max(1,count)},()=>({x:0,y:0,width:1080,height:1350}));
 }

@@ -267,6 +267,32 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
     };
   }
 
+  if (layout === "grid-2x2") {
+    // F08 body: four edge-to-edge photos. The renderer moves the text block to
+    // the calmest band of the photos; white headline, one pastel accent line,
+    // both outlined in black so they read on any photo.
+    return {
+      canvas: CANVAS,
+      safeZone: SAFE_ZONE,
+      image,
+      text: {
+        x: 72, y: 840, width: 936, align: "center",
+        headlineY: 840, bodyY: 990,
+        headlineSize: 58, bodySize: 36, hookSize: typography.hookSize ?? 44,
+        headlineWeight: 700, bodyWeight: 600,
+        headlineColor: "#ffffff",
+        bodyColor: typography.accentColor ?? "#ffd6e5",
+        accentColor: typography.accentColor ?? "#ffd6e5",
+        textStroke: 6,
+        fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
+        hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
+        maxHeadlineLines: 3, maxBodyLines: 3,
+      },
+      overlay: { color: "#122019", opacity: 0 },
+      chrome: { panel: false, editorial: false, ranking: false, final: Boolean(isFinal), cover: Boolean(isCover) },
+    };
+  }
+
   if (layout === "three-rect-educational") {
     return {
       canvas: CANVAS,
@@ -422,7 +448,7 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
       bodyWeight: 500,
       headlineColor: "#fffaf8",
       bodyColor: "#fff4b8",
-      accentColor: layout === "grid-2x2" ? "#ffd86b" : "#ffb6c8",
+      accentColor: "#ffb6c8",
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
       hookSize: typography.hookSize ?? 44,

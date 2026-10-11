@@ -7,12 +7,12 @@
     "F05_INTERACTIVE_CHECKLIST": "b3058169c9f713cce983a01cc03eb260999f4c48e3094ab51c5d10c24d476110",
     "F06_PERSONA_EXPLAINER": "af9b1f74ad597ca2932bc1e7113eae7598405a14e0c82277f47257bf8162b3cd",
     "F07_RANKING": "29318d8dd1824e7c07e4561242339928ac96fbc490b3d43b828fc3b639dabf41",
-    "F08_2X2": "723e468b49627f8dc9c9b8fd9838d0e204cc67215388fb3df61bb6b6692a1c63",
+    "F08_2X2": "401c0b32a028a9b601fb88883e47cd2763984f5e736680a75290d4e3167c273e",
     "SINGLE_IMAGE": "04b0cd03951a5c1e0aded4ad0024936f97ffd993514dcf9865796c65ba2fc242",
     "REVISION_F04_AESTHETIC_EDUCATIONAL": "147e5dac474955c6c482578ecb3289bc71843b2ce8265463f7688f3a2d24a959",
     "REVISION_F05_INTERACTIVE_CHECKLIST": "ea46485eb7548487538234d585646d57fc153e40f42210944be0f0e1105ba0d5",
     "REVISION_F07_RANKING": "75007da0b72f2f98005e2bdeded520280321326af7a79582d94a80ac1ba5ff14",
-    "REVISION_F08_2X2": "637e73a010c6c7858e77a314949ae6600a8f420a72371326612b72d099f6fe51",
+    "REVISION_F08_2X2": "c2abaaf2d06116cbf636f99457280069c9298065e08ca6f592a77bade92d00d6",
     "REVISION_SINGLE_IMAGE": "5b88f7befcf1c909ca7303f373989a855b9006c454198ebb2590fe775ba88757",
     "LONG_F03_ROUTINE_TIMELINE": "71fa63f913bfaae714ac2d43d37864c612428e8b59e7918aaac9eab8135e0cf5",
     "LONG_F04_AESTHETIC_EDUCATIONAL": "016fb5b69526e8ae8a8751a9478d317cb99cc50cbfb7f214866ed17e69e14a1b",
@@ -205,25 +205,25 @@
       "F08_2X2": [
         {
           "position": 1,
-          "sha256": "284cf0aa65c88799f44b32983133875dd6d18065ba94445d5ad6e2912449bbbd",
+          "sha256": "9393c8242e2da88e440bb4f7bdf924a335d21f5cba0f07af844b8ccff66e25e5",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "90dc4b5e61d447a52cbd461b28e54339a87034c8485bc38670db10e56858b270",
+          "sha256": "793f24f92e5758a51eb345bb1835c0ce220bd4fe62f09cfe39ff4a2a9ecf43b7",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "d8342a9e2d7d3cebeae74e82d4282e41b534d1aac706bcb60081b9831398ead5",
+          "sha256": "71ff5eb98ec363b4d00b32d0e6276756f2de9a2e1a9a7b43c5a2f33f30aa724e",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "dcf42a8eecef47e359e0de08e630721d6c8adf8b0d065f108b643113a47974cf",
+          "sha256": "f0f7b146a13b57c7c94280ca3b84c33e888379047aaf7624f86c0588f86c195e",
           "width": 1080,
           "height": 1350
         }
@@ -353,13 +353,13 @@
       "REVISION_F08_2X2": [
         {
           "position": 1,
-          "sha256": "284cf0aa65c88799f44b32983133875dd6d18065ba94445d5ad6e2912449bbbd",
+          "sha256": "9393c8242e2da88e440bb4f7bdf924a335d21f5cba0f07af844b8ccff66e25e5",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "c0bb29824c4617bd083ba64592bac9d9b8a04929b10019a38bda7cf569a7402e",
+          "sha256": "d7a7e36aa726272ee225050bdf26b9bb95b88d5d643e7848341b8e7edb245681",
           "width": 1080,
           "height": 1350
         }

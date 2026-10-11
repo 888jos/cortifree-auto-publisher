@@ -48,32 +48,110 @@ export function educationalAssetSlideForSlot(slide: GeneratedSlide, slotIndex: n
   };
 }
 
-function twoByTwoVisualParts(value: string) {
-  let source = value
+/**
+ * Splits an F08 visual intent into its per-photo scenes: "four photos: a; b;
+ * c; d", labelled corners, "1) ... 2) ...", "a, plus b" or plain semicolons.
+ * Older specs carry two scenes (the former diagonal pair).
+ */
+export function gridVisualParts(value: string) {
+  const source = value
     .replace(/^\s*(?:Editorial\s+)?2x2\s+grid\s+with\s+/i, "")
-    .replace(/^\s*(?:Exactly\s+)?two\s+unique(?:\s+cohesive)?(?:\s+lifestyle)?\s+photos?(?:\s+only)?(?:,?\s+repeated\s+diagonally(?:\s+in\s+the\s+2x2\s+grid)?)?\s*:\s*/i, "")
+    .replace(/^\s*(?:Exactly\s+)?(?:two|four|2|4)(?:\s+(?:unique|distinct|different))?(?:\s+cohesive)?(?:\s+lifestyle)?\s+photos?(?:\s+only)?(?:,?\s+repeated\s+diagonally(?:\s+in\s+the\s+2x2\s+grid)?)?\s*:\s*/i, "")
     .trim();
-  const labeled = source.match(/top-left(?:\s+and\s+bottom-right)?\s+(?:show|shows)?\s*([\s\S]*?);\s*top-right(?:\s+and\s+bottom-left)?\s+(?:show|shows)?\s*([\s\S]*)/i);
-  if (labeled) return [labeled[1]!.trim(), labeled[2]!.trim()];
-  const numbered = source.match(/1\)\s*([\s\S]*?)(?:;|,)?\s*2\)\s*([\s\S]*)/i);
-  if (numbered) return [numbered[1]!.trim(), numbered[2]!.trim()];
-  const plus = source.split(/\s*,?\s+plus\s+/i).map((part) => part.trim()).filter(Boolean);
-  if (plus.length >= 2) return [plus[0]!, plus.slice(1).join(" plus ")];
+  const corners = [...source.matchAll(/(top|bottom)-(left|right)(?:\s+and\s+(?:top|bottom)-(?:left|right))?\s*(?:shows?|:)?\s*([\s\S]*?)(?=;\s*(?:top|bottom)-(?:left|right)\b|$)/gi)];
+  if (corners.length >= 2) {
+    const order = ["top-left", "top-right", "bottom-left", "bottom-right"];
+    return corners
+      .map((match) => ({ slot: order.indexOf(`${match[1]!.toLowerCase()}-${match[2]!.toLowerCase()}`), scene: match[3]!.replace(/;\s*$/, "").trim() }))
+      .sort((a, b) => a.slot - b.slot)
+      .map((item) => item.scene)
+      .filter(Boolean);
+  }
+  const numbered = [...source.matchAll(/\d\)\s*([\s\S]*?)(?=[;,]?\s*\d\)|$)/g)].map((match) => match[1]!.replace(/[;,]\s*$/, "").trim()).filter(Boolean);
+  if (numbered.length >= 2) return numbered;
   const semicolon = source.split(/\s*;\s*/).map((part) => part.trim()).filter(Boolean);
-  return semicolon.length >= 2 ? [semicolon[0]!, semicolon[1]!] : [source];
+  if (semicolon.length >= 2) return semicolon;
+  const plus = source.split(/\s*,?\s+plus\s+/i).map((part) => part.trim()).filter(Boolean);
+  return plus.length >= 2 ? plus : [source];
 }
 
-export function gridAssetSlideForSlot(slide: GeneratedSlide, slotIndex: 0 | 1): GeneratedSlide {
-  const visualParts = twoByTwoVisualParts(slide.visualIntent);
-  const queryParts = twoByTwoVisualParts(slide.assetQuery);
-  const intent = visualParts[slotIndex] || queryParts[slotIndex] || visualParts[0] || queryParts[0] || slide.headline;
+/**
+ * The selection slide for one F08 photo (0 = top-left ... 3 = bottom-right).
+ * A slot without its own scene reuses the slide's scenes in turn, so the
+ * photo still shows what the text says.
+ */
+export function gridAssetSlideForSlot(slide: GeneratedSlide, slotIndex: number): GeneratedSlide {
+  const visualParts = gridVisualParts(slide.visualIntent);
+  const queryParts = gridVisualParts(slide.assetQuery);
+  const parts = visualParts.length >= queryParts.length ? visualParts : queryParts;
+  const intent = parts[slotIndex] || parts[slotIndex % Math.max(1, parts.length)] || slide.headline;
   return {
     ...withoutAppScreenshotDirective(slide),
+    // A support photo is judged on its own scene only: the slide body named
+    // skincare, and the skincare scene rules then banned the wardrobe photo
+    // asked for by the clothes scene.
+    ...(slotIndex === 0 ? {} : { headline: "", body: "" }),
     role: slotIndex === 0 ? slide.role : "SUPPORT",
     assetType: slotIndex === 0 ? slide.assetType : "stock",
     assetQuery: intent,
     visualIntent: intent,
   };
+}
+
+/** Share of a scene's concrete words an F08 photo must show (see keyTermMatch). */
+export const GRID_KEY_TERM_FLOOR = 0.34;
+
+/**
+ * Fills the four F08 photos of one body slide. Each slot is picked for its
+ * own scene, must visibly show it (keyTermFloor) and never reuses a photo of
+ * the carousel (`used`): a live F08 showed one tumbler photo on two slides
+ * and vegetables under "pack the bag". Without enough related photos the
+ * slide falls back to the former diagonal repeat of its own photos, never to
+ * an unrelated or already used one.
+ */
+export function fillGridSlide(options: {
+  slide: GeneratedSlide;
+  primary: AssetMatch;
+  locked: AssetMatch[];
+  used: Set<string>;
+  /** Best photo for the scene among those not excluded, showing at least `keyTermFloor` of it. */
+  choose: (slide: GeneratedSlide, excluded: Set<string>, keyTermFloor: number) => AssetMatch;
+}): AssetMatch[] {
+  const { slide, primary, used } = options;
+  const selected: AssetMatch[] = [primary];
+  used.add(String(primary.asset.id));
+  for (const match of options.locked.slice(1)) {
+    const id = String(match.asset.id);
+    if (selected.length < 4 && !used.has(id)) {
+      selected.push(match);
+      used.add(id);
+    }
+  }
+  const attempt = (supportSlide: GeneratedSlide, floor: number) => {
+    try {
+      return options.choose(supportSlide, new Set(used), floor);
+    } catch {
+      return undefined;
+    }
+  };
+  for (let slot = selected.length; slot < 4; slot += 1) {
+    const needsAppScreenshot = requiresOfficialAppScreenshot(slide) && !selected.some((match) => match.asset.source_type === "app_screenshot");
+    // The slot's own scene first, then the slide's other scenes: all four
+    // show what the text says.
+    const scenes = needsAppScreenshot ? [slide] : [0, 1, 2, 3].map((offset) => gridAssetSlideForSlot(slide, (slot + offset) % 4));
+    let next: AssetMatch | undefined;
+    for (const supportSlide of scenes) {
+      next = attempt(supportSlide, GRID_KEY_TERM_FLOOR);
+      if (next) break;
+    }
+    if (!next) continue;
+    selected.push(next);
+    used.add(String(next.asset.id));
+  }
+  if (selected.length >= 4) return selected.slice(0, 4);
+  if (selected.length === 3) return [selected[0]!, selected[1]!, selected[2]!, selected[0]!];
+  if (selected.length === 2) return [selected[0]!, selected[1]!, selected[1]!, selected[0]!];
+  return selected;
 }
 
 export function withoutAppScreenshotDirective(slide: GeneratedSlide): GeneratedSlide {
@@ -346,6 +424,30 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
           // image clears QA, render the already-supported text-first cover
           // instead of invoking ModelArk for decoration.
           if (input.layout === "ranking") return undefined;
+          // An F08 body slide does not need her face: a real photo of what
+          // the text says beats a ModelArk repair (the live repairs kept the
+          // Pinterest reference's scene and looked generated).
+          if (input.layout === "grid-2x2" && selectionIndex > 0 && slide.role.toUpperCase() !== "HOOK") {
+            // Any of the slide's four scenes can lead it.
+            for (let slot = 0; slot < 4; slot += 1) {
+              try {
+                const match = chooseAssets({ faceLock,
+                  assets,
+                  carouselType: input.carouselType,
+                  personaId: input.personaId,
+                  excludedAssetIds: new Set([...recentHookAssetIds, ...usedInCarousel]),
+                  facelessStockOnly: true,
+                  acceptBest: true,
+                  keyTermFloor: GRID_KEY_TERM_FLOOR,
+                  slides: [{ ...gridAssetSlideForSlot(slide, slot), assetType: "stock" }],
+                })[0]!;
+                usedInCarousel.add(String(match.asset.id));
+                return match;
+              } catch {
+                // Next scene, then the repair below.
+              }
+            }
+          }
           throw error;
         }
       });
@@ -516,61 +618,46 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
         break;
       }
 
-      const usedGridAssets = new Set<string>();
+      // Every slide's own photo is reserved up front: a support pick for
+      // slide 2 took the photo made for slide 6 and showed it twice.
+      const usedGridAssets = new Set<string>(usedCarouselAssets);
+      input.slides.forEach((slide, index) => lockedMatchesForSlide(slide, index).slice(0, 1).forEach((match) => usedGridAssets.add(String(match.asset.id))));
       gridMatches = input.slides.map((slide, index) => {
         const locked = lockedMatchesForSlide(slide, index);
         const primary = locked[0] ?? matches[index];
         if (!primary) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
-        usedGridAssets.add(String(primary.asset.id));
         const isHook = index === 0 || slide.role.toUpperCase() === "HOOK";
         if (isHook) return [primary];
-        if (locked.length >= 4) return locked.slice(0, 4);
-        if (locked.length >= 2) return [locked[0]!, locked[1]!, locked[1]!, locked[0]!];
-
-        const supportSlide = requiresOfficialAppScreenshot(slide)
-          ? slide
-          : gridAssetSlideForSlot(slide, 1);
-        let secondary: AssetMatch;
-        try {
+        const choose = (supportSlide: GeneratedSlide, excluded: Set<string>, keyTermFloor?: number) => chooseAssets({ faceLock,
+          assets,
+          carouselType: input.carouselType,
+          personaId: input.personaId,
+          excludedAssetIds: excluded,
           // Same rule as F01 supports: the locked face or faceless stock,
           // never a stranger's face next to the persona's.
-          secondary = chooseAssets({ faceLock,
-            assets,
-            carouselType: input.carouselType,
-            personaId: input.personaId,
-            excludedAssetIds: new Set([...usedGridAssets, String(primary.asset.id)]),
-            facelessStockOnly: true,
-            slides: [supportSlide],
-          })[0]!;
-        } catch {
-          // Prefer carousel-wide novelty, but do not make novelty itself a
-          // render blocker. The closest unused photo comes first (a live F08
-          // otherwise repeated one bed photo on five slides); reuse elsewhere
-          // is the last resort, a duplicate within this 2x2 slide never.
-          const closest = (excluded: Set<string>) => chooseAssets({ faceLock,
-            assets,
-            carouselType: input.carouselType,
-            personaId: input.personaId,
-            excludedAssetIds: excluded,
-            facelessStockOnly: true,
-            acceptBest: true,
-            slides: [supportSlide],
-          })[0];
-          let unused: AssetMatch | undefined;
+          facelessStockOnly: true,
+          acceptBest: true,
+          keyTermFloor,
+          slides: [supportSlide],
+        })[0]!;
+        const filled = fillGridSlide({ slide, primary, locked, used: usedGridAssets, choose });
+        if (filled.length >= 4) return filled;
+        // Not one related photo for the four scenes: a photo matching the
+        // slide's own words, then the closest unused one beats blocking the
+        // carousel (still never a photo of another slide).
+        const attempt = (supportSlide: GeneratedSlide, floor?: number) => {
           try {
-            unused = closest(new Set([...usedGridAssets, String(primary.asset.id)]));
+            return choose(supportSlide, new Set(usedGridAssets), floor);
           } catch {
-            unused = undefined;
+            return undefined;
           }
-          try {
-            secondary = unused ?? closest(new Set([String(primary.asset.id)]))!;
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            throw new Error(`${message}:slide_${slide.position}`);
-          }
-          if (!secondary) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
-        }
-        usedGridAssets.add(String(secondary.asset.id));
+        };
+        const copyScene = `${slide.headline}. ${slide.body}`;
+        const closest = attempt({ ...gridAssetSlideForSlot(slide, 1), assetQuery: copyScene, visualIntent: copyScene }, 0.2)
+          ?? attempt(gridAssetSlideForSlot(slide, 1));
+        if (!closest) throw new Error(`ASSET_SELECTION_MISSING:slide_${slide.position}`);
+        usedGridAssets.add(String(closest.asset.id));
+        const secondary = { ...closest, thresholdBypassed: true };
         return [primary, secondary, secondary, primary];
       });
       break;
@@ -589,7 +676,11 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
       // The repair is generated from the group master, so the whole carousel
       // is reselected on the master's face to keep a single face.
       faceLock.personaId = visualPersonaId;
-      const repaired = await generateRepairAsset({ input, slide: failedSlide, position, usedReferenceIds });
+      // An F08 repair becomes the slide's top-left photo: generate that one
+      // scene, not the whole "four photos: ..." list (Seedream then kept the
+      // reference's own scene, e.g. a tumbler in bed for "pack the bag").
+      const repairSlide = input.layout === "grid-2x2" && !isHook ? gridAssetSlideForSlot(failedSlide, 0) : failedSlide;
+      const repaired = await generateRepairAsset({ input, slide: repairSlide, position, usedReferenceIds });
       if (repaired?.id != null) repairedAssetByPosition.set(position, repaired.id);
       assets = await loadSelectableAssets();
     }
@@ -610,8 +701,10 @@ export async function selectRevisionMatches(context: {
   previous: any;
   visualChange: boolean;
   usedReferenceIds: Set<string>;
+  /** Photos shown on the carousel's other slides: F08 never repeats one. */
+  reservedAssetIds?: Set<string>;
 }): Promise<AssetMatch[]> {
-  const { input, pool, slide, existing, previous, visualChange, usedReferenceIds } = context;
+  const { input, pool, slide, existing, previous, visualChange, usedReferenceIds, reservedAssetIds } = context;
   await loadVisualGroups();
   // Keep the face this slide already showed; otherwise the account's own face
   // when it has images, so a revised slide does not switch to a look-alike.
@@ -696,31 +789,73 @@ export async function selectRevisionMatches(context: {
           }
         } else if (input.layout === "grid-2x2" && !isHook) {
           const personaAssets = pool.assets.filter((asset) => asset.source_type === "persona_generated" && asset.persona_id === input.personaId);
-          const personaMatch = chooseAssets({ faceLock,
-            assets: personaAssets,
-            carouselType: input.carouselType,
-            personaId: input.personaId,
-            slides: [{ ...withoutAppScreenshotDirective(slide), assetType: "persona" }],
-          })[0]!;
-          if (requiresOfficialAppScreenshot(slide)) {
-            const appMatch = chooseAssets({ faceLock,
-              assets: pool.assets,
-              carouselType: input.carouselType,
-              personaId: input.personaId,
-              excludedAssetIds: new Set([String(personaMatch.asset.id)]),
-              slides: [{ ...slide, assetType: "stock" }],
-            })[0]!;
-            slideMatches = [personaMatch, appMatch, appMatch, personaMatch];
-          } else {
-            const secondPersona = chooseAssets({ faceLock,
+          const reserved = new Set(reservedAssetIds ?? []);
+          const stockLead = () => {
+            // Same rule as the full render: a real photo of one of the
+            // slide's scenes before a ModelArk repair.
+            for (let slot = 0; slot < 4; slot += 1) {
+              try {
+                return chooseAssets({ faceLock,
+                  assets: pool.assets,
+                  carouselType: input.carouselType,
+                  personaId: input.personaId,
+                  excludedAssetIds: reserved,
+                  facelessStockOnly: true,
+                  acceptBest: true,
+                  keyTermFloor: GRID_KEY_TERM_FLOOR,
+                  slides: [{ ...gridAssetSlideForSlot(slide, slot), assetType: "stock" }],
+                })[0]!;
+              } catch {
+                // Next scene.
+              }
+            }
+            return undefined;
+          };
+          let personaMatch: AssetMatch;
+          try {
+            personaMatch = chooseAssets({ faceLock,
               assets: personaAssets,
               carouselType: input.carouselType,
               personaId: input.personaId,
-              personaOnly: true,
-              excludedAssetIds: new Set([String(personaMatch.asset.id)]),
-              slides: [{ ...withoutAppScreenshotDirective(slide), assetType: "persona" }],
+              excludedAssetIds: reserved,
+              slides: [{ ...gridAssetSlideForSlot(slide, 0), assetType: "persona" }],
             })[0]!;
-            slideMatches = [personaMatch, secondPersona, secondPersona, personaMatch];
+          } catch (error) {
+            const lead = stockLead();
+            if (!lead) throw error;
+            personaMatch = lead;
+          }
+          const filled = fillGridSlide({
+            slide,
+            primary: personaMatch,
+            locked: [],
+            used: reserved,
+            choose: (supportSlide, excluded, keyTermFloor) => chooseAssets({ faceLock,
+              assets: pool.assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: excluded,
+              facelessStockOnly: true,
+              acceptBest: true,
+              keyTermFloor,
+              slides: [supportSlide],
+            })[0]!,
+          });
+          if (filled.length >= 4) {
+            slideMatches = filled;
+          } else {
+            // As in the full render: the closest photo no other slide shows.
+            const closest = chooseAssets({ faceLock,
+              assets: pool.assets,
+              carouselType: input.carouselType,
+              personaId: input.personaId,
+              excludedAssetIds: reserved,
+              facelessStockOnly: true,
+              acceptBest: true,
+              slides: [gridAssetSlideForSlot(slide, 1)],
+            })[0]!;
+            const secondary = { ...closest, thresholdBypassed: true };
+            slideMatches = [personaMatch, secondary, secondary, personaMatch];
           }
         } else if (input.layout === "three-rect-educational" || input.layout === "editorial-asym-hero") {
           const used = new Set<string>();
