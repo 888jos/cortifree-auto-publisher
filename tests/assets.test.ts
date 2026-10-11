@@ -357,6 +357,17 @@ describe('asset scanner', () => {
     assert.equal(selected?.asset.id, 'precise');
   });
 
+  it('allows a static notebook visual without pretending someone must be writing', () => {
+    const intent = deriveVisualIntent({
+      headline: 'pick one thing that is actually yours',
+      body: 'HOW TO | choose one real priority | keep it visible',
+      assetQuery: 'simple notebook and pen beside a coffee cup',
+      visualIntent: 'top-down proof image of one priority visible in an open notebook',
+    });
+    assert.ok(intent.required_objects.includes('notebook'));
+    assert.equal(intent.required_actions.includes('writing'), false);
+  });
+
   it('requires reviewed observable stock and derives physical intent', () => {
     const reviewed = {
       id: 'reviewed', filename: 'reviewed.jpg', category: 'fitness', subcategory: 'fitness', orientation: 'portrait', framing: 'medium', activity: '', mood: '', colors: [], tags: [], public_url: 'https://example.com/reviewed.jpg', use_count: 0, last_used_at: null, source_type: 'stock', visual_description: 'open notebook on a bed with a pen', visible_objects: ['notebook', 'bed', 'pen'], visible_actions: ['writing'], setting: 'bedroom', people_visibility: 'no_person', body_parts_visible: [], composition: 'bedroom_scene', camera_angle: 'high_angle', lighting: 'soft_indoor_natural_light', dominant_colors: [], text_in_image: '', specific_details: 'handwritten_pages', visual_tagging_schema: 'observable_v1', visual_review_status: 'IMAGE_INSPECTED_V1', visual_reviewed_at: '2026-09-22T00:00:00.000Z',
