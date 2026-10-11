@@ -1,0 +1,22 @@
+rule_id,rule,formats,active
+OR_TOPIC_01,"Sujets et hooks grand public (haut de l'entonnoir) : hormones chez la femme, cortisol, effets visibles du stress (visage, ventre, sommeil, moral, confiance), système nerveux, anxiété, burnout, méditation, santé mentale. Exemple de hook voulu : « things i did to regulate my hormones as a woman ». Jamais de logistique de niche (bas de l'entonnoir) comme « my daily checklist of take-away meals before work » ou « pack the bag before leaving ». Ces sujets se traitent avec des habitudes concrètes, sans diagnostic ni promesse de résultat.",ALL,TRUE
+OR_TXT_01,"Hook natif TikTok : une phrase qu'une fille dirait vraiment (un aveu, un moment précis, un avis tranché, une vraie question). Jamais un titre de blog ou de Pinterest qui étiquette le contenu.",ALL,TRUE
+OR_TXT_02,"Textes SIMPLES : une idée concrète par slide, dite simplement. Ne pas chercher à trop élaborer : pas de mise en scène, pas de justification, pas de chute.",ALL,TRUE
+OR_TXT_03,Jamais de « … » ni de phrase coupée : toujours finir les phrases. Une phrase peut tenir sur 2 lignes.,ALL,TRUE
+OR_TXT_04,"Pas de « that girl » forcé : pas d'esthétique plaquée ni de vocabulaire de tendance, juste une vraie fille qui parle à ses amies.",ALL,TRUE
+OR_TXT_05,"Aucun tiret comme ponctuation (—, – ou « - » entre deux idées). Les tirets restent seulement dans les mots composés (low-effort) et les plages horaires du F03.",ALL,TRUE
+OR_TXT_06,"Tout en minuscules (titres compris, « i » aussi), pas de point en fin de ligne, lignes courtes.",ALL,TRUE
+OR_TXT_07,"Pas de métaphore, de personnification ni de blague forcée : le sens concret d'abord. Chaque ligne dit quelque chose de littéral qu'on peut appliquer.",ALL,TRUE
+OR_TXT_08,"Ton natif TikTok d'une fille Gen Z, chaleureux et simple, sans argot forcé.",ALL,TRUE
+OR_TXT_09,"Aucune allégation médicale : ne jamais diagnostiquer, soigner, promettre un résultat, ni dire qu'une habitude ou l'app baisse le cortisol ou équilibre les hormones (règles content_claim_rules).",ALL,TRUE
+OR_VIS_01,"Palette : fond blanc plus un seul accent pastel (jaune, rose, vert ou bleu).",ALL,TRUE
+OR_VIS_02,"Chaque image montre exactement ce que dit le texte de sa slide (même action, même lieu, mêmes objets).",ALL,TRUE
+OR_VIS_03,Jamais la même image deux fois dans un carrousel.,ALL,TRUE
+OR_VIS_04,"Visages qui ne font pas IA : regard naturel et cohérent, peau réelle avec sa texture (ni lissée, ni boutons ajoutés).",ALL,TRUE
+OR_VIS_05,"Pas de collage : une seule photo par emplacement, jamais plusieurs scènes assemblées dans une image.",ALL,TRUE
+OR_VIS_06,"Texte toujours lisible : pas de chevauchement avec un autre élément, pas de retour à la ligne bizarre.",ALL,TRUE
+OR_VIS_07,Jamais deux fois le même couple persona + référence Pinterest pour générer une image.,ALL,TRUE
+OR_F05_01,"Tous les items d'une Note ont la même taille de police. Un item long passe sur 2 lignes, jamais en police réduite.",F05_INTERACTIVE_CHECKLIST,TRUE
+OR_F07_01,"Le classement va du pire au meilleur : la première slide classée a le tier le plus bas, la dernière le plus haut, et l'ordre ne redescend jamais.",F07_RANKING,TRUE
+OR_F08_01,"Pas de cadre blanc, ni autour du texte ni autour des photos. Le texte a un contour noir et se pose directement sur les photos.",F08_2X2,TRUE
+OR_BRAND_01,"Intégrer CortiFree sur chaque format : le carrousel reste sur le problème, puis la dernière slide finit par une seule phrase, le problème puis « try cortifree » puis ce qu'elle y fait (ex. « if your brain won't switch off at night either, try cortifree, i do its 5 min slow breathing »). Plus une mention discrète dans la légende. Jamais sur la couverture, jamais de ton publicitaire, jamais de résultat santé (pas de « cortisol low »), jamais de fonctionnalité inventée : seulement respiration guidée, méditations, sons relaxants et le coach Milo.",ALL,TRUE

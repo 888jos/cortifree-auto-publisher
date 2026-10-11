@@ -5,7 +5,8 @@ import { getRecentCarousels, saveGeneratedCarousel } from '../../app/lib/carouse
 import { renderCarousel } from '../../app/lib/render-carousel';
 import { canonicalLayoutFor } from '../../app/lib/canonical-layout';
 import { dataBackend } from '../lib/data-backend';
-import { loadRuntimeAccounts, loadRuntimeGoldenExamples, loadRuntimePersonaConfigs, loadRuntimeOperatorEdits, loadRuntimeRows, loadRuntimeVoiceReferences } from '../runtime/config';
+import { CORTIFREE_FORMAT_INTEGRATION } from '../content/cortifree-integration';
+import { loadRuntimeAccounts, loadRuntimeGoldenExamples, loadRuntimePersonaConfigs, loadRuntimeOperatorEdits, loadRuntimeOperatorRules, loadRuntimeRows, loadRuntimeVoiceReferences } from '../runtime/config';
 import { assertCarouselHasCompleteRender } from '../../app/lib/human-review';
 import { loadHealthGuardrails } from './health-context';
 import { checkGenerationAssetReadiness, requestPreflightRefill } from './preflight';
@@ -260,11 +261,12 @@ export async function processQueuedIdeas(
           hook_style_references: voice.hookReferences,
           voice_examples: voice.voiceExamples,
           operator_edits: await loadRuntimeOperatorEdits(contentType),
+          operator_rules: await loadRuntimeOperatorRules(contentType),
           concept_id: idea.concept_id ? String(idea.concept_id) : undefined, topic_id: String(idea.topic_id || ''), hook_id: String(idea.hook_id || 'DYNAMIC'),
           format_id: contentType, account_id: accountId, persona_id: personaId,
           brand_integration: {
             required: brandRequired,
-            mention: brandRequired ? String(brandPlan.mention ?? 'the app CortiFree') : '',
+            mention: brandRequired ? String(brandPlan.mention ?? 'cortifree') : '',
             screenshot_required: screenshotRequired,
             integration_type: brandRequired ? String(brandPlan.integration_type ?? '') : '',
             slide: brandRequired ? String(brandPlan.slide ?? '') : '',
@@ -272,6 +274,7 @@ export async function processQueuedIdeas(
             app_screen_category: brandRequired ? String(brandPlan.app_screen_category ?? '') : '',
             app_screen_asset_id: screenshotRequired ? appScreenAssetId : null,
             copy_bank_seed_id: brandRequired ? String(idea.copy_bank_seed_id ?? brandPlan.copy_bank_seed_id ?? '') || null : null,
+            placement: brandRequired ? String(brandPlan.placement ?? CORTIFREE_FORMAT_INTEGRATION[contentType]?.placement ?? '') : '',
           },
         },
         requireCanonicalContext: true,
@@ -281,9 +284,9 @@ export async function processQueuedIdeas(
       await recordGenerationQa({
         carouselId,
         qaType: 'GENERATION',
-        status: result.qa?.approved === false ? 'WARN' : 'PASS',
-        severity: result.qa?.approved === false ? 'WARN' : 'INFO',
-        reason: result.qa?.approved === false ? result.qa.issues.map((issue) => issue.message).slice(0, 3).join('; ') : null,
+        status: result.qa?.approved === false || result.warning ? 'WARN' : 'PASS',
+        severity: result.qa?.approved === false || result.warning ? 'WARN' : 'INFO',
+        reason: result.qa?.approved === false ? result.qa.issues.map((issue) => issue.message).slice(0, 3).join('; ') : result.warning,
         details: {
           source: result.source,
           model: result.model,
