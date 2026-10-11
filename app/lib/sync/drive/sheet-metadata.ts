@@ -41,6 +41,13 @@ export function visualTaggingSchema(row: Row) {
 export function sheetSelectable(row: Row) {
   return row.enabled !== false && !["DUPLICATE", "REVIEW"].includes(sheetReviewStatus(row)) && sheetQaFlag(row) !== "MULTI_PERSON_AUTO_DISABLED";
 }
+/**
+ * The operator disabled this row in the database (metadata.operator_disabled,
+ * with a reason). A Sheet sync never turns it back on.
+ */
+export function operatorDisabled(row: Row | undefined) {
+  return Boolean(row && runtimeMetadata(row).operator_disabled === true);
+}
 export function runtimeMetadata(row: Row) {
   const metadata = row.metadata;
   return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Row : {};

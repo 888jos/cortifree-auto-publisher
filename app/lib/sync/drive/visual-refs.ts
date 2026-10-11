@@ -1,6 +1,6 @@
 import { backendMode, dataBackend } from "../../data-backend";
 import type { DriveSyncContext } from "./context";
-import { runtimeMetadata, sameCanonicalValue, sheetQaFlag, sheetReviewStatus, sheetSelectable, visualRefCanonicalMetadata, visualRefSheetExpected } from "./sheet-metadata";
+import { operatorDisabled, runtimeMetadata, sameCanonicalValue, sheetQaFlag, sheetReviewStatus, sheetSelectable, visualRefCanonicalMetadata, visualRefSheetExpected } from "./sheet-metadata";
 import { backendRows, patch, upload, upsert, type Row } from "./upsert";
 import { isImage, type WalkedFile } from "./walk";
 
@@ -14,6 +14,7 @@ export async function repairVisualRefMetadata(ctx: DriveSyncContext) {
     const existing = refById.get(String(row.ref_id ?? ""));
     if (!existing) return null;
     const expected = visualRefSheetExpected(row);
+    if (operatorDisabled(existing)) expected.enabled = false;
     const metadataChanged = String(existing.category ?? "") !== String(expected.category)
       || String(existing.pose ?? "") !== String(expected.pose)
       || String(existing.framing ?? "") !== String(expected.framing)
@@ -52,9 +53,9 @@ export async function syncReferenceEntry(ctx: DriveSyncContext, entry: WalkedFil
   const taxonomy = refsByDrive.get(entry.file.id) ?? {};
   const reviewStatus = sheetReviewStatus(taxonomy);
   const qaFlag = sheetQaFlag(taxonomy);
-  const selectable = sheetSelectable(taxonomy);
   const refId = String(taxonomy.ref_id ?? "");
   const existing = refByDrive.get(entry.file.id) ?? (refId ? refById.get(refId) : undefined);
+  const selectable = sheetSelectable(taxonomy) && !operatorDisabled(existing);
   const canonicalMetadata = visualRefCanonicalMetadata(taxonomy, entry, existing, selectable);
   if (reviewStatus === "DUPLICATE" || qaFlag === "MULTI_PERSON_AUTO_DISABLED") {
     if (existing?.id) await patch("visual_references", String(existing.id), { ...canonicalMetadata, enabled: false });

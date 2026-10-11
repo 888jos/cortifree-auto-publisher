@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
 import { defaultGeometry, type GeneratedSlide, type Geometry } from "../types";
-import { FONT_FILES, rasterText } from "./shared";
+import { FONT_FILES, rasterText, rasterWholeText } from "./shared";
 
 function checklistChoices(slide: GeneratedSlide) {
   return String(slide.body ?? "")
@@ -33,6 +33,40 @@ function quotedHook(value: string) {
   return /^["“”].*["“”]$/.test(raw) ? raw : `“${raw.replace(/^["“”]|["“”]$/g, "")}”`;
 }
 
+const CANVAS_HEIGHT = 1350;
+// The card stays inside the safe zone, clear of the TikTok top bar and caption.
+const PANEL_TOP_LIMIT = 110;
+const PANEL_BOTTOM_LIMIT = 1250;
+
+/** Optional CortiFree line for a Note, under the checklist (not generated yet). */
+function cortifreeNoteOf(slide: GeneratedSlide) {
+  return String(slide.cortifreeNote ?? "").trim();
+}
+
+type ChecklistRow = { kind: "item" | "note"; image: Buffer; height: number };
+
+/** Renders every item whole at one size and returns the stacked height. */
+async function planChecklistRows(choices: string[], note: string, textWidth: number, size: number, fontFamily: string) {
+  const lineHeight = Math.round(size * 1.32);
+  const gap = Math.round(size * 0.75);
+  const rows: ChecklistRow[] = [];
+  for (const choice of choices) {
+    const image = await rasterWholeText(choice, { width: textWidth, height: 0, size, weight: 400, color: "#3b3b3b", align: "left", spacing: 0, fontFamily });
+    rows.push({ kind: "item", image, height: Math.max(lineHeight, await heightOf(image)) });
+  }
+  if (note) {
+    const noteSize = Math.round(size * 0.8);
+    const image = await rasterWholeText(note, { width: textWidth + 56, height: 0, size: noteSize, weight: 500, color: "#B07A00", align: "left", spacing: 0, fontFamily });
+    rows.push({ kind: "note", image, height: await heightOf(image) });
+  }
+  const height = rows.reduce((total, row) => total + row.height, 0) + gap * Math.max(0, rows.length - 1) + (note ? gap : 0);
+  return { rows, size, lineHeight, gap, height };
+}
+
+async function noteRule(width: number) {
+  return Buffer.from(`<svg width="${width}" height="2" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="2" fill="#e5e5ea"/></svg>`);
+}
+
 const heightOf = async (image: Buffer) => (await sharp(image).metadata()).height ?? 0;
 
 export async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geometry): Promise<OverlayOptions[]> {
@@ -45,44 +79,70 @@ export async function checklistTextOverlays(slide: GeneratedSlide, geometry: Geo
     const hook = quotedHook(slide.headline);
     const size = frame.hookSize ?? 50;
     const height = Math.round(size * 1.35 * 4);
-    const shadow = await rasterText(hook, { maxLines: 4, width: frame.width, height, size, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
-    const foreground = await rasterText(hook, { maxLines: 4, width: frame.width, height, size, weight: 700, color: "#ffffff", align: "center", spacing: 1, fontFamily });
+    const shadow = await rasterText(hook, { maxLines: 4, neverCut: true, width: frame.width, height, size, weight: 700, color: "#111111", align: "center", spacing: 1, fontFamily });
+    const foreground = await rasterText(hook, { maxLines: 4, neverCut: true, width: frame.width, height, size, weight: 700, color: "#ffffff", align: "center", spacing: 1, fontFamily });
     overlays.push({ input: shadow, left: frame.x + 3, top: (frame.headlineY ?? frame.y) + 3 });
     overlays.push({ input: foreground, left: frame.x, top: frame.headlineY ?? frame.y });
     return overlays;
   }
 
-  const categoryImage = await rasterText(slide.headline.replace(/^\d+[.)]\s*/, "").trim(), {
-    maxLines: 2, width: frame.width, height: 98, size: frame.headlineSize ?? 38, weight: 650,
+  // Notes card (white panel plus one pastel accent). It grows with its text:
+  // nothing in a Note is ever cut with "…" and every item keeps one size.
+  const panelX = frame.checklistPanelX ?? 151;
+  const panelWidth = frame.checklistPanelWidth ?? 778;
+  const basePanelTop = frame.checklistPanelY ?? 205;
+  const basePanelHeight = frame.checklistPanelHeight ?? 940;
+  const titleOffset = (frame.headlineY ?? frame.y) - basePanelTop;
+  const bodyOffset = (frame.bodyY ?? frame.checklistChoicesY ?? 435) - basePanelTop;
+
+  // The title may take two lines, steps down a little if needed, and only
+  // then takes a third line instead of losing its end.
+  const titleSize = frame.headlineSize ?? 52;
+  const titleImage = await rasterText(slide.headline.replace(/^\d+[.)]\s*/, "").trim(), {
+    maxLines: 2, neverCut: true, width: frame.width, height: Math.round(titleSize * 1.35 * 2), size: titleSize, weight: 650,
     color: "#282828", align: "left", spacing: 0, fontFamily,
   });
-  const titleHeight = await heightOf(categoryImage);
-  overlays.push({ input: categoryImage, left: frame.headlineX ?? frame.x, top: frame.headlineY ?? frame.y });
+  const titleHeight = await heightOf(titleImage);
+  // A two-line title keeps the same breathing room a one-line title gets from bodyY.
+  const listOffset = Math.max(bodyOffset, titleOffset + titleHeight + Math.round(titleSize * 0.9));
 
   const choices = checklistChoices(slide).slice(0, 6);
-  const startX = frame.bodyX ?? frame.checklistChoicesX ?? 165;
-  // A two-line title needs the same breathing room as a one-line title gets from bodyY.
-  const titleGap = Math.round((frame.headlineSize ?? 38) * 0.9);
-  const startY = Math.max(frame.bodyY ?? frame.checklistChoicesY ?? 405, (frame.headlineY ?? frame.y) + titleHeight + titleGap);
-  const choiceWidth = frame.checklistChoicesWidth ?? 750;
-  const textWidth = choiceWidth - 66;
-  // Phone-readable Notes items (23px left most of the card empty).
-  const fontSize = frame.bodySize ?? 40;
-  const lineHeight = Math.round(fontSize * 1.32);
-  const rowGap = Math.round(fontSize * 0.75);
-  let cursorY = startY;
-  for (const choice of choices) {
-    const circle = Buffer.from(
-      `<svg width="40" height="40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="15" fill="none" stroke="#c7c7cc" stroke-width="2.5"/></svg>`,
-    );
-    overlays.push({ input: circle, left: startX, top: cursorY + 2 });
-    const labelImage = await rasterText(choice, {
-      maxLines: 2, width: textWidth, height: 2 * lineHeight + 8, size: fontSize, weight: 400,
-      color: "#3b3b3b", align: "left", spacing: 0, fontFamily,
-    });
-    overlays.push({ input: labelImage, left: startX + 56, top: cursorY });
-    // Stack by the real rendered height so a wrapped item never overlaps the next.
-    cursorY += Math.max(lineHeight, await heightOf(labelImage)) + rowGap;
+  const startX = frame.bodyX ?? frame.checklistChoicesX ?? 187;
+  const textWidth = (frame.checklistChoicesWidth ?? 706) - 56;
+  const note = cortifreeNoteOf(slide);
+  const bottomPadding = 64;
+  const maxPanelHeight = PANEL_BOTTOM_LIMIT - PANEL_TOP_LIMIT;
+
+  // One size for every item of the Note: 40px, lowered for all items at once
+  // only when the tallest card that fits the safe zone still cannot hold them.
+  let plan = await planChecklistRows(choices, note, textWidth, frame.bodySize ?? 40, fontFamily);
+  for (const size of [38, 36, 34, 32]) {
+    if (listOffset + plan.height + bottomPadding <= maxPanelHeight) break;
+    plan = await planChecklistRows(choices, note, textWidth, size, fontFamily);
+  }
+  const panelHeight = Math.max(basePanelHeight, listOffset + plan.height + bottomPadding);
+  const panelTop = panelHeight <= basePanelHeight
+    ? basePanelTop
+    : Math.max(PANEL_TOP_LIMIT, Math.min(basePanelTop, Math.round((CANVAS_HEIGHT - panelHeight) / 2), PANEL_BOTTOM_LIMIT - panelHeight));
+
+  overlays.push({ input: await checklistPanel(panelWidth, panelHeight), left: panelX, top: panelTop });
+  overlays.push({ input: titleImage, left: frame.headlineX ?? frame.x, top: panelTop + titleOffset });
+  let cursorY = panelTop + listOffset;
+  for (const row of plan.rows) {
+    if (row.kind === "item") {
+      const circleSize = Math.round(plan.size * 0.75);
+      const circle = Buffer.from(
+        `<svg width="${circleSize + 10}" height="${circleSize + 10}" xmlns="http://www.w3.org/2000/svg"><circle cx="${(circleSize + 10) / 2}" cy="${(circleSize + 10) / 2}" r="${circleSize / 2}" fill="none" stroke="#c7c7cc" stroke-width="2.5"/></svg>`,
+      );
+      overlays.push({ input: circle, left: startX, top: cursorY + Math.round((plan.lineHeight - circleSize - 10) / 2) });
+      overlays.push({ input: row.image, left: startX + 56, top: cursorY });
+    } else {
+      // Room kept for one CortiFree line under the list (filled by the CortiFree integration).
+      cursorY += plan.gap;
+      overlays.push({ input: await noteRule(textWidth + 56), left: startX, top: cursorY - plan.gap });
+      overlays.push({ input: row.image, left: startX, top: cursorY });
+    }
+    cursorY += row.height + plan.gap;
   }
   return overlays;
 }

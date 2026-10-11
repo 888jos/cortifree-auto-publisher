@@ -138,6 +138,24 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(2, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
     slide(3, "CTA", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
   ] },
+  // Full live carousel (batch E2E_SIX_20261010D, F05): items were cut with "…",
+  // shrank one by one, and the last title lost its end.
+  { key: "LIVE_F05_BEDTIME_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
+    slide(1, "HOOK", "“my bedtime checklist when work is still open”", "", "woman reading in bed with a lamp"),
+    slide(2, "TIP", "close the workday before bed", "write down the task i keep replaying | close the laptop fully | put the notebook in a drawer | choose tomorrow's first task | leave the desk area before pajamas", "woman writing in a notebook at a calm desk"),
+    slide(3, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
+    slide(4, "TIP", "lower the input after dinner", "turn off work notifications for the night | keep group chats out of bedtime | dim the brightest room lights | skip opening a new work tab | choose a book before i feel tired", "phone face down beside a laptop on a quiet desk", "stock"),
+    slide(5, "TIP", "use the phone without delaying bedtime", "charge it across the room | check one thing before unlocking it | leave the app when the reason is done | keep the charger in the same spot | pick up the book instead (it is less tempting)", "woman reading in bed with a warm lamp at night"),
+    slide(6, "TIP", "write down unfinished thoughts before bed", "keep a small notepad by the bed | write one sentence, not the whole plan | add tomorrow beside it if needed | put the pen down after writing | let the rest wait until morning", "woman writing in a notebook at a calm desk"),
+    slide(7, "TAKEAWAY", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
+  ] },
+  // Worst case the validator lets through: a 58 character title and six items
+  // close to the 82 character limit. Nothing may be cut or shrunk per item.
+  { key: "MAX_F05_INTERACTIVE_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
+    slide(1, "HOOK", "“the evening list i wish i had started two years ago”", "", "woman reading in bed with a lamp"),
+    slide(2, "TIP", "give the evening a clear end even when work is still open", "write the one task i keep replaying on a sticky note by the door | close every work tab before dinner so nothing is waiting when i sit down | put my phone on the charger in the kitchen (yes, the kitchen, every night) | choose tomorrow's first task before i start thinking about everything else | leave the desk area completely once i change into something comfortable | keep the lights low after nine so the room already feels like bedtime", "woman writing in a notebook at a calm desk"),
+    slide(3, "TAKEAWAY", "wind down with the same three things every single night", "wash my face before getting under the covers | read a few pages of a paper book instead of scrolling | let bedtime be finished when the routine is done, not when i feel ready", "made bed with soft morning light", "stock"),
+  ] },
 ];
 
 // Assets locked per slide (via previous renders) so every multi-image slot is

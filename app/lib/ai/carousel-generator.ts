@@ -43,6 +43,7 @@ function cleanGeneratedString(value: string) {
 }
 // A Notes row holds about 70 characters on two lines at the 40px item size.
 const NOTES_ITEM_TARGET = 70;
+const CTA_ITEM = /\b(?:save (?:this|it|for later)|follow (?:me|for)|share (?:this|it) with|link in bio|screenshot (?:this|it))\b/i;
 
 /**
  * Deterministic F05 list repair, so a single overlong item or a seventh item
@@ -53,6 +54,9 @@ const NOTES_ITEM_TARGET = 70;
 export function tidyChecklistBody(body: string) {
   let items = body.split(/\s*(?:\||\n|;)\s*/).map((item) => item.trim()).filter(Boolean);
   if (!items.length) return body;
+  // "save this" / "follow for more" never belongs in a Note.
+  const ctaItems = items.filter((item) => CTA_ITEM.test(item));
+  if (ctaItems.length && items.length - ctaItems.length >= 4) items = items.filter((item) => !CTA_ITEM.test(item));
   items = items.map((item) => item.length > NOTES_ITEM_TARGET ? item.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s{2,}/g, " ").trim() || item : item);
   for (let index = items.length - 1; index >= 0 && items.length > 4; index -= 1) {
     if (items[index]!.length > NOTES_ITEM_TARGET) items.splice(index, 1);
@@ -76,6 +80,9 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
     caption: fixHashtags(copy(spec.caption)),
     slides: spec.slides.map((slide, index) => ({
       ...slide,
+      // F05 ends on one more Note, never a CTA card: a last Notes slide the
+      // model labelled CTA is relabelled instead of blocking the carousel.
+      role: slide.layout === "interactive-checklist" && index > 0 && index === spec.slides.length - 1 && slide.role === "CTA" ? "TAKEAWAY" : slide.role,
       headline: slideCopy(slide.headline),
       body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body)) : slideCopy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
