@@ -42,7 +42,7 @@ function fields(spec: CarouselSpec): Field[] {
  * edit is unusable (wrong line count, or a structural marker went missing),
  * so callers keep the original draft.
  */
-export async function plainLanguageEdit(spec: CarouselSpec, request: PlainRequest, model: string) {
+export async function plainLanguageEdit(spec: CarouselSpec, request: PlainRequest, model: string, flagged: string[] = []) {
   const list = fields(spec);
   const lines = list.map((field) => field.get(spec));
   const input = lines.map((line, index) => `${index + 1}. ${line}`).join("\n");
@@ -50,7 +50,7 @@ export async function plainLanguageEdit(spec: CarouselSpec, request: PlainReques
     model,
     schema: plainLanguageSchema,
     schemaName: "cortifree_plain_language",
-    instructions: PLAIN_LANGUAGE_INSTRUCTIONS,
+    instructions: flagged.length ? `${PLAIN_LANGUAGE_INSTRUCTIONS}\nALSO rewrite these flagged parts, which read as AI-written, into the plain sentence she would type (first person where it fits, same advice, same separators): ${flagged.join("; ")}` : PLAIN_LANGUAGE_INSTRUCTIONS,
     input,
     maxOutputTokens: 2_400,
   });
