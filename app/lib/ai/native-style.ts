@@ -42,6 +42,9 @@ export function fixHashtags(caption: string) {
 
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
+/** "before: ...", "the switch: ...", "now: ..." headlines read like a template, not a person. */
+const LABEL_HEADLINE = /^(?:the\s+)?(?:before|after|now|then|switch|change|old me|new me|step \d+|tip|fix|result)\s*:/i;
+
 /**
  * Style issues that make copy read as AI-written rather than posted by a
  * 20-year-old. Used for a rewrite pass, never to block generation.
@@ -67,6 +70,10 @@ export function nativeStyleIssues(spec: CarouselSpec): string[] {
   const shaped = body.filter((slide) => /,\s*so\s+(?:i|you|the|my)\b|\bso\s+i\b/i.test(slide.body)).length;
   if (body.length >= 4 && shaped >= Math.ceil(body.length / 2)) issues.push(`REPETITIVE_SHAPE: ${shaped} slides use the same "..., so i..." sentence; vary the shapes`);
   issues.push(...routineStepIssues(spec));
+  // The operator called F08 "before: decide everything in the morning" and
+  // "the switch: keep easy defaults together" incomprehensible.
+  const labelled = body.filter((slide) => LABEL_HEADLINE.test(slide.headline.trim()));
+  if (labelled.length) issues.push(`LABEL_HEADLINE: ${labelled.map((slide) => `"${slide.headline}"`).join(", ")} start with a label; say the actual thing in plain words`);
   return issues;
 }
 
@@ -95,6 +102,8 @@ export function routineStepIssues(spec: CarouselSpec): string[] {
 
 const TITLE_NOUN = "(?:reset|routine|guide|plan|system|method|checklist|habits?|tips|rituals?|edit|ideas|steps|reminders)";
 const LIST_NOUN = "(?:ways|tips|steps|habits|ideas|rules|reminders|rituals)";
+/** Nouns that only label a list ("my normal-day getting-ready defaults"). */
+const LABEL_NOUN = "(?:defaults|staples|essentials|basics|non-negotiables|systems|formulas)";
 
 /**
  * Blog/Pinterest-style hooks that label the content instead of sounding like
@@ -111,6 +120,9 @@ export function titleHookReason(hook: string): string | undefined {
   }
   if (/\bwhen (?:everything|it all|life|things) (?:feels?|gets?|is|are)\b/.test(text) || /\b(?:feels?|is) (?:like )?(?:too much|a lot)\s*$/.test(text)) {
     return "uses a vague feeling instead of a concrete moment";
+  }
+  if (new RegExp(`^(?:my|a|the|your)\\s+(?:[a-z'-]+\\s+){0,4}${LABEL_NOUN}$`).test(text.replace(/[.!?♡\s]+$/, ""))) {
+    return "only labels a list (\"my [adjectives] defaults/essentials\") instead of saying something";
   }
   return undefined;
 }

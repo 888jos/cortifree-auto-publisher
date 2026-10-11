@@ -7,6 +7,7 @@ import { focusCrop, subjectBox } from "./framing";
 import { defaultGeometry, HEIGHT, WIDTH, type Frame, type GeneratedSlide, type Geometry } from "./types";
 import { checklistTextOverlays } from "./text/checklist";
 import { geometryForVisualMetadata, makeRasterTextOverlays } from "./text/default";
+import { gridTextOverlays, type GridTile } from "./text/grid";
 import { editorialAsymTextOverlays } from "./text/editorial-asym";
 import { threeRectEducationalTextOverlays } from "./text/educational";
 import { lifestyleThreeStackTextOverlays } from "./text/lifestyle";
@@ -79,10 +80,14 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   let rankingColors: RankingPalette | undefined;
   let rankingText: OverlayOptions[] = [];
 
+  let gridPhoto: { bytes: Buffer; tiles: GridTile[] } | undefined;
   if (imageFrame.mode === "grid-2x2") {
-    const tileWidth = 500;
-    const tileHeight = 635;
-    const positions = [[32, 32], [548, 32], [32, 683], [548, 683]];
+    // Four photos edge to edge, no white frame or gutter (operator feedback).
+    const tileWidth = WIDTH / 2;
+    const tileHeight = HEIGHT / 2;
+    const positions = [[0, 0], [tileWidth, 0], [0, tileHeight], [tileWidth, tileHeight]];
+    const tiles: GridTile[] = [];
+    const tileComposites: OverlayOptions[] = [];
     for (const [index, match] of matches.slice(0, 4).entries()) {
       const imageBytes = await selectedAssetBytes(match);
       if (index === 0) {
@@ -93,8 +98,15 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
       const place = editorSlot(geometry, index, { left: fallbackLeft, top: fallbackTop, width: tileWidth, height: tileHeight });
       const fitted = await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place });
       if (index === 0) hookDesign = await analyzeHookComposition(imageBytes, `${slide.headline}:${slide.position}`);
-      composites.push({ input: fitted, left: place.left, top: place.top });
+      tileComposites.push({ input: fitted, left: place.left, top: place.top });
+      const people = String(match.asset.people_visibility ?? (match.asset.source_type === "persona_generated" ? "person" : "")).toLowerCase();
+      tiles.push({ ...place, hasPerson: match.asset.source_type === "persona_generated" || Boolean(people && !/no_person/.test(people)) });
     }
+    composites.push(...tileComposites);
+    gridPhoto = {
+      bytes: await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: "#f7f3eb" } }).composite(tileComposites).png().toBuffer(),
+      tiles,
+    };
   } else if (imageFrame.mode === "three-rect-educational") {
     const placements = isHook
       ? [
@@ -224,9 +236,12 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   }
 
   const forceDark = imageFrame.mode === "three-rect-educational" || imageFrame.mode === "editorial-asym-hero" || imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";
+  // Outlined text (F08) stays white: the black outline already separates it
+  // from a bright photo, dark text on a black outline would be unreadable.
+  const outlined = Boolean(geometry.text?.textStroke);
   const readablePalette = rankingColors
     ? { headlineColor: rankingColors.text, bodyColor: rankingColors.subtext, accentColor: rankingColors.accentText }
-    : forceDark || averageLuminance > 158
+    : !outlined && (forceDark || averageLuminance > 158)
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
   const manualText = (geometry.text ?? {}) as Record<string, unknown>;
@@ -270,6 +285,10 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     composites.push(...await checklistTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "persona-explainer") {
     composites.push(...await personaExplainerTextOverlays(slide, readableGeometry));
+  } else if (gridPhoto) {
+    // Own palette (white + the carousel's pastel accent, black outline): the
+    // luminance palette above would turn the text dark on a bright photo.
+    composites.push(...await gridTextOverlays(slide, geometry, gridPhoto.bytes, gridPhoto.tiles));
   } else {
     composites.push(...await makeRasterTextOverlays(slide, geometryForVisualMetadata(readableGeometry, matches[0]), layoutHookDesign));
   }

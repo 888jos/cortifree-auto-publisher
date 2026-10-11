@@ -46,7 +46,7 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.maxBodyLines, 2);
   });
 
-  it("splits F08 visual intent into two per-slide sources before diagonal repetition", () => {
+  it("splits an older two-scene F08 visual intent into per-photo scenes", () => {
     const slide = {
       position: 3,
       role: "TIP",

@@ -4,6 +4,10 @@ export const ROTATING_BODY_FONTS = ["TikTok Sans","Instrument Sans","Manrope","I
 // blue), varied from one carousel to the next.
 export const PASTEL_ACCENTS = ["#FFE873", "#FFB8D6", "#B9F0C2", "#B5DCFF"] as const;
 
+// One pastel accent per carousel, beside white text (operator rule: white plus
+// a pastel accent).
+export const PASTEL_ACCENTS = ["#ffc8dd", "#ffe89a", "#d9c8ff", "#bdf0d6", "#bfe3ff", "#ffd3b6"] as const;
+
 export function typographyForCarousel(carouselId: string) {
   const hash = [...carouselId].reduce((sum, character) => ((sum * 31) + character.charCodeAt(0)) >>> 0, 7);
   const bodyIndex = hash % ROTATING_BODY_FONTS.length;
@@ -11,5 +15,6 @@ export function typographyForCarousel(carouselId: string) {
   const hookFontFamily = bodyFontFamily === "Bricolage Grotesque" ? "TikTok Sans" : "Bricolage Grotesque";
   // Shifted so the accent does not follow the font rotation.
   const accentColor = PASTEL_ACCENTS[Math.floor(hash / ROTATING_BODY_FONTS.length) % PASTEL_ACCENTS.length] ?? PASTEL_ACCENTS[0];
-  return { hookFontFamily, bodyFontFamily, accentColor, hookSize: 44, titleSize: 52, bodySize: 28, maxDistinctSizes: 3 };
+  const accentColor = PASTEL_ACCENTS[Math.floor(hash / ROTATING_BODY_FONTS.length) % PASTEL_ACCENTS.length] ?? PASTEL_ACCENTS[0];
+  return { hookFontFamily, bodyFontFamily, accentColor, accentColor, hookSize: 44, titleSize: 52, bodySize: 28, maxDistinctSizes: 3 };
 }
