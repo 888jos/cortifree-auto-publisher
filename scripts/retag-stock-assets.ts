@@ -36,7 +36,7 @@ function writePayload(row: StockRow, analysis: StockAssetVision, assetName: stri
     specific_details: analysis.specific_details.join(" | "), dominant_colors: analysis.dominant_colors, text_in_image: analysis.text_in_image,
     mood: analysis.mood, good_for: analysis.good_for, tags, visual_review_status: "IMAGE_INSPECTED_V2", visual_tagging_schema: "observable_v2",
     visual_reviewed_at: new Date().toISOString(),
-    metadata: { ...metadata, asset_name: assetName, specific_details: analysis.specific_details, avoid_for: analysis.avoid_for, visual_tagging_schema: "observable_v2", visual_review_status: "IMAGE_INSPECTED_V2", visual_inspected_at: new Date().toISOString(), visual_analyzer: "openai_pixels" },
+    metadata: { ...metadata, asset_name: assetName, specific_details: analysis.specific_details, avoid_for: analysis.avoid_for, visual_tagging_schema: "observable_v2", visual_review_status: "IMAGE_INSPECTED_V2", visual_inspected_at: new Date().toISOString(), visual_analyzer: "openai_pixels", image_layout: analysis.image_layout, subject_box: analysis.subject_box.kind === "none" ? null : analysis.subject_box },
   };
 }
 function generic(description: string) { return /^(healthy|wellness|fitness|lifestyle|balanced)\b.*\b(scene|image|photo)\.?$/i.test(description.trim()); }

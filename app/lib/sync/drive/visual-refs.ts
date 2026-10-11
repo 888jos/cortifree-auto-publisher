@@ -14,6 +14,8 @@ export async function repairVisualRefMetadata(ctx: DriveSyncContext) {
     const existing = refById.get(String(row.ref_id ?? ""));
     if (!existing) return null;
     const expected = visualRefSheetExpected(row);
+    // A reference disabled at runtime (collage output, wrong label) stays off.
+    if (String(runtimeMetadata(existing).disabled_reason ?? "").trim()) expected.enabled = false;
     const metadataChanged = String(existing.category ?? "") !== String(expected.category)
       || String(existing.pose ?? "") !== String(expected.pose)
       || String(existing.framing ?? "") !== String(expected.framing)

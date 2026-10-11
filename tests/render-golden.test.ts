@@ -133,6 +133,12 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(2, "TIP", "take a break without new messages or information", "MISTAKES | scrolling at your desk and treating it as a break | checking messages before standing up | using every free minute for another task", "phone face down beside a laptop, cup of herbal tea, woman walking in a park"),
     slide(3, "CTA", "set a boundary you can actually explain", "BENEFITS | choose when you answer quickly | leave one clear way to contact you about urgent things | return to regular messages after your task ends", "woman drinking coffee by a kitchen window"),
   ] },
+  // Real live copy (batch E2E_SIX_20261010F) with the longest F01 bodies: nothing may end in "…".
+  { key: "LONG_F01_LIFESTYLE_GUIDE", carouselType: "F01_LIFESTYLE_GUIDE", slides: [
+    slide(1, "HOOK", "what i do when i have 14 tabs open and my brain just stops", "too many tabs, sounds, messages, and tasks at once", "woman drinking coffee by a kitchen window"),
+    slide(2, "TIP", "phone on do not disturb", "i silence non-urgent notifications and close every tab except the one i need", "phone face down beside a laptop on a quiet desk", "stock"),
+    slide(3, "CTA", "pick just one of these", "which one helps when you have too many tasks and notifications at once?", "woman writing in a notebook at a calm desk"),
+  ] },
   { key: "LONG_F05_INTERACTIVE_CHECKLIST", carouselType: "F05_INTERACTIVE_CHECKLIST", slides: [
     slide(1, "HOOK", "“my bedtime checklist when work is still open”", "", "woman reading in bed with a lamp"),
     slide(2, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),

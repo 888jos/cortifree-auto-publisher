@@ -147,20 +147,21 @@ function checklistTextFrame(isCover, isFinal, typography) {
 function lifestyleThreeStackTextFrame(isCover, isFinal, typography) {
   if (isCover) {
     return {
-      x: 90, y: 690, width: 760, align: "left",
-      headlineY: 690, bodyY: 865,
-      headlineSize: 58, bodySize: 27, hookSize: 58,
-      headlineWeight: 700, bodyWeight: 550,
+      x: 72, y: 700, width: 900, align: "left",
+      headlineY: 700, bodyY: 880,
+      headlineSize: 66, bodySize: 36, hookSize: 66,
+      headlineWeight: 700, bodyWeight: 600,
       maxHeadlineLines: 3, maxBodyLines: 2,
       fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
       hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
     };
   }
+  // No headlineY/bodyY: the renderer centres the block on the middle band
+  // (an editor override of headlineY still wins).
   return {
-    x: 70, y: 655, width: 690, align: "left",
-    headlineY: 655, bodyY: 735,
-    headlineSize: 43, bodySize: 27, hookSize: 43,
-    headlineWeight: 700, bodyWeight: 550,
+    x: 64, y: 480, width: 900, align: "left",
+    headlineSize: 58, bodySize: 38, hookSize: 58,
+    headlineWeight: 700, bodyWeight: 600,
     maxHeadlineLines: 2, maxBodyLines: 4,
     fontFamily: typography.bodyFontFamily ?? "TikTok Sans",
     hookFontFamily: typography.hookFontFamily ?? "Bricolage Grotesque",
@@ -320,9 +321,10 @@ export function getSlideGeometry(slide, isCover = false, isFinal = false, typogr
       image,
       text: {
         ...lifestyleThreeStackTextFrame(isCover, isFinal, typography),
-        headlineColor: "#fff3a8",
-        bodyColor: "#fff3a8",
-        accentColor: "#fff3a8",
+        // White text plus one pastel accent (the headline).
+        headlineColor: "#ffe27a",
+        bodyColor: "#ffffff",
+        accentColor: "#ffe27a",
       },
       overlay: { color: "#111111", opacity: 0 },
       chrome: {
