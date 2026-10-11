@@ -8,6 +8,9 @@ const aiConfigSchema = z.object({
   OPENAI_API_KEY: z.preprocess(blankAsUndefined, z.string().min(1).optional()),
   OPENAI_MODEL_PRIMARY: z.preprocess(blankAsUndefined, z.string().min(1).default("gpt-5.6-luna")),
   OPENAI_MODEL_QA: z.preprocess(blankAsUndefined, z.string().min(1).default("gpt-5.6-terra")),
+  // Image tagging runs once per image (hundreds per retag): the cheap model is
+  // enough to describe a photo and locate a face.
+  OPENAI_MODEL_VISION: z.preprocess(blankAsUndefined, z.string().min(1).default("gpt-5.6-luna")),
   AI_GENERATION_ENABLED: booleanValue(true), OPENAI_QA_ENABLED: booleanValue(true),
   OPENAI_QA_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.2),
   OPENAI_MAX_MONTHLY_USD: z.preprocess(blankAsUndefined, z.coerce.number().positive().default(15)),

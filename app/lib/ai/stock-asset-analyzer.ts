@@ -60,7 +60,7 @@ export class OpenAIStockAssetAnalyzer {
           "subject_box: when a person's face is visible, kind=face and the tight box around that face (forehead to chin, ear to ear) of the main person. Otherwise kind=subject and the box around the main subject (hands and object, food, item). kind=none with 0,0,1,1 for an empty scene. Values are fractions 0 to 1 of the image width (left, right) and height (top, bottom), measured from the top-left corner.",
           retryHint ?? "",
         ].filter(Boolean).join("\n"),
-        input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl, detail: "high" }] }],
+        input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl, detail: "low" }] }],
         store: false,
         max_output_tokens: 1_400,
         text: { format: zodTextFormat(stockAssetVisionSchema, "stock_asset_observable_v3") },
