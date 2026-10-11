@@ -138,6 +138,14 @@ const FORMATS: Array<{ key: string; carouselType: string; slides: Slide[] }> = [
     slide(2, "TIP", "make tomorrow easier in five minutes", "put out the clothes i need first | leave water beside the bed | write one realistic morning task | plug in my laptop outside the bedroom | stop once the basics are ready", "made bed with soft morning light", "stock"),
     slide(3, "CTA", "make the last ten minutes very simple", "wash my face before getting under the covers | change into pajamas without opening my phone | read a few pages or sit quietly | keep the lights soft | let bedtime be finished when the routine is done", "made bed with soft morning light", "stock"),
   ] },
+  // Target F04 tone after the operator's review: first-person headlines,
+  // concrete bullets, a human aside on the cover.
+  { key: "NATIVE_F04_AESTHETIC_EDUCATIONAL", carouselType: "F04_AESTHETIC_EDUCATIONAL", slides: [
+    slide(1, "HOOK", "i can't focus with my phone in the room", "still reachable for my mom lol", "woman writing in a notebook at a desk"),
+    slide(2, "TIP", "i prefer to silence alerts that can wait", "HOW TO | do not disturb on from 9 to 12 | my mom and bf still get through | group chats on mute (sorry besties)", "phone face down beside a laptop, cup of herbal tea, woman walking in a park"),
+    slide(3, "TIP", "put your phone in another room when you work", "WHAT TO USE | it charges in the kitchen till lunch | laptop on full screen, one tab open | first two days were rough ngl", "phone face down beside a laptop, woman writing in a notebook, made bed"),
+    slide(4, "TAKEAWAY", "i only answer texts on my lunch break", "MISTAKES | checking every time it buzzed | replying in the middle of a task | keeping tiktok on my home screen", "woman drinking coffee by a kitchen window"),
+  ] },
 ];
 
 // Assets locked per slide (via previous renders) so every multi-image slot is

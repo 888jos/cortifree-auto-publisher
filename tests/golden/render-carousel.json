@@ -16,7 +16,8 @@
     "REVISION_SINGLE_IMAGE": "5b88f7befcf1c909ca7303f373989a855b9006c454198ebb2590fe775ba88757",
     "LONG_F03_ROUTINE_TIMELINE": "71fa63f913bfaae714ac2d43d37864c612428e8b59e7918aaac9eab8135e0cf5",
     "LONG_F04_AESTHETIC_EDUCATIONAL": "016fb5b69526e8ae8a8751a9478d317cb99cc50cbfb7f214866ed17e69e14a1b",
-    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1"
+    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1",
+    "NATIVE_F04_AESTHETIC_EDUCATIONAL": "ef5e67dbbeb9b35077be98f3b0c718b06539743dff78fab2d45b26dd897995d3"
   },
   "renders": {
     "darwin-arm64-vips8.18.7": {
@@ -310,6 +311,32 @@
         {
           "position": 3,
           "sha256": "bf0bb2e688d463bf6af1100620eff85dcf2ce0adb5fd377850f5aa612371cb39",
+          "width": 1080,
+          "height": 1350
+        }
+      ],
+      "NATIVE_F04_AESTHETIC_EDUCATIONAL": [
+        {
+          "position": 1,
+          "sha256": "a9daa6a92ba24064052aea5496f3921dea790d7961e65dfaeea9cd363d1d559b",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 2,
+          "sha256": "159d1192b9f7711d5a28752e6aa05737a395a4368dbd7041238578da67e26002",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 3,
+          "sha256": "1521055a043e6ddb1ff24ee3e050c4395d4bc8394e5832ee783248190c2aac6c",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 4,
+          "sha256": "f6e5d2cca932148d5e42dbe00f237963a4055a650628795719f5bdf11efd5d77",
           "width": 1080,
           "height": 1350
         }

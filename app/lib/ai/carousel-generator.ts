@@ -11,6 +11,7 @@ import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
 import { fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
+import { aiPhrasingIssues, isSlogan } from "./ai-phrasing";
 
 export type GenerateCarouselResult = {
   spec: CarouselSpec;
@@ -60,6 +61,13 @@ export function tidyChecklistBody(body: string) {
   return items.slice(0, 6).join(" | ");
 }
 
+// The F04 cover line is decoration; a noun slogan there ("phone nearby.
+// attention protected") reads as AI, so the renderer's accent replaces it.
+function f04CoverLine(body: string) {
+  const parts = body.split(/\s*[.|/,]\s*/).filter(Boolean);
+  return parts.length && parts.every(isSlogan) ? "" : body;
+}
+
 export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec {
   // Consumer-facing copy never ships dash punctuation, even if every repair
   // pass still used it.
@@ -77,7 +85,9 @@ export function sanitizeGeneratedCarouselSpec(spec: CarouselSpec): CarouselSpec 
     slides: spec.slides.map((slide, index) => ({
       ...slide,
       headline: slideCopy(slide.headline),
-      body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body)) : slideCopy(slide.body),
+      body: slide.layout === "interactive-checklist" && index > 0 ? tidyChecklistBody(slideCopy(slide.body))
+        : slide.layout === "three-rect-educational" && index === 0 ? f04CoverLine(slideCopy(slide.body))
+        : slideCopy(slide.body),
       visualIntent: cleanGeneratedString(slide.visualIntent),
       assetQuery: cleanGeneratedString(slide.assetQuery),
     })),
@@ -209,6 +219,9 @@ export async function generateCarousel(
         const titleHookRepair = /TITLE_HOOK/.test(repairIssues)
           ? "\nHOOK REPAIR: The hook reads like a blog or Pinterest title that labels the content. Rewrite ONLY the hook (and slide 1 headline) as something a girl would actually say on TikTok: a confession, a specific moment, a strong opinion, a \"you\" call-out or a real question about the same topic. Name the concrete moment instead of a vague feeling."
           : "";
+        const phrasingRepair = /AI_PHRASING/.test(repairIssues)
+          ? "\nAI PHRASING REPAIR: The lines quoted in the reasons read like a ChatGPT checklist. Rewrite each one as a plain sentence a 22-year-old would type, first person where it fits: \"silence alerts that can wait\" becomes \"i prefer to silence alerts that can wait\", \"give your phone one clear place\" becomes \"put your phone in another room when you work\". No coined labels (\"message check\", \"stopping point\", \"reply window\"), no noun slogans (\"phone nearby. attention protected\"). Keep the same advice and the same structure."
+          : "";
         const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
@@ -216,7 +229,7 @@ export async function generateCarousel(
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${titleHookRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${titleHookRepair}${phrasingRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -248,6 +261,8 @@ export async function generateCarousel(
         if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
         const titleHook = titleHookReason(candidate.hook);
         if (titleHook && styleAttempt) throw new Error(`TITLE_HOOK: "${candidate.hook}" ${titleHook}`);
+        const phrasing = input.layout === "three-rect-educational" ? aiPhrasingIssues(candidate) : [];
+        if (phrasing.length && styleAttempt) throw new Error(`AI_PHRASING: ${phrasing.join("; ")}`);
         spec = candidate;
         break;
       } catch (error) {
@@ -264,7 +279,9 @@ export async function generateCarousel(
     const plainRequest = dependencies.plainLanguageRequest ?? (dependencies.structuredRequest ? undefined : requestStructured);
     if (plainRequest) {
       try {
-        const plain = await plainLanguageEdit(spec, plainRequest, config.OPENAI_MODEL_PRIMARY);
+        // Lines the style rewrites left AI-sounding get a last plain rewrite.
+        const flagged = input.layout === "three-rect-educational" ? aiPhrasingIssues(spec) : [];
+        const plain = await plainLanguageEdit(spec, plainRequest, config.OPENAI_MODEL_PRIMARY, flagged);
         usage = {
           inputTokens: usage.inputTokens + plain.usage.inputTokens,
           cachedInputTokens: usage.cachedInputTokens + plain.usage.cachedInputTokens,
