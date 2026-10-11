@@ -11,6 +11,7 @@ import { threeRectEducationalTextOverlays } from "./text/educational";
 import { lifestyleThreeStackTextOverlays } from "./text/lifestyle";
 import { personaExplainerTextOverlays } from "./text/persona-explainer";
 import { rankingCopyParts, rankingTextOverlays } from "./text/ranking";
+import { rankingPalette, type RankingPalette } from "./ranking-palette";
 import { routineTextOverlays } from "./text/routine";
 
 async function roundedPhoto(bytes: Buffer, width: number, height: number, radius = 24) {
@@ -67,6 +68,8 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   let hookDesign: HookDesign | undefined;
   let averageLuminance = 128;
   const isHook = slide.position === 1 || slide.role.toUpperCase() === "HOOK";
+  let rankingColors: RankingPalette | undefined;
+  let rankingText: OverlayOptions[] = [];
 
   if (imageFrame.mode === "grid-2x2") {
     const tileWidth = 500;
@@ -151,28 +154,46 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
     }
   } else if (imageFrame.mode === "ranking") {
     const isFinal = new Set(["CTA", "TAKEAWAY"]).has(slide.role.toUpperCase());
-    const tier = rankingCopyParts(slide).score.toUpperCase();
-    const tierWash: Record<string, string> = {
-      F: "#FCE7E7", D: "#FDEBE5", C: "#FFF0E2", B: "#FFF8DD",
-      A: "#EDF4FF", S: "#EAF7EC", SS: "#F5EFFF",
-    };
-    const wash = isHook || isFinal ? "#ffffff" : (tierWash[tier] ?? "#ffffff");
-    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="g" cx="50%" cy="50%" r="72%"><stop offset="0%" stop-color="#ffffff"/><stop offset="72%" stop-color="#ffffff"/><stop offset="100%" stop-color="${wash}"/></radialGradient></defs><rect width="1080" height="1350" fill="url(#g)"/></svg>`), left: 0, top: 0 });
-    if (isHook && matches.length >= 2) {
-      const placements = [
-        { left: 70, top: 650, width: 450, height: 420 },
-        { left: 560, top: 650, width: 450, height: 420 },
-      ];
-      for (const [index, match] of matches.slice(0, 2).entries()) {
-        const imageBytes = await selectedAssetBytes(match);
-        const place = editorSlot(geometry, index, placements[index]!);
-        const fitted = geometry.imageSlots?.[index]
-          ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
-          : await roundedPhoto(imageBytes, place.width, place.height, 24);
-        composites.push({ input: fitted, left: place.left, top: place.top });
-      }
+    rankingColors = rankingPalette({ tier: rankingCopyParts(slide).score, cover: isHook, final: isFinal });
+    composites.push({ input: Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${rankingColors.background}"/><stop offset="100%" stop-color="${rankingColors.backgroundEnd}"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#g)"/></svg>`), left: 0, top: 0 });
+    // One or two photos under the text: the cover's teasers, each tier's item.
+    const frame = { ...defaultGeometry.text, ...geometry.text } as NonNullable<Geometry["text"]>;
+    const photos = matches.slice(0, 2);
+    // Text first, so the photos can sit right under it: a short reason
+    // left a wide empty band above fixed-position photos.
+    const manualText = (geometry.text ?? {}) as Record<string, unknown>;
+    const textGeometry = { ...geometry, text: geometry.text ? {
+      ...geometry.text,
+      headlineColor: manualText.editorHeadlineColor ?? rankingColors.text,
+      bodyColor: manualText.editorBodyColor ?? rankingColors.subtext,
+      accentColor: manualText.editorAccentColor ?? rankingColors.accentText,
+    } : geometry.text } as Geometry;
+    rankingText = await rankingTextOverlays(slide, textGeometry, { photoCount: photos.length, palette: rankingColors });
+    let textBottom = 0;
+    for (const overlay of rankingText) {
+      const height = (await sharp(overlay.input as Buffer).metadata()).height ?? 0;
+      textBottom = Math.max(textBottom, (overlay.top ?? 0) + height);
     }
-    // Body and final tier slides are intentionally text-first. No decorative image by default.
+    const photoBottom = 1270;
+    const lowestTop = frame.rankingPhotoY ?? (isHook ? 540 : 790);
+    const highestTop = isHook ? 470 : 600;
+    const photoTop = Math.min(lowestTop, Math.max(highestTop, textBottom + 60));
+    const photoHeight = photoBottom - photoTop;
+    const placements = photos.length === 2
+      ? [{ left: 70, top: photoTop, width: 455, height: photoHeight }, { left: 555, top: photoTop, width: 455, height: photoHeight }]
+      : [{ left: 230, top: photoTop, width: 620, height: photoHeight }];
+    for (const [index, match] of photos.entries()) {
+      const imageBytes = await selectedAssetBytes(match);
+      const place = editorSlot(geometry, index, placements[index]!);
+      const fitted = geometry.imageSlots?.[index]
+        ? await fitEditorImage(imageBytes, { x: place.left, y: place.top, ...place })
+        : await roundedPhoto(imageBytes, place.width, place.height, 30);
+      if (!geometry.imageSlots?.[index]) {
+        // A thin white frame keeps the photo apart from the strong color.
+        composites.push({ input: Buffer.from(`<svg width="${place.width + 16}" height="${place.height + 16}" xmlns="http://www.w3.org/2000/svg"><rect width="${place.width + 16}" height="${place.height + 16}" rx="36" ry="36" fill="#ffffff"/></svg>`), left: place.left - 8, top: place.top - 8 });
+      }
+      composites.push({ input: fitted, left: place.left, top: place.top });
+    }
     averageLuminance = 235;
   } else {
     const match = matches[0]!;
@@ -198,7 +219,9 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   }
 
   const forceDark = imageFrame.mode === "three-rect-educational" || imageFrame.mode === "editorial-asym-hero" || imageFrame.mode === "editorial-collage" || imageFrame.mode === "ranking" || imageFrame.mode === "interactive-checklist";
-  const readablePalette = forceDark || averageLuminance > 158
+  const readablePalette = rankingColors
+    ? { headlineColor: rankingColors.text, bodyColor: rankingColors.subtext, accentColor: rankingColors.accentText }
+    : forceDark || averageLuminance > 158
     ? { headlineColor: "#1f2933", bodyColor: "#1f2933", accentColor: "#1f2933" }
     : { headlineColor: "#fffaf5", bodyColor: "#fffaf5", accentColor: "#fffaf5" };
   const manualText = (geometry.text ?? {}) as Record<string, unknown>;
@@ -234,7 +257,7 @@ export async function renderSlide(slide: GeneratedSlide, matches: AssetMatch[], 
   } else if (imageFrame.mode === "editorial-asym-hero") {
     composites.push(...await editorialAsymTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "ranking") {
-    composites.push(...await rankingTextOverlays(slide, readableGeometry));
+    composites.push(...rankingText);
   } else if (imageFrame.mode === "interactive-checklist") {
     composites.push(...await checklistTextOverlays(slide, readableGeometry));
   } else if (imageFrame.mode === "persona-explainer") {

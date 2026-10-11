@@ -123,33 +123,36 @@ describe("canonical carousel formats", () => {
     assert.equal(body.text.checklistPanelHeight, 940);
   });
 
-  it("uses images only on the F07 cover and keeps ranking body/final slides truly text-only", () => {
+  it("puts one or two F07 photos under the text of every slide", () => {
     assert.equal(rankingAssetCountForSlide({ position: 1, role: "HOOK" }), 2);
-    assert.equal(rankingAssetCountForSlide({ position: 2, role: "TIP" }), 0);
-    assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 0);
+    assert.equal(rankingAssetCountForSlide({ position: 2, role: "TIP" }), 2);
+    assert.equal(rankingAssetCountForSlide({ position: 7, role: "TAKEAWAY" }), 2);
   });
 
-  it("keeps F07 tier slides bold, readable and horizontally composed", () => {
+  it("keeps F07 text high and bold, with the photos underneath", () => {
     const cover = getSlideGeometry(
-      { layout: "ranking", position: 1, role: "HOOK", headline: "sleep habits tier list", body: "backed by evidence" },
+      { layout: "ranking", position: 1, role: "HOOK", headline: "sleep habits tier list", body: "" },
       true,
       false,
       {},
     );
     const body = getSlideGeometry(
-      { layout: "ranking", position: 2, role: "TIP", headline: "S · CONSISTENT SLEEP", body: "Strong practical evidence." },
+      { layout: "ranking", position: 2, role: "TIP", headline: "C · LATE CAFFEINE", body: "Half-life is longer than you think." },
       false,
       false,
       {},
     );
-    assert.equal(cover.text.hookSize, 62);
-    assert.equal(cover.text.bodySize, 36);
-    // Phone-readable tier slides, block centred in the slide.
-    assert.equal(body.text.rankingScoreSize, 96);
-    assert.equal(body.text.headlineSize, 58);
-    assert.equal(body.text.bodySize, 40);
-    assert.ok(body.text.rankingScoreY >= 300);
-    assert.equal(body.text.width, 930);
+    // Cover title near the top, photos below it.
+    assert.ok(cover.text.headlineY <= 100);
+    assert.equal(cover.text.hookSize, 74);
+    assert.ok(cover.text.rankingPhotoY > cover.text.headlineY + 3 * cover.text.hookSize);
+    // Tier badge at the top, then item and reason, photos no lower than y 790.
+    assert.ok(body.text.rankingScoreY <= 100);
+    assert.equal(body.text.headlineSize, 64);
+    assert.equal(body.text.bodySize, 42);
+    assert.ok(body.text.headlineY < 300);
+    assert.equal(body.text.rankingPhotoY, 790);
+    assert.equal(body.text.width, 920);
   });
 
   it("routes hook generation to canonical formats while keeping concepts separate", () => {

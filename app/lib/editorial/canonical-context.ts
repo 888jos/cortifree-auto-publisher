@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { dataBackend } from "../data-backend";
-import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeGoldenExamples, loadRuntimeOperatorEdits, loadRuntimePersonaConfigs, loadRuntimeVoiceReferences } from "../../../src/runtime/config";
+import { loadRuntimeAccounts, loadRuntimeEditorial, loadRuntimeGoldenExamples, loadRuntimeOperatorEdits, loadRuntimeOperatorRules, loadRuntimePersonaConfigs, loadRuntimeVoiceReferences } from "../../../src/runtime/config";
 import { selectEditorial, type SelectionHistory } from "../../../src/autonomy/selection";
 import type { EditorialContext } from "../ai/types";
 import { ACTIVE_FORMAT_IDS } from "../../../src/content/formats";
@@ -111,6 +111,7 @@ export async function resolveCanonicalEditorialContext(input: {
     hook_style_references: voice.hookReferences,
     voice_examples: voice.voiceExamples,
     operator_edits: await loadRuntimeOperatorEdits(input.formatId),
+    operator_rules: await loadRuntimeOperatorRules(input.formatId),
     topic_id: topic.topic_id, hook_id: hook.hook_id, format_id: input.formatId,
     account_id: input.accountId, persona_id: input.personaId,
     // Manual Studio generation is editorial-first by default.
