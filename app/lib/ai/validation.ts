@@ -1,5 +1,6 @@
 import type { CarouselSpec } from "./schemas";
 import { scoreGenericity } from "./genericity";
+import { isRankingAscending } from "./ranking-order";
 
 export type ValidationIssue = { code: string; message: string; slidePosition?: number; severity: "minor" | "major" };
 
@@ -115,6 +116,7 @@ export function validateCarouselSpec(spec: CarouselSpec, expected: { slideCount:
       const wordCount = slide.body.trim().split(/\s+/).filter(Boolean).length;
       if (isBodyRankingSlide && wordCount > 45) issues.push({ code: "RANKING_BODY_LENGTH", message: "F07 explanation should be one or two plain-English sentences", slidePosition: slide.position, severity: "minor" });
       if (isBodyRankingSlide && /\d+(?:\.\d+)?\s*\/\s*10/.test(slide.headline)) issues.push({ code: "RANKING_NUMERIC_SCORE", message: "F07 uses tier labels, not X/10 scores", slidePosition: slide.position, severity: "minor" });
+      if (index === 0 && !isRankingAscending(spec.slides)) issues.push({ code: "RANKING_ORDER", message: "F07 tiers must climb from the worst tier on slide 2 to the best tier at the end", slidePosition: slide.position, severity: "minor" });
     }
     if (expected.layout === "lifestyle-3stack") {
       const isCover = index === 0;
