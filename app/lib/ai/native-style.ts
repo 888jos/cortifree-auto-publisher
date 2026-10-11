@@ -1,4 +1,5 @@
 import type { CarouselSpec } from "./schemas";
+import { stepActionFamilies } from "../../../src/visual-references/step-actions";
 
 // On-screen TikTok text is lowercase and rarely ends with a period. Kept as
 // written: all-caps tokens (F04 section labels, acronyms), the F07 tier
@@ -65,5 +66,45 @@ export function nativeStyleIssues(spec: CarouselSpec): string[] {
   // The same sentence shape on every slide ("i do X, so Y") reads generated.
   const shaped = body.filter((slide) => /,\s*so\s+(?:i|you|the|my)\b|\bso\s+i\b/i.test(slide.body)).length;
   if (body.length >= 4 && shaped >= Math.ceil(body.length / 2)) issues.push(`REPETITIVE_SHAPE: ${shaped} slides use the same "..., so i..." sentence; vary the shapes`);
+  issues.push(...routineStepIssues(spec));
   return issues;
+}
+
+/**
+ * F03 steps the operator rejected: "eat at the table before checking work
+ * again" (two ideas), "make an easy dinner with one pan" (a detail nobody
+ * needs), "put the laptop and charger in my work bag" (nothing to photograph).
+ * A step is one simple action a photo can show.
+ */
+export function routineStepIssues(spec: CarouselSpec): string[] {
+  const issues: string[] = [];
+  spec.slides.forEach((slide, index) => {
+    if (index === 0 || slide.layout !== "routine-timeline" || !slide.headline.includes("·")) return;
+    const action = slide.headline.slice(slide.headline.indexOf("·") + 1).trim().toLowerCase();
+    const quoted = `slide ${slide.position} "${action}"`;
+    if (/\b(?:before|after|until|so that|instead of|then)\b/.test(action)) issues.push(`ROUTINE_STEP_TWO_IDEAS: ${quoted} chains a second idea; keep only the action`);
+    else if (words(action) > 7) issues.push(`ROUTINE_STEP_LONG: ${quoted} is ${words(action)} words; keep 2-6`);
+    if (/\b(?:with|in|using) (?:one|a single|1) (?:pan|pot|bowl|tray|plate)\b/.test(action)) issues.push(`ROUTINE_STEP_DETAIL: ${quoted} adds a detail nobody needs`);
+    if (!stepActionFamilies(slide.headline).length) issues.push(`ROUTINE_STEP_NOT_VISIBLE: ${quoted} is not an action a photo can show (walk, cook, eat, shower, skincare, stretch, read, journal, tea, bed)`);
+  });
+  if (/\bthat girl\b/i.test([spec.hook, ...spec.slides.map((slide) => slide.headline)].join(" ")) && spec.slides.some((slide) => slide.layout === "routine-timeline")) {
+    issues.push("ROUTINE_THAT_GIRL: drop \"that girl\" unless the post is literally about the that-girl trend");
+  }
+  return issues;
+}
+
+const TITLE_NOUN = "(?:reset|routine|guide|plan|system|method|checklist|habits?|tips|rituals?|edit)";
+
+/**
+ * Blog/Pinterest-style hooks that label the content instead of sounding like
+ * a person ("my simple reset when everything feels like too much"). The
+ * operator rejected this shape repeatedly. Used for a rewrite, never a block.
+ */
+export function titleHookReason(hook: string): string | undefined {
+  const text = hook.toLowerCase().replace(/[“”"]/g, "").trim();
+  if (new RegExp(`^(?:my|a|the|your)\\s+(?:[a-z'-]+\\s+){0,3}${TITLE_NOUN}\\s+(?:when|for|to)\\b`).test(text)) {
+    return "reads like a content title (\"my/a [adjective] reset/routine/guide when/for ...\")";
+  }
+  if (/\bwhen (?:everything|it all|life) (?:feels?|gets?|is)\b/.test(text)) return "uses a vague feeling instead of a concrete moment";
+  return undefined;
 }

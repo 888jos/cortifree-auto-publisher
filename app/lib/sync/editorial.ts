@@ -294,6 +294,8 @@ const VOICE_RECORD_MIRRORS = [
   { sheet: "06_HOOKS", range: "A1:Q400", kind: "hook_references", key: "hook_id", title: "formula" },
   // Look-alike groups and their single image master (optional tab).
   { sheet: "00_VISUAL_GROUPS", range: "A1:F20", kind: "visual_groups", key: "group_id", title: "label", optional: true },
+  // The operator's standing copy/visual rules (optional tab).
+  { sheet: "00_OPERATOR_RULES", range: "A1:D300", kind: "operator_rules", key: "rule_id", title: "rule", optional: true },
 ];
 
 /** Mirrors only the voice tabs: two Sheet reads, light enough to run inline. */

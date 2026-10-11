@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { fixHashtags, nativeCase, nativeStyleIssues } from "../app/lib/ai/native-style.js";
+import { fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "../app/lib/ai/native-style.js";
 
 const slide = (position: number, layout: string, body: string, headline = "h") =>
   ({ position, role: position === 1 ? "HOOK" : "STEP", layout, headline, body, visualIntent: "v", assetType: "stock", assetQuery: "q" });
@@ -41,5 +41,27 @@ describe("caption hashtags", () => {
   it("joins a hashtag split by a space, leaving the sentence alone", () => {
     assert.equal(fixHashtags("what would you keep? #selfcare #clean girl #simpleroutines"), "what would you keep? #selfcare #cleangirl #simpleroutines");
     assert.equal(fixHashtags("save this #wellnesstok"), "save this #wellnesstok");
+  });
+});
+
+describe('titleHookReason', () => {
+  it('flags blog-title hooks the operator rejected', () => {
+    for (const hook of [
+      'my simple reset when everything feels like too much',
+      'my calm morning routine for busy days',
+      'a gentle evening guide for anxious girls',
+      'the easy habits to feel less stressed',
+      'what i do when everything feels like a lot',
+    ]) assert.ok(titleHookReason(hook), hook);
+  });
+  it('lets native TikTok hooks through', () => {
+    for (const hook of [
+      'the 5 min thing i do when my brain is fried',
+      'pov: you finally stopped doomscrolling at 1am',
+      'this is your sign to put your phone in another room',
+      'my lazy girl morning routine rn',
+      'things i stopped doing to feel less anxious',
+      'ranking “healthy girl” habits from actually worth it to absolutely not',
+    ]) assert.equal(titleHookReason(hook), undefined, hook);
   });
 });

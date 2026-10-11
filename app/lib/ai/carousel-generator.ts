@@ -9,7 +9,7 @@ import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
-import { fixHashtags, nativeCase, nativeStyleIssues } from "./native-style";
+import { fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
 
 export type GenerateCarouselResult = {
@@ -200,20 +200,26 @@ export async function generateCarousel(
         const nativeRepair = /NATIVE_STYLE/.test(repairIssues)
           ? "\nNATIVE STYLE REPAIR: It still reads like AI. Cut every body slide to about 6-18 words (one line a girl would type), list items to 12 words max, remove \"not X, just Y\" / \"X, not Y\" constructions and neat punchline closers, and vary sentence shapes: do not explain every action with \"..., so i...\". Say it the way she would say it to a friend."
           : "";
+        const routineRepair = /ROUTINE_STEP_|ROUTINE_THAT_GIRL/.test(repairIssues)
+          ? "\nF03 STEP REPAIR: Each step after the time is ONE simple action a photo can show, 2-6 words, said the way a girl types it: \"walk around the block\", \"make a protein + fiber dinner\", \"eat dinner at the table\", \"shower and skincare\", \"stretch on my mat\", \"read in bed\". No second clause (before/after/until/then), no detail nobody needs (\"with one pan\"), no task with nothing to see (\"save my work\"). Its assetQuery and visualIntent show her DOING that action, nothing else. No \"that girl\" unless the post is about that trend."
+          : "";
         const dashRepair = /DASH_PUNCTUATION/.test(repairIssues)
           ? "\nDASH REPAIR: Remove every em dash, en dash and spaced hyphen used as punctuation. Use a comma, a colon, a new short sentence, or \" / \" like a person typing on her phone. Hyphens inside words (low-effort) and F03 time ranges stay."
           : "";
         const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
           ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
           : "";
-        const specificityRepair = /Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
+        const titleHookRepair = /TITLE_HOOK/.test(repairIssues)
+          ? "\nHOOK REPAIR: The hook reads like a blog or Pinterest title that labels the content. Rewrite ONLY the hook (and slide 1 headline) as something a girl would actually say on TikTok: a confession, a specific moment, a strong opinion, a \"you\" call-out or a real question about the same topic. Name the concrete moment instead of a vague feeling."
+          : "";
+        const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${routineRepair}${titleHookRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -243,6 +249,8 @@ export async function generateCarousel(
         if (generic && styleAttempt) throw new Error(`GENERICITY: ${generic.message}`);
         const styleIssues = nativeStyleIssues(candidate);
         if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        const titleHook = titleHookReason(candidate.hook);
+        if (titleHook && styleAttempt) throw new Error(`TITLE_HOOK: "${candidate.hook}" ${titleHook}`);
         spec = candidate;
         break;
       } catch (error) {

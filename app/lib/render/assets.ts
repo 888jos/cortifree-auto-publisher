@@ -5,7 +5,8 @@ import { downloadDriveFile } from "../google/drive";
 import { processImageGenerationJob, recentImageProviderBlocker, usedReferenceIdsForPersona } from "../image-generation";
 import { CORTIFREE_WORKSPACE_ID } from "../workspace";
 import { buildImagePrompt, imageGenerationInputSchema } from "../../../src/image-generation/core";
-import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema } from "../../../src/visual-references";
+import { isAutomaticVisualReference, scoreVisualReferenceForScene, visualReferenceSchema, type VisualReference } from "../../../src/visual-references";
+import { referenceShowsStepAction, routineStepAction, stepActionFamilies, withoutNegatedMentions } from "../../../src/visual-references/step-actions";
 import { loadRuntimePersonaConfigs } from "../../../src/runtime/config";
 import type { CarouselRenderInput, EditorOverrides, ExistingSlideRow, GeneratedSlide, RevisionRenderInput } from "./types";
 
@@ -106,8 +107,27 @@ export function rankingAssetCountForSlide(slide: Pick<GeneratedSlide, "position"
   return isHook ? 2 : 0;
 }
 
+const CATEGORY_BY_STEP_ACTION: Record<string, string> = {
+  walking: "outdoors", running: "fitness", stretching: "fitness",
+  cooking: "food", eating: "food", drinking: "food",
+  skincare: "self_care", brushing_teeth: "self_care", showering: "self_care",
+  writing: "work_study", laptop: "work_study", packing: "work_study",
+  changing: "home", tidying: "home", reading: "home", bed: "home", resting: "home", lighting: "home", phone_down: "home",
+};
+
+/** Families of an F03 step ("time · action"); empty for any other slide. */
+function routineStepFamilies(slide: Pick<GeneratedSlide, "headline">) {
+  return slide.headline.includes("·") ? stepActionFamilies(slide.headline) : [];
+}
+
 export function generationCategory(slide: GeneratedSlide) {
-  const text = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.toLowerCase();
+  // The step's own action decides first: "wash my face after work" is self
+  // care, not work (it was repaired from a library reference).
+  const fromAction = routineStepFamilies(slide).map((family) => CATEGORY_BY_STEP_ACTION[family.key]).find(Boolean);
+  if (fromAction) return fromAction;
+  const text = withoutNegatedMentions(`${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`)
+    .toLowerCase()
+    .replace(/\bafter (?:work|class|school)\b/g, " ");
   if (/\b(?:walk|walking|outdoor|outdoors|street|park|outside|nature|sidewalk|commute)\b/.test(text)) return "outdoors";
   if (/\b(?:gym|workout|exercise|fitness|pilates|yoga|run|running|stretch|movement)\b/.test(text)) return "fitness";
   if (/\b(?:food|meal|breakfast|lunch|dinner|eat|eating|drink|coffee|matcha|grocery|groceries|snack)\b/.test(text)) return "food";
@@ -136,7 +156,8 @@ export function checklistBackgroundFallbackSlide(slide: GeneratedSlide): Generat
 }
 
 function referenceSceneIntent(slide: GeneratedSlide) {
-  const scene = `${slide.headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`.trim();
+  const headline = slide.headline.includes("·") ? routineStepAction(slide.headline) : slide.headline;
+  const scene = withoutNegatedMentions(`${headline} ${slide.body} ${slide.assetQuery} ${slide.visualIntent}`).trim();
   const category = generationCategory(slide);
   const recommended_reference_categories =
     category === "outdoors" ? ["outdoors_walk"] :
@@ -151,6 +172,30 @@ function referenceSceneIntent(slide: GeneratedSlide) {
     recommended_reference_categories,
     broad_match_only: slide.position === 1 || slide.role.toUpperCase() === "HOOK",
   };
+}
+
+function visualReferenceText(reference: { category?: string; pose?: string; environment?: string; tags?: string[]; good_for?: string[]; metadata?: Record<string, unknown> }) {
+  const metadata = Object.values(reference.metadata ?? {}).filter((value) => typeof value === "string" || Array.isArray(value)).flat();
+  return [reference.pose, reference.category, reference.environment, ...(reference.tags ?? []), ...(reference.good_for ?? []), ...metadata].join(" ");
+}
+
+/** References for a repair of this slide, best first. */
+export function rankRepairReferences<T extends VisualReference>(references: T[], slide: GeneratedSlide) {
+  const referenceIntent = referenceSceneIntent(slide);
+  // An F03 step is generated from a reference already showing its action
+  // (a walking reference for "walk around the block"): Seedream keeps the
+  // reference's scene, so a library reference gave a library photo.
+  const stepFamilies = referenceIntent.broad_match_only ? [] : routineStepFamilies(slide);
+  const rankedReferences = references
+    .map((reference) => ({
+      reference,
+      score: scoreVisualReferenceForScene(reference, referenceIntent)
+        // A bonus, not a filter: with no reference showing the action left,
+        // the closest scene still beats a failed render.
+        + (stepFamilies.length && referenceShowsStepAction(stepFamilies, visualReferenceText(reference)) ? 60 : 0),
+    }))
+    .sort((a, b) => b.score - a.score);
+  return rankedReferences;
 }
 
 export async function generateRepairAsset(options: { input: { id: string; personaId?: string }; slide: GeneratedSlide; position: number; usedReferenceIds: Set<string> }) {
@@ -179,9 +224,7 @@ export async function generateRepairAsset(options: { input: { id: string; person
     .flatMap((result) => result.success && isAutomaticVisualReference(result.data) ? [result.data] : [])
     .filter((reference) => !options.usedReferenceIds.has(reference.id) && !usedByPersona.has(reference.id));
   const referenceIntent = referenceSceneIntent(options.slide);
-  const rankedReferences = references
-    .map((reference) => ({ reference, score: scoreVisualReferenceForScene(reference, referenceIntent) }))
-    .sort((a, b) => b.score - a.score);
+  const rankedReferences = rankRepairReferences(references, options.slide);
   const bestReference = rankedReferences[0];
   if (!bestReference) throw new Error(`MODELARK_REFERENCE_MISSING:slide_${options.position}`);
   const referenceFloor = referenceIntent.broad_match_only ? 8 : 20;
@@ -269,7 +312,11 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
     if (override.assetId != null) return [override.assetId];
     const repaired = repairedAssetByPosition.get(slide.position);
     if (repaired != null) return [repaired];
-    const previous = previousRendered.find((item) => Number(item.position) === Number(slide.position)) ?? previousRendered[index];
+    // The index fallback is only for legacy entries without a position:
+    // otherwise the cover inherited the photo locked on another step.
+    const byIndex = previousRendered[index];
+    const previous = previousRendered.find((item) => Number(item.position) === Number(slide.position))
+      ?? (byIndex && byIndex.position == null ? byIndex : undefined);
     const previousIds = Array.isArray(previous?.assetIds) ? previous!.assetIds as Array<string | number> : [];
     if (previousIds.length) return previousIds;
     return previous?.assetId != null ? [previous.assetId as string | number] : [];
@@ -401,12 +448,22 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
         break;
       }
       if (input.layout === "routine-timeline") {
-        const usedRoutineAssets = new Set<string>();
-        gridMatches = input.slides.map((slide, index) => {
+        // Repairs and operator picks are reserved for their own step up front:
+        // a live F03 showed step 3's repair again on the cover and step 5's on
+        // step 2. Steps are filled before the cover, whose photo only needs the
+        // broad theme, so the cover never takes the one photo a step needs.
+        const usedRoutineAssets = new Set<string>(input.slides.flatMap((slide, index) =>
+          lockedMatchesForSlide(slide, index).map((match) => String(match.asset.id))));
+        const isRoutineCover = (slide: GeneratedSlide, index: number) => index === 0 || slide.role.toUpperCase() === "HOOK";
+        const order = input.slides.map((_, index) => index)
+          .sort((a, b) => Number(isRoutineCover(input.slides[a]!, a)) - Number(isRoutineCover(input.slides[b]!, b)));
+        const routineMatches: AssetMatch[][] = [];
+        for (const index of order) {
+          const slide = input.slides[index]!;
           const locked = lockedMatchesForSlide(slide, index)[0];
           if (locked) {
-            usedRoutineAssets.add(String(locked.asset.id));
-            return [locked];
+            routineMatches[index] = [locked];
+            continue;
           }
           const selected = chooseAssets({ faceLock,
             assets,
@@ -416,8 +473,9 @@ export async function selectCarouselMatches(input: CarouselRenderInput, editorOv
             slides: [primarySelectionSlide(slide)],
           })[0]!;
           usedRoutineAssets.add(String(selected.asset.id));
-          return [selected];
-        });
+          routineMatches[index] = [selected];
+        }
+        gridMatches = routineMatches;
         break;
       }
       if (input.layout !== "grid-2x2" && !multiImageLayout) {
@@ -610,8 +668,11 @@ export async function selectRevisionMatches(context: {
   previous: any;
   visualChange: boolean;
   usedReferenceIds: Set<string>;
+  /** Photos the carousel's other slides show: one photo appears once per carousel. */
+  otherSlideAssetIds?: Set<string>;
 }): Promise<AssetMatch[]> {
   const { input, pool, slide, existing, previous, visualChange, usedReferenceIds } = context;
+  const otherSlideAssetIds = context.otherSlideAssetIds ?? new Set<string>();
   await loadVisualGroups();
   // Keep the face this slide already showed; otherwise the account's own face
   // when it has images, so a revised slide does not switch to a look-alike.
@@ -742,6 +803,7 @@ export async function selectRevisionMatches(context: {
             assets: pool.assets,
             carouselType: input.carouselType,
             personaId: input.personaId,
+            excludedAssetIds: otherSlideAssetIds,
             slides: [slide],
           });
         }
