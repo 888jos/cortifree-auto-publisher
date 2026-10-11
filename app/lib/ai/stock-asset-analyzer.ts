@@ -26,6 +26,18 @@ export const stockAssetVisionSchema = z.object({
   mood: token,
   good_for: tokenList,
   avoid_for: tokenList,
+  // One photograph, or several photos/panels assembled into one image.
+  image_layout: z.enum(["single_photo", "collage_or_multi_panel"]),
+  // Box around the main person's face (or the main subject when no face is
+  // visible), as fractions of the image from the top-left corner. Used to
+  // crop wide bands without cutting the face.
+  subject_box: z.object({
+    kind: z.enum(["face", "subject", "none"]),
+    left: z.number(),
+    top: z.number(),
+    right: z.number(),
+    bottom: z.number(),
+  }),
 });
 
 export type StockAssetVision = z.infer<typeof stockAssetVisionSchema>;
@@ -44,12 +56,14 @@ export class OpenAIStockAssetAnalyzer {
           "asset_name must be an uppercase underscore-separated, descriptive name for THIS image. visual_description must be a specific 1-3 sentence account of subject, action, objects, setting, viewpoint, lighting and discriminating details.",
           "Use normalized concise snake_case values for arrays and fields where applicable. setting must be concrete (for example outdoor_sidewalk, commercial_gym, home_bedroom). text_in_image must be 'none' when no legible text or logo is visible.",
           "good_for and avoid_for are editorial retrieval labels grounded in what is visibly depicted; they must not introduce claims not shown in the image.",
+          "image_layout is collage_or_multi_panel when the image is made of two or more separate photos, panels, frames or a split screen (white dividers, grid, triptych); otherwise single_photo.",
+          "subject_box: when a person's face is visible, kind=face and the tight box around that face (forehead to chin, ear to ear) of the main person. Otherwise kind=subject and the box around the main subject (hands and object, food, item). kind=none with 0,0,1,1 for an empty scene. Values are fractions 0 to 1 of the image width (left, right) and height (top, bottom), measured from the top-left corner.",
           retryHint ?? "",
         ].filter(Boolean).join("\n"),
         input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl, detail: "high" }] }],
         store: false,
         max_output_tokens: 1_400,
-        text: { format: zodTextFormat(stockAssetVisionSchema, "stock_asset_observable_v2") },
+        text: { format: zodTextFormat(stockAssetVisionSchema, "stock_asset_observable_v3") },
       }, { timeout: this.timeoutMs, maxRetries: 0 });
       if (!response.output_parsed) throw new Error("OpenAI returned no stock asset analysis");
       return {

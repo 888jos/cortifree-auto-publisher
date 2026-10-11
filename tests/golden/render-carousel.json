@@ -1,6 +1,6 @@
 {
   "rows": {
-    "F01_LIFESTYLE_GUIDE": "ca8f6aa47389a483c2f4aaae3a08b429eaa18b8d8bf53593ad7f2cb28f811541",
+    "F01_LIFESTYLE_GUIDE": "acea7c47d2c12aa1d865f5cd6b198a744f6bf8bd8315a7a0589f415c111310d6",
     "F02_EDITORIAL_COLLAGE": "bd4c03b6eaa25a6eb5fb75c79594e49bb7ab53239c7dc002158732e82ccbc042",
     "F03_ROUTINE_TIMELINE": "d73217f78df331f1147104344c0bedcc7e8adb099808e11b9c6ce1a18385dabb",
     "F04_AESTHETIC_EDUCATIONAL": "5fc871f733b74cd6ebe8493ef75e145103f9cd9b6ff46ff6a2564cf07bf39d77",
@@ -16,32 +16,33 @@
     "REVISION_SINGLE_IMAGE": "5b88f7befcf1c909ca7303f373989a855b9006c454198ebb2590fe775ba88757",
     "LONG_F03_ROUTINE_TIMELINE": "71fa63f913bfaae714ac2d43d37864c612428e8b59e7918aaac9eab8135e0cf5",
     "LONG_F04_AESTHETIC_EDUCATIONAL": "016fb5b69526e8ae8a8751a9478d317cb99cc50cbfb7f214866ed17e69e14a1b",
-    "LONG_F05_INTERACTIVE_CHECKLIST": "a3db100b225a08158b2154a67a4e738192a189d486fa05292d5b19a5d43d28a1"
+    "LONG_F05_INTERACTIVE_CHECKLIST": "d48596b8f2c1953736aca60de1aa5def7d56d8b1a372ab24ae7fc56ed9fe770d",
+    "LONG_F01_LIFESTYLE_GUIDE": "7d064b97ad56eace1814baaa7e2a66ac10b6b6021d47aa41c1e33407e9d9e3eb"
   },
   "renders": {
     "darwin-arm64-vips8.18.7": {
       "F01_LIFESTYLE_GUIDE": [
         {
           "position": 1,
-          "sha256": "3cc1f647452d568d40f0cdc12432d7cce97222c44bfcf7945473d74877f70706",
+          "sha256": "7ed5cba77ce9271cdd8f30f7f4e22c11e5098cf81d9c045b1c133586c5102bf7",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "a999f5c8c1832984a7a772e0b051db0a087d9f38061877dbf582982fc4ee9851",
+          "sha256": "433b8376582eafdce0f007a1b16a71544fbc1baa137a605672c6f4f561fffc98",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "f5b5690eb2434896e7a849840d7ddc7d292fe5a5215002407bdea6227af17606",
+          "sha256": "507fed3153558bb6c4aabda5ecaacab114cc76f0c842e3c280648820dab7b5b0",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 4,
-          "sha256": "434fa2dc7abd0168794dc1320a5a24c7f575d4aaef9308afc533e6df7ea7e969",
+          "sha256": "659c6e366c17e50f2a746f633cee0a0f09c76e3576ead70c07139183ba2ad8ee",
           "width": 1080,
           "height": 1350
         }
@@ -294,22 +295,42 @@
           "height": 1350
         }
       ],
-      "LONG_F05_INTERACTIVE_CHECKLIST": [
+      "LONG_F01_LIFESTYLE_GUIDE": [
         {
           "position": 1,
-          "sha256": "c23397e1303962399dcff9fdb0d1f902429f6bb069aade59aba294fd652513f4",
+          "sha256": "ac814cda3ae76b72f71a535e1070cb6ef99732a391d7d84e4c09800d7d652b9e",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 2,
-          "sha256": "4a33aab7ce4308f8639c880d01fc10424c6c1d646ecc9fe3e87a05f46684a0d7",
+          "sha256": "5d0b6555fe6d261cb241b2a5c5e9925a7bdc729cadd054efef7ddd1b32a12e42",
           "width": 1080,
           "height": 1350
         },
         {
           "position": 3,
-          "sha256": "bf0bb2e688d463bf6af1100620eff85dcf2ce0adb5fd377850f5aa612371cb39",
+          "sha256": "ae9452eff6a54a13a578706f73bb8b1378efc1e9050d864dc5ac4c350e27b98f",
+          "width": 1080,
+          "height": 1350
+        }
+      ],
+      "LONG_F05_INTERACTIVE_CHECKLIST": [
+        {
+          "position": 1,
+          "sha256": "5f8678a6e7c17239ba909dae83ff7af4c29fd96fda163bc6769273865fd42b9a",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 2,
+          "sha256": "4ff50f807f679149034d8b76d251a153b550934f7ddebc905b913dc64bad09db",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "position": 3,
+          "sha256": "bb1819f46d205ef930aebb41512c9f7576cf24213be8f6e2ff9f68108c2d7587",
           "width": 1080,
           "height": 1350
         }

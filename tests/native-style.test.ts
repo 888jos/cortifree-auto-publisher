@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { fixHashtags, nativeCase, nativeStyleIssues } from "../app/lib/ai/native-style.js";
+import { abstractHeadlines, fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "../app/lib/ai/native-style.js";
 
 const slide = (position: number, layout: string, body: string, headline = "h") =>
   ({ position, role: position === 1 ? "HOOK" : "STEP", layout, headline, body, visualIntent: "v", assetType: "stock", assetQuery: "q" });
@@ -41,5 +41,50 @@ describe("caption hashtags", () => {
   it("joins a hashtag split by a space, leaving the sentence alone", () => {
     assert.equal(fixHashtags("what would you keep? #selfcare #clean girl #simpleroutines"), "what would you keep? #selfcare #cleangirl #simpleroutines");
     assert.equal(fixHashtags("save this #wellnesstok"), "save this #wellnesstok");
+  });
+});
+
+describe('titleHookReason', () => {
+  it('flags blog-title hooks the operator rejected', () => {
+    for (const hook of [
+      'my simple reset when everything feels like too much',
+      'my calm morning routine for busy days',
+      'a gentle evening guide for anxious girls',
+      'the easy habits to feel less stressed',
+      'what i do when everything feels like a lot',
+      'my 10 minute reset for overwhelming days',
+      'my simple evening reset after a long day',
+      '5 simple ways to feel less overwhelmed',
+      'how to reset when your brain is fried',
+      'a few small habits to calm a busy mind',
+      'the reset i do when it all feels too much',
+    ]) assert.ok(titleHookReason(hook), hook);
+  });
+  it('lets native TikTok hooks through', () => {
+    for (const hook of [
+      'the 5 min thing i do when my brain is fried',
+      'pov: you finally stopped doomscrolling at 1am',
+      'this is your sign to put your phone in another room',
+      'my lazy girl morning routine rn',
+      'things i stopped doing to feel less anxious',
+      'ranking “healthy girl” habits from actually worth it to absolutely not',
+      'what i do when i have 14 tabs open and my brain just stops',
+      'nobody told me a messy desk makes me this anxious??',
+    ]) assert.equal(titleHookReason(hook), undefined, hook);
+  });
+});
+
+describe('abstractHeadlines', () => {
+  it('flags F01 headlines built on an abstract word, not the concrete ones', () => {
+    const slide = (position: number, headline: string) => ({ position, role: position === 1 ? 'HOOK' : 'TIP', layout: 'lifestyle-3stack', headline, body: 'i do this every day', visualIntent: 'x', assetType: 'stock', assetQuery: 'x' });
+    const spec = { slides: [
+      slide(1, 'what i do when i have 14 tabs open'),
+      slide(2, 'pause the extra input'),
+      slide(3, 'clear one small surface'),
+      slide(4, 'keep the reset small'),
+      slide(5, 'phone on do not disturb'),
+      slide(6, 'white noise while i work'),
+    ] } as never;
+    assert.deepEqual(abstractHeadlines(spec), ['pause the extra input', 'keep the reset small']);
   });
 });

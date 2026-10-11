@@ -9,7 +9,7 @@ import { assertWithinMonthlyCap, getMonthlyUsage, logAIUsage } from "./usage";
 import { assertKnownModelPricing } from "./pricing";
 import { assertValidCarouselSpec, validateCarouselSpec } from "./validation";
 import { hasDashPunctuation, stripDashPunctuation } from "./dashes";
-import { fixHashtags, nativeCase, nativeStyleIssues } from "./native-style";
+import { abstractHeadlines, fixHashtags, nativeCase, nativeStyleIssues, titleHookReason } from "./native-style";
 import { plainLanguageEdit } from "./plain-language";
 
 export type GenerateCarouselResult = {
@@ -206,14 +206,20 @@ export async function generateCarousel(
         const originalityRepair = /COPIED_REFERENCE/.test(repairIssues)
           ? "\nORIGINALITY REPAIR: The draft reused wording from a reference or a recent post (quoted in the reasons). Keep the same voice, but write a different hook and your own item wording. Never reuse a reference's hook, items or sentences."
           : "";
-        const specificityRepair = /Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
+        const titleHookRepair = /TITLE_HOOK/.test(repairIssues)
+          ? "\nHOOK REPAIR: The hook reads like a blog or Pinterest title that labels the content. Rewrite ONLY the hook (and slide 1 headline) as something a girl would actually say on TikTok: a confession, a specific moment, a strong opinion, a \"you\" call-out or a real question about the same topic. Name the concrete moment instead of a vague feeling."
+          : "";
+        const headlineRepair = /ABSTRACT_HEADLINE/.test(repairIssues)
+          ? "\nHEADLINE REPAIR: Some slide headlines (quoted in the reasons) use an abstract word, so nobody understands what to do. Rewrite those headlines as the plain action she does, in 2-6 everyday words a friend would say (e.g. \"phone on do not disturb\", \"i clear one corner of my desk\", \"tea instead of scrolling\"). Keep the body and the photos' meaning."
+          : "";
+        const specificityRepair =/Too few concrete behaviors or details|Copy has no creator point of view|GENERICITY/i.test(repairIssues)
           ? "\nSPECIFICITY REPAIR: Replace vague wellness language with observable actions, objects, settings and realistic tradeoffs tied to this exact territory. For creator-led formats use natural first-person framing where it fits. For F07 ranking, keep the copy text-first and explain each concrete item's practical reason instead of forcing diary language."
           : "";
         const result = await request({
           model: config.OPENAI_MODEL_PRIMARY,
           schema: carouselSpecSchema,
           schemaName: "cortifree_carousel_spec",
-          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
+          instructions: `${CAROUSEL_GENERATOR_INSTRUCTIONS}\n\nEXACT STRUCTURE: Return exactly ${input.requestedSlideCount} slides. The slides array length is not flexible.${attempt > 1 ? `\n\nCORRECTION PASS: The previous draft was rejected for these exact blocking reasons: ${repairIssues}. Rewrite the entire JSON. Preserve the requested format and exact slide count, but remove unsafe health claims, placeholders, duplicates, and malformed structure. Do not treat minor visual/copy polish as a blocker.${slideCountRepair}${scriptRepair}${checklistRepair}${specificityRepair}${originalityRepair}${checklistVoiceRepair}${dashRepair}${nativeRepair}${titleHookRepair}${headlineRepair}${/Unsafe health claim/i.test(repairIssues) ? "\nHEALTH-SAFETY REWRITE: Strip all treatment, cure, diagnosis, guaranteed-outcome, hormone-fixing and disease-management language. Do not use condition words such as anxiety, insomnia, burnout, acne, panic attacks, sleep disorder or fatigue in a treatment/diagnosis frame. For breathing, walking, sleep routines, light exposure or other wellness habits, describe only the concrete behavior and a cautious first-person or general relaxation/routine benefit, e.g. a pause cue, a wind-down cue, or something that may feel calming. Never imply it treats a condition or proves a cortisol/hormone state." : ""}` : ""}`,
           input: buildGeneratorInput(input),
           // Voice-rich copy plus visual fields overflowed 3.2k and truncated assetQuery.
           maxOutputTokens: 4_800,
@@ -232,17 +238,28 @@ export async function generateCarousel(
         assertValidCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
         bestValid = candidate;
         // Ask for a natural rewrite first; sanitizing is only the safety net.
+        // Every style issue is sent back at once: one at a time, an early
+        // issue used up both rewrites and a title hook was never fixed.
+        const styleProblems: string[] = [];
         const dashed = [parsed.hook, parsed.caption, ...parsed.slides.flatMap((slide) => [slide.headline, slide.body])].some(hasDashPunctuation);
-        if (dashed && styleAttempt) throw new Error("DASH_PUNCTUATION: copy uses dashes as punctuation");
+        if (dashed) styleProblems.push("DASH_PUNCTUATION: copy uses dashes as punctuation");
         // Copying a reference is worth a rewrite, but never a dead end: the
         // last attempt is kept even if it still echoes a reference.
         const copied = copiedReferencePhrase(candidate, referenceTexts(input));
-        if (copied && styleAttempt) throw new Error(`COPIED_REFERENCE: "${copied}"`);
-        if (isVoicelessChecklist(candidate) && styleAttempt) throw new Error("VOICELESS_CHECKLIST: most Notes items are bare commands");
+        if (copied) styleProblems.push(`COPIED_REFERENCE: "${copied}"`);
+        if (isVoicelessChecklist(candidate)) styleProblems.push("VOICELESS_CHECKLIST: most Notes items are bare commands");
         const generic = validateCarouselSpec(candidate, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout }).find((issue) => issue.code === "GENERICITY");
-        if (generic && styleAttempt) throw new Error(`GENERICITY: ${generic.message}`);
+        if (generic) styleProblems.push(`GENERICITY: ${generic.message}`);
         const styleIssues = nativeStyleIssues(candidate);
-        if (styleIssues.length && styleAttempt) throw new Error(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        if (styleIssues.length) styleProblems.push(`NATIVE_STYLE: ${styleIssues.join("; ")}`);
+        const unclear = abstractHeadlines(candidate);
+        if (unclear.length) styleProblems.push(`ABSTRACT_HEADLINE: ${unclear.map((headline) => `"${headline}"`).join(", ")} use an abstract word instead of the concrete action`);
+        const titleHook = titleHookReason(candidate.hook) ?? titleHookReason(candidate.slides[0]?.headline ?? "");
+        if (titleHook) styleProblems.push(`TITLE_HOOK: "${candidate.hook}" ${titleHook}`);
+        // The hook decides whether anyone stops scrolling: it keeps a third
+        // rewrite, the last attempt stays for hard failures.
+        if (titleHook && !styleAttempt && attempt < maxAttempts) throw new Error(styleProblems.filter((problem) => problem.startsWith("TITLE_HOOK")).join("\n"));
+        if (styleProblems.length && styleAttempt) throw new Error(styleProblems.join("\n"));
         spec = candidate;
         break;
       } catch (error) {
@@ -267,6 +284,11 @@ export async function generateCarousel(
         };
         if (plain.spec) {
           const edited = sanitizeGeneratedCarouselSpec(plain.spec);
+          // The clarity pass may not turn a native hook back into a title.
+          if (titleHookReason(edited.hook) && !titleHookReason(spec.hook)) {
+            edited.hook = spec.hook;
+            if (edited.slides[0] && spec.slides[0]) edited.slides[0].headline = spec.slides[0].headline;
+          }
           assertValidCarouselSpec(edited, { slideCount: input.requestedSlideCount, language: input.language, layout: input.layout });
           spec = edited;
         }

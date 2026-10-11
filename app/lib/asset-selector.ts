@@ -1,6 +1,8 @@
 import { visualGroupOf } from "./visual-groups";
 import { dataBackend } from "./data-backend";
 import { CORTIFREE_WORKSPACE_ID } from "./workspace";
+import { faceFitsFrame } from "./render/framing";
+import { isCollageDescription } from "../../src/visual-references";
 
 export type SelectableAsset = {
   id: string; filename: string; category: string; subcategory: string; orientation: string; framing: string;
@@ -11,6 +13,7 @@ export type SelectableAsset = {
   lighting?: string; dominant_colors?: string[]; text_in_image?: string; specific_details?: string;
   visual_tagging_schema?: string; visual_review_status?: string; visual_reviewed_at?: string | null;
   metadata?: Record<string, unknown>;
+  width?: number | null; height?: number | null;
 };
 
 export type JitSelectableAsset = SelectableAsset & { source_type?: string; persona_id?: string | null };
@@ -380,7 +383,7 @@ function semanticTokenOverlap(desired: string, actual: string) {
 }
 
 export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
-  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,drive_file_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata&enabled=eq.true&public_url=not.is.null&limit=1000`);
+  const response = await dataBackend(`assets?workspace_id=eq.${CORTIFREE_WORKSPACE_ID}&select=id,filename,category,subcategory,scene,good_for,orientation,framing,activity,mood,colors,tags,public_url,use_count,last_used_at,source_type,persona_id,drive_file_id,visual_description,visible_objects,visible_actions,setting,people_visibility,body_parts_visible,composition,camera_angle,lighting,dominant_colors,text_in_image,specific_details,visual_tagging_schema,visual_review_status,visual_reviewed_at,metadata,width,height&enabled=eq.true&public_url=not.is.null&limit=1000`);
   if (!response.ok) throw new Error(`Cannot load assets: ${await response.text()}`);
   return await response.json() as SelectableAsset[];
 }
@@ -389,6 +392,12 @@ export async function loadSelectableAssets(): Promise<SelectableAsset[]> {
 export function isFacelessStock(asset: { people_visibility?: string | null }) {
   const visibility = String(asset.people_visibility ?? "").toLowerCase();
   return visibility === "no_person" || /^hands?(_only|_partially_visible)?$/.test(visibility) || /^partial_body_via_/.test(visibility);
+}
+
+/** An image made of several photos or panels (ModelArk copies collage references). Never a carousel photo. */
+export function isCollageAsset(asset: SelectableAsset) {
+  return asset.metadata?.image_layout === "collage_or_multi_panel"
+    || isCollageDescription(String(asset.visual_description ?? ""), String(asset.composition ?? ""), String(asset.specific_details ?? ""));
 }
 
 export function chooseAssets(options: {
@@ -403,6 +412,8 @@ export function chooseAssets(options: {
   facelessStockOnly?: boolean;
   /** Decorative support slots: take the best eligible candidate whatever its score. */
   acceptBest?: boolean;
+  /** Frame the photo is cropped into (F01 bands): a face too tall for it is never picked. */
+  frame?: { width: number; height: number };
   slides: Array<{ position: number; role?: string; headline: string; body: string; assetQuery: string; visualIntent: string; assetType?: string }>;
 }): AssetMatch[] {
   const used = new Set<string>();
@@ -418,6 +429,7 @@ export function chooseAssets(options: {
     const finalUse = options.assets.filter((asset) =>
       !VISUAL_QA_EXCLUDED_FILENAMES.has(asset.filename)
       && !options.excludedAssetIds?.has(String(asset.id))
+      && !isCollageAsset(asset)
       // A stock photo with a creator caption already burned in ("grocery day",
       // "my obsession rn") would clash with the carousel's own text.
       && !(asset.source_type === "stock" && /overlay/i.test(String(asset.text_in_image ?? "")))
@@ -432,7 +444,7 @@ export function chooseAssets(options: {
     const constraint = sceneConstraint(slide);
     const hookNeedsPersona = !officialAppScreenshot && (slide.position === 1 || slide.role?.toUpperCase() === "HOOK");
     const requiresPersonaScene = /steaming|steamer|outfit|clothing rack|getting dressed/.test(`${slide.assetQuery} ${slide.visualIntent}`.toLowerCase());
-    const requested = officialAppScreenshot
+    const requestedAny = officialAppScreenshot
       ? finalUse.filter((asset) => asset.source_type === "app_screenshot")
       : hookNeedsPersona || slide.assetType === "persona"
         ? finalUse.filter((asset) => asset.source_type === "persona_generated" && allowsPersona(asset))
@@ -444,6 +456,11 @@ export function chooseAssets(options: {
           : slide.assetType === "text_only"
             ? finalUse.filter((asset) => asset.source_type === "stock")
             : finalUse;
+    // In a wide band a close-up face always loses its forehead or chin: keep
+    // only photos whose face fits, unless none does (never a dead end that
+    // would send the slide to ModelArk).
+    const fitting = options.frame ? requestedAny.filter((asset) => faceFitsFrame(asset, options.frame!)) : requestedAny;
+    const requested = fitting.length ? fitting : requestedAny;
     // Persona-required slides must preserve identity. Never silently
     // downgrade them to stock just to make a draft renderable. Throwing here
     // intentionally hands control back to render-carousel's ModelArk repair path.

@@ -127,7 +127,8 @@ export function stockCanonicalMetadata(taxonomy: Row, entry: WalkedFile, existin
     visual_reviewed_at: taxonomy.visual_reviewed_at ?? null,
     tags: split(taxonomy.tags),
     good_for: split(taxonomy.good_for_pillars),
-    enabled: selectable,
+    // A reference disabled at runtime (collage output, wrong label) stays off.
+    enabled: selectable && !String(runtimeMetadata(existing ?? {}).disabled_reason ?? "").trim(),
     canonical_updated_at: entry.file.modifiedTime ?? null,
     synced_at: new Date().toISOString(),
     source_hash: entry.file.md5Checksum ?? null,
